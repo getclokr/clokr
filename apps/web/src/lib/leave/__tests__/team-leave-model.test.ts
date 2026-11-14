@@ -10,6 +10,7 @@ import {
   overviewPersons,
   pageOfRequest,
   requestsForStatus,
+  withHomeSalonMarks,
 } from "../team-leave-model";
 import type { TimelinePerson } from "../timeline-model";
 
@@ -276,5 +277,35 @@ describe("inLeaderReach (Issue #853, D-853-12)", () => {
   it("a whole-tenant answer (no masked rows) is returned unchanged", () => {
     const rows = [person("a", "A"), person("b", "B")];
     expect(inLeaderReach(rows, new Set(), false)).toEqual(rows);
+  });
+});
+
+// Issue #949: the timeline marks a roster person homed outside the reader's salons.
+describe("withHomeSalonMarks (#949)", () => {
+  const roster = [
+    { id: "a", firstName: "Ana", lastName: "Nord", homeSalonId: "nord" },
+    { id: "b", firstName: "Cem", lastName: "Konflikt", homeSalonId: "demo" },
+    { id: "c", firstName: "Ole", lastName: "Ohne", homeSalonId: null },
+  ];
+  const rows = [
+    person("a", "Ana Nord"),
+    person("b", "Cem Konflikt"),
+    person("c", "Ole Ohne"),
+    person("x", "Xenia Fremd"),
+  ];
+
+  it("marks a Springer and a person without Stammsalon, never adds or removes a row", () => {
+    const marked = withHomeSalonMarks(rows, roster, new Set(["nord"]), true);
+    expect(marked.map((row) => row.employeeId)).toEqual(["a", "b", "c", "x"]);
+    expect(marked[0].homeSalonMark).toBeUndefined();
+    expect(marked[1].homeSalonMark?.label).toBe("Anderer Stammsalon");
+    expect(marked[2].homeSalonMark?.label).toBe("Ohne Stammsalon");
+    // Known only from the calendar answer: no Stammsalon fact, no mark.
+    expect(marked[3].homeSalonMark).toBeUndefined();
+  });
+
+  it("marks nothing in a single-salon tenant", () => {
+    const marked = withHomeSalonMarks(rows, roster, new Set(["nord"]), false);
+    expect(marked.every((row) => row.homeSalonMark === undefined)).toBe(true);
   });
 });

@@ -5,7 +5,7 @@
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
-  import { salonContext } from "$stores/salon-context";
+  import { homeSalonMarksApply, salonContext } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import Pagination from "$components/ui/Pagination.svelte";
   import PageTabs from "$components/ui/PageTabs.svelte"; // Issue #853 (D-853-18)
@@ -79,6 +79,7 @@
   import {
     emptyRequestsText,
     inLeaderReach,
+    withHomeSalonMarks,
     locateDeepLinkedRequest,
     matchesStatusFilter,
     openRequestsSummary,
@@ -150,6 +151,8 @@
     firstName: string;
     lastName: string;
     employeeNumber?: string | null;
+    /** Stammsalon of today (`include=directory`), for the #949 mark on the timeline. */
+    homeSalonId?: string | null;
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -413,7 +416,7 @@
     try {
       const [all, emps] = await Promise.all([
         api.get<LeaveRequest[]>(withSalonId(`/leave/requests?year=${listYear}`, pageSalonId)),
-        api.get<Employee[]>(withSalonId("/employees", pageSalonId)),
+        api.get<Employee[]>(withSalonId("/employees?include=directory", pageSalonId)),
       ]);
       if (generation !== dataGeneration) return;
       allTeamRequests = all;
@@ -799,13 +802,20 @@
   // roster and every person the server did not mask; „Alle Salons“ (`kreis=alle`) adds the masked
   // rest. The search then narrows the circle by name.
   const rosterIds = $derived(new Set(employees.map((emp) => emp.id)));
+  // Issue #949: a roster person homed outside the reader's salons carries a mark on the timeline.
+  const viewSalonIds = $derived(new Set($salonContext.salons.map((salon) => salon.id)));
   const circlePeople = $derived(
-    inLeaderReach(
-      overviewPersons(overviewRows, employees, {
-        ownEmployeeId: $authStore.user?.employeeId ?? null,
-      }),
-      rosterIds,
-      urlState.allSalons,
+    withHomeSalonMarks(
+      inLeaderReach(
+        overviewPersons(overviewRows, employees, {
+          ownEmployeeId: $authStore.user?.employeeId ?? null,
+        }),
+        rosterIds,
+        urlState.allSalons,
+      ),
+      employees,
+      viewSalonIds,
+      homeSalonMarksApply($salonContext),
     ),
   );
   const overviewPeople = $derived(

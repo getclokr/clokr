@@ -8,6 +8,7 @@ import { screen, within, fireEvent } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import AbsenceTimeline from "../timeline/AbsenceTimeline.svelte";
 import { periodOf, type TimelineBar, type TimelinePerson } from "$lib/leave/timeline-model";
+import { homeSalonMark } from "$lib/salons/home-salon-mark";
 
 const NOVEMBER = periodOf("monat", "2026-11-15");
 
@@ -67,6 +68,17 @@ function render(overrides: Record<string, unknown> = {}) {
     ...overrides,
   });
 }
+
+describe("Stammsalon mark (#949)", () => {
+  it("shows the mark after the name and explains it in the row title", () => {
+    const mark = homeSalonMark("demo", new Set(["nord"]), true);
+    render({ rows: [{ ...rows[0], homeSalonMark: mark }, rows[1]] });
+    const tag = screen.getByTestId("plan-home-mark-e1");
+    expect(tag.textContent?.trim()).toBe("Einsatz");
+    expect(tag.parentElement?.getAttribute("title")).toContain(mark?.hint ?? "-");
+    expect(screen.queryByTestId("plan-home-mark-e2")).toBeNull();
+  });
+});
 
 describe("rows and names", () => {
   it("renders one track per person with the name in the name column", () => {

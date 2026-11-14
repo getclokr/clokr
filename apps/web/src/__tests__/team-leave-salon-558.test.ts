@@ -76,7 +76,7 @@ describe("Issue #558 — Team-Anträge follow the header salon", () => {
     expect(functionBody("loadOpenRequests")).toContain(
       'withSalonId("/leave/requests?status=PENDING", pageSalonId)',
     );
-    expect(body).toContain('withSalonId("/employees", pageSalonId)');
+    expect(body).toContain('withSalonId("/employees?include=directory", pageSalonId)');
     expect(PAGE).toContain("salonPageFilter($salonContext)");
   });
 

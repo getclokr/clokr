@@ -8,12 +8,15 @@
  */
 import type { LeaveStatusFilter } from "./area-tabs";
 import type { TimelinePerson } from "./timeline-model";
+import { homeSalonMark } from "$lib/salons/home-salon-mark";
 
 /** A person of the reach list (`GET /employees`); names only. */
 export interface RosterPerson {
   id: string;
   firstName: string;
   lastName: string;
+  /** The Stammsalon of today (`include=directory`, #853/#949); absent when not loaded. */
+  homeSalonId?: string | null;
 }
 
 /**
@@ -80,6 +83,26 @@ export function inLeaderReach(
     (row) =>
       row.isOwn || roster.has(row.employeeId) || row.bars.some((bar) => bar.typeCode !== null),
   );
+}
+
+/**
+ * Issue #949: every row of a roster person carries the mark of `homeSalonMark` - a Springer whose
+ * Stammsalon lies outside the reader's salons is on the roster through an active Einsatz (Phase 91b
+ * D-12), and the mark says so instead of letting the row read as "no Stammsalon". A row known only
+ * from the calendar answer gets no mark. Presentation only: no row is added or removed.
+ */
+export function withHomeSalonMarks(
+  rows: readonly TimelinePerson[],
+  roster: readonly RosterPerson[],
+  viewSalonIds: ReadonlySet<string>,
+  marksApply: boolean,
+): TimelinePerson[] {
+  const homeOf = new Map(roster.map((person) => [person.id, person.homeSalonId] as const));
+  return rows.map((row) => {
+    if (!homeOf.has(row.employeeId)) return row;
+    const mark = homeSalonMark(homeOf.get(row.employeeId), viewSalonIds, marksApply);
+    return mark ? { ...row, homeSalonMark: mark } : row;
+  });
 }
 
 interface HasIdAndCreation {

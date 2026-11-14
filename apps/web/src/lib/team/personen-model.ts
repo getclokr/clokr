@@ -7,6 +7,11 @@ import { employmentState } from "$lib/employees/employment-state";
 import { scheduleModelLabel } from "$lib/employees/contract-history";
 import { matchesSearch } from "$lib/table/search";
 import type { ChipTone } from "$components/ui/chip-tone";
+import {
+  homeSalonMark,
+  NO_HOME_SALON_FILTER,
+  type HomeSalonMark,
+} from "$lib/salons/home-salon-mark";
 
 export type InvitationStatus = "ACCEPTED" | "PENDING" | "EXPIRED" | "NONE";
 
@@ -50,6 +55,11 @@ export type PersonenRow = {
   /** The Stammsalon's id ("" without one) and its shown name ("–" when unknown). */
   salonId: string;
   salonName: string;
+  /**
+   * Why the Stammsalon is not one of the caller's salons (#949): a Springer homed elsewhere, or no
+   * Stammsalon at all; null when the name is shown (or in a single-salon tenant).
+   */
+  salonMark: HomeSalonMark | null;
   /** The stored roles' names, „, “-joined; "–" without any. */
   roles: string;
   status: PersonStatusKind;
@@ -63,7 +73,7 @@ export interface PersonenFilter {
   q: string;
   status: "aktiv" | "alle";
   vertrag: string;
-  /** A Stammsalon id; "" = every salon. */
+  /** A Stammsalon id; "" = every salon; `NO_HOME_SALON_FILTER` = the persons without one (#949). */
   salon?: string;
 }
 
@@ -130,7 +140,7 @@ export function personenRows(
   today: string,
   /** Display names of the salons the caller reaches, by id (the header's salon list). */
   salonNames: ReadonlyMap<string, string> = new Map(),
-  options: { includeAnonymized?: boolean } = {},
+  options: { includeAnonymized?: boolean; markHomeSalon?: boolean } = {},
 ): PersonenRow[] {
   return employees
     .filter((person) => options.includeAnonymized === true || !isAnonymizedPerson(person))
@@ -140,6 +150,11 @@ export function personenRows(
       const roles = person.roleNames ?? [];
       const model = person.workSchedule?.type ?? "";
       const sortName = `${person.lastName}, ${person.firstName}`;
+      const salonMark = homeSalonMark(
+        person.homeSalonId,
+        salonNames,
+        options.markHomeSalon === true,
+      );
       return {
         id: person.id,
         name: `${person.firstName} ${person.lastName}`,
@@ -149,7 +164,12 @@ export function personenRows(
         modelLabel: scheduleModelLabel(model),
         weeklyHours: finiteNumber(person.workSchedule?.weeklyHours),
         salonId,
-        salonName: salonId === "" ? "–" : (salonNames.get(salonId) ?? "–"),
+        salonName: salonMark
+          ? salonMark.label
+          : salonId === ""
+            ? "–"
+            : (salonNames.get(salonId) ?? "–"),
+        salonMark,
         roles: roles.length > 0 ? roles.join(", ") : "–",
         status: status.kind,
         statusLabel: status.label,
@@ -169,7 +189,10 @@ export function filterPersonen(
       matchesSearch(row.searchText, filter.q) &&
       (filter.status === "alle" || ACTIVE_KINDS.includes(row.status)) &&
       (filter.vertrag === "" || row.model === filter.vertrag) &&
-      (!filter.salon || row.salonId === filter.salon),
+      (!filter.salon ||
+        (filter.salon === NO_HOME_SALON_FILTER
+          ? row.salonId === ""
+          : row.salonId === filter.salon)),
   );
 }
 

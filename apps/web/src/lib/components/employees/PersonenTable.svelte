@@ -179,7 +179,13 @@
         </span>
       </span>
     {:else if column.key === "salon"}
-      {row.salonName}
+      {#if row.salonMark}
+        <span data-testid={cellTestIds ? `${rowTestIdPrefix}-${row.id}-salon-mark` : undefined}>
+          <Chip tone="neutral" title={row.salonMark.hint}>{row.salonMark.label}</Chip>
+        </span>
+      {:else}
+        {row.salonName}
+      {/if}
     {:else if column.key === "vertrag"}
       {row.modelLabel}
     {:else if column.key === "stunden"}
