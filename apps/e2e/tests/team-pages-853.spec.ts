@@ -16,6 +16,9 @@
  *      the page content), because the legacy `accessibility.spec.ts` does not run in CI.
  *   3. AC-4, one visibility walkthrough per Team area (1280/390/360 px x light/dark): after each
  *      step the target lies IN THE VIEWPORT, not merely in the DOM (`helpers/visibility-walkthrough`).
+ *   4. Issues #941 / #948: a row's „Genehmigen“ opens a confirmation with the decision facts and
+ *      writes only on confirm; „Ablehnen“ needs a reason; the „Aufgaben“ cell of Heute im Salon
+ *      names the page's „Offen (N)“.
  *
  * Setup goes through the API with the throwaway tenant's admin token. People are synthetic
  * (`.test` / `.invalid` addresses, invented names). Dates derive from the clock: the leave month is
@@ -306,6 +309,93 @@ test.describe("Team-Seiten: Barrierefreiheit und Kopf (AC-4)", () => {
       expect(await axeViolations(page), `axe violations on ${path}`).toEqual([]);
     });
   }
+});
+
+// ── Issue #941 / #948: Genehmigen asks first; the Aufgaben cell counts what the page lists ──────
+
+/** Whether a leave request is (still) in the PENDING list of the tenant admin. */
+async function isPending(request: APIRequestContext, tenant: TestTenant, id: string) {
+  const res = await request.get(`${API_BASE}/api/v1/leave/requests?status=PENDING`, {
+    headers: { authorization: `Bearer ${tenant.adminToken}` },
+  });
+  expect(res.ok()).toBe(true);
+  return ((await res.json()) as { id: string }[]).some((r) => r.id === id);
+}
+
+test.describe("Aufgaben: Genehmigen mit Rückfrage (#941) und eine Zählung (#948)", () => {
+  test("die Kachel zählt wie die Seite; Genehmigen in der Zeile schreibt erst nach der Bestätigung", async ({
+    page,
+    request,
+    tenant,
+  }) => {
+    test.setTimeout(120_000);
+    const person = await createEmployee(request, tenant, {
+      key: "gen",
+      firstName: "Gerda",
+      lastName: "Genehmigprobe",
+      password: `Gp-${randomUUID()}!`, // an active login: a deactivated person takes no entry
+    });
+    const leaveId = await vacationNextMonth(request, tenant, person.id, false);
+    // A missing clock-out: the kind the old cell did not count (#948).
+    await createOpenEntry(request, tenant, person.id, 3);
+
+    await loginAsTenantAdmin(page, tenant);
+    await page.goto("/team/aufgaben");
+    await pageReady(page, "Aufgaben");
+    const offen = page.getByRole("radio", { name: /^Offen \(\d+\)$/ });
+    await expect(offen).toBeVisible();
+    const total = Number((await offen.textContent())?.match(/\((\d+)\)/)?.[1]);
+    expect(total).toBeGreaterThanOrEqual(2);
+
+    // #948: Heute im Salon names the same number.
+    await page.goto("/team/heute");
+    await expect(page.getByTestId("kpi-tasks")).toContainText(
+      new RegExp(`Aufgaben\\s*${total}(?!\\d)`),
+    );
+    await expect(page.getByTestId("kpi-tasks")).toContainText(/Ausstempeln fehlt \d+/);
+
+    // #941: the row's Genehmigen opens a confirmation with the decision facts and writes nothing.
+    await page.goto("/team/aufgaben");
+    await pageReady(page, "Aufgaben");
+    await page.getByTestId(`task-approve-urlaub-${leaveId}`).click();
+    const confirm = page.getByRole("dialog", { name: "Antrag genehmigen?" });
+    await expect(confirm).toBeVisible();
+    await expect(confirm.getByTestId("leave-approve-confirm-facts")).toContainText(
+      "Gerda Genehmigprobe",
+    );
+    await expect(confirm.getByTestId("review-fact-vacation")).toContainText("Resturlaub");
+    await confirm.getByRole("button", { name: "Abbrechen" }).click();
+    await expect(confirm).toBeHidden();
+    expect(await isPending(request, tenant, leaveId)).toBe(true);
+
+    // Confirming writes the decision once and acknowledges it.
+    await page.getByTestId(`task-approve-urlaub-${leaveId}`).click();
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "Genehmigen", exact: true }).click();
+    await expect(page.getByTestId("toast-region-status")).toContainText(/genehmigt/);
+    await expect.poll(() => isPending(request, tenant, leaveId)).toBe(false);
+  });
+
+  test("Ablehnen in der Zeile verlangt einen Grund", async ({ page, request, tenant }) => {
+    test.setTimeout(90_000);
+    const person = await createEmployee(request, tenant, {
+      key: "abl",
+      firstName: "Arne",
+      lastName: "Ablehnprobe",
+    });
+    const leaveId = await vacationNextMonth(request, tenant, person.id, false);
+
+    await loginAsTenantAdmin(page, tenant);
+    await page.goto("/team/aufgaben");
+    await pageReady(page, "Aufgaben");
+    await page.getByTestId(`task-reject-urlaub-${leaveId}`).click();
+    const dialog = page.getByRole("dialog", { name: "Antrag ablehnen" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Ablehnen", exact: true }).click();
+    await expect(dialog).toContainText("Begründung ist erforderlich");
+    await expect(dialog).toBeVisible();
+    expect(await isPending(request, tenant, leaveId)).toBe(true);
+  });
 });
 
 // ── 3. AC-4: one visibility walkthrough per Team area ──────────────────────────────────────

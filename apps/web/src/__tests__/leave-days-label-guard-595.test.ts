@@ -59,7 +59,7 @@ describe("Issue #595 Plan 04 - one leaveDaysLabel", () => {
       "routes/(app)/leave/+page.svelte",
       "routes/(app)/team/leave/+page.svelte",
       "routes/(app)/inbox/+page.svelte",
-      "lib/components/leave/LeaveReviewDialog.svelte",
+      "lib/components/leave/LeaveDecisionFacts.svelte", // the review facts, moved out of LeaveReviewDialog (#941)
       "lib/components/leave/LeaveRequestForm.svelte",
     ];
     for (const site of sites) {

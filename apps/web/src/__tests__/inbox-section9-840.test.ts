@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
+import { taskGates, TASK_SOURCE_PATHS } from "$lib/team/task-sources";
 
 function readRouteFile(relativeFromHere: string, relativeFromCwd: string): string {
   try {
@@ -67,7 +68,9 @@ describe("Issue #840 D-840-05 - the § 9 cases wait in the inbox", () => {
 
   it("[loader] the inbox reads /leave/section9 without a salon parameter and with a generation guard", () => {
     const body = functionBody(INBOX, "loadSection9Cases");
-    expect(body).toContain('api.get<Section9Case[]>("/leave/section9")');
+    // Issue #948: the path is the shared one of the „Aufgaben“ count.
+    expect(body).toContain("api.get<Section9Case[]>(TASK_SOURCE_PATHS.section9)");
+    expect(TASK_SOURCE_PATHS.section9).toBe("/leave/section9");
     expect(body).not.toContain("salonId");
     expect(body).toContain("++section9Generation");
     const awaitAt = body.indexOf("await api.get");
@@ -92,7 +95,11 @@ describe("Issue #840 D-840-05 - the § 9 cases wait in the inbox", () => {
   });
 
   it("[hint] the § 9 kind is offered to holders of a § 9 key and the loader runs only then", () => {
-    expect(INBOX).toContain('"section9:read:ZUGEWIESEN"');
+    // Issue #948: the gates live in `$lib/team/task-sources`, shared with the „Aufgaben“ count.
+    expect(INBOX).toContain("const canSection9 = $derived(gates.section9);");
+    expect(taskGates({ permissions: ["section9:read:ZUGEWIESEN"] }).section9).toBe(true);
+    expect(taskGates({ permissions: ["section9:decide:ZUGEWIESEN"] }).section9).toBe(true);
+    expect(taskGates({ permissions: [] }).section9).toBe(false);
     expect(INBOX).toContain("section9: canSection9,");
     const mount = onMountBody(INBOX);
     expect(mount).toContain("if (canSection9) loads.push(loadSection9Cases());");
@@ -120,9 +127,16 @@ describe("Issue #840 D-840-29 - the gate admits § 9 deciders", () => {
   it("[gate] the page gate in onMount lists all three decide keys", () => {
     const mount = onMountBody(INBOX);
     const gate = mount.slice(0, mount.indexOf('void goto("/dashboard")'));
-    expect(gate).toContain('"leave-request:approve:ZUGEWIESEN"');
-    expect(gate).toContain('"retro-request:approve:ZUGEWIESEN"');
-    expect(gate).toContain('"section9:decide:ZUGEWIESEN"');
+    // Issue #948: the gate is `taskGates().page`, shared with the „Aufgaben“ count.
+    expect(gate).toContain("if (!gates.page) {");
+    for (const key of [
+      "leave-request:approve:ZUGEWIESEN",
+      "retro-request:approve:ZUGEWIESEN",
+      "section9:decide:ZUGEWIESEN",
+    ]) {
+      expect(taskGates({ permissions: [key] }).page, key).toBe(true);
+    }
+    expect(taskGates({ permissions: ["section9:read:ZUGEWIESEN"] }).page).toBe(false);
   });
 
   it("[gate] a role that only decides § 9 cases does not load the leave list (no 403 alert)", () => {
@@ -185,9 +199,10 @@ describe("Issue #840 D-840-05 - inbox deep links", () => {
 
 describe("review WR-06 - a § 9 decision reloads the leave list only for an approver", () => {
   it("the reload after a § 9 decision goes through one function that asks the approve permission", () => {
-    expect(INBOX.replace(/\s+/g, " ")).toContain(
-      'const canListLeave = $derived( hasAnyPermission($authStore.user, ["leave-request:approve:ZUGEWIESEN"]), );',
-    );
+    // Issue #948: the hint is the shared gate of `$lib/team/task-sources`.
+    expect(INBOX).toContain("const canListLeave = $derived(gates.leave);");
+    expect(taskGates({ permissions: ["leave-request:approve:ZUGEWIESEN"] }).leave).toBe(true);
+    expect(taskGates({ permissions: ["section9:decide:ZUGEWIESEN"] }).leave).toBe(false);
     const reload = functionBody(INBOX, "reloadAfterSection9");
     expect(reload).toContain("canListLeave ? loadRequests() : Promise.resolve()");
     expect(reload).toContain("loadSection9Cases()");

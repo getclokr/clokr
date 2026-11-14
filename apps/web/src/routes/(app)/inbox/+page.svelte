@@ -6,7 +6,7 @@
   import { page } from "$app/stores";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
-  import { hasAnyPermission, hasPermission } from "$lib/permissions"; // Phase 378 (#378)
+  import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
@@ -16,6 +16,8 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte"; // § 9 reject reason (moved from /team/leave, #840)
+  import ConfirmDialog from "$components/ui/ConfirmDialog.svelte"; // Issue #941: a row approval is confirmed
+  import LeaveApproveConfirm from "$lib/components/leave/LeaveApproveConfirm.svelte"; // Issue #941
   import EmptyState from "$components/ui/EmptyState.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
@@ -46,6 +48,7 @@
   import type { VacationEntitlementRow } from "$lib/leave/vacation-balance";
   import type { LeaveOverlapEntry } from "$lib/leave/leave-review";
   import { createLeaveContextLoader } from "$lib/team/task-row-facts"; // Issue #853-19: the row's context line
+  import { taskGates, TASK_SOURCE_PATHS } from "$lib/team/task-sources"; // Issue #948: one rule with the tile
 
   // ── Types ────────────────────────────────────────────────────────────────
   type Status = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "CANCELLATION_REQUESTED";
@@ -132,6 +135,10 @@
     { kind: "urlaub"; request: LeaveRequest } | { kind: "nachtrag"; retro: RetroEntryRequest };
   let rowRejectTarget = $state<RowRejectTarget | null>(null);
   let rowRejectOpen = $state(false);
+  // Issue #941: the row whose „Genehmigen“ waits for the confirmation (nothing is written before).
+  type RowApproveTarget = { key: string } & RowRejectTarget;
+  let rowApproveTarget = $state<RowApproveTarget | null>(null);
+  let rowApproveOpen = $state(false);
 
   // ── RetroEntryRequest state ──────────────────────────────────────────────
   let retroRequests: RetroEntryRequest[] = $state([]);
@@ -195,29 +202,27 @@
   let openTasks = $state<OpenTasksAnswer | null>(null);
   let openTasksLoading = $state(true);
 
+  // Issue #948: the gates of every source live in `$lib/team/task-sources`, shared with the „Aufgaben“
+  // cell of Heute im Salon, so both count the same kinds. All are hints; the API decides.
+  const gates = $derived(taskGates($authStore.user));
+
   // Hint only (T-840-28): shows the § 9 rows to holders of either § 9 key.
-  const canSection9 = $derived(
-    hasAnyPermission($authStore.user, ["section9:read:ZUGEWIESEN", "section9:decide:ZUGEWIESEN"]),
-  );
+  const canSection9 = $derived(gates.section9);
 
   // The leave list is read only by an approver: `GET /leave/requests` answers 403 without any
   // `leave-request:read`, and with the EIGENE reach only the caller's OWN requests, which would
   // show up under „Offen“ as items to decide. A role that only decides § 9 cases never loads it,
   // neither on mount nor after a § 9 decision (review WR-06). A UX hint; the API decides.
-  const canListLeave = $derived(
-    hasAnyPermission($authStore.user, ["leave-request:approve:ZUGEWIESEN"]),
-  );
+  const canListLeave = $derived(gates.leave);
 
   // Same hint for the Zeitnachträge: the list is read only by an approver, because `GET
   // /retro-entry-requests` also answers a caller with the EIGENE reach, and her own requests would
   // otherwise show up as items to decide. A UX hint; the API decides.
-  const canRetro = $derived(
-    hasAnyPermission($authStore.user, ["retro-request:approve:ZUGEWIESEN"]),
-  );
+  const canRetro = $derived(gates.retro);
 
   // The missing clock-outs are offered to a caller who holds the time-entry reach the read needs
   // (a UX hint; the API scopes every row by the per-entry reach).
-  const canOpenTasks = $derived(hasPermission($authStore.user, "time-entry:read:ZUGEWIESEN"));
+  const canOpenTasks = $derived(gates.openTasks);
 
   /** Reloads what a § 9 decision can change: the § 9 cases, and the leave list for an approver only. */
   async function reloadAfterSection9() {
@@ -230,12 +235,7 @@
   // none (read-only template, #76) and correctly never reaches this page. A role holding only
   // `section9:decide:ZUGEWIESEN` gets in too, so moving the § 9 cases here locks no decider out.
   onMount(() => {
-    const canDecide = hasAnyPermission($authStore.user, [
-      "leave-request:approve:ZUGEWIESEN",
-      "retro-request:approve:ZUGEWIESEN",
-      "section9:decide:ZUGEWIESEN",
-    ]);
-    if (!canDecide) {
+    if (!gates.page) {
       void goto(homeHref($authStore.user));
       return;
     }
@@ -278,7 +278,7 @@
       // covers CANCELLATION_REQUESTED, in every year.
       const [yearList, openList] = await Promise.all([
         api.get<LeaveRequest[]>(`/leave/requests?year=${currentYear}`),
-        api.get<LeaveRequest[]>("/leave/requests?status=PENDING"),
+        api.get<LeaveRequest[]>(TASK_SOURCE_PATHS.leaveOpen),
       ]);
       requests = yearList;
       pendingRequests = openList;
@@ -356,7 +356,7 @@
   async function loadRetroRequests() {
     retroLoading = true;
     try {
-      retroRequests = await api.get<RetroEntryRequest[]>("/retro-entry-requests");
+      retroRequests = await api.get<RetroEntryRequest[]>(TASK_SOURCE_PATHS.retro);
     } catch {
       retroRequests = [];
     } finally {
@@ -368,7 +368,9 @@
   async function loadNotices() {
     noticesLoading = true;
     try {
-      const answer = await api.get<{ notifications: NoticeTaskSource[] }>("/notifications");
+      const answer = await api.get<{ notifications: NoticeTaskSource[] }>(
+        TASK_SOURCE_PATHS.notices,
+      );
       notices = answer.notifications ?? [];
     } catch {
       notices = [];
@@ -381,7 +383,7 @@
   async function loadOpenTasks() {
     openTasksLoading = true;
     try {
-      openTasks = await api.get<OpenTasksAnswer>("/tasks/open");
+      openTasks = await api.get<OpenTasksAnswer>(TASK_SOURCE_PATHS.openTasks);
     } catch {
       openTasks = null;
     } finally {
@@ -551,11 +553,14 @@
     contextEpoch += 1;
   }
 
-  // ── Deciding straight from the row (Issue #853-19) ───────────────────────────────────────────
-  // „Genehmigen“ acts at once through the existing approve call. A dialog appears only where one is
-  // needed: „Ablehnen“ asks for the required reason (`ReasonDialog`), and an approval that needs an
-  // explicit step (an appointment to confirm, a limit exception) continues in the dialog's own
-  // follow-up dialogs. Every refusal of the server is shown as it is worded.
+  // ── Deciding straight from the row (Issue #853-19, #941) ─────────────────────────────────────
+  // „Genehmigen“ opens a compact confirmation with the decision facts (Resturlaub before -> after,
+  // Stammsalon, shifts in the period - each within the caller's permissions); only „Genehmigen“ in
+  // that confirmation writes, through the existing approve call. There is no delayed write and no
+  // "undo": a decision is written when the person confirms it (Issue #941). „Ablehnen“ asks for the
+  // required reason (`ReasonDialog`), and an approval that needs an explicit step (an appointment to
+  // confirm, a limit exception) continues in the dialog's own follow-up dialogs. Every refusal of the
+  // server is shown as it is worded.
   function errorText(e: unknown): string {
     const apiErr = e as { data?: { error?: string }; message?: string };
     return apiErr?.data?.error ?? apiErr?.message ?? "Fehler";
@@ -568,25 +573,53 @@
     await tick();
   }
 
-  async function approveRow(row: TaskRowModel) {
+  /** The row's „Genehmigen“: only asks. The write happens in `confirmRowApprove`. */
+  function approveRow(row: TaskRowModel) {
     if (busyKey) return;
     const request = leaveOf(row);
     const retro = retroOf(row);
-    busyKey = row.key;
+    if (request) rowApproveTarget = { key: row.key, kind: "urlaub", request };
+    else if (retro) rowApproveTarget = { key: row.key, kind: "nachtrag", retro };
+    else return;
+    rowApproveOpen = true;
+  }
+
+  /**
+   * The confirmation's „Genehmigen“. The confirmation closes first, so a follow-up dialog of the
+   * decision (appointments, limit exception) is the only one open; the row shows the decision under
+   * way and the result is acknowledged by a toast.
+   */
+  async function confirmRowApprove() {
+    const target = rowApproveTarget;
+    if (!target || busyKey) return;
+    // The target stays mounted (closed) until the next row asks; unmounting the confirmation while
+    // its own confirm is still awaited would cut it off mid-flight.
+    rowApproveOpen = false;
+    busyKey = target.key;
     try {
-      if (request) {
-        await aimDialog(request);
+      if (target.kind === "urlaub") {
+        await aimDialog(target.request);
         // A failure is toasted by the dialog, a hand-over continues in its follow-up dialog, and a
         // success reloads through `onReviewed`.
         await reviewDialog?.decide("APPROVED");
-      } else if (retro) {
-        await decideRetroRow(retro, "APPROVED");
+      } else {
+        await decideRetroRow(target.retro, "APPROVED");
       }
     } catch (e: unknown) {
       toasts.error(errorText(e));
     } finally {
       busyKey = null;
     }
+  }
+
+  /** The fact line of a Zeitnachtrag's approve confirmation (person, day, proposed times). */
+  function retroApproveText(retro: RetroEntryRequest): string {
+    const times = retro.startTime && retro.endTime ? `, ${retro.startTime}–${retro.endTime}` : "";
+    const pause = retro.breakMinutes ? `, Pause ${retro.breakMinutes} Min.` : "";
+    return (
+      `${retro.employee.firstName} ${retro.employee.lastName} · ${fmtDate(retro.targetDate)}${times}${pause}. ` +
+      "Die Genehmigung wird beim Bestätigen gespeichert."
+    );
   }
 
   function askRejectReason(row: TaskRowModel) {
@@ -636,6 +669,14 @@
     if (!own) return false;
     return (leaveOf(row) ?? retroOf(row))?.employeeId === own;
   }
+
+  // The decision facts the review dialog and the approve confirmation may read (Issue #853 D-853-08,
+  // #941): one set of hints for both, the API stays the guard.
+  const reviewFactFlags = $derived({
+    canReadEntitlement: hasPermission($authStore.user, "leave-entitlement:read:ZUGEWIESEN"),
+    canReadShifts: hasPermission($authStore.user, "shift:read:ZUGEWIESEN"),
+    canReadEmployee: hasPermission($authStore.user, "employee:read:ZUGEWIESEN"),
+  });
 
   // ── Detail modal ─────────────────────────────────────────────────────────
   function openDetail(req: LeaveRequest) {
@@ -742,7 +783,7 @@
     const generation = ++section9Generation;
     section9Loading = true;
     try {
-      const cases = await api.get<Section9Case[]>("/leave/section9");
+      const cases = await api.get<Section9Case[]>(TASK_SOURCE_PATHS.section9);
       if (generation !== section9Generation) return;
       section9Cases = cases;
     } catch {
@@ -947,9 +988,9 @@
             {#snippet actions()}
               <!--
                 An open leave or Zeitnachtrag row decides in the row (Issue #853-19): „Ablehnen“ (ghost)
-                asks for the required reason, „Genehmigen“ (primary) acts through the existing approve
-                call; the title still opens the full dialog. A decided row has no button. The caller's
-                own request shows the four-eyes note instead of the buttons.
+                asks for the required reason, „Genehmigen“ (primary) asks for a confirmation with the
+                decision facts first (#941); the title still opens the full dialog. A decided row has no
+                button. The caller's own request shows the four-eyes note instead of the buttons.
               -->
               {#if c}
                 <!-- § 9 (Phase 104-10, R6/D-11): the three existing actions, unchanged handlers -->
@@ -1183,6 +1224,26 @@
   />
 {/if}
 
+<!-- ── Issue #941: „Genehmigen“ in a row asks first, with the decision facts ───────────── -->
+{#if rowApproveTarget?.kind === "urlaub"}
+  <LeaveApproveConfirm
+    bind:open={rowApproveOpen}
+    request={rowApproveTarget.request}
+    {...reviewFactFlags}
+    onConfirm={confirmRowApprove}
+    onCancel={() => (rowApproveTarget = null)}
+  />
+{:else if rowApproveTarget?.kind === "nachtrag"}
+  <ConfirmDialog
+    bind:open={rowApproveOpen}
+    title="Zeitnachtrag genehmigen?"
+    description={retroApproveText(rowApproveTarget.retro)}
+    confirmLabel="Genehmigen"
+    onConfirm={confirmRowApprove}
+    onCancel={() => (rowApproveTarget = null)}
+  />
+{/if}
+
 <!-- ── Issue #853-19: „Ablehnen“ in a row asks for the required reason ─────────────────── -->
 {#if rowRejectTarget}
   <ReasonDialog
@@ -1206,9 +1267,7 @@
   bind:open={detailOpen}
   request={detailRequest}
   currentEmployeeId={$authStore.user?.employeeId ?? null}
-  canReadEntitlement={hasPermission($authStore.user, "leave-entitlement:read:ZUGEWIESEN")}
-  canReadShifts={hasPermission($authStore.user, "shift:read:ZUGEWIESEN")}
-  canReadEmployee={hasPermission($authStore.user, "employee:read:ZUGEWIESEN")}
+  {...reviewFactFlags}
   onReviewed={loadRequests}
 />
 

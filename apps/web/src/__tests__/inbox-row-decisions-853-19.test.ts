@@ -29,7 +29,7 @@ describe("Issue #853-19 - the in-row decision on /inbox", () => {
 
   it("Genehmigen acts through the dialog's own decision path for leave and the review PATCH for a Zeitnachtrag", () => {
     expect(flat).toContain('await reviewDialog?.decide("APPROVED")');
-    expect(flat).toContain('await decideRetroRow(retro, "APPROVED")');
+    expect(flat).toContain('await decideRetroRow(target.retro, "APPROVED")');
     expect(flat).toContain("`/retro-entry-requests/${retro.id}/review`");
     // A plain approval is byte-identical to the dialog's untouched approval: no corrected times.
     const body = flat.slice(flat.indexOf("async function decideRetroRow"));
@@ -37,6 +37,34 @@ describe("Issue #853-19 - the in-row decision on /inbox", () => {
     expect(patch).not.toContain("retroCorrectedFields");
     expect(patch).not.toContain("startTime");
     expect(patch).not.toContain("breakMinutes");
+  });
+
+  it("Issue #941: the row's Genehmigen only asks; the write happens in the confirmation's Genehmigen", () => {
+    const ask = flat.slice(flat.indexOf("function approveRow(row: TaskRowModel)"));
+    const askBody = ask.slice(0, ask.indexOf("async function confirmRowApprove"));
+    expect(askBody).toContain("rowApproveOpen = true;");
+    expect(askBody).not.toContain("decide(");
+    expect(askBody).not.toContain("decideRetroRow(");
+    expect(askBody).not.toContain("api.");
+    // Both approve calls sit in `confirmRowApprove`, which only the two confirmations call.
+    const confirm = flat.slice(flat.indexOf("async function confirmRowApprove"));
+    const fn = confirm.slice(0, confirm.indexOf("/** The fact line of a Zeitnachtrag"));
+    expect(fn).toContain('reviewDialog?.decide("APPROVED")');
+    expect(fn).toContain('decideRetroRow(target.retro, "APPROVED")');
+    expect(flat.split("onConfirm={confirmRowApprove}").length - 1).toBe(2);
+    expect(flat).toContain("<LeaveApproveConfirm");
+    expect(flat).toContain('title="Zeitnachtrag genehmigen?"');
+    // The leave confirmation reads its facts within the caller's permissions (shift:read reach),
+    // with the same flags as the review dialog.
+    const leaveConfirm = flat.slice(flat.indexOf("<LeaveApproveConfirm"));
+    const tag = leaveConfirm.slice(0, leaveConfirm.indexOf("/>"));
+    expect(tag).toContain("{...reviewFactFlags}");
+    expect(flat).toContain(
+      'canReadShifts: hasPermission($authStore.user, "shift:read:ZUGEWIESEN")',
+    );
+    // No delayed write and no undo: a decision is written when it is confirmed.
+    expect(flat).not.toMatch(/setTimeout\([^)]*(decide|decideRetroRow)/);
+    expect(flat).not.toContain("Rückgängig");
   });
 
   it("Ablehnen always asks for the reason first: the ReasonDialog is the only way to a row rejection", () => {

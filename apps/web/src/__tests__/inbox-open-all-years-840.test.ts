@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
+import { TASK_SOURCE_PATHS } from "$lib/team/task-sources";
 
 function readRouteFile(relativeFromHere: string, relativeFromCwd: string): string {
   try {
@@ -42,13 +43,11 @@ describe("Issue #840 E-02 - the Offen tab is not bound to the current year", () 
   it("[load] the open list is read without a year, next to the year-bound list", () => {
     const body = functionBody(INBOX, "loadRequests");
     expect(body).toContain("`/leave/requests?year=${currentYear}`");
-    expect(body).toContain('"/leave/requests?status=PENDING"');
+    // Issue #948: the open read's path is the shared one of the „Aufgaben“ count.
+    expect(body).toContain("api.get<LeaveRequest[]>(TASK_SOURCE_PATHS.leaveOpen)");
+    expect(TASK_SOURCE_PATHS.leaveOpen).toBe("/leave/requests?status=PENDING");
     // The open read must carry no `year` (the year-bound read is the other one).
-    const openRead = body.match(
-      /api\.get<LeaveRequest\[\]>\(\s*("\/leave\/requests\?status=PENDING")/,
-    );
-    expect(openRead, "open read not found").not.toBeNull();
-    expect(openRead![1]).not.toContain("year");
+    expect(TASK_SOURCE_PATHS.leaveOpen).not.toContain("year");
     expect(body).toContain("pendingRequests = openList");
   });
 

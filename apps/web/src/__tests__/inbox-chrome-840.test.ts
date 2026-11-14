@@ -32,6 +32,7 @@ const TASK_ROW = readRouteFile(
 );
 // Issue #853 (D-853-06): the kind helper that gates the Nachtrag segment.
 const TASK_MODEL = readRouteFile("../lib/team/task-model.ts", "src/lib/team/task-model.ts");
+const TASK_SOURCES = readRouteFile("../lib/team/task-sources.ts", "src/lib/team/task-sources.ts");
 
 describe("Issue #840 G-8 / G-3 - the inbox chrome", () => {
   it("[vacuity gate] the page source is loaded and is the inbox", () => {
@@ -80,7 +81,11 @@ describe("Issue #840 G-8 / G-3 - the inbox chrome", () => {
     // The Nachtrag kind exists only for a caller who may decide Zeitnachträge: the page hands
     // `canRetro` (retro-request:approve) to the kind helper, which adds "nachtrag" only then.
     expect(INBOX).toContain("retro: canRetro,");
-    expect(INBOX).toContain('["retro-request:approve:ZUGEWIESEN"]');
+    // Issue #948: the hint is the shared gate of `$lib/team/task-sources`.
+    expect(INBOX).toContain("const canRetro = $derived(gates.retro);");
+    expect(TASK_SOURCES).toContain(
+      'retro: hasPermission(user, "retro-request:approve:ZUGEWIESEN")',
+    );
     expect(TASK_MODEL).toContain('if (input.retro) kinds.push("nachtrag");');
   });
 
@@ -88,7 +93,10 @@ describe("Issue #840 G-8 / G-3 - the inbox chrome", () => {
     expect(INBOX).toContain('"leave-entitlement:read:ZUGEWIESEN"');
     expect(INBOX).toContain('"shift:read:ZUGEWIESEN"');
     expect(INBOX).toContain('"employee:read:ZUGEWIESEN"');
-    expect(INBOX.split("canReadEntitlement=").length - 1).toBe(1);
+    // One set of flags (Issue #941), passed to the review dialog and the approve confirmation.
+    expect(INBOX.split("canReadEntitlement: hasPermission(").length - 1).toBe(1);
+    expect(INBOX.split("{...reviewFactFlags}").length - 1).toBe(2);
+    expect(INBOX).not.toContain("canReadEntitlement=");
     expect(INBOX).not.toMatch(/user\??\.role\b/);
   });
 
