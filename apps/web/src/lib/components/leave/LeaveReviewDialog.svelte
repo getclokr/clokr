@@ -41,15 +41,12 @@
   } from "$lib/phorest/appointmentCollisions";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
-  import { salonContext, showSalonOptions } from "$stores/salon-context"; // Issue #853: salon names, one module (#82)
   import { leaveDecided } from "$lib/feedback/action-messages"; // #846 D-03: every decision is acknowledged
   import {
-    LEAVE_TYPE_OPTIONS,
     NEUTRAL_CHIP_LABEL,
     SICK_CODES,
     type CalendarTypeCode,
   } from "$lib/leave/team-calendar-visibility";
-  import { leaveDaysLabel } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
   import {
     exceedancesOf,
     isLeaveLimitExceptionRequired,
@@ -61,17 +58,8 @@
     type LeaveReviewRequest,
     type LeaveOverlapEntry,
   } from "$lib/leave/leave-review";
-  import {
-    NO_SHIFTS_TEXT,
-    reviewResultToast,
-    shiftLines,
-    vacationBeforeAfter,
-    type DirectDecision,
-    type RangeShift,
-  } from "$lib/leave/review-facts"; // Issue #853 (S-29, D-853-08)
-  import { mapVacationBalance, type VacationEntitlementRow } from "$lib/leave/vacation-balance";
-  import { deriveVacationSummary } from "$lib/leave/vacation-summary";
-  import { homeSalonIdOn, type SalonAssignment } from "$lib/employees/salon-assignments";
+  import { reviewResultToast, type DirectDecision } from "$lib/leave/review-facts"; // Issue #853 (S-29)
+  import LeaveDecisionFacts from "./LeaveDecisionFacts.svelte"; // Issue #941: the facts, one place
   import Skeleton from "$components/ui/Skeleton.svelte";
 
   interface Props {
@@ -112,23 +100,6 @@
   let attestPresent = $state(false);
   let attestFrom = $state("");
   let attestTo = $state("");
-
-  // ── Issue #853 (D-853-08): optional decision facts ──────────────────────────
-  // `null` = not shown (flag off, not loaded yet, or the read was refused). A refusal or a network
-  // error omits the line silently; no error text is ever rendered for these lines.
-  let homeSalonId = $state<string | null>(null);
-  // The name comes from the salon context store (the only module that reads /me/context, #82),
-  // gated by its one rule `showSalonOptions` (#64): a salon outside the caller's reach is not in
-  // its list, so the line is omitted for it.
-  let homeSalonName = $derived(
-    showSalonOptions($salonContext)
-      ? ($salonContext.salons.find((x) => x.id === homeSalonId)?.name ?? null)
-      : null,
-  );
-  let vacationFact = $state<{ label: string; value: string } | null>(null);
-  let shiftFactLines = $state<string[] | null>(null);
-  // The request the facts belong to; a late answer for another request is discarded (T-853-15).
-  let factsFor: string | null = null;
 
   // ── Phase 87: appointment-collision warn-and-confirm on APPROVE (D-05) ─────
   let collisionOpen = $state(false);
@@ -175,72 +146,7 @@
     }
   });
 
-  // Issue #853 (D-853-08): the optional facts. One effect per open request; each read runs only
-  // behind its own flag, and every answer is compared with the request id it was asked for.
-  $effect(() => {
-    homeSalonId = null;
-    vacationFact = null;
-    shiftFactLines = null;
-    if (!open || !request) {
-      factsFor = null;
-      return;
-    }
-    const rid = request.id;
-    const employeeId = request.employeeId;
-    const startDate = request.startDate;
-    const endDate = request.endDate;
-    const status = request.status;
-    const days = Number(request.days);
-    const isVacation = request.typeCode === "VACATION";
-    const wantEmployee = canReadEmployee;
-    const wantEntitlement = canReadEntitlement && isVacation;
-    const wantShifts = canReadShifts;
-    factsFor = rid;
-    const current = () => factsFor === rid;
-
-    if (wantEmployee) {
-      api
-        .get<{ assignments: SalonAssignment[] }>(`/employees/${employeeId}/salon-assignments`)
-        .then((assigned) => {
-          if (current()) homeSalonId = homeSalonIdOn(assigned.assignments, startDate);
-        })
-        .catch(() => {});
-    }
-
-    if (wantEntitlement) {
-      const year = startDate.slice(0, 4);
-      api
-        .get<VacationEntitlementRow[]>(`/leave/entitlements/${employeeId}?year=${year}`)
-        .then((rows) => {
-          if (!current()) return;
-          const balance = mapVacationBalance(rows.find((r) => r.typeCode === "VACATION"));
-          const fact = vacationBeforeAfter({
-            remaining: deriveVacationSummary(balance, 0).remaining,
-            days,
-            status,
-            startDate,
-            endDate,
-          });
-          if (fact) vacationFact = { label: fact.label, value: fact.value };
-        })
-        .catch(() => {});
-    }
-
-    if (wantShifts) {
-      api
-        .get<RangeShift[]>(`/shifts/range?from=${startDate}&to=${endDate}&employeeId=${employeeId}`)
-        .then((rows) => {
-          if (current()) shiftFactLines = shiftLines(rows);
-        })
-        .catch(() => {});
-    }
-  });
-
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function typeName(code: CalendarTypeCode): string {
-    return LEAVE_TYPE_OPTIONS.find((t) => t.code === code)?.label ?? code;
-  }
-
   function fmtDate(iso: string): string {
     if (!iso) return "";
     const [y, m, d] = iso.split("-");
@@ -456,64 +362,17 @@
       data-testid={isCancellationReview ? "leave-cancel-approval-modal" : "leave-approval-modal"}
       style="display: contents"
     >
-      <!-- Issue #853: the facts of the decision, first -->
-      <dl
-        class="facts"
-        data-testid={isCancellationReview
+      <!-- Issue #853: the facts of the decision, first (one component since #941) -->
+      <LeaveDecisionFacts
+        {request}
+        active={open}
+        {canReadEntitlement}
+        {canReadShifts}
+        {canReadEmployee}
+        testId={isCancellationReview
           ? "leave-cancel-approval-modal-summary"
           : "leave-approval-modal-summary"}
-      >
-        <div class="fact">
-          <dt>Person</dt>
-          <dd>{personName}</dd>
-        </div>
-        <div class="fact">
-          <dt>Art</dt>
-          <dd>{typeName(request.typeCode)}</dd>
-        </div>
-        <div class="fact">
-          <dt>Zeitraum</dt>
-          <dd>{fmtDate(request.startDate)} – {fmtDate(request.endDate)}</dd>
-        </div>
-        <div class="fact">
-          <dt>Umfang</dt>
-          <dd>{leaveDaysLabel(Number(request.days), request.halfDay, request.typeCode)}</dd>
-        </div>
-        {#if homeSalonName}
-          <div class="fact" data-testid="review-fact-home-salon">
-            <dt>Stammsalon</dt>
-            <dd>{homeSalonName}</dd>
-          </div>
-        {/if}
-        {#if vacationFact}
-          <div class="fact" data-testid="review-fact-vacation">
-            <dt>{vacationFact.label}</dt>
-            <dd>{vacationFact.value}</dd>
-          </div>
-        {/if}
-        {#if shiftFactLines}
-          <div class="fact fact--full" data-testid="review-fact-shifts">
-            <dt>Schichten im Zeitraum</dt>
-            <dd>
-              {#if shiftFactLines.length === 0}
-                {NO_SHIFTS_TEXT}
-              {:else}
-                <ul class="shift-lines">
-                  {#each shiftFactLines as line, i (i)}
-                    <li>{line}</li>
-                  {/each}
-                </ul>
-              {/if}
-            </dd>
-          </div>
-        {/if}
-        {#if request.note}
-          <div class="fact fact--full">
-            <dt>Anmerkung Mitarbeiter</dt>
-            <dd>„{request.note}"</dd>
-          </div>
-        {/if}
-      </dl>
+      />
 
       <!-- Overlapping colleagues -->
       <section class="overlap-box review-section">
@@ -681,40 +540,6 @@
 {/if}
 
 <style>
-  /* The facts are a plain definition list on the dialog surface (Issue #853); no bespoke box. */
-  .facts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--s-3) var(--s-6);
-    margin: 0;
-  }
-  .fact {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .fact--full {
-    grid-column: 1 / -1;
-  }
-  .fact dt {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    color: var(--text-2);
-  }
-  .fact dd {
-    margin: 0;
-    font-size: var(--fs-base);
-    font-weight: 500;
-    overflow-wrap: anywhere;
-  }
-  .shift-lines {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 9.5rem;
-    overflow-y: auto;
-  }
   .review-section {
     margin-top: var(--s-5);
   }
@@ -763,9 +588,6 @@
   }
 
   @media (max-width: 700px) {
-    .facts {
-      grid-template-columns: 1fr;
-    }
     .overlap-dates {
       margin-left: 0;
     }

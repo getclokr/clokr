@@ -128,6 +128,23 @@ const PENDING = [
 
 let teamSize = 3;
 
+const RETRO = [
+  {
+    id: "rr1",
+    employeeId: "e8",
+    status: "PENDING",
+    employee: { firstName: "Ilse", lastName: "Nachtrag" },
+    targetDate: "2026-11-05",
+    startTime: "09:00",
+    endTime: "17:00",
+    reason: "vergessen",
+    createdAt: "2026-11-06T08:00:00.000Z",
+  },
+];
+
+// Issue #948: the open-tasks read of Team › Aufgaben (missing clock-outs). Empty unless a test sets it.
+let openTasksAnswer: { types: string[]; tasks: unknown[] } = { types: ["ausstempeln"], tasks: [] };
+
 function answer(path: string): Promise<unknown> {
   if (path === "/me/context") {
     return Promise.resolve({
@@ -156,7 +173,8 @@ function answer(path: string): Promise<unknown> {
   }
   if (path.startsWith("/dashboard/team-upcoming-leave")) return Promise.resolve({ items: [] });
   if (path.startsWith("/leave/requests")) return Promise.resolve(PENDING);
-  if (path === "/retro-entry-requests") return Promise.resolve([{ status: "PENDING" }]);
+  if (path === "/retro-entry-requests") return Promise.resolve(RETRO);
+  if (path === "/tasks/open") return Promise.resolve(openTasksAnswer);
   if (path === "/dashboard/open-items") return Promise.resolve({});
   if (path.startsWith("/time-entries")) return Promise.resolve([]);
   if (path === "/dashboard") return Promise.reject(new ApiError(500, "ignored in this test"));
@@ -183,6 +201,7 @@ function asManager() {
 
 beforeEach(async () => {
   teamSize = 3;
+  openTasksAnswer = { types: ["ausstempeln"], tasks: [] };
   apiGet.mockReset();
   apiGet.mockImplementation((path: string) => answer(path));
   apiPatch.mockReset();
@@ -214,6 +233,34 @@ describe("Heute im Salon — the Kennzahlen-Band (D-01)", () => {
     expect(link("kpi-expected")).toBe("/team/heute?status=erwartet#jetzt");
     expect(link("kpi-absent")).toBe("/team/heute?status=abwesend#jetzt");
     expect(link("kpi-tasks")).toBe("/team/aufgaben");
+  });
+
+  it("Issue #948: the Aufgaben cell counts every kind Team › Aufgaben lists (a missing clock-out too)", async () => {
+    openTasksAnswer = {
+      types: ["ausstempeln"],
+      tasks: [
+        {
+          type: "ausstempeln",
+          id: "te1",
+          employeeId: "e4",
+          personName: "Dora",
+          day: "2026-11-08",
+          startTime: "09:00",
+          label: "Ausstempeln fehlt",
+          link: "/team/time-entries?employeeId=e4&date=2026-11-08",
+        },
+      ],
+    };
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    await waitFor(() =>
+      expect(screen.getByTestId("kpi-tasks").textContent).toMatch(/Aufgaben\s*3/),
+    );
+    expect(screen.getByTestId("kpi-tasks").textContent).toContain(
+      "Urlaub 1 · Nachtrag 1 · Ausstempeln fehlt 1",
+    );
+    // The section names the leave request and points to the rest on the page.
+    expect(await screen.findByText("2 weitere Aufgaben warten")).toBeTruthy();
   });
 
   it("lists the missing person with the shift start, never the person without a day", async () => {

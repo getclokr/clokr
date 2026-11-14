@@ -1,9 +1,10 @@
 <script lang="ts">
   // Issue #853-19 (prototype „Aufgaben“) - the decision of an open leave or Zeitnachtrag row, in the
   // row: „Ablehnen“ (ghost) and „Genehmigen“ (primary). Template only: the page decides what the
-  // buttons do (Genehmigen acts through the existing approve call, Ablehnen asks for the required
-  // reason first). The caller's own request shows the four-eyes note instead of the buttons - the same
-  // text as the dialog (passed in as `ownNote`, so this template imports no dialog). Each button's
+  // buttons do (Genehmigen asks for a confirmation with the decision facts first, #941; Ablehnen
+  // asks for the required reason first). The caller's own request shows the four-eyes note instead
+  // of the buttons - the same text as the dialog (passed in as `ownNote`, so this template imports
+  // no dialog). Each button's
   // accessible name starts with its visible word and adds whom it concerns, because a list holds
   // many identical buttons.
   interface Props {

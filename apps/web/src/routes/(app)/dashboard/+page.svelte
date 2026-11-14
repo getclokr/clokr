@@ -137,6 +137,13 @@
   import type { TodayEmployee } from "$lib/reports/today-attendance";
   import type { TodayAttendanceData } from "$lib/reports/today-attendance";
   import LeaveReviewDialog from "$lib/components/leave/LeaveReviewDialog.svelte"; // #846 D-03: the dialog of Aufgaben
+  import {
+    loadOpenTaskSources,
+    openTaskBreakdown,
+    openTaskSummary,
+    taskGates,
+    type OpenTaskSummary,
+  } from "$lib/team/task-sources"; // Issue #948: the count of Team › Aufgaben, one rule
   import { fmtBalance } from "$lib/utils/format-minutes";
   import { de } from "date-fns/locale";
   import { salonContext } from "$stores/salon-context"; // Issue #84 (D-01)
@@ -743,15 +750,15 @@
   let teamMonth = $state<TeamTrendMonth | null>(null);
   let teamMonthBasis = $state<TeamTrendResponse["workedBasis"] | null>(null);
   let pendingLeave = $state<TeamTaskLeave[]>([]);
-  let pendingRetroCount = $state(0);
+  // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
+  let openTasks = $state<OpenTaskSummary | null>(null);
   let reviewOpen = $state(false);
   let reviewRequest = $state<TeamTaskLeave | null>(null);
   const canDecideLeave = $derived(
     hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),
   );
-  const canDecideRetro = $derived(
-    hasPermission($authStore.user, "retro-request:approve:ZUGEWIESEN"),
-  );
+  // Issue #948: the cell and the section are offered exactly to whom the page is (its gate).
+  const taskSourceGates = $derived(taskGates($authStore.user));
 
   async function loadTodayAttendance() {
     const filter = teamFilter;
@@ -793,26 +800,36 @@
   }
 
   // D-03: the open leave requests decided here go through the SAME dialog as Aufgaben
-  // (LeaveReviewDialog) — this page never writes a decision of its own.
+  // (LeaveReviewDialog) — this page never writes a decision of its own. The list follows the salon
+  // context; the count of the „Aufgaben“ cell is the page's own (Issue #948): the same sources, gates
+  // and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon selection (#558).
   async function loadTeamTasks() {
     const filter = teamFilter;
     const generation = teamGeneration;
-    const [leaveR, retroR] = await Promise.allSettled([
+    const gates = taskSourceGates;
+    const [leaveR, sourcesR] = await Promise.allSettled([
       canDecideLeave
         ? api.get<TeamTaskLeave[]>(withSalonId("/leave/requests?status=PENDING", filter))
         : Promise.resolve([] as TeamTaskLeave[]),
-      canDecideRetro
-        ? api.get<{ status: string }[]>("/retro-entry-requests")
-        : Promise.resolve([] as { status: string }[]),
+      gates.page
+        ? loadOpenTaskSources(<T,>(path: string) => api.get<T>(path), gates)
+        : Promise.resolve(null),
     ]);
     if (generation !== teamGeneration) return;
     pendingLeave =
       leaveR.status === "fulfilled"
         ? openTeamLeaveTasks(leaveR.value, $authStore.user?.employeeId)
         : [];
-    pendingRetroCount =
-      retroR.status === "fulfilled" ? retroR.value.filter((r) => r.status === "PENDING").length : 0;
+    openTasks =
+      sourcesR.status === "fulfilled" && sourcesR.value
+        ? openTaskSummary(sourcesR.value, gates)
+        : null;
   }
+
+  /** The open tasks the section does not list by name (other kinds, other salons, more than five). */
+  const moreTaskCount = $derived(
+    Math.max(0, (openTasks?.total ?? 0) - Math.min(pendingLeave.length, 5)),
+  );
 
   // D-01: every Kennzahl opens its list — the attendance filter lives in the URL (`?status=`).
   const attendanceFilter = $derived(attendanceFilterOf($page.url.searchParams.get("status")));
@@ -887,11 +904,13 @@
         testId: "kpi-absent",
       },
     ];
-    if (canDecideLeave || canDecideRetro) {
+    if (taskSourceGates.page) {
       items.push({
         label: "Aufgaben",
-        value: pendingLeave.length + pendingRetroCount,
-        explanation: `${pendingLeave.length} ${pendingLeave.length === 1 ? "Antrag" : "Anträge"} · ${pendingRetroCount} ${pendingRetroCount === 1 ? "Nachtrag" : "Nachträge"}`,
+        value: openTasks?.total ?? 0,
+        explanation: openTasks
+          ? openTaskBreakdown(openTasks) || "Nichts zu entscheiden"
+          : "Nicht verfügbar",
         derivationHref: "/team/aufgaben",
         derivationLabel: "Aufgaben →",
         testId: "kpi-tasks",
@@ -2087,12 +2106,12 @@
           </div>
 
           <div class="ts-col">
-            {#if canDecideLeave || canDecideRetro}
+            {#if taskSourceGates.page}
               <section class="ts-sec" aria-labelledby="ts-tasks">
                 <h2 id="ts-tasks" class="mt-h2">
                   Aufgaben <a class="mt-h2-link" href="/team/aufgaben">Alle Aufgaben</a>
                 </h2>
-                {#if pendingLeave.length === 0 && pendingRetroCount === 0}
+                {#if pendingLeave.length === 0 && moreTaskCount === 0}
                   <p class="mt-quiet">Nichts zu entscheiden.</p>
                 {:else}
                   <List ariaLabel="Aufgaben">
@@ -2117,12 +2136,12 @@
                         {/snippet}
                       </ListRow>
                     {/each}
-                    {#if pendingRetroCount > 0}
+                    {#if moreTaskCount > 0}
                       <ListRow
                         avatar={false}
-                        title={pendingRetroCount === 1
-                          ? "1 Zeitnachtrag wartet"
-                          : `${pendingRetroCount} Zeitnachträge warten`}
+                        title={moreTaskCount === 1
+                          ? "1 weitere Aufgabe wartet"
+                          : `${moreTaskCount} weitere Aufgaben warten`}
                         href="/team/aufgaben"
                       />
                     {/if}
