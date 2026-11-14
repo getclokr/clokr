@@ -220,3 +220,101 @@ test.describe("Navigation v2 — the rail fits without scrolling", () => {
     ).toBeLessThanOrEqual(railBox!.y + railBox!.height + 1);
   });
 });
+
+// Issue #945 — on a phone the tab bar shows the role's most used pages (derived from its permissions and the
+// route table), each under its page name, and the page title in the header is never cut off: the salon
+// selection shrinks to its icon.
+test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945)", () => {
+  async function createSalon(request: APIRequestContext, tenant: TestTenant): Promise<void> {
+    const week = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "09:00", close: "18:00" }));
+    const res = await request.post(`${API_BASE}/api/v1/salons`, {
+      headers: adminHeaders(tenant),
+      data: {
+        name: `Süd ${tenant.tenantId.slice(-4)}`,
+        federalState: "HESSEN",
+        openingHours: week,
+      },
+    });
+    expect(res.status(), `create salon (${await res.text()})`).toBe(201);
+  }
+
+  const ROLES = [
+    {
+      key: "mia945",
+      title: "Mitarbeiterin",
+      template: undefined,
+      tabs: ["Mein Tag", "Zeiten", "Abwesenheiten", "Dienstplan", "Mehr"],
+      page: "/ich/abwesenheiten",
+      heading: "Abwesenheiten",
+    },
+    {
+      key: "salon945",
+      title: "Salonleitung",
+      template: "SALON_MANAGER",
+      tabs: ["Mein Tag", "Heute im Salon", "Zeiten", "Dienstplan", "Mehr"],
+      page: "/team/dienstplan",
+      heading: "Dienstplan",
+    },
+    {
+      key: "hr945",
+      title: "Personalabteilung",
+      template: "HR",
+      tabs: ["Mein Tag", "Personen", "Monatsabschluss", "Berichte", "Mehr"],
+      page: "/verwalten/monatsabschluss",
+      heading: "Monatsabschluss",
+    },
+  ] as const;
+
+  for (const role of ROLES) {
+    test(`${role.title} at 390 and 360 px`, async ({ page, request, tenant }) => {
+      const salonId = await firstSalonId(request, tenant);
+      // A second salon makes the header offer the salon selection to whoever reaches both.
+      await createSalon(request, tenant);
+      const email = await createPerson(
+        request,
+        tenant,
+        role.key,
+        role.template === undefined
+          ? undefined
+          : {
+              id: TEMPLATE[role.template],
+              scope:
+                role.template === "SALON_MANAGER"
+                  ? { type: "SALONS", salonIds: [salonId] }
+                  : { type: "TENANT" },
+            },
+      );
+      await page.setViewportSize({ width: 390, height: 844 });
+      await login(page, email, PASSWORD);
+
+      for (const width of [390, 360]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(role.page);
+        const bar = page.getByRole("navigation", { name: "Hauptnavigation (mobil)" });
+        await expect(bar).toBeVisible();
+        const labels = await bar
+          .locator(".tab-label")
+          .evaluateAll((els) => els.map((el) => (el.textContent ?? "").replace(/­/g, "")));
+        expect(labels, `${role.title} ${width}: tab labels`).toEqual([...role.tabs]);
+        // Every label fits its slot: nothing is cut off horizontally.
+        const cut = await bar
+          .locator(".tab-label")
+          .evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).length);
+        expect(cut, `${role.title} ${width}: cut tab labels`).toBe(0);
+
+        const crumb = page.getByTestId("topbar-crumb");
+        await expect(crumb.locator("b[aria-current='page']")).toHaveText(role.heading);
+        const fits = await crumb.evaluate(
+          (el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1,
+        );
+        expect(fits, `${role.title} ${width}: the page title is not cut off`).toBe(true);
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, `${role.title} ${width}: no horizontal page scroll`).toBeLessThanOrEqual(
+          0,
+        );
+      }
+    });
+  }
+});

@@ -462,16 +462,18 @@
     font-weight: 600;
     font-size: var(--fs-base);
   }
-  /* On a phone the bar names only the current page (the sidebar sheet and the back gesture lead up);
-     the line scrolls instead of cutting a long name off. */
+  /* On a phone the bar names only the current page (the sidebar sheet and the back gesture lead up).
+     #945: a name that does not fit one line wraps onto a second one inside the 48 px bar; only a name
+     longer than two lines is cut, as a last resort. */
   @media (max-width: 759.98px) {
     nav.topbar-crumb {
-      overflow-x: auto;
-      text-overflow: clip;
-      scrollbar-width: none;
-    }
-    nav.topbar-crumb::-webkit-scrollbar {
-      display: none;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+      overflow-wrap: break-word;
+      line-height: 1.2;
     }
     .topbar-crumb-item:not(.topbar-crumb-item--current) {
       display: none;

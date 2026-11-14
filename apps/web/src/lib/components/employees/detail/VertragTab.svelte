@@ -406,7 +406,7 @@
     {/if}
 
     <div class="vt-model">
-      <div class="vt-model-scroll">
+      <div class="vt-model-field">
         <SegmentedControl
           name="vertrag-model"
           ariaLabel="Arbeitszeitmodell"
@@ -815,10 +815,9 @@
     min-width: 0;
   }
 
-  /* Four labelled segments are wider than a phone: scroll inside the field instead of the page. */
-  .vt-model-scroll {
-    max-width: 100%;
-    overflow-x: auto;
+  /* The model segments wrap onto further rows on a phone (SegmentedControl, #945) instead of scrolling. */
+  .vt-model-field {
+    min-width: 0;
   }
 
   .vt-help {
