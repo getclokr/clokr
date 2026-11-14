@@ -47,6 +47,7 @@ import {
   reverseOvertimeCompensation,
   getTenantTimezone,
   monthDateRange, // Issue #493 (D-10)
+  monthRangeUtc, // Issue #962 — the year's tenant-local instants for the population rule
   recalculateSnapshots,
   getConfirmedCarryOver,
   loadNegativeBalanceTolerance,
@@ -113,6 +114,7 @@ import {
   syncExitYearVacationEntitlement, // Issue #447 (D-06/D-07) — exit-year row sync, GET-time heal
   exitVacationOverUseWarning, // Issue #447 (D-08) — the one over-use warning string (approval + GET)
 } from "../leave-days"; // Issue #445 — own statement: PR #437 edits the block above
+import { countEmployeesWithoutVacationEntitlement } from "../facade/entitlements"; // Issue #962 — the one-query count behind GET /entitlements/missing-count
 import { vacationBalanceForRow, type VacationBalance } from "../facade/vacation-balance"; // Issue #451 (D-07) — the ONE Resturlaub function, additive on the VACATION row of GET /entitlements
 import { revalidateLeaveCancellationEntries } from "../../time-tracking"; // Phase 100B Plan 08 — T6
 import { byCodeUnit } from "../../../utils/code-unit-order";
@@ -315,6 +317,11 @@ const section9StatusQuerySchema = z.object({
 });
 
 // Issue #595 (D-04) — GET /sick-days?year=: a bounded calendar year, one query per call.
+// Issue #962: the year of the missing-entitlement count; omitted = the tenant-local current year.
+const missingEntitlementQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
 const sickDaysQuerySchema = z.object({ year: z.coerce.number().int().min(2000).max(2100) });
 
 // Issue #558 (D-01): the optional salon choice of the leave reads the team pages use. It narrows a
@@ -2973,6 +2980,56 @@ export async function leaveRoutes(app: FastifyInstance) {
       });
 
       return { year, sickDays: sickLeaveDayCounts(rows, firstDay, lastDay).sickDays };
+    },
+  });
+
+  // ── GET /entitlements/missing-count ───────────────────────────────────────
+  //
+  // Issue #962 — the Verwalten overview's tile „Ohne Urlaubsanspruch“. One cheap count (no
+  // per-person facade run, no heal, no write) of the persons in the caller's
+  // leave-entitlement:read reach who were employed in the year and hold no VACATION entitlement
+  // with days. The static path wins over `/entitlements/:employeeId`, so no id can shadow it.
+  app.get("/entitlements/missing-count", {
+    schema: {
+      tags: ["Abwesenheiten"],
+      description:
+        "Count of persons in the caller's reach employed in a year without a VACATION entitlement.",
+      security: [{ bearerAuth: [] }],
+    },
+    preHandler: requirePermission("leave-entitlement:read:ZUGEWIESEN"),
+    handler: async (req) => {
+      const tenantId = req.user.tenantId;
+      const tz = await getTenantTimezone(app.prisma, tenantId);
+      const { year } = missingEntitlementQuerySchema.parse(req.query);
+      const targetYear = year ?? todayInTz(tz).getUTCFullYear();
+
+      const scopeReach = await resolveAccessReach(
+        app.prisma,
+        accessContextFromRequest(req),
+        "leave-entitlement:read:ZUGEWIESEN",
+      );
+      // Same Stammsalon rule and Stichtag as GET /entitlements/:employeeId (Dec 31 of the year).
+      const scopedIds =
+        scopeReach.kind === "wholeTenant"
+          ? "all"
+          : await resolveStammsalonScopedEmployeeIds(
+              app.prisma,
+              tenantId,
+              scopeReach,
+              new Date(Date.UTC(targetYear, 11, 31)),
+            );
+
+      const count = await countEmployeesWithoutVacationEntitlement(
+        app.prisma,
+        tenantId,
+        targetYear,
+        {
+          start: monthRangeUtc(targetYear, 1, tz).start,
+          end: monthRangeUtc(targetYear, 12, tz).end,
+        },
+        scopedIds,
+      );
+      return { year: targetYear, count };
     },
   });
 

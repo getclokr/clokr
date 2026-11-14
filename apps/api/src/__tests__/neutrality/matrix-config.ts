@@ -864,6 +864,16 @@ export const EXCLUDED_ROUTES: readonly RouteReason[] = [
       "caller's own clock (no employee parameter) and never had role-based access behavior to " +
       "compare. Same vacuous-satisfaction reasoning as the clock-salon entry directly above.",
   },
+  {
+    route: "GET /api/v1/leave/entitlements/missing-count",
+    reason:
+      "New route added for Issue #962, long after the role guard (`requireRole`) was deleted from " +
+      "middleware/auth.ts (#75b) — built permission-gated (`leave-entitlement:read:ZUGEWIESEN`) " +
+      "from its very first commit, answers only a count inside the caller's reach and never had " +
+      "role-based access behavior to compare. Same vacuous-satisfaction reasoning as the entries " +
+      "around it: RECORD/MERGE mode refuses to run once the role guard is gone. Proven by " +
+      "`leave-entitlements-missing-count-962.test.ts`.",
+  },
 ];
 
 /** Routes declared in `app.ts` itself — invisible to the source parser, proven registered. */

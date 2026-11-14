@@ -6,6 +6,7 @@ import {
   adminTaskCounts,
   mailWithoutDelivery,
   overdueMonthCloses,
+  missingEntitlementExplanation,
   setupChecks,
   type EmployeeRow,
 } from "../setup-checks";
@@ -212,5 +213,14 @@ describe("mailWithoutDelivery — one rule for the overview and the mail setting
       expect(src).toContain("MAIL_WITHOUT_DELIVERY_TEXT");
       expect(src).toContain(`data-testid="${testid}"`);
     }
+  });
+
+  it("words the missing-entitlement tile with the counted year and stays calm at 0 (#962)", () => {
+    expect(missingEntitlementExplanation({ year: 2026, count: 3 })).toBe(
+      "Personen ohne Urlaubstage für 2026",
+    );
+    expect(missingEntitlementExplanation({ year: 2026, count: 0 })).toBe(
+      "alle haben für 2026 einen Anspruch",
+    );
   });
 });

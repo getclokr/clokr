@@ -24,10 +24,12 @@
   import {
     adminTaskCounts,
     mailWithoutDelivery,
+    missingEntitlementExplanation,
     overdueMonthCloses,
     setupChecks,
     MAIL_WITHOUT_DELIVERY_TEXT,
     type EmployeeRow,
+    type MissingEntitlementAnswer,
     type SalonRow,
     type SmtpAnswer,
     type TerminalRow,
@@ -47,6 +49,7 @@
   let terminals = $state<TerminalRow[] | null>(null);
   let overdue = $state<number | null>(null);
   let atRisk = $state<number | null>(null);
+  let noEntitlement = $state<MissingEntitlementAnswer | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -67,7 +70,7 @@
     const years = month === 1 ? [year - 1, year] : [year];
     const canSettings = may("tenant-settings:read");
     const hardware = moduleBooked($salonContext, "HARDWARE_CLOCK");
-    const [s, e, m, sec, w, t, ys, risk] = await Promise.all([
+    const [s, e, m, sec, w, t, ys, risk, miss] = await Promise.all([
       readIf<SalonRow[] | { salons: SalonRow[] }>(may("salon:read"), "/salons").then((r) =>
         r === null ? null : Array.isArray(r) ? r : (r.salons ?? null),
       ),
@@ -93,6 +96,11 @@
         may("report:read"),
         "/reports/carryover-at-risk",
       ),
+      // One cheap count inside the caller's reach (Issue #962); no per-person read on this page.
+      readIf<MissingEntitlementAnswer>(
+        may("leave-entitlement:read"),
+        `/leave/entitlements/missing-count?year=${year}`,
+      ),
     ]);
     salons = s;
     employees = e;
@@ -105,6 +113,7 @@
         ? overdueMonthCloses(ys as { year: number; months: YearStatusMonth[] }[], { year, month })
         : null;
     atRisk = risk ? risk.summary.employeesAtRisk : null;
+    noEntitlement = miss;
     loaded = true;
   });
 
@@ -148,6 +157,16 @@
         testId: "admin-no-contract",
       });
     }
+    if (noEntitlement !== null)
+      items.push({
+        label: "Ohne Urlaubsanspruch",
+        value: noEntitlement.count,
+        explanation: missingEntitlementExplanation(noEntitlement),
+        deltaTone: noEntitlement.count > 0 ? "warn" : "neutral",
+        derivationHref: linkIf("/verwalten/personen"),
+        derivationLabel: "Personen →",
+        testId: "admin-no-entitlement",
+      });
     if (atRisk !== null)
       items.push({
         label: "Urlaubsverfall droht",
