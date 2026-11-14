@@ -15,6 +15,8 @@
  * Rule, in this order (D-02/D-11, Issue #70 — a day may hold several entries):
  * 1. Today has a RUNNING entry → no choice; the answer names the salon of the open entry. The salon
  *    is named only in a multi-salon tenant (#64: a single-salon tenant never sees salon wording).
+ *    Since Issue #959 a running entry is the one the clock acts on (`findClockOpenEntry`): today's
+ *    open row, or yesterday's open row while it is still a session across midnight.
  * 2. Today has only FINISHED entries → `fixedSalon` is the salon of the closed entry ending last
  *    (what a plain re-clock continues, deactivated or not; `latestEndingClosed`, which skips a
  *    TRAVEL entry — a trip is never what a re-clock continues, Issue #92), and in a multi-salon tenant a second
@@ -37,7 +39,8 @@ import {
   listSalons,
   salonForDay,
 } from "../platform";
-import { findEntriesOfDay, latestEndingClosed, openEntryOf } from "./day-entries";
+import { findEntriesOfDay, latestEndingClosed } from "./day-entries";
+import { findClockOpenEntry } from "../../services/clock/open-entry"; // Issue #959
 
 export type ClockSalonChoice = {
   offerChoice: boolean;
@@ -77,8 +80,12 @@ export async function clockSalonChoice(
 
   // Decision (Issue #70, D-02/D-11): the row a clock event acts on is picked by the shared selectors
   // of day-entries.ts (open row first, else the closed row ending last) — never by a local rule.
+  // Issue #959: the running entry is the one the clock acts on — today's open row, or yesterday's
+  // while it is still a session across midnight (`findClockOpenEntry`, shared with the resolver).
   const dayEntries = await findEntriesOfDay(db, { tenantId, employeeId, date: today });
-  const running = openEntryOf(dayEntries);
+  const running =
+    (await findClockOpenEntry(db, { tenantId, employeeId, date: today, at: now, dayEntries }))
+      ?.entry ?? null;
   const dayEntry = running ?? latestEndingClosed(dayEntries);
   if (dayEntry && !multiSalon) return nothingOffered;
 

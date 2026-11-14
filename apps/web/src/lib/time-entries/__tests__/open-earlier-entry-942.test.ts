@@ -79,9 +79,18 @@ describe("openEarlierEntryText", () => {
     expect(text.detail).toContain("Einstempeln beginnt heute einen neuen Eintrag");
   });
 
-  it("promises nothing about Einstempeln for yesterday's entry (tenant-bound cross-day rule)", () => {
+  it("promises nothing about Einstempeln for yesterday's entry while the clock state is unknown", () => {
     const entry = openEarlierEntry([row({ date: "2026-11-13T00:00:00.000Z" })], TODAY)!;
     expect(openEarlierEntryText(entry, TODAY).detail).not.toContain("Einstempeln");
+  });
+
+  it("Issue #959: with a known clock state yesterday's entry that reaches the hint blocks nothing", () => {
+    // the running cross-day session is shown on the stage and filtered out before; what is left is
+    // beyond the tenant bound, so clocking in starts a new entry
+    const entry = openEarlierEntry([row({ date: "2026-11-13T00:00:00.000Z" })], TODAY)!;
+    expect(openEarlierEntryText(entry, TODAY, true).detail).toContain(
+      "Einstempeln beginnt heute einen neuen Eintrag",
+    );
   });
 
   it("mentions further open entries", () => {
@@ -134,13 +143,23 @@ describe("wiring", () => {
 
   it("Mein Tag reads the open-entry window and renders the hint with the Zeiten link", () => {
     expect(MEIN_TAG).toContain("/time-entries?from=${openWindowStart}&to=${yesterday}");
-    expect(MEIN_TAG).toContain("openEarlierEntry(recentR.value, today)");
+    // Issue #959: the hint reads the window rows without the cross-day session the stage shows
+    expect(MEIN_TAG).toContain(
+      'pastWindowRows = recentR.status === "fulfilled" ? recentR.value : null;',
+    );
+    expect(MEIN_TAG).toContain("pastWindowRows.filter((e) => e.id !== sessionId)");
     expect(MEIN_TAG).toContain('data-testid="mein-tag-open-earlier"');
     expect(MEIN_TAG).toContain("href={endEntryHref(openEarlier)}");
   });
 
-  it("today's clock state still derives from today's rows only", () => {
-    expect(MEIN_TAG).toContain("let day = $derived(resolveDayState(todayEntries));");
+  // Issue #959 revises the #942 pin "today's rows only": a session across midnight that the clock
+  // acts on (server answer GET /time-entries/clock-state) joins today's rows, else the stage said
+  // "not clocked in" while the clock refused with "bereits eingestempelt".
+  it("today's clock state derives from today's rows plus the server's cross-day session", () => {
+    expect(MEIN_TAG).toContain(
+      "let day = $derived(resolveDayState(clockRows(todayEntries, clockState)));",
+    );
+    expect(MEIN_TAG).toContain('data-testid="mein-tag-cross-day"');
   });
 
   it("Zeiten opens the existing edit dialog for the linked entry", () => {

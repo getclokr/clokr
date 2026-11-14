@@ -6735,6 +6735,32 @@ gelten nicht mehr. **Schwere:** keine Änderung am Unterbau, kein Schema, keine 
   Neutralitätsmatrix (1680 Fälle), die Empfänger- und Aktivitätsaufzeichnungen sind unverändert (`git diff origin/main`
   über `neutrality/recorded` ist leer), das Fixture der Tagespausen-Äquivalenz (#80) ist unberührt.
 
+### Nachtrag 2026-11-14 (Issue #959) — Offener Eintrag von gestern: eine Regel für Uhr und „Mein Tag“
+
+**Schwere:** keine Änderung am Unterbau, kein Schema, keine Migration; nur Zeiterfassung. Die Stempelregel selbst ist
+unverändert (Phase 376), sie liegt jetzt an einer Stelle und „Mein Tag“ liest sie, statt sie nicht zu kennen.
+
+- **Die Regel (eine Stelle):** `findClockOpenEntry()` (`services/clock/open-entry.ts`) mit der reinen Entscheidung
+  `crossDaySessionRuns()` (`services/clock/state-machine.ts`) bestimmt den offenen Eintrag, auf den ein Stempelereignis
+  wirkt: der offene Eintrag des Tages (`openEntryOf()`), sonst der offene Eintrag des Vortags, solange seit seinem Beginn
+  höchstens `autoDeleteOpenHours` vergangen sind (`0` oder fehlend: feste 24 h). Innerhalb dieser Grenze ist die Person
+  eingestempelt (ein Dienst über Mitternacht): NFC und WLAN beenden den Eintrag, Web-Ausstempeln ebenso, Web-Einstempeln
+  antwortet `ALREADY_CLOCKED_IN`. Jenseits der Grenze ist er ein vergessenes Ausstempeln: er blockiert nichts, das
+  Einstempeln beginnt einen Eintrag des heutigen Tages, das Ende des alten Eintrags wird nie erfunden (§ 16 Abs. 2 ArbZG),
+  es wird über die Korrektur nachgetragen. Die Grenze ist dieselbe, nach der `attendance-checker.ts` den Eintrag als
+  „Ausstempeln fehlt“ markiert, es gibt also keinen Zwischenzustand.
+- **Leser:** der Resolver (alle Auslöser), `clockSalonChoice()` (ein laufender Eintrag über Mitternacht bietet keine
+  Salonwahl) und die neue Leseroute `GET /time-entries/clock-state` (`time-entry:create`, nur die eigene Uhr). „Mein Tag“
+  fügt den dort genannten Eintrag des Vortags den heutigen Zeilen hinzu (`clockRows()`, `apps/web/src/lib/dashboard/clock-state.ts`):
+  die Bühne zeigt „Du arbeitest · seit gestern, 20:00“ mit „Ausstempeln“ und einen Hinweis mit „Ende eintragen“. Der
+  Hinweis aus #942 nennt diesen Eintrag nicht mehr und verspricht für alle übrigen offenen Einträge früherer Tage, dass
+  Einstempeln einen neuen Eintrag beginnt.
+- **Vorher:** „Mein Tag“ leitete den Zustand nur aus den heutigen Zeilen ab und bot „Einstempeln“ an, die Uhr antwortete
+  409 „Bereits eingestempelt“; die Person konnte weder ein- noch (auf „Mein Tag“) ausstempeln.
+- **Gemessen:** `clock-cross-day-959.test.ts` (API, 7 Fälle: 12 h, genau 14 h, 14 h + 1 s, über Mitternacht, NFC, Salonwahl),
+  `state-machine.test.ts` (5 neue Fälle der Grenze), Web `clock-state-959.test.ts`; die bestehenden Resolver-Tests
+  (`resolver-overnight-shift.integration.test.ts` u. a.) sind unverändert grün.
+
 ## AB — Fahrzeit zwischen Salons als eigener Zeiteintrag (Phase 92b, Issue #92)
 
 **Schwere: Neue Abhängigkeit auf den Unterbau (Fremdschlüssel `TimeEntry.travelToSalonId → Salon`), nach ADR 0002,

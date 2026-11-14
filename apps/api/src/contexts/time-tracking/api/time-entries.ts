@@ -49,6 +49,7 @@ import { getValidWorkedEntriesInRange } from "../facade/time-entries"; // Phase 
 import { resolveClockEvent, resolveBreakEvent } from "../../../services/clock/resolver";
 import { resolveActor } from "../../../services/clock/audit-actor";
 import type { ClockEvent } from "../../../services/clock/types";
+import { findClockOpenEntry } from "../../../services/clock/open-entry"; // Issue #959 — the clock's own open entry
 import {
   hasApprovedLeaveOnDate, // Phase 100B Plan 14 — D-05 (index is the public surface, AC-1)
   checkJArbSchG,
@@ -3717,6 +3718,52 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         now: new Date(),
         today: todayInTz(tz),
       });
+    },
+  });
+
+  // ── GET /api/v1/time-entries/clock-state — the open entry the caller's own clock acts on (Issue #959) ──
+  app.get("/clock-state", {
+    schema: {
+      tags: ["Zeiterfassung"],
+      summary: "The open entry the caller's own clock acts on",
+      description:
+        "Answers for the calling employee only (no employee parameter): the open entry the next clock " +
+        "event acts on, decided by the same rule as the clock itself - today's open entry, or the open " +
+        "entry of the previous day while it is still a session across midnight (bounded by the tenant's " +
+        "autoDeleteOpenHours). `crossDay` is true for the latter. `entry` is null when the next clock-in " +
+        "starts or re-opens an entry of today.",
+      security: [{ bearerAuth: [] }],
+    },
+    preHandler: requireAnyPermission("time-entry:create:EIGENE", "time-entry:create:ZUGEWIESEN"),
+    handler: async (req, reply) => {
+      const { tenantId, employeeId } = req.user;
+      if (!employeeId) return reply.code(400).send({ error: "Mitarbeiter nicht gefunden" });
+      const tz = await getTenantTimezone(app.prisma, tenantId);
+      const open = await findClockOpenEntry(app.prisma, {
+        tenantId,
+        employeeId,
+        date: todayInTz(tz),
+        at: new Date(),
+      });
+      if (!open) return { entry: null, crossDay: false };
+      const { entry } = open;
+      const salon = await findSalon(app.prisma, tenantId, entry.salonId);
+      return {
+        crossDay: open.crossDay,
+        entry: {
+          id: entry.id,
+          date: entry.date.toISOString(),
+          startTime: entry.startTime.toISOString(),
+          endTime: null,
+          breakMinutes: entry.breakMinutes,
+          breakStartedAt: entry.breakStartedAt ? entry.breakStartedAt.toISOString() : null,
+          isLocked: entry.isLocked,
+          isInvalid: entry.isInvalid,
+          source: entry.source,
+          salonId: entry.salonId,
+          salonName: salon?.name ?? null,
+        },
+      };
     },
   });
 }
