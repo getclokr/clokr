@@ -268,8 +268,6 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
   for (const role of ROLES) {
     test(`${role.title} at 390 and 360 px`, async ({ page, request, tenant }) => {
       const salonId = await firstSalonId(request, tenant);
-      // A second salon makes the header offer the salon selection to whoever reaches both.
-      await createSalon(request, tenant);
       const email = await createPerson(
         request,
         tenant,
@@ -284,6 +282,9 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
                   : { type: "TENANT" },
             },
       );
+      // A second salon (created after the person, who thus needs no Stammsalon) makes the header offer the
+      // salon selection to whoever reaches both.
+      await createSalon(request, tenant);
       await page.setViewportSize({ width: 390, height: 844 });
       await login(page, email, PASSWORD);
 
