@@ -120,6 +120,21 @@
 
   const messages = $derived(phorestMessages(values, { branchEditable: phBranchIdEditable }));
   const errorCount = $derived(messageCount(messages));
+  // Issue #951: a message is shown only for a field the person has left or changed, or after a save attempt, so
+  // an untouched empty form carries no red. `errorCount` (all messages) still gates the save itself.
+  let touched = $state<Partial<Record<PhorestField, boolean>>>({});
+  let saveAttempted = $state(false);
+  const shownMessages = $derived(
+    Object.fromEntries(
+      Object.entries(messages).filter(
+        ([key]) =>
+          saveAttempted ||
+          touched[key as PhorestField] === true ||
+          values[key as PhorestField] !== snapshot[key as PhorestField],
+      ),
+    ) as typeof messages,
+  );
+  const shownErrorCount = $derived(messageCount(shownMessages));
   const configChanges = $derived(countChanges(snapshot, values, keys));
 
   async function loadConfig() {
@@ -155,6 +170,7 @@
 
   async function save() {
     if (errorCount > 0) {
+      saveAttempted = true;
       toasts.error("Bitte prüf die markierten Felder.");
       return;
     }
@@ -363,13 +379,13 @@
     title="Zugangsdaten und Import"
     description="So meldet sich Clokr bei Phorest an und so holt es die Schichten ab."
     changes={configChanges}
-    errors={errorCount}
+    errors={shownErrorCount}
     {saving}
     saveLabel="Phorest-Einstellungen speichern"
     onSave={save}
     onDiscard={discard}
   >
-    <FormField label="Business-ID" required error={messages.phorestBusinessId}>
+    <FormField label="Business-ID" required error={shownMessages.phorestBusinessId}>
       {#snippet field({ id, describedBy, invalid })}
         <input
           {id}
@@ -377,6 +393,7 @@
           type="text"
           placeholder="z. B. abc123def456"
           bind:value={values.phorestBusinessId}
+          onblur={() => (touched.phorestBusinessId = true)}
           disabled={saving}
           aria-invalid={invalid ? "true" : undefined}
           aria-describedby={describedBy}
@@ -390,7 +407,7 @@
       help={phMultiSalon
         ? "Mehrere aktive Salons — die Phorest-Filiale wird je Salon gekoppelt."
         : undefined}
-      error={messages.branchId}
+      error={shownMessages.branchId}
     >
       {#snippet field({ id, describedBy, invalid })}
         <input
@@ -399,6 +416,7 @@
           type="text"
           placeholder="z. B. branch-001"
           bind:value={values.branchId}
+          onblur={() => (touched.branchId = true)}
           disabled={!phBranchIdEditable || saving}
           aria-invalid={invalid ? "true" : undefined}
           aria-describedby={describedBy}
@@ -409,7 +427,7 @@
       <ModuleHint module="INTEGRATIONS" subject="Phorest-Kopplungen" />
     {/if}
 
-    <FormField label="API-Benutzername (E-Mail)" required error={messages.phorestUsername}>
+    <FormField label="API-Benutzername (E-Mail)" required error={shownMessages.phorestUsername}>
       {#snippet field({ id, describedBy, invalid })}
         <input
           {id}
@@ -418,6 +436,7 @@
           autocomplete="off"
           placeholder="api@salon.de"
           bind:value={values.phorestUsername}
+          onblur={() => (touched.phorestUsername = true)}
           disabled={saving}
           aria-invalid={invalid ? "true" : undefined}
           aria-describedby={describedBy}
@@ -467,7 +486,7 @@
         später. Dieser Puffer wird bei jedem Import auf die gespeicherte Schicht angewendet.
       </p>
       <div class="pc-pair">
-        <FormField label="Vorbereitungszeit (Minuten)" error={messages.phorestPrepMinutes}>
+        <FormField label="Vorbereitungszeit (Minuten)" error={shownMessages.phorestPrepMinutes}>
           {#snippet field({ id, describedBy, invalid })}
             <input
               {id}
@@ -478,13 +497,14 @@
               max={PHOREST_BOUNDS.phorestPrepMinutes.max}
               step="1"
               bind:value={values.phorestPrepMinutes}
+              onblur={() => (touched.phorestPrepMinutes = true)}
               disabled={saving}
               aria-invalid={invalid ? "true" : undefined}
               aria-describedby={describedBy}
             />
           {/snippet}
         </FormField>
-        <FormField label="Nachbereitungszeit (Minuten)" error={messages.phorestWrapupMinutes}>
+        <FormField label="Nachbereitungszeit (Minuten)" error={shownMessages.phorestWrapupMinutes}>
           {#snippet field({ id, describedBy, invalid })}
             <input
               {id}
@@ -495,6 +515,7 @@
               max={PHOREST_BOUNDS.phorestWrapupMinutes.max}
               step="1"
               bind:value={values.phorestWrapupMinutes}
+              onblur={() => (touched.phorestWrapupMinutes = true)}
               disabled={saving}
               aria-invalid={invalid ? "true" : undefined}
               aria-describedby={describedBy}
@@ -507,7 +528,7 @@
       <FormField
         label="Zeitfenster (Tage)"
         help="Gilt für den automatischen und den manuellen Abgleich. Standard: 7 Tage."
-        error={messages.phorestSyncWindowDays}
+        error={shownMessages.phorestSyncWindowDays}
       >
         {#snippet field({ id, describedBy, invalid })}
           <input
@@ -519,6 +540,7 @@
             max={PHOREST_BOUNDS.phorestSyncWindowDays.max}
             step="1"
             bind:value={values.phorestSyncWindowDays}
+            onblur={() => (touched.phorestSyncWindowDays = true)}
             disabled={saving}
             aria-invalid={invalid ? "true" : undefined}
             aria-describedby={describedBy}

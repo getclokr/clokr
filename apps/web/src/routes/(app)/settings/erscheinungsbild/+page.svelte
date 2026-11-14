@@ -1,5 +1,5 @@
 <!--
-  Verwalten › System › Branding & Themes (Issue #854, D-854-03): the colour world, the mode and the language of
+  Ich › Profil › Erscheinungsbild (Issue #854 D-854-03, moved from Verwalten › System by #951): the colour world, the mode and the language of
   the app, rebuilt on the blocks of #843. The choice is a PERSONAL preference: it is saved for the signed-in
   account through the preference stores (`PUT /me/preferences`) and gives the tenant no default. Three
   `.settings-group`s, no SaveBar: a theme or mode click is a presentation choice that saves at once
@@ -39,11 +39,11 @@
 </script>
 
 <svelte:head>
-  <title>{pageLabel("/admin/themes")} – Clokr</title>
+  <title>{pageLabel("/settings/erscheinungsbild")} – Clokr</title>
 </svelte:head>
 
 <PageHead
-  title={pageLabel("/admin/themes")}
+  title={pageLabel("/settings/erscheinungsbild")}
   sub="Dein Erscheinungsbild: Es wird für dein Konto gespeichert und gilt auf all deinen Geräten."
 />
 

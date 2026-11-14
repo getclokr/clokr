@@ -4,6 +4,7 @@ import {
   APP_ROUTES,
   LEGACY_ROUTE_REDIRECTS,
   homeHref,
+  salonFilterActive,
   legacyRedirectTarget,
   mayOpenPath,
   mayOpenRoute,
@@ -762,5 +763,43 @@ describe("crumbTrail: the whole path in the top bar (#854, owner review)", () =>
 
   it("an unknown path has no trail", () => {
     expect(crumbTrail("/nowhere", admin)).toEqual([]);
+  });
+});
+
+describe("Issue #951 — the salon pill acts only where a page reads the salon", () => {
+  it.each([
+    "/ich/tag",
+    "/team/heute",
+    "/team/zeiten",
+    "/team/dienstplan/planung",
+    "/team/berichte",
+    "/verwalten/personen",
+    "/verwalten/personen/abc",
+  ])("%s follows the header salon", (path) => {
+    expect(salonFilterActive(path)).toBe(true);
+  });
+
+  it.each([
+    "/verwalten/regeln/arbeitszeit",
+    "/verwalten/system/allgemein",
+    "/verwalten/daten/protokoll",
+    "/verwalten/monatsabschluss",
+    "/team/aufgaben",
+    "/ich/profil",
+  ])("%s ignores the header salon", (path) => {
+    expect(salonFilterActive(path)).toBe(false);
+  });
+
+  // The pages pinned as „never follows the header salon“ in salon-filter-exempt-pages-558.test.ts.
+  it.each([
+    "/admin/availability",
+    "/admin/shutdowns",
+    "/inbox",
+    "/shifts/conflicts",
+    "/admin/shifts",
+  ])("the exempt page %s is not flagged salonFilter", (file) => {
+    const route = APP_ROUTES.find((entry) => entry.file === file);
+    expect(route, `${file} has a route entry`).toBeDefined();
+    expect(route?.salonFilter).toBeUndefined();
   });
 });

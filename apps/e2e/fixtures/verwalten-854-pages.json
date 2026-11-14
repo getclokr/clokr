@@ -129,12 +129,6 @@
       ]
     },
     {
-      "slug": "system-branding",
-      "path": "/verwalten/system/branding",
-      "heading": "Branding & Themes",
-      "tabs": []
-    },
-    {
       "slug": "system-rollen",
       "path": "/verwalten/system/rollen",
       "heading": "Rollen & Rechte",

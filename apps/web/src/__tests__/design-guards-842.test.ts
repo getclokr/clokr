@@ -380,7 +380,7 @@ describe("Issue #842 design guards", () => {
       // #843 D-843-04: the example page renders every block in nested theme x mode frames.
       expect(hits).toEqual([
         "routes/(app)/admin/bausteine/+page.svelte",
-        "routes/(app)/admin/themes/+page.svelte",
+        "routes/(app)/settings/erscheinungsbild/+page.svelte",
       ]);
     });
   });

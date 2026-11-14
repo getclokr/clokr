@@ -50,6 +50,12 @@ export interface AppRoute {
   /** Issue #945 — `label` with soft hyphens (U+00AD) where a narrow slot (the phone tab bar) may break the
    *  name; it equals `label` once they are removed (`routes-844.test.ts`). Display only. */
   labelBreaks?: string;
+  /**
+   * Issue #951 — the page reads the header salon selection (it sends `salonId` or narrows its list). The Topbar
+   * salon pill acts only on these pages; everywhere else it is shown disabled. The pages that deliberately ignore
+   * the header salon are pinned in `salon-filter-exempt-pages-558.test.ts`.
+   */
+  salonFilter?: true;
   /** Tenant feature that must be on (Verfügbarkeits-System, Phase 47.3). */
   feature?: "availability";
   /** An internal tool page (#843): reachable by URL behind its guard, never in a navigation, a hub, the
@@ -85,6 +91,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // ── Ich ────────────────────────────────────────────────────────────────────────────────────────────
   {
     href: "/ich/tag",
+    salonFilter: true,
     area: "ich",
     label: "Mein Tag",
     icon: "sun",
@@ -107,6 +114,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   {
     href: "/ich/abwesenheiten",
+    salonFilter: true,
     area: "ich",
     label: "Abwesenheiten",
     labelBreaks: "Abwesen\u00ADheiten",
@@ -153,6 +161,18 @@ export const APP_ROUTES: readonly AppRoute[] = [
     inNav: false,
     description: "Deine Angaben, Sicherheit und Benachrichtigungen",
   },
+  // Issue #951: the colour world, mode and language are a personal preference (PUT /me/preferences), so the page
+  // lives under the profile and not under Verwalten › System.
+  {
+    href: "/ich/profil/erscheinungsbild",
+    area: "ich",
+    label: "Erscheinungsbild",
+    icon: "palette",
+    width: "read",
+    requires: null,
+    file: "/settings/erscheinungsbild",
+    inNav: false,
+  },
   {
     href: "/ich/profil/geraet-koppeln",
     area: "ich",
@@ -168,6 +188,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // GET /dashboard/team-week, /today-attendance, /team-trend (team-overview:read)
   {
     href: "/team/heute",
+    salonFilter: true,
     area: "team",
     label: "Heute im Salon",
     icon: "store",
@@ -190,6 +211,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   {
     href: "/team/zeiten",
+    salonFilter: true,
     area: "team",
     label: "Zeiten",
     icon: "clock",
@@ -201,6 +223,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   {
     href: "/team/abwesenheiten",
+    salonFilter: true,
     area: "team",
     label: "Abwesenheiten",
     labelBreaks: "Abwesen\u00ADheiten",
@@ -214,6 +237,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // The roster page is write-oriented with no read-only mode — gated on PLAN, not READ (Phase 378, D-05)
   {
     href: "/team/dienstplan",
+    salonFilter: true,
     area: "team",
     label: "Dienstplan",
     icon: "grid",
@@ -226,6 +250,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   {
     href: "/team/dienstplan/planung",
+    salonFilter: true,
     area: "team",
     // #853 (D-853-04 revised): the four roster pages are tabs of ONE „Dienstplan“ (H1, title and crumb).
     label: "Dienstplan",
@@ -253,6 +278,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // live under Team, after Dienstplan. The payroll exports (DATEV, Monatsexport) stay under Verwalten › Daten.
   {
     href: "/team/berichte",
+    salonFilter: true,
     area: "team",
     label: "Berichte",
     icon: "chart",
@@ -286,6 +312,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // Personen instead; the URL stays openable for everyone with employee:read.
   {
     href: "/team/personen",
+    salonFilter: true,
     area: "team",
     label: "Personen",
     icon: "users",
@@ -309,6 +336,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // GET /employees
   {
     href: "/verwalten/personen",
+    salonFilter: true,
     area: "verwalten",
     label: "Personen",
     icon: "users",
@@ -565,19 +593,6 @@ export const APP_ROUTES: readonly AppRoute[] = [
     parent: "/verwalten/system",
     description: "Unternehmen, Region und Sicherheit",
   },
-  // no API guard (writes /me/preferences); grouped with the tenant settings
-  {
-    href: "/verwalten/system/branding",
-    area: "verwalten",
-    label: "Branding & Themes",
-    icon: "palette",
-    width: "read",
-    requires: [[Z("tenant-settings:read")], [Z("tenant-settings:update")]],
-    file: "/admin/themes",
-    inNav: false,
-    parent: "/verwalten/system",
-    description: "Farbwelt und Modus",
-  },
   // /presence-sources
   {
     href: "/verwalten/system/integrationen",
@@ -691,6 +706,18 @@ export const LEGACY_ROUTE_REDIRECTS: readonly LegacyRedirect[] = [
     requires: [[Z("report:export")]],
     to: "/verwalten/daten/export",
   },
+  // The colour world, mode and language are personal (#951): the Verwalten URL and the pre-#844 URL both lead to the
+  // profile page and keep the old guard.
+  {
+    href: "/verwalten/system/branding",
+    requires: [[Z("tenant-settings:read")], [Z("tenant-settings:update")]],
+    to: "/ich/profil/erscheinungsbild",
+  },
+  {
+    href: "/admin/themes",
+    requires: [[Z("tenant-settings:read")], [Z("tenant-settings:update")]],
+    to: "/ich/profil/erscheinungsbild",
+  },
   // The #844 URL of the reports (moved to Team by #936); it may be bookmarked.
   {
     href: "/verwalten/berichte",
@@ -729,6 +756,15 @@ const FILE_HREFS = FILE_ROUTES.map((route) => route.file);
 export function routeFor(pathname: string): AppRoute | null {
   const href = activeNavHref(ROUTE_HREFS, pathname);
   return href === null ? null : (APP_ROUTES.find((route) => route.href === href) ?? null);
+}
+
+/**
+ * Issue #951 — whether the header salon selection acts on `pathname`. True for the pages flagged `salonFilter`;
+ * a path with no table entry keeps the selector usable (nothing is known about it).
+ */
+export function salonFilterActive(pathname: string): boolean {
+  const route = routeFor(pathname);
+  return route === null ? true : route.salonFilter === true;
 }
 
 /** The entry whose new href OR route file is `key` (pages still name their file path, e.g. `pageLabel("/inbox")`). */

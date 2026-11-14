@@ -130,8 +130,8 @@
       "auth": "tenant-admin"
     },
     {
-      "page": "(app)/admin/themes/+page.svelte",
-      "path": "/verwalten/system/branding",
+      "page": "(app)/settings/erscheinungsbild/+page.svelte",
+      "path": "/ich/profil/erscheinungsbild",
       "auth": "tenant-admin"
     },
     {

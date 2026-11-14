@@ -2,7 +2,7 @@
 // shared vocabulary; a value is always text.
 import { describe, expect, it } from "vitest";
 
-import { auditEntryTitle, auditFieldRows, auditValueText } from "../field-diff";
+import { auditChangeSummary, auditEntryTitle, auditFieldRows, auditValueText } from "../field-diff";
 import { AUDIT_FIELD_FALLBACK_LABEL, fieldLabel } from "../labels";
 
 describe("auditFieldRows", () => {
@@ -118,5 +118,28 @@ describe("auditEntryTitle", () => {
     const title = auditEntryTitle("SOME_NEW_ACTION", "SomeNewModel");
     expect(title).not.toMatch(/SOME_NEW|SomeNewModel/);
     expect(title.length).toBeGreaterThan(0);
+  });
+});
+
+describe("auditChangeSummary (Issue #951)", () => {
+  it("lists only the changed fields as label, old and new value, and counts the rest", () => {
+    const summary = auditChangeSummary(
+      "TenantConfig",
+      { a: 1, b: "x", c: true, d: 4 },
+      { a: 1, b: "y", c: false, d: 5 },
+      2,
+    );
+    expect(summary.lines).toHaveLength(2);
+    expect(summary.lines[0]).toMatchObject({ key: "b", before: "x", after: "y" });
+    expect(summary.lines[1]).toMatchObject({ key: "c", before: "Ja", after: "Nein" });
+    expect(summary.more).toBe(1);
+    expect(summary.lines.every((line) => line.label !== line.key)).toBe(true);
+  });
+
+  it("yields nothing for a row without an old value and shortens long values", () => {
+    expect(auditChangeSummary("TimeEntry", null, { a: 1 })).toEqual({ lines: [], more: 0 });
+    const long = "x".repeat(100);
+    const summary = auditChangeSummary("TimeEntry", { note: "k" }, { note: long });
+    expect(summary.lines[0].after.length).toBeLessThanOrEqual(40);
   });
 });

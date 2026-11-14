@@ -28,7 +28,7 @@ vi.hoisted(() => {
   });
 });
 
-import Page from "../routes/(app)/admin/themes/+page.svelte";
+import Page from "../routes/(app)/settings/erscheinungsbild/+page.svelte";
 import { prefsHydrated } from "$stores/prefs-state";
 import { theme } from "$stores/theme";
 import { mode } from "$stores/mode";
@@ -84,7 +84,7 @@ describe("#842 D-842-22 - theme cards with light and dark previews", () => {
 describe("#854 plan 16 - the page is built from blocks", () => {
   it("has one H1 and the three settings groups Farbwelt, Modus and Sprache", () => {
     const { container } = render(Page);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Branding & Themes");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Erscheinungsbild");
     const groups = [...container.querySelectorAll("section.settings-group")];
     expect(groups.map((g) => g.querySelector("h2")?.textContent)).toEqual([
       "Farbwelt",

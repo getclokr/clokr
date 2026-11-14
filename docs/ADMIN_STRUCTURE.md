@@ -26,7 +26,7 @@ Team        Heute im Salon · Aufgaben · Zeiten · Abwesenheiten · Dienstplan 
 Verwalten   Übersicht · Personen · Salons · Regeln · Monatsabschluss · Berichte · Daten · System
               Regeln: Arbeitszeit & Verträge · Abwesenheiten · Dienstplan · Monatsabschluss · Benachrichtigungen & E-Mail
               Daten:  CSV-Import · Export · Protokoll · Support-Zugriffe
-              System: Allgemein · Branding & Themes · Integrationen · Phorest · Rollen & Rechte
+              System: Allgemein · Integrationen · Phorest · Rollen & Rechte
 ```
 
 Regeln, Daten and System are **hub pages** (`HubPage.svelte`) that list the pages behind them; their children are
@@ -49,7 +49,7 @@ label) and `section-titles-854.test.ts` (sentence-case section titles). The ratc
 | **Monatsabschluss** `/verwalten/monatsabschluss`      | The close workflow: stepper, months and persons tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **Berichte** `/team/berichte` (since #936 under Team) | `PageTabs` over the period state (`reports/period-state.ts`): Heute · the period tables as `DataTable`s · Verläufe (the three team trends and the saldo card, #895); drill-downs link into Daten › Export                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **Daten** `/verwalten/daten`                          | CSV-Import (operation page) · **Export** (the one page that starts every export: DATEV, CSV, PDF, iCal, history, setup) · **Protokoll** (tabs Protokoll · Aufbewahrung; filters by period and affected person, CSV export of the filtered list, German action and entity labels from `packages/types/audit-labels.json`) · Support-Zugriffe                                                                                                                                                                                                                                                                                                                                                                                           |
-| **System** `/verwalten/system`                        | Allgemein (Unternehmen & Region, Zwei-Faktor, Passwort-Richtlinie, Sitzungen) · Branding & Themes · Integrationen (WLAN, NFC-Terminals, API-Schlüssel) · Phorest · Rollen & Rechte (tabs Rollen · Zuweisungen)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **System** `/verwalten/system`                        | Allgemein (Unternehmen & Region, Zwei-Faktor, Passwort-Richtlinie, Sitzungen) · Integrationen (WLAN, NFC-Terminals, API-Schlüssel) · Phorest · Rollen & Rechte (tabs Rollen · Zuweisungen)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **One place per setting.** `apps/web/src/lib/settings/settings-pages.ts` (the settings registry) assigns every
 writable tenant setting to ONE section of ONE page: the keys the section sends, its endpoint, the file that renders
@@ -105,7 +105,6 @@ DATEN
 
 SYSTEM
   Allgemein
-  Branding & Themes
   Integrationen
   Phorest
   Rollen & Rechte
@@ -127,25 +126,25 @@ These 5 groups and their exact entries are the authoritative target structure fo
 
 #### Group → Pages Mapping
 
-| Group      | Sidebar label            | Route                 | Was (if renamed)                                                                                |
-| ---------- | ------------------------ | --------------------- | ----------------------------------------------------------------------------------------------- |
-| PERSONAL   | Mitarbeitende            | /admin/employees      | —                                                                                               |
-| PERSONAL   | Urlaubsverwaltung        | /admin/vacation       | — (global view + Sonderurlaubs-Typen tab; per-MA editor moved to /admin/employees/[id])         |
-| PERSONAL   | Betriebsurlaub           | /admin/shutdowns      | —                                                                                               |
-| PERSONAL   | Urlaubsgrenzen & Sperren | /admin/leave-limits   | — (new in Issue #836)                                                                           |
-| PLANUNG    | Schichteinstellungen     | /admin/shifts         | —                                                                                               |
-| PLANUNG    | Verfügbarkeit            | /admin/availability   | —                                                                                               |
-| PLANUNG    | Salons                   | /admin/salons         | — (new in Issue #563)                                                                           |
-| COMPLIANCE | Monatsabschluss          | /admin/month-close    | —                                                                                               |
-| COMPLIANCE | Protokoll                | /admin/audit          | —                                                                                               |
-| COMPLIANCE | Support-Zugriffe         | /admin/support-access | — (new in Issue #93)                                                                            |
-| DATEN      | CSV-Import               | /admin/import         | —                                                                                               |
-| DATEN      | DATEV-Export             | /admin/export         | —                                                                                               |
-| SYSTEM     | Allgemein                | /admin/system         | — (feature flags + defaults; theme picker moved to Branding)                                    |
-| SYSTEM     | Branding & Themes        | /admin/themes         | — (3 themes Pflaume, Salz, Petrol × Hell/Dunkel, Sprache; personal preference, saved instantly) |
-| SYSTEM     | Integrationen            | /admin/integrations   | /admin/wifi-presence (renamed in Phase 52; 301 redirect — see §8)                               |
-| SYSTEM     | Phorest                  | /admin/phorest        | — (extracted out of /admin/system in Phase 85.1-03; D-10)                                       |
-| SYSTEM     | Rollen & Rechte          | /admin/roles          | — (new in Phase 83, #83)                                                                        |
+| Group      | Sidebar label            | Route                      | Was (if renamed)                                                                                |
+| ---------- | ------------------------ | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| PERSONAL   | Mitarbeitende            | /admin/employees           | —                                                                                               |
+| PERSONAL   | Urlaubsverwaltung        | /admin/vacation            | — (global view + Sonderurlaubs-Typen tab; per-MA editor moved to /admin/employees/[id])         |
+| PERSONAL   | Betriebsurlaub           | /admin/shutdowns           | —                                                                                               |
+| PERSONAL   | Urlaubsgrenzen & Sperren | /admin/leave-limits        | — (new in Issue #836)                                                                           |
+| PLANUNG    | Schichteinstellungen     | /admin/shifts              | —                                                                                               |
+| PLANUNG    | Verfügbarkeit            | /admin/availability        | —                                                                                               |
+| PLANUNG    | Salons                   | /admin/salons              | — (new in Issue #563)                                                                           |
+| COMPLIANCE | Monatsabschluss          | /admin/month-close         | —                                                                                               |
+| COMPLIANCE | Protokoll                | /admin/audit               | —                                                                                               |
+| COMPLIANCE | Support-Zugriffe         | /admin/support-access      | — (new in Issue #93)                                                                            |
+| DATEN      | CSV-Import               | /admin/import              | —                                                                                               |
+| DATEN      | DATEV-Export             | /admin/export              | —                                                                                               |
+| SYSTEM     | Allgemein                | /admin/system              | — (feature flags + defaults; theme picker moved to Branding)                                    |
+| PROFIL     | Erscheinungsbild         | /settings/erscheinungsbild | — (3 themes Pflaume, Salz, Petrol × Hell/Dunkel, Sprache; personal preference, saved instantly) |
+| SYSTEM     | Integrationen            | /admin/integrations        | /admin/wifi-presence (renamed in Phase 52; 301 redirect — see §8)                               |
+| SYSTEM     | Phorest                  | /admin/phorest             | — (extracted out of /admin/system in Phase 85.1-03; D-10)                                       |
+| SYSTEM     | Rollen & Rechte          | /admin/roles               | — (new in Phase 83, #83)                                                                        |
 
 ### 1.3 Section Label Rules
 
@@ -1244,25 +1243,25 @@ export function load() {
 
 All 16 admin pages, their template assignment, migration phase, and requirement ID. (Sonderurlaubs-Typen consolidated into Urlaubsverwaltung — see §1.1 note. Phorest added Phase 85.1-03 — see §1.1 note.)
 
-| Group      | Page                     | Route                 | Template                                                                         | Phase | Requirement                                          |
-| ---------- | ------------------------ | --------------------- | -------------------------------------------------------------------------------- | ----- | ---------------------------------------------------- |
-| PERSONAL   | Mitarbeitende            | /admin/employees      | List + Detail                                                                    | 56    | ADMIN-MIG-10                                         |
-| PERSONAL   | Urlaubsverwaltung        | /admin/vacation       | Section-Stack                                                                    | 57    | ADMIN-MIG-11, ADMIN-MIG-12 (Sonderurlaubs-Typen tab) |
-| PERSONAL   | Betriebsurlaub           | /admin/shutdowns      | List + Detail                                                                    | 57    | ADMIN-MIG-13                                         |
-| PERSONAL   | Urlaubsgrenzen & Sperren | /admin/leave-limits   | List (rule Modal)                                                                | 836   | AC-836-2                                             |
-| PLANUNG    | Schichteinstellungen     | /admin/shifts         | Section-Stack                                                                    | 55    | ADMIN-MIG-08                                         |
-| PLANUNG    | Verfügbarkeit            | /admin/availability   | List + Detail                                                                    | 55    | ADMIN-MIG-09                                         |
-| PLANUNG    | Salons                   | /admin/salons         | List + Detail (per-salon via /admin/salons/[id], create via /admin/salons/neu)   | 563   | AC-563-1                                             |
-| COMPLIANCE | Monatsabschluss          | /admin/month-close    | Tool / Wizard                                                                    | 53    | ADMIN-MIG-04                                         |
-| COMPLIANCE | Protokoll                | /admin/audit          | Section-Stack (list with tabs) + List + Detail (per-entry via /admin/audit/[id]) | 53    | ADMIN-MIG-05                                         |
-| COMPLIANCE | Support-Zugriffe         | /admin/support-access | Section-Stack (list) + List + Detail (per-access via /admin/support-access/[id]) | 93b   | AC-93-7                                              |
-| DATEN      | CSV-Import               | /admin/import         | Tool / Wizard                                                                    | 54    | ADMIN-MIG-06                                         |
-| DATEN      | DATEV-Export             | /admin/export         | Tool / Wizard                                                                    | 54    | ADMIN-MIG-07                                         |
-| SYSTEM     | Allgemein                | /admin/system         | Section-Stack                                                                    | 52    | ADMIN-MIG-01                                         |
-| SYSTEM     | Branding & Themes        | /admin/themes         | Section-Stack                                                                    | 52    | ADMIN-MIG-02                                         |
-| SYSTEM     | Integrationen            | /admin/integrations   | Section-Stack                                                                    | 52    | ADMIN-MIG-03                                         |
-| SYSTEM     | Phorest                  | /admin/phorest        | Section-Stack                                                                    | 85.1  | D-10 (85.1-CONTEXT.md)                               |
-| SYSTEM     | Rollen & Rechte          | /admin/roles          | Section-Stack (tabs)                                                             | 83    | #83 (D-01)                                           |
+| Group      | Page                     | Route                      | Template                                                                         | Phase | Requirement                                          |
+| ---------- | ------------------------ | -------------------------- | -------------------------------------------------------------------------------- | ----- | ---------------------------------------------------- |
+| PERSONAL   | Mitarbeitende            | /admin/employees           | List + Detail                                                                    | 56    | ADMIN-MIG-10                                         |
+| PERSONAL   | Urlaubsverwaltung        | /admin/vacation            | Section-Stack                                                                    | 57    | ADMIN-MIG-11, ADMIN-MIG-12 (Sonderurlaubs-Typen tab) |
+| PERSONAL   | Betriebsurlaub           | /admin/shutdowns           | List + Detail                                                                    | 57    | ADMIN-MIG-13                                         |
+| PERSONAL   | Urlaubsgrenzen & Sperren | /admin/leave-limits        | List (rule Modal)                                                                | 836   | AC-836-2                                             |
+| PLANUNG    | Schichteinstellungen     | /admin/shifts              | Section-Stack                                                                    | 55    | ADMIN-MIG-08                                         |
+| PLANUNG    | Verfügbarkeit            | /admin/availability        | List + Detail                                                                    | 55    | ADMIN-MIG-09                                         |
+| PLANUNG    | Salons                   | /admin/salons              | List + Detail (per-salon via /admin/salons/[id], create via /admin/salons/neu)   | 563   | AC-563-1                                             |
+| COMPLIANCE | Monatsabschluss          | /admin/month-close         | Tool / Wizard                                                                    | 53    | ADMIN-MIG-04                                         |
+| COMPLIANCE | Protokoll                | /admin/audit               | Section-Stack (list with tabs) + List + Detail (per-entry via /admin/audit/[id]) | 53    | ADMIN-MIG-05                                         |
+| COMPLIANCE | Support-Zugriffe         | /admin/support-access      | Section-Stack (list) + List + Detail (per-access via /admin/support-access/[id]) | 93b   | AC-93-7                                              |
+| DATEN      | CSV-Import               | /admin/import              | Tool / Wizard                                                                    | 54    | ADMIN-MIG-06                                         |
+| DATEN      | DATEV-Export             | /admin/export              | Tool / Wizard                                                                    | 54    | ADMIN-MIG-07                                         |
+| SYSTEM     | Allgemein                | /admin/system              | Section-Stack                                                                    | 52    | ADMIN-MIG-01                                         |
+| PROFIL     | Erscheinungsbild         | /settings/erscheinungsbild | Section-Stack                                                                    | 52    | ADMIN-MIG-02                                         |
+| SYSTEM     | Integrationen            | /admin/integrations        | Section-Stack                                                                    | 52    | ADMIN-MIG-03                                         |
+| SYSTEM     | Phorest                  | /admin/phorest             | Section-Stack                                                                    | 85.1  | D-10 (85.1-CONTEXT.md)                               |
+| SYSTEM     | Rollen & Rechte          | /admin/roles               | Section-Stack (tabs)                                                             | 83    | #83 (D-01)                                           |
 
 **Reading this table:**
 
