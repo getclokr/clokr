@@ -14,6 +14,8 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { authStore } from "$stores/auth";
+  import { hasPermission } from "$lib/permissions";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Dialog from "$components/ui/Dialog.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
@@ -107,6 +109,10 @@
 
   // Writes
   let closing = $state(false);
+  // Presentation only (#989): the API refuses both writes without these rights (the Personalabteilung
+  // holds `month-close:read` alone), so the buttons are offered only to a caller who may press them.
+  const canClose = $derived(hasPermission($authStore.user, "month-close:close:ZUGEWIESEN"));
+  const canUnlock = $derived(hasPermission($authStore.user, "month-close:unlock:ZUGEWIESEN"));
   let closingProgress = $state(0);
   let closingTotal = $state(0);
   let closingEmployee = $state<string | null>(null);
@@ -672,6 +678,8 @@
         busy={closing}
         {closingEmployee}
         {unlocking}
+        {canClose}
+        {canUnlock}
         onSelectMonth={selectMonth}
         onCloseMonth={openConfirmCloseMonth}
         onCloseEmployee={openConfirmCloseEmployee}

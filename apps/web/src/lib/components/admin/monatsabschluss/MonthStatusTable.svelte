@@ -49,6 +49,10 @@
     busy: boolean;
     closingEmployee: string | null;
     unlocking: string | null;
+    /** The caller holds `month-close:close` over the persons: the close buttons are offered (#989). */
+    canClose: boolean;
+    /** The caller holds `month-close:unlock` over the persons: "Entsperren" is offered (#989). */
+    canUnlock: boolean;
     onSelectMonth: (month: number) => void;
     onCloseMonth: (month: number) => void;
     onCloseEmployee: (employeeId: string, month: number) => void;
@@ -68,6 +72,8 @@
     busy,
     closingEmployee,
     unlocking,
+    canClose,
+    canUnlock,
     onSelectMonth,
     onCloseMonth,
     onCloseEmployee,
@@ -196,7 +202,7 @@
             <span class="mst-rights">{WITHHELD_RIGHTS_LINE}</span>
           </span>
         {/if}
-      {:else if (ms.status === "ready" || ms.status === "partial" || ms.status === "open") && ms.month === firstActionableMonth}
+      {:else if canClose && (ms.status === "ready" || ms.status === "partial" || ms.status === "open") && ms.month === firstActionableMonth}
         <button
           type="button"
           class={closesBlind(withheldOf(ms))
@@ -288,7 +294,7 @@
           {:else}
             <span class="mst-none">–</span>
           {/if}
-        {:else if selectedMonth !== null && (emp.status === "ready" || emp.status === "missing")}
+        {:else if canClose && selectedMonth !== null && (emp.status === "ready" || emp.status === "missing")}
           <button
             type="button"
             class={closesBlind([emp]) ? "btn btn-secondary btn-sm" : "btn btn-primary btn-sm"}
@@ -297,7 +303,7 @@
           >
             {closeLabelFor([emp])}
           </button>
-        {:else if selectedMonth !== null && emp.status === "closed"}
+        {:else if canUnlock && selectedMonth !== null && emp.status === "closed"}
           <button
             type="button"
             class="btn btn-secondary btn-sm"

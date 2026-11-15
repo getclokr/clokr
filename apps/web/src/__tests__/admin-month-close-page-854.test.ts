@@ -18,6 +18,10 @@ vi.mock("$api/client", () => ({
 vi.mock("$stores/toast", () => ({
   toasts: { success: (m: string) => success(m), error: (m: string) => error(m), info: vi.fn() },
 }));
+vi.mock("$stores/auth", async () => {
+  const { writable } = await import("svelte/store");
+  return { authStore: writable({ user: null }) };
+});
 vi.mock("$app/state", () => ({
   page: {
     get url() {
@@ -32,6 +36,7 @@ vi.mock("$app/navigation", () => ({
 }));
 
 import { renderWithTheme } from "$tests/test-utils";
+import { authStore } from "$stores/auth";
 import Page from "../routes/(app)/admin/month-close/+page.svelte";
 
 const YEAR = new Date().getFullYear();
@@ -108,7 +113,26 @@ async function openMarch() {
   return screen.findByTestId("month-close-detail");
 }
 
+function asCloser(permissions: string[] = CLOSER) {
+  (authStore as unknown as { set: (v: unknown) => void }).set({ user: { permissions } });
+}
+const CLOSER = [
+  "month-close:read:ZUGEWIESEN",
+  "month-close:close:ZUGEWIESEN",
+  "month-close:unlock:ZUGEWIESEN",
+];
+
 describe("Monatsabschluss page (#854)", () => {
+  it("offers no close or unlock button to a reader (#989)", async () => {
+    asCloser(["month-close:read:ZUGEWIESEN"]);
+    renderWithTheme(Page, {});
+    await screen.findByTestId("month-close-row-2");
+    expect(screen.queryByTestId("month-close-row-2-trigger")).toBeNull();
+    const detailEl = await openMarch();
+    expect(within(detailEl).queryByRole("button", { name: /abschließen/i })).toBeNull();
+    expect(within(detailEl).queryByRole("button", { name: "Entsperren" })).toBeNull();
+  });
+
   beforeEach(() => {
     get.mockReset();
     post.mockReset();
@@ -116,6 +140,7 @@ describe("Monatsabschluss page (#854)", () => {
     error.mockReset();
     goto.mockReset();
     urlHolder.search = "";
+    asCloser();
     detail = [anna, ben, cleo];
     deferred = { employeeCount: 0, employees: [], severity: "NONE" };
     get.mockImplementation(async (url: string) => route(url));

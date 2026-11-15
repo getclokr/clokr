@@ -33,6 +33,7 @@
   import AttestFields from "$lib/components/leave/AttestFields.svelte"; // Phase 201
   import {
     resolveStornoAction,
+    mayCancelRequest,
     stornoDialogCopy,
     stornoSuccessToast,
     type StornoKind,
@@ -928,6 +929,10 @@
   const canApproveHint = $derived(
     hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),
   );
+  // Presentation only (#989): each row action is offered only to a caller whose permission the API
+  // checks for it (a reader such as the Personalabteilung holds none of them).
+  const canCorrect = $derived(hasPermission($authStore.user, "leave-request:correct:ZUGEWIESEN"));
+  const canAttest = $derived(hasPermission($authStore.user, "leave-request:attest:ZUGEWIESEN"));
 
   // ── Anträge-Filter + Pagination ───────────────────────────────────────────
   // #840 (E-02): the status filter lives in the URL (`status`), so a deep link and the back button
@@ -1065,7 +1070,6 @@
   const canCreateForOthers = $derived(
     hasPermission($authStore.user, "leave-request:create:ZUGEWIESEN"),
   );
-  const canCreateOwn = $derived(hasPermission($authStore.user, "leave-request:create:EIGENE"));
   const createPersonItems = $derived(personOptions(employees));
 
   function openCreate() {
@@ -1101,7 +1105,7 @@
             Planung verwalten
           </button>
         {/if}
-      {:else if canCreateForOthers || canCreateOwn}
+      {:else if canCreateForOthers}
         <button class="btn btn-primary btn-sm" onclick={openCreate}>Abwesenheit eintragen</button>
       {/if}
       <button
@@ -1352,16 +1356,25 @@
                         >
                           Im Posteingang prüfen
                         </a>
+                      {:else}
+                        <span
+                          class="req-note"
+                          data-testid={`leave-team-row-${req.id}-decider-hint`}
+                        >
+                          Die Salonleitung oder die Inhaberin entscheidet.
+                        </span>
                       {/if}
                     {:else if req.status === "APPROVED"}
-                      <button
-                        data-testid={`leave-team-row-${req.id}-correct`}
-                        class="btn btn-sm btn-ghost"
-                        onclick={() => openCorrect(req)}
-                      >
-                        Korrigieren
-                      </button>
-                      {#if SICK_CODES.includes(req.typeCode)}
+                      {#if canCorrect}
+                        <button
+                          data-testid={`leave-team-row-${req.id}-correct`}
+                          class="btn btn-sm btn-ghost"
+                          onclick={() => openCorrect(req)}
+                        >
+                          Korrigieren
+                        </button>
+                      {/if}
+                      {#if canAttest && SICK_CODES.includes(req.typeCode)}
                         <button
                           data-testid={`leave-team-row-${req.id}-attest`}
                           class="btn btn-sm btn-ghost"
@@ -1380,7 +1393,7 @@
                         </button>
                       {/if}
                     {/if}
-                    {#if resolveStornoAction(req.status, req.employeeId === $authStore.user?.employeeId)}
+                    {#if mayCancelRequest($authStore.user, req.employeeId === $authStore.user?.employeeId) && resolveStornoAction(req.status, req.employeeId === $authStore.user?.employeeId)}
                       {@const kind = resolveStornoAction(
                         req.status,
                         req.employeeId === $authStore.user?.employeeId,
@@ -1767,6 +1780,12 @@
     text-overflow: ellipsis;
     vertical-align: bottom;
     color: var(--text-2);
+  }
+  /* Who decides an open request: short, wraps inside the actions cell (#989). */
+  .req-decider {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    white-space: normal;
   }
   .req-note--bad {
     color: var(--bad);
