@@ -54,6 +54,18 @@ describe("SmtpSection", () => {
     expect(bar()).toBeNull();
   });
 
+  it("Issue #951: an untouched empty form shows no error, a left empty field does", async () => {
+    renderWithTheme(SmtpSection, {
+      config: { ...SMTP, smtpHost: "", smtpUser: "", smtpFromEmail: "", smtpFromName: "" },
+    });
+    expect(screen.queryByText("Gib den Servernamen ein.")).toBeNull();
+    expect(screen.queryByText("Gib den Benutzernamen ein.")).toBeNull();
+    expect(screen.queryByText("Gib den Absendernamen ein.")).toBeNull();
+    await fireEvent.blur(screen.getByLabelText("Server"));
+    expect(await screen.findByText("Gib den Servernamen ein.")).toBeTruthy();
+    expect(screen.queryByText("Gib den Benutzernamen ein.")).toBeNull();
+  });
+
   it("an edit without a typed password sends the six other keys and NO smtpPassword", async () => {
     renderWithTheme(SmtpSection, { config: SMTP });
     await fireEvent.input(screen.getByLabelText("Server"), {

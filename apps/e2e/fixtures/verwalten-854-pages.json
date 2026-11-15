@@ -40,28 +40,16 @@
       "heading": "Arbeitszeit & Verträge",
       "tabs": [
         {
-          "label": "Standard-Arbeitszeit"
+          "label": "Arbeitszeit"
         },
         {
           "label": "Überstunden"
         },
         {
-          "label": "Arbeitstage"
+          "label": "Pausen & ArbZG"
         },
         {
-          "label": "Gleitzeit"
-        },
-        {
-          "label": "Pausen"
-        },
-        {
-          "label": "ArbZG-Prüfung"
-        },
-        {
-          "label": "Offene Einträge"
-        },
-        {
-          "label": "Rückwirkende Einträge"
+          "label": "Einträge"
         },
         {
           "label": "Berufsschule"
