@@ -88,15 +88,21 @@
 <style>
   /* Issue #843 (D-843-01 block 7 "Segment"): pill track on --sunk, the selected option lifts onto
      --card. The track owns the control height; the buttons fill it. */
+  /* #945: options that do not fit their container wrap onto a further row instead of being cut off or
+     scrolled. The track's radius is half a row's height, so one row is the pill and a wrapped track keeps
+     rounded corners without clipping its options. */
   .seg-control {
+    --seg-radius: calc(var(--h-control) / 2 + 3px);
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: stretch;
     box-sizing: border-box;
+    max-width: 100%;
     padding: 2px;
     gap: 0;
     background: var(--sunk);
     border: 1px solid var(--line);
-    border-radius: var(--r-pill);
+    border-radius: var(--seg-radius);
   }
 
   .seg-control--md {
@@ -104,6 +110,7 @@
   }
 
   .seg-control--sm {
+    --seg-radius: calc(var(--h-control-sm) / 2 + 3px);
     min-height: var(--h-control-sm);
   }
 
@@ -162,6 +169,9 @@
 
   /* WCAG 2.5.5 - 44px min hit target on touch devices */
   @media (pointer: coarse) {
+    .seg-control {
+      --seg-radius: 25px;
+    }
     .seg-btn {
       min-height: 44px;
     }

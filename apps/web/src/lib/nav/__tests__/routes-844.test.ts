@@ -8,6 +8,9 @@ import {
   mayOpenPath,
   mayOpenRoute,
   mobileTabs,
+  MOBILE_TAB_FIRST,
+  MOBILE_TAB_PRIORITY,
+  MOBILE_TAB_SLOTS,
   navCurrentPath,
   pageWidthForPath,
   redirectLocation,
@@ -579,31 +582,104 @@ describe("hub entries follow their children in the navigation (#853)", () => {
   });
 });
 
-describe("phone tabs (D-844-13)", () => {
-  it("team reach: Salon · Aufgaben · Mein Tag · Abwesend", () => {
-    expect(mobileTabs(user("ADMIN"), ALL).map((t) => t.href)).toEqual([
-      "/team/heute",
-      "/team/aufgaben",
+describe("phone tabs (#945, derived from permissions and the route table)", () => {
+  const hrefs = (persona: string, options = ALL) =>
+    mobileTabs(user(persona), options).map((t) => t.href);
+
+  it("the priority list names rail entries of the table only, each once, never Mein Tag", () => {
+    expect(MOBILE_TAB_PRIORITY.length).toBeGreaterThanOrEqual(MOBILE_TAB_SLOTS);
+    expect(new Set(MOBILE_TAB_PRIORITY).size).toBe(MOBILE_TAB_PRIORITY.length);
+    expect(MOBILE_TAB_PRIORITY).not.toContain(MOBILE_TAB_FIRST);
+    for (const href of [MOBILE_TAB_FIRST, ...MOBILE_TAB_PRIORITY]) {
+      const route = APP_ROUTES.find((r) => r.href === href);
+      expect(route, href).toBeDefined();
+      expect(route!.inNav, href).toBe(true);
+    }
+    // Mein Tag is open to every signed-in user, so the first slot is never empty.
+    expect(APP_ROUTES.find((r) => r.href === MOBILE_TAB_FIRST)!.requires).toBeNull();
+  });
+
+  it("Mitarbeiterin: Mein Tag · Zeiten · Abwesenheiten · Dienstplan, also without the feature (#597)", () => {
+    const own = ["/ich/tag", "/ich/zeiten", "/ich/abwesenheiten", "/ich/dienstplan"];
+    expect(hrefs("EMPLOYEE")).toEqual(own);
+    expect(hrefs("EMPLOYEE", { availabilityEnabled: false })).toEqual(own);
+  });
+
+  it("Salonleitung: Mein Tag · Heute im Salon · Zeiten · Dienstplan (the team's times and roster)", () => {
+    expect(hrefs("SALON_MANAGER")).toEqual([
       "/ich/tag",
+      "/team/heute",
+      "/team/zeiten",
+      "/team/dienstplan",
+    ]);
+    for (const persona of ["MANAGER", "OWNER", "ADMIN"]) {
+      expect(hrefs(persona), persona).toEqual(hrefs("SALON_MANAGER"));
+    }
+  });
+
+  it("Personalabteilung: Mein Tag · Personen · Monatsabschluss · Berichte", () => {
+    expect(hrefs("HR")).toEqual([
+      "/ich/tag",
+      "/verwalten/personen",
+      "/verwalten/monatsabschluss",
+      "/team/berichte",
+    ]);
+  });
+
+  it("Ausbilder: Mein Tag · the apprentices' Zeiten · Personen · Abwesenheiten", () => {
+    expect(hrefs("TRAINER")).toEqual([
+      "/ich/tag",
+      "/team/zeiten",
+      "/team/personen",
       "/team/abwesenheiten",
     ]);
   });
-  it("employee: Mein Tag · Zeiten · Abwesend · Plan, Plan also without the feature (#597)", () => {
-    expect(mobileTabs(user("EMPLOYEE"), ALL).map((t) => t.label)).toEqual([
-      "Mein Tag",
-      "Zeiten",
-      "Abwesend",
-      "Plan",
+
+  it("follows the permissions, not a persona: one more right moves an entry into the bar", () => {
+    const withTimes = { permissions: [...P.HR, "time-entry:read:ZUGEWIESEN"] };
+    expect(mobileTabs(withTimes, ALL).map((t) => t.href)).toEqual([
+      "/ich/tag",
+      "/team/zeiten",
+      "/verwalten/personen",
+      "/verwalten/monatsabschluss",
     ]);
-    expect(
-      mobileTabs(user("EMPLOYEE"), { availabilityEnabled: false }).map((t) => t.label),
-    ).toEqual(["Mein Tag", "Zeiten", "Abwesend", "Plan"]);
+    // No permission at all: only the own pages.
+    expect(mobileTabs({ permissions: [] }, ALL).map((t) => t.href)).toEqual(hrefs("EMPLOYEE"));
   });
-  it("never offers a target the user may not open", () => {
+
+  it("every persona: Mein Tag first, at most four tabs plus Mehr, each under its page name, none twice", () => {
     for (const persona of Object.keys(P)) {
+      const tabs = mobileTabs(user(persona), ALL);
+      expect(tabs[0].href, persona).toBe(MOBILE_TAB_FIRST);
+      expect(tabs.length, persona).toBeLessThanOrEqual(1 + MOBILE_TAB_SLOTS);
+      expect(new Set(tabs.map((t) => t.label)).size, persona).toBe(tabs.length);
+      for (const tab of tabs) {
+        const route = APP_ROUTES.find((r) => r.href === tab.href)!;
+        expect(tab.label, `${persona} ${tab.href}`).toBe(route.label);
+        expect(tab.icon, `${persona} ${tab.href}`).toBe(route.icon);
+        expect(tab.displayLabel.replace(/\u00AD/g, ""), `${persona} ${tab.href}`).toBe(route.label);
+      }
+    }
+  });
+
+  it("never offers a target the user may not open or does not see in the navigation", () => {
+    for (const persona of Object.keys(P)) {
+      const navHrefs = visibleNavSections(user(persona), ALL).flatMap((s) =>
+        s.items.map((i) => i.href),
+      );
       for (const tab of mobileTabs(user(persona), ALL)) {
         expect(mayOpenPath(user(persona), tab.href), `${persona} ${tab.href}`).toBe(true);
+        expect(navHrefs, `${persona} ${tab.href}`).toContain(tab.href);
       }
+    }
+  });
+
+  it("a break form of a page name differs from the name only by soft hyphens", () => {
+    const broken = APP_ROUTES.filter((r) => r.labelBreaks !== undefined);
+    expect(broken.length).toBeGreaterThan(0);
+    for (const route of broken) {
+      expect(route.labelBreaks, route.href).toContain("\u00AD");
+      expect(route.labelBreaks!.replace(/\u00AD/g, ""), route.href).toBe(route.label);
     }
   });
 });

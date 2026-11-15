@@ -139,3 +139,26 @@ describe("SalonSwitcher (Issue #82)", () => {
     expect(screen.getByText("Salon")).toBeInTheDocument();
   });
 });
+
+// Issue #945 — on a phone the pill shrinks to its icon so the page title beside it is never cut; the
+// global `.filter-select` minimum (130 px) must not hold it open.
+describe("SalonSwitcher on a phone (Issue #945)", () => {
+  it("is a 44 px icon button below 640 px, overriding the filter-select minimum", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(process.cwd(), "src/lib/components/layout/SalonSwitcher.svelte"),
+      "utf8",
+    );
+    const phone = src.slice(src.indexOf("@media (max-width: 640px)"));
+    const rule = phone.match(/\.salon-switcher-select\s*\{[^}]*\}/)?.[0] ?? "";
+    for (const decl of [
+      "width: 44px",
+      "min-width: 44px",
+      "max-width: 44px",
+      "color: transparent",
+    ]) {
+      expect(rule, decl).toContain(decl);
+    }
+  });
+});

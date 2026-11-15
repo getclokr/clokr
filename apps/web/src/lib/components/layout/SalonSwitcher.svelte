@@ -95,10 +95,29 @@
     }
   }
   @media (max-width: 640px) {
-    /* WCAG 2.5.5 touch target on phones */
+    /* WCAG 2.5.5 touch target on phones. #945: on a phone the pill shrinks to its icon, so the page title
+       next to it is never cut off; the select keeps its accessible name „Salon“ and announces the chosen
+       salon, and tapping it opens the same native picker. */
     .salon-switcher-select {
+      width: 44px;
+      min-width: 44px;
+      max-width: 44px;
       height: 44px;
       min-height: 44px;
+      padding: 0;
+      color: transparent;
+      text-indent: 44px;
+      overflow: hidden;
+    }
+    .salon-switcher-select option {
+      color: var(--text);
+    }
+    .salon-switcher-icon {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .salon-switcher-field::after {
+      display: none;
     }
   }
 </style>

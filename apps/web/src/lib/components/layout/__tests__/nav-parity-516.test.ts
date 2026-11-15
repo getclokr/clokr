@@ -102,7 +102,7 @@ describe("mobile Mehr sheet renders the same sections (#516)", () => {
     tenantFeatures.applyLocal(true);
   });
 
-  for (const persona of ["ADMIN", "SALON_MANAGER", "TRAINER", "EMPLOYEE"] as const) {
+  for (const persona of ["ADMIN", "SALON_MANAGER", "TRAINER", "EMPLOYEE", "HR"] as const) {
     it(`${persona}: every sidebar target is a link in the sheet under its sidebar heading`, async () => {
       const user = { role: persona === "ADMIN" ? "ADMIN" : "EMPLOYEE", permissions: p[persona] };
       (authStore as unknown as { set(v: unknown): void }).set({ user });
@@ -114,10 +114,13 @@ describe("mobile Mehr sheet renders the same sections (#516)", () => {
         const nav = within(dialog).getByRole("navigation", { name: section.label });
         expect(within(dialog).getByText(section.label, { selector: "h4" })).toBeInTheDocument();
         for (const item of section.items) {
+          const link = nav.querySelector(`a[href="${item.href}"]`);
+          expect(link, `${persona}: ${item.href} under ${section.label}`).not.toBeNull();
+          // #945: every item carries its icon - an svg with a drawn shape, not an empty frame.
           expect(
-            nav.querySelector(`a[href="${item.href}"]`),
-            `${persona}: ${item.href} under ${section.label}`,
-          ).not.toBeNull();
+            link!.querySelector("svg")?.childElementCount ?? 0,
+            `${persona}: icon of ${item.href}`,
+          ).toBeGreaterThan(0);
         }
       }
       expect(dialog.querySelector('a[href="/admin/special-leave"]')).toBeNull();
@@ -145,6 +148,54 @@ describe("mobile Mehr sheet renders the same sections (#516)", () => {
       ).toHaveAttribute("href", target);
       unmount();
     }
+  });
+});
+
+describe("phone tab bar (#945)", () => {
+  beforeEach(() => {
+    tenantFeatures.applyLocal(true);
+  });
+
+  for (const [persona, names] of [
+    ["EMPLOYEE", ["Mein Tag", "Zeiten", "Abwesenheiten", "Dienstplan"]],
+    ["SALON_MANAGER", ["Mein Tag", "Heute im Salon", "Zeiten", "Dienstplan"]],
+    ["HR", ["Mein Tag", "Personen", "Monatsabschluss", "Berichte"]],
+  ] as const) {
+    it(`${persona}: the bar shows the role's pages under their page names, each with its icon, then Mehr`, () => {
+      (authStore as unknown as { set(v: unknown): void }).set({
+        user: { permissions: p[persona] },
+      });
+      renderWithTheme(BottomTabBar, { currentPath: "/nowhere" });
+      const bar = screen.getByRole("navigation", { name: "Hauptnavigation (mobil)", hidden: true });
+      const tabs = Array.from(bar.querySelectorAll<HTMLElement>(".tab"));
+      expect(tabs).toHaveLength(names.length + 1);
+      expect(tabs.length).toBeLessThanOrEqual(5);
+      const labels = tabs.map((tab) =>
+        tab.querySelector(".tab-label")!.textContent!.replace(/\u00AD/g, ""),
+      );
+      expect(labels).toEqual([...names, "Mehr"]);
+      for (const tab of tabs) {
+        expect(tab.querySelector("svg")?.childElementCount ?? 0).toBeGreaterThan(0);
+        // A tab, not an inline text link: exempt from the global link underline of app.css.
+        if (tab.tagName === "A") expect(tab).toHaveClass("mobile-nav-item");
+      }
+    });
+  }
+
+  it("every icon of the route table is drawn by the shared Icon component", () => {
+    const ICON = read("../../Icon.svelte", "src/lib/components/Icon.svelte");
+    const icons = new Set(APP_ROUTES.map((route) => route.icon));
+    expect(icons.size).toBeGreaterThan(5);
+    for (const icon of icons) expect(ICON, icon).toContain(`name === "${icon}"`);
+  });
+
+  it("the Mehr sheet draws its icons with the shared Icon component, not a copy of its own", () => {
+    const SHEET = read(
+      "../MobileMoreSheet.svelte",
+      "src/lib/components/layout/MobileMoreSheet.svelte",
+    );
+    expect(SHEET).toContain('import Icon from "$lib/components/Icon.svelte"');
+    expect(SHEET).not.toMatch(/\{#snippet \w*[Ii]con\(/);
   });
 });
 

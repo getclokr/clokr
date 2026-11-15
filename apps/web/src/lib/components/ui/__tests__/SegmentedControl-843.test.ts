@@ -103,9 +103,19 @@ describe("SegmentedControl - v2 token recipe (D-843-01 item 7)", () => {
 
   it("track: pill on --sunk, control height from the size tokens", () => {
     expect(style).toMatch(/\.seg-control\s*\{[^}]*background:\s*var\(--sunk\)/);
-    expect(style).toMatch(/\.seg-control\s*\{[^}]*border-radius:\s*var\(--r-pill\)/);
+    // #945: the track wraps; its radius is half a row (the pill for one row, rounded corners for two).
+    expect(style).toMatch(
+      /\.seg-control\s*\{[^}]*--seg-radius:\s*calc\(var\(--h-control\) \/ 2 \+ 3px\)[^}]*border-radius:\s*var\(--seg-radius\)/,
+    );
+    expect(style).toMatch(
+      /\.seg-control--sm\s*\{[^}]*--seg-radius:\s*calc\(var\(--h-control-sm\) \/ 2 \+ 3px\)/,
+    );
     expect(style).toMatch(/\.seg-control--md\s*\{[^}]*var\(--h-control\)/);
     expect(style).toMatch(/\.seg-control--sm\s*\{[^}]*var\(--h-control-sm\)/);
+  });
+
+  it("wraps onto further rows instead of cutting options off (#945)", () => {
+    expect(style).toMatch(/\.seg-control\s*\{[^}]*flex-wrap:\s*wrap[^}]*max-width:\s*100%/);
   });
 
   it("selected option on --card with --text, the others --text-2", () => {

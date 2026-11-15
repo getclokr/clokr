@@ -80,9 +80,9 @@ Spelling: CSV-Import, DATEV-Export (hyphenated compounds), WLAN.
 Every page has one name, defined once in the route table `apps/web/src/lib/nav/routes.ts` (read through
 `page-labels.ts`, Issue #844). The sidebar, the mobile „Mehr“ sheet, the quick search (⌘K), the breadcrumb in the
 top bar and the page's H1 all read it — the H1 is the menu name. The areas are „Ich“, „Team“ and „Verwalten“. The
-mobile tab bar may use the short forms „Salon“ (Heute im Salon), „Abwesend“ (Abwesenheiten) and „Plan“
-(Dienstplan); they are defined next to the tab slots in the same module. The names are deliberately not repeated
-here: the module is the one source.
+mobile tab bar uses the page names too, without short forms (Issue #945); a long name may break onto a second
+line at the soft hyphen its table entry gives (`labelBreaks`). The names are deliberately not repeated here: the
+module is the one source.
 
 ## 5. What the lint checks — and what it cannot
 

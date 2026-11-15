@@ -16,9 +16,10 @@
 
   type NavItem = { href: string; label: string; icon: string };
 
-  // #844 (D-844-13): the tab-bar targets come from the route table — Salon · Aufgaben · Mein Tag · Abwesend for
-  // a team reach, Mein Tag · Zeiten · Abwesend · Plan otherwise; a target the user may not open is skipped.
-  // „Mehr“ is rendered as a button, not a link, so it gets its own active state from the open-sheet flag.
+  // #945: the tab-bar targets are derived from the route table and the person's permissions — Mein Tag, then
+  // the first three entries of the one priority list (`MOBILE_TAB_PRIORITY`) the person sees, each under its
+  // page name. „Mehr“ is rendered as a button, not a link, so it gets its own active state from the open-sheet
+  // flag.
   const primaryTabs = $derived(
     mobileTabs($authStore.user, { availabilityEnabled: $tenantFeatures.availabilityEnabled }),
   );
@@ -88,14 +89,15 @@
 <nav class="bottom-tab-bar" aria-label="Hauptnavigation (mobil)">
   {#each primaryTabs as tab (tab.href)}
     {@const active = tab.href === currentHref}
+    <!-- A tab, not an inline text link: `mobile-nav-item` exempts it from the global link underline (app.css). -->
     <a
       href={tab.href}
-      class="tab"
+      class="tab mobile-nav-item"
       class:tab-active={active}
       aria-current={active ? "page" : undefined}
     >
       <span class="tab-icon" aria-hidden="true">{@render tabIcon(tab.icon)}</span>
-      <span class="tab-label" translate="no">{tab.label}</span>
+      <span class="tab-label" translate="no">{tab.displayLabel}</span>
     </a>
   {/each}
 
@@ -135,7 +137,7 @@
     .bottom-tab-bar {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: 1fr;
+      grid-auto-columns: minmax(0, 1fr);
       position: fixed;
       bottom: 0;
       left: 0;
@@ -209,10 +211,16 @@
     height: 22px;
   }
 
+  /* A page name that does not fit its slot breaks onto a second line (at a space or at the soft hyphen of
+     the route table's `labelBreaks`, #945) instead of being cut off. */
   .tab-label {
+    max-width: 100%;
     font-size: 10.5px;
     font-weight: 500;
     letter-spacing: 0.01em;
-    line-height: 1;
+    line-height: 1.15;
+    text-align: center;
+    hyphens: manual;
+    overflow-wrap: break-word;
   }
 </style>

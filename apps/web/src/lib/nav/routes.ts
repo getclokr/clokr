@@ -47,6 +47,9 @@ export interface AppRoute {
   /** Issue #853 (D-853-04 revised) — the name of this page as a TAB of its parent area page („Woche“, „Bedarf“).
    *  Read only by a tab strip (`rosterTabs`); the H1, `<title>` and crumb keep `label`. */
   tabLabel?: string;
+  /** Issue #945 — `label` with soft hyphens (U+00AD) where a narrow slot (the phone tab bar) may break the
+   *  name; it equals `label` once they are removed (`routes-844.test.ts`). Display only. */
+  labelBreaks?: string;
   /** Tenant feature that must be on (Verfügbarkeits-System, Phase 47.3). */
   feature?: "availability";
   /** An internal tool page (#843): reachable by URL behind its guard, never in a navigation, a hub, the
@@ -106,6 +109,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     href: "/ich/abwesenheiten",
     area: "ich",
     label: "Abwesenheiten",
+    labelBreaks: "Abwesen\u00ADheiten",
     icon: "umbrella",
     width: "full",
     requires: null,
@@ -199,6 +203,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     href: "/team/abwesenheiten",
     area: "team",
     label: "Abwesenheiten",
+    labelBreaks: "Abwesen\u00ADheiten",
     icon: "umbrella",
     width: "full",
     requires: [[Z("leave-request:read")]],
@@ -459,6 +464,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     href: "/verwalten/monatsabschluss",
     area: "verwalten",
     label: "Monatsabschluss",
+    labelBreaks: "Monats\u00ADabschluss",
     icon: "lock",
     width: "full",
     requires: [[Z("month-close:read")]],
@@ -955,39 +961,63 @@ export function pageWidthForPath(pathname: string): PageWidth {
 
 export interface MobileTab {
   href: string;
-  /** The short form shown in the tab bar (docs/glossar.md § 4); the page's name stays the table label. */
+  /** The page's name from the table (= menu = H1, docs/glossar.md) — never a short form of its own (#945). */
   label: string;
+  /** `label` with the soft hyphens of `labelBreaks`, for the narrow tab-bar slot only. */
+  displayLabel: string;
   icon: string;
 }
 
-/** Tab-bar slots (D-844-13, prototype v5): with a Team entry Salon · Aufgaben · Mein Tag · Abwesend (team),
- *  without one Mein Tag · Zeiten · Abwesend · Plan; „Mehr“ follows. Short forms only here. */
-const TEAM_TABS: readonly [string, string][] = [
-  ["/team/heute", "Salon"],
-  ["/team/aufgaben", "Aufgaben"],
-  ["/ich/tag", "Mein Tag"],
-  ["/team/abwesenheiten", "Abwesend"],
-];
-const PERSONAL_TABS: readonly [string, string][] = [
-  ["/ich/tag", "Mein Tag"],
-  ["/ich/zeiten", "Zeiten"],
-  ["/ich/abwesenheiten", "Abwesend"],
-  ["/ich/dienstplan", "Plan"],
+/** The first tab-bar slot: every signed-in user has Mein Tag (`requires: null`). */
+export const MOBILE_TAB_FIRST = "/ich/tag";
+
+/** Slots between Mein Tag and „Mehr“: 5 slots in all, which still fit 360 px (#945). */
+export const MOBILE_TAB_SLOTS = 3;
+
+/**
+ * Issue #945 — the ONE priority list of the phone tab bar: after Mein Tag the bar takes the first
+ * `MOBILE_TAB_SLOTS` entries of this list that the person sees in the navigation (`visibleRoute`), so it
+ * follows the person's permissions and never a role name. Team work comes first (the salon's day, its times,
+ * the roster), then the person-and-month work of an administration role (Personen, Monatsabschluss,
+ * Berichte), then the team's inbox and absences, and finally the own pages for a person without a team
+ * reach. An entry whose page name is already in the bar is skipped (Team › Zeiten and Ich › Zeiten are both
+ * „Zeiten“). Every href is a rail entry of the table (`routes-844.test.ts`).
+ */
+export const MOBILE_TAB_PRIORITY: readonly string[] = [
+  "/team/heute",
+  "/team/zeiten",
+  "/team/dienstplan",
+  "/verwalten/personen",
+  "/team/personen",
+  "/verwalten/monatsabschluss",
+  "/team/berichte",
+  "/team/aufgaben",
+  "/team/abwesenheiten",
+  "/ich/zeiten",
+  "/ich/abwesenheiten",
+  "/ich/dienstplan",
+  "/ich/konto",
 ];
 
-/** The tab-bar targets of `user`: a slot the user may not open (or whose feature is off) is skipped, never a
- *  dead link. */
+/** The tab-bar targets of `user`: Mein Tag, then up to `MOBILE_TAB_SLOTS` entries of `MOBILE_TAB_PRIORITY`
+ *  the user sees in the navigation (permissions and tenant features), each under its page name; „Mehr“
+ *  follows in the bar itself. Never a dead link, never a role comparison. */
 export function mobileTabs(
   user: PermissionHolder | null | undefined,
   options: RouteOptions,
 ): MobileTab[] {
-  const hasTeam = APP_ROUTES.some(
-    (route) => route.area === "team" && route.inNav && visibleRoute(user, route, options),
-  );
-  return (hasTeam ? TEAM_TABS : PERSONAL_TABS).flatMap(([href, label]) => {
+  const tabs: MobileTab[] = [];
+  for (const href of [MOBILE_TAB_FIRST, ...MOBILE_TAB_PRIORITY]) {
+    if (tabs.length > MOBILE_TAB_SLOTS) break;
     const route = routeByKey(href);
-    return route !== null && visibleRoute(user, route, options)
-      ? [{ href, label, icon: route.icon }]
-      : [];
-  });
+    if (route === null || !route.inNav || !visibleRoute(user, route, options)) continue;
+    if (tabs.some((tab) => tab.label === route.label)) continue;
+    tabs.push({
+      href: route.href,
+      label: route.label,
+      displayLabel: route.labelBreaks ?? route.label,
+      icon: route.icon,
+    });
+  }
+  return tabs;
 }

@@ -69,21 +69,27 @@ function currentElements(nav: HTMLElement): Element[] {
 describe("BottomTabBar — current location (#515)", () => {
   beforeEach(() => {
     // Since #83 the admin items behind „Mehr“ are permission-gated (since #844 by the route table), so the
-    // fixture also holds the right its Personen page needs. Without team-overview:read the Salon tab is skipped,
-    // so the team variant shows Aufgaben · Mein Tag · Abwesend · Mehr (#844, D-844-13).
-    // #853 (D-853-15): Verwalten › Personen shows in the navigation for whoever edits persons.
-    signInAs([...ALL_TEAM_PERMISSIONS, "employee:read:ZUGEWIESEN", "employee:update:ZUGEWIESEN"]);
+    // fixture also holds the rights its Personen and Monatsabschluss pages need. #853 (D-853-15): Verwalten › Personen shows in the
+    // navigation for whoever edits persons. #945: without team-overview:read Heute im Salon is skipped, so the
+    // derived bar is Mein Tag · Zeiten · Dienstplan · Personen · Mehr, and Aufgaben lives behind „Mehr“.
+    signInAs([
+      ...ALL_TEAM_PERMISSIONS,
+      "employee:read:ZUGEWIESEN",
+      "employee:update:ZUGEWIESEN",
+      "month-close:read:ZUGEWIESEN",
+    ]);
   });
 
   it("marks a primary route as the page and leaves Mehr unmarked, named exactly Mehr", () => {
-    renderWithTheme(BottomTabBar, { currentPath: "/team/aufgaben" });
+    renderWithTheme(BottomTabBar, { currentPath: "/team/zeiten" });
     const nav = mobileNav();
 
     const current = currentElements(nav);
     expect(current).toHaveLength(1);
-    const tasks = within(nav).getByRole("link", { name: "Aufgaben", hidden: true });
-    expect(current[0]).toBe(tasks);
-    expect(tasks).toHaveAttribute("aria-current", "page");
+    const times = within(nav).getByRole("link", { name: "Zeiten", hidden: true });
+    expect(times).toHaveAttribute("href", "/team/zeiten");
+    expect(current[0]).toBe(times);
+    expect(times).toHaveAttribute("aria-current", "page");
 
     const mehr = within(nav).getByRole("button", { name: "Mehr", hidden: true });
     expect(mehr).not.toHaveAttribute("aria-current");
@@ -91,14 +97,14 @@ describe("BottomTabBar — current location (#515)", () => {
   });
 
   it("marks the Mehr trigger when the page lives behind Mehr (Verwalten route)", () => {
-    renderWithTheme(BottomTabBar, { currentPath: "/verwalten/personen" });
+    renderWithTheme(BottomTabBar, { currentPath: "/verwalten/monatsabschluss" });
     const nav = mobileNav();
 
     expect(within(nav).queryAllByRole("link", { hidden: true }).filter(isCurrent)).toHaveLength(0);
     const mehr = within(nav).getByRole("button", { hidden: true });
     expect(mehr).toHaveAttribute("aria-current", "true");
     expect(mehr).toHaveClass("tab-active");
-    expect(mehr).toHaveAccessibleName("Mehr, aktuelle Seite: Personen");
+    expect(mehr).toHaveAccessibleName("Mehr, aktuelle Seite: Monatsabschluss");
     expect(currentElements(nav)).toHaveLength(1);
   });
 
@@ -106,7 +112,10 @@ describe("BottomTabBar — current location (#515)", () => {
     renderWithTheme(BottomTabBar, { currentPath: "/ich/zeiten" });
     const nav = mobileNav();
 
-    expect(within(nav).queryByRole("link", { name: "Zeiten", hidden: true })).toBeNull();
+    // The one „Zeiten“ tab is the team's (#945: a page name is in the bar once), and it is not current.
+    const times = within(nav).getAllByRole("link", { name: "Zeiten", hidden: true });
+    expect(times.map((link) => link.getAttribute("href"))).toEqual(["/team/zeiten"]);
+    expect(times[0]).not.toHaveAttribute("aria-current");
     const mehr = within(nav).getByRole("button", { hidden: true });
     expect(mehr).toHaveAttribute("aria-current", "true");
     expect(mehr).toHaveAccessibleName("Mehr, aktuelle Seite: Zeiten");
@@ -131,6 +140,15 @@ describe("BottomTabBar — current location (#515)", () => {
     const mehr = within(nav).getByRole("button", { hidden: true });
     expect(mehr).toHaveAttribute("aria-current", "true");
     expect(mehr).toHaveAccessibleName("Mehr, aktuelle Seite: Profil");
+  });
+
+  it("a page behind Mehr that used to be a tab (Aufgaben) names itself on the trigger (#945)", () => {
+    renderWithTheme(BottomTabBar, { currentPath: "/team/aufgaben" });
+    const nav = mobileNav();
+    expect(within(nav).queryByRole("link", { name: "Aufgaben", hidden: true })).toBeNull();
+    expect(within(nav).getByRole("button", { hidden: true })).toHaveAccessibleName(
+      "Mehr, aktuelle Seite: Aufgaben",
+    );
   });
 
   it("marks nothing on an unknown route and keeps the plain Mehr name", () => {
