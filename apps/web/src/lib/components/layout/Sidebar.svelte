@@ -80,7 +80,8 @@
 </script>
 
 <aside class="sidebar" aria-label="Hauptnavigation" data-testid="sidebar">
-  <!-- Owner 13.11.2026: mark 40 px in a 64 px rail head (was 32 px, aligned to the header, #852) -->
+  <!-- Owner 13.11.2026: mark 40 px (was 32 px, aligned to the header, #852); owner 15.11.2026: the
+       mark sits lower, see the rhythm note on .sidebar-brand -->
   <a href={homeHref($authStore.user)} class="sidebar-brand" data-testid="sidebar-brand">
     <BrandLogo size={40} label="Clokr Zeiterfassung" />
   </a>
@@ -175,14 +176,16 @@
   .sidebar-brand,
   .sidebar-brand:hover,
   .sidebar-brand:focus {
-    /* Owner 13.11.2026: a taller rail head for the larger mark (64 px). Until then the row matched the
-       header height (#852/#844); the larger logo no longer fits that line. */
+    /* Owner 15.11.2026: the rail head follows the golden ratio. The space above the 40 px mark (20 px)
+       and the space from the mark to the first area heading (8 px here + the first heading's 24 px =
+       32 px, 20 × 1.618) relate 1 : φ, so the mark no longer hangs from the top edge and "Ich" gets
+       room of its own. Before: 12 px above, 12 px + 12 px below (#852/#844, owner 13.11.2026). */
     box-sizing: border-box;
-    height: 64px;
-    min-height: 64px;
-    padding: 0 18px;
+    height: 68px;
+    min-height: 68px;
+    padding: 20px 18px 8px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     text-decoration: none;
     border: 0;
@@ -208,7 +211,8 @@
     background: var(--line-2);
   }
 
-  /* Owner 13.11.2026: more air above each area heading (12 px, was 6 px) */
+  /* Owner 13.11.2026: more air above each area heading (12 px, was 6 px); owner 15.11.2026: the first
+     heading takes the larger step below the mark (see .sidebar-brand). */
   .sidebar-section-label {
     padding: 12px 18px 4px;
     font-size: var(--fs-th);
@@ -216,11 +220,17 @@
     font-weight: 600;
   }
 
+  .sidebar-section-label:first-child {
+    padding-top: 24px;
+  }
+
   .sidebar-nav {
     display: flex;
     flex-direction: column;
     padding: 0 10px;
-    gap: 2px;
+    /* Owner 15.11.2026: 1 px between rows (was 2 px) pays for the taller rail head, so the Inhaber's
+       longest menu still fits at 1440×900 without scrolling the rail. */
+    gap: 1px;
   }
 
   /* Owner 13.11.2026: 34 px rows (were 30 px, #844 prototype). The longest menu fits at 1440×900; at
@@ -388,6 +398,17 @@
   @media (max-height: 800px) {
     .nav-item {
       height: 28px;
+    }
+    /* the same 1 : φ head, one step smaller (14 px above the mark, 8 + 14 = 22 px below it) */
+    .sidebar-brand,
+    .sidebar-brand:hover,
+    .sidebar-brand:focus {
+      height: 62px;
+      min-height: 62px;
+      padding-top: 14px;
+    }
+    .sidebar-section-label:first-child {
+      padding-top: 14px;
     }
   }
 
