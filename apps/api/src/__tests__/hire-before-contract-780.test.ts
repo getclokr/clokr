@@ -95,10 +95,15 @@ describe("Issue #780 - hireDate before the first contract", { timeout: 120_000 }
     expect(row.balanceMinutes).toBe(row.months.reduce((s, m) => s + (m.balanceMinutes ?? 0), 0));
 
     // Each month = the account's own month answer.
+    // Issue #985 (D-01, re-pin kind i): an open month of the period is the account's to-date
+    // triple (`f.toDate`); the running October therefore carries the Soll through yesterday
+    // (18 workdays x 8 h = 8640 min), the same Soll the closing and the live saldo are built from,
+    // not the whole-month Soll /reports/monthly keeps (P-03 of #451).
     for (const m of row.months) {
       const f = await computeMonthReportFigures(app, employeeId, m.year, m.month);
-      expect(m.expectedMinutes ?? 0).toBe(f.expectedMinutes);
+      expect(m.expectedMinutes ?? 0).toBe((f.toDate ?? f).expectedMinutes);
     }
+    expect(row.months.find((m) => m.month === 10)!.expectedMinutes).toBe(18 * 8 * 60);
 
     // The closing saldo = the live saldo, and the closing is built from the same Soll as the rows:
     // no Soll for September (no contract), the October contract Soll to yesterday.

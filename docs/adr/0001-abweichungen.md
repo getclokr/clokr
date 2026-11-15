@@ -4293,7 +4293,8 @@ mit Null-Abschlüssen und ohne Abschluss des Vormonats; der laufende Monat gleic
 alten Beginn; Sammel = Einzel; kein Schreibzugriff. Bewusst nachgezogen, jeweils mit Kommentar „Issue #985“:
 `reports-period-sums-612` (laufender Monat = `toDate`, `/monthly` und Monatsexport behalten das Soll des ganzen Monats),
 `reports-period-612` (Beginn von P1 = 640, der gespeicherte Übertrag in den August), `reports-period-bulk-read-688`
-(`carryInMinutes` im Literal eines abgeschlossenen Monats, Beginn = Übertrag in den gespeicherten November 2025) und die
+(`carryInMinutes` im Literal eines abgeschlossenen Monats, Beginn = Übertrag in den gespeicherten November 2025),
+`hire-before-contract-780` (der laufende Oktober trägt das Soll bis gestern, 18 × 8 h) und die
 Aufzeichnung `GOLDEN_UNFILTERED` in `reports-period-salon-612` (nur Juli-Soll und -Saldo und die Zeilensummen davon). Die
 Golden- und Paritätsdateien des Saldokerns sind unverändert grün.
 
