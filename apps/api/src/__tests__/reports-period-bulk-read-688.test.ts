@@ -308,6 +308,9 @@ describe("Issue #688 — closed months of a period are read in one query, never 
         confirmed: true,
         labelled: true,
         basis: "snapshot",
+        // Issue #985 (D-02, re-pin kind iii): the additive stored carry-in of a closed labelled
+        // month that is not track-only (none of FIX, MH, SHIFT, SWITCH-until-May is).
+        carryInMinutes: s.carry - (s.worked - s.expected),
       });
       checked++;
     }
@@ -338,7 +341,12 @@ describe("Issue #688 — closed months of a period are read in one query, never 
     for (const id of [ids.FIX, ids.MH, ids.SHIFT]) {
       const row = report.rows.find((r) => r.employeeId === id)!;
       expect(row.months).toHaveLength(12);
-      expect(row.openingBalanceMinutes).toBe(stored.get(`${id}::2025-10`)!.carry);
+      // Issue #985 (D-02, re-pin kind ii): November 2025 is stored for all three, so the period
+      // opens with ITS carry-in (carryOver − balance), not the October carry-over the stored
+      // November close does not continue from (the deliberate +3 chain: here October carry + 3).
+      const nov = stored.get(`${id}::2025-11`)!;
+      expect(row.openingBalanceMinutes).toBe(nov.carry - (nov.worked - nov.expected));
+      expect(row.openingBalanceMinutes).toBe(stored.get(`${id}::2025-10`)!.carry + 3);
       for (const m of row.months) {
         const s = stored.get(`${id}::${ym(m)}`);
         if (!s) {

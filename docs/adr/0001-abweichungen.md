@@ -4248,6 +4248,63 @@ git diff "$(git merge-base HEAD origin/main)" -- apps/api/src/composition/report
 pnpm --filter @clokr/e2e exec playwright test reports-period.spec.ts --grep "Issue #713"   # gegen den Test-Stack
 ```
 
+### Nachtrag 2026-11-15 (Issue #985) — Zeitraumbericht rechnet auf: laufender Monat bis gestern, Saldo Beginn = Übertrag in den ersten Monat
+
+**Schwere:** Korrektur einer Anzeige. Keine Unterbau-, Schema-, Migrations-, Routen- oder Permission-Änderung; kein
+`SaldoSnapshot` und kein `OvertimeAccount` wird geschrieben. Der Saldokern (`computeMonthSaldo`, `closeEmployeeMonth`,
+`overtime-balance.ts`), der Live-Saldo, der Monatsabschluss, `GET /reports/monthly` mit Stundennachweis, der Monatsexport und
+DATEV sind unverändert (`reports.ts`, `pdf.ts`, `period-csv.ts`, `dashboard.ts`, `close-employee-month.ts`,
+`overtime-balance.ts`, `track-only-schedule.ts` und `api/overtime.ts` byte-gleich zum Merge-Basisstand).
+
+**Was falsch war:** Auf der Seite „Berichte“ ergab Saldo Beginn plus Saldo im Zeitraum nicht Saldo Ende. Zwei Ursachen:
+
+- **Laufender Monat.** `computeMonthReportFigures` beantwortet einen offenen Monat (außer `SHIFT_BASED`) mit dem Soll des
+  GANZEN Monats (`fullMonth`, Planerentscheidung P-03 aus #451, das Modell des Stundennachweises), während der Gesamtsaldo
+  (`closingBalanceMinutes`) bis gestern läuft. Beobachtet (Mandant UX-Test, November laufend): Soll 126:00, Ist 60:00,
+  Saldo Zeitraum −66:00, Beginn ±0:00, Ende ±0:00 — das eigene Konto zeigte Soll 60:00, Ist 60:00, ±0:00.
+- **Saldo Beginn.** Beginn war der Gesamtsaldo des Monats VOR `from`. Liegt dieser Monat vor dem ersten gespeicherten
+  Abschluss, wird er offen ab dem Eintrittsdatum gerechnet: Eine Person mit Eintritt 03/2024, Null-Abschlüssen „Vor
+  Erfassungsbeginn“ für Januar bis September 2026, abgeschlossenem Oktober und ohne Abschluss für Dezember 2025 zeigte in der
+  Jahressicht Beginn −3.672:00 und Ende +1:30.
+
+**Was sich geändert hat:**
+
+- **D-01.** `MonthReportFigures.toDate` (Arbeitszeitkonto, additiv) trägt für jeden offenen, bewerteten Monat das Tripel bis
+  zum Stichtag des Kontos (`computeMonthSaldo`-Kopf: im laufenden Monat bis gestern, in einem vergangenen offenen Monat bis zum
+  Monatsletzten). Nur der Zeitraumbericht liest es; `/reports/monthly`, beide PDFs, DATEV und das Dashboard lesen weiter das
+  Haupttripel (Soll des ganzen Monats im laufenden Monat, P-03). Die Sammelabfrage `computeMonthReportFiguresForMany`
+  beantwortet offene Paare über dieselbe Funktion, damit gilt Sammel = Einzel (#696/#688).
+- **D-02.** `MonthReportFigures.carryInMinutes` (additiv) ist der Übertrag IN einen abgeschlossenen Monat, gespeichertes
+  `carryOver − balanceMinutes` (`closeEmployeeMonth`: `carryOverOut = carryOverIn + balanceMinutes`; Korrekturen aus #599 liegen
+  im Saldo, ein beim ersten Abschluss eingebuchter Eröffnungssaldo gehört zum Übertrag). Ist der erste Monat des Zeitraums
+  abgeschlossen, ist Saldo Beginn dieser Wert; bei einem offenen ersten Monat bleibt es der Gesamtsaldo des Vormonats. Zeilen ohne
+  Saldoberechtigung und unbewertete Zeilen behalten „—“.
+- **D-02b.** Ein Abschluss unter einem Nur-erfassen-Vertrag (`isTrackOnlySchedule()` für den Vertrag am Monatsende) speichert
+  `carryOver` 0 neben dem rohen Saldo; die Differenz ist kein Übertrag. Für ihn fehlt `carryInMinutes`, Saldo Beginn bleibt der
+  Gesamtsaldo des Vormonats. Die Regel steht nur in `month-saldo.ts` (Einzel- und Sammelpfad, die Sammelabfrage liest dafür
+  `overtimeMode`); die Kompositionsschicht entscheidet keine Nur-erfassen-Frage.
+- **Seite.** Endet der Zeitraum im laufenden Monat, nennt die Seite den Stichtag: „Laufender Monat bis gestern (TT.MM.): Soll,
+  Ist und Saldo zählen bis zu diesem Tag.“ (`runningMonthNote()` in `$lib/reports/period-format.ts`).
+
+**Nachweis:** `reports-period-identity-985.test.ts` (rot auf dem Merge-Basisstand): Beginn + Σ Saldo Zeitraum = Ende und je
+Monat Ende(m) = Ende(m−1) + Saldo(m) für (a) den laufenden Monat allein, (b) ein Quartal bis zum laufenden Monat und (c) ein Jahr
+mit Null-Abschlüssen und ohne Abschluss des Vormonats; der laufende Monat gleich dem Kopf von `GET /overtime/month-saldo`;
+`/reports/monthly` zeigt weiter das Soll des ganzen Monats; eine Nur-erfassen-Zeile mit abgeschlossenem ersten Monat behält den
+alten Beginn; Sammel = Einzel; kein Schreibzugriff. Bewusst nachgezogen, jeweils mit Kommentar „Issue #985“:
+`reports-period-sums-612` (laufender Monat = `toDate`, `/monthly` und Monatsexport behalten das Soll des ganzen Monats),
+`reports-period-612` (Beginn von P1 = 640, der gespeicherte Übertrag in den August), `reports-period-bulk-read-688`
+(`carryInMinutes` im Literal eines abgeschlossenen Monats, Beginn = Übertrag in den gespeicherten November 2025) und die
+Aufzeichnung `GOLDEN_UNFILTERED` in `reports-period-salon-612` (nur Juli-Soll und -Saldo und die Zeilensummen davon). Die
+Golden- und Paritätsdateien des Saldokerns sind unverändert grün.
+
+**Bekannte Grenzen:**
+
+- Bewertete Nur-erfassen-Zeilen (`MONTHLY_HOURS` mit `overtimeMode` `TRACK_ONLY` und Stunden > 0) zeigen als Saldo im Zeitraum
+  den rohen Monatssaldo, das Konto hält 0; eine solche Zeile kann nicht aufgehen. D-02b hält nur den Beginn richtig.
+- Ein gespeicherter Neuansatz INNERHALB des Zeitraums (ein abgeschlossener Monat, dessen gespeicherter Übertrag vom gerechneten
+  Vormonat abweicht) bricht die Gleichung per Konstruktion; sie gilt je zusammenhängender Strecke.
+- Wer im Zeitraum eintritt, behält Beginn „—“, außer der Eintrittsmonat ist der erste Monat des Zeitraums und abgeschlossen.
+
 ## R — Fehlender Urlaubsanspruch bei Mitarbeiteranlage (Phase 416, Issue #416)
 
 **Schwere: informativ. Keine Berechtigungsänderung — eine reine Response-Body-Erweiterung einer

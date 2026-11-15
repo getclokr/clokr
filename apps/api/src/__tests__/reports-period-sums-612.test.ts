@@ -265,12 +265,34 @@ describe("Issue #612 — period sums (AC-612-2)", () => {
       for (const row of p.rows) {
         for (const m of row.months) {
           const f = await computeMonthReportFigures(app, row.employeeId, m.year, m.month);
-          expect(m.workedMinutes, `${row.employeeNumber} ${m.month} worked`).toBe(f.workedMinutes);
+          // Issue #985 (D-01, re-pin kind i): an open month of the period is the account's to-date
+          // triple (`f.toDate`, the Stichtag of its Gesamtsaldo); a closed or unlabelled month keeps
+          // the main triple. Closing, confirmed and labelled are unchanged.
+          const reported = f.toDate ?? f;
+          const running = m.year === 2026 && m.month === 10;
+          const mainTriple = {
+            workedMinutes: f.workedMinutes,
+            expectedMinutes: f.expectedMinutes,
+            balanceMinutes: f.balanceMinutes,
+          };
+          if (f.toDate && !running) {
+            // Issue #985: once a month is over, to-date = whole month - #985 changes no past month.
+            expect(f.toDate, `${row.employeeNumber} ${m.month} past open month`).toEqual(
+              mainTriple,
+            );
+          }
+          if (f.basis === "toDate") {
+            // Issue #985 (D-01, SHIFT_BASED clause): that basis already is the to-date triple.
+            expect(f.toDate, `${row.employeeNumber} ${m.month} toDate basis`).toEqual(mainTriple);
+          }
+          expect(m.workedMinutes, `${row.employeeNumber} ${m.month} worked`).toBe(
+            reported.workedMinutes,
+          );
           expect(m.expectedMinutes, `${row.employeeNumber} ${m.month} expected`).toBe(
-            f.expectedMinutes,
+            reported.expectedMinutes,
           );
           expect(m.balanceMinutes, `${row.employeeNumber} ${m.month} balance`).toBe(
-            f.balanceMinutes,
+            reported.balanceMinutes,
           );
           expect(m.closingBalanceMinutes, `${row.employeeNumber} ${m.month} closing`).toBe(
             f.closingBalanceMinutes,
@@ -280,15 +302,20 @@ describe("Issue #612 — period sums (AC-612-2)", () => {
 
           const j = (await monthly(m.year, m.month)).get(row.employeeId);
           expect(j, `${row.employeeNumber} ${m.month} in /monthly`).toBeDefined();
-          expect(hours(m.workedMinutes), `${row.employeeNumber} ${m.month} workedHours`).toBe(
-            j!.workedHours,
-          );
+          // Issue #985 (D-01, re-pin kind i): in the RUNNING month /monthly still prints the main
+          // triple (whole-month Soll, P-03 of #451), not the period's to-date figures; every other
+          // month keeps the period = /monthly equality.
+          const monthlyFigures = running ? mainTriple : m;
           expect(
-            hours(m.expectedMinutes ?? 0),
+            hours(monthlyFigures.workedMinutes),
+            `${row.employeeNumber} ${m.month} workedHours`,
+          ).toBe(j!.workedHours);
+          expect(
+            hours(monthlyFigures.expectedMinutes ?? 0),
             `${row.employeeNumber} ${m.month} shouldHours`,
           ).toBe(j!.shouldHours);
           expect(
-            hours(m.balanceMinutes ?? 0),
+            hours(monthlyFigures.balanceMinutes ?? 0),
             `${row.employeeNumber} ${m.month} overtimeHours`,
           ).toBe(j!.overtimeHours);
           expect(m.labelled ? m.confirmed : null).toBe(j!.overtimeConfirmed);
@@ -382,9 +409,23 @@ describe("Issue #612 — period sums (AC-612-2)", () => {
         const row = byNumber.get(e.employeeNumber);
         expect(row, e.employeeNumber).toBeDefined();
         const m = row!.months[0];
-        expect(m.workedMinutes, `${e.employeeNumber} Ist`).toBe(e.workedMinutes);
-        expect(m.expectedMinutes, `${e.employeeNumber} Soll`).toBe(e.expectedMinutes);
-        expect(m.balanceMinutes, `${e.employeeNumber} Saldo`).toBe(e.balanceMinutes);
+        if (month === 10) {
+          // Issue #985 (D-01, re-pin kind i): the running month of the period counts through
+          // tenant-local yesterday (the account's to-date triple); the Monatsexport keeps the
+          // whole-month Soll (P-03 of #451). Gesamtsaldo and status stay equal to the export below.
+          const f = await computeMonthReportFigures(app, row!.employeeId, 2026, 10);
+          const reported = f.toDate ?? f;
+          expect(m.workedMinutes, `${e.employeeNumber} Ist`).toBe(reported.workedMinutes);
+          expect(m.expectedMinutes, `${e.employeeNumber} Soll`).toBe(reported.expectedMinutes);
+          expect(m.balanceMinutes, `${e.employeeNumber} Saldo`).toBe(reported.balanceMinutes);
+          expect(e.expectedMinutes, `${e.employeeNumber} export Soll (whole month)`).toBe(
+            f.expectedMinutes,
+          );
+        } else {
+          expect(m.workedMinutes, `${e.employeeNumber} Ist`).toBe(e.workedMinutes);
+          expect(m.expectedMinutes, `${e.employeeNumber} Soll`).toBe(e.expectedMinutes);
+          expect(m.balanceMinutes, `${e.employeeNumber} Saldo`).toBe(e.balanceMinutes);
+        }
         expect(m.closingBalanceMinutes, `${e.employeeNumber} Gesamtsaldo`).toBe(
           e.closingBalanceMinutes,
         );

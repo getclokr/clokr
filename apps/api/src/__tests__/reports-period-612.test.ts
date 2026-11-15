@@ -263,9 +263,11 @@ describe("Issue #612 — GET /reports/period", () => {
         expect(row.months.map((m) => m.month)).toEqual([8, 9, 10]);
         for (const m of row.months) {
           const f = await computeMonthReportFigures(app, id, m.year, m.month);
-          expect(m.workedMinutes, `${id} ${m.month} worked`).toBe(f.workedMinutes);
-          expect(m.expectedMinutes, `${id} ${m.month} expected`).toBe(f.expectedMinutes);
-          expect(m.balanceMinutes, `${id} ${m.month} balance`).toBe(f.balanceMinutes);
+          // Issue #985 (D-01, re-pin kind i): an open month is the account's to-date triple.
+          const reported = f.toDate ?? f;
+          expect(m.workedMinutes, `${id} ${m.month} worked`).toBe(reported.workedMinutes);
+          expect(m.expectedMinutes, `${id} ${m.month} expected`).toBe(reported.expectedMinutes);
+          expect(m.balanceMinutes, `${id} ${m.month} balance`).toBe(reported.balanceMinutes);
           expect(m.closingBalanceMinutes, `${id} ${m.month} closing`).toBe(f.closingBalanceMinutes);
           expect(m.confirmed, `${id} ${m.month} confirmed`).toBe(f.confirmed);
           expect(m.labelled, `${id} ${m.month} labelled`).toBe(f.labelled);
@@ -297,8 +299,18 @@ describe("Issue #612 — GET /reports/period", () => {
         expect(row.expectedMinutes).toBe(sum((m) => m.expectedMinutes));
         expect(row.balanceMinutes).toBe(sum((m) => m.balanceMinutes));
         expect(row.sickDays).toBe(0);
-        const july = await computeMonthReportFigures(app, id, 2026, 7);
-        expect(row.openingBalanceMinutes).toBe(july.closingBalanceMinutes);
+        if (id === ids.P1) {
+          // Issue #985 (D-02, re-pin kind ii): August is closed, so the period opens with the stored
+          // carry INTO August: carryOver − balanceMinutes = −8000 − (−8640) = 640 (was July's
+          // computed Gesamtsaldo).
+          const august = await computeMonthReportFigures(app, id, 2026, 8);
+          expect(row.openingBalanceMinutes).toBe(august.carryInMinutes);
+          expect(row.openingBalanceMinutes).toBe(640);
+        } else {
+          // P2 has no snapshot: the open first month keeps the previous month's Gesamtsaldo.
+          const july = await computeMonthReportFigures(app, id, 2026, 7);
+          expect(row.openingBalanceMinutes).toBe(july.closingBalanceMinutes);
+        }
         const october = await computeMonthReportFigures(app, id, 2026, 10);
         expect(row.closingBalanceMinutes).toBe(october.closingBalanceMinutes);
         expect(row.labelled).toBe(true);
@@ -328,9 +340,12 @@ describe("Issue #612 — GET /reports/period", () => {
       const r = await period("from=2026-08&to=2026-08");
       expect(r.kpis.closingAsOf).toBe("2026-08-31");
       expect(rowOf(r, ids.P1).closingBalanceMinutes).toBe(-8000);
+      // Issue #985 (D-02, re-pin kind ii): the closed August opens with its stored carry-in
+      // −8000 − (−8640) = 640 (was July's computed Gesamtsaldo).
       expect(rowOf(r, ids.P1).openingBalanceMinutes).toBe(
-        (await computeMonthReportFigures(app, ids.P1, 2026, 7)).closingBalanceMinutes,
+        (await computeMonthReportFigures(app, ids.P1, 2026, 8)).carryInMinutes,
       );
+      expect(rowOf(r, ids.P1).openingBalanceMinutes).toBe(640);
     });
   });
 
