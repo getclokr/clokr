@@ -211,13 +211,20 @@ test.describe("Navigation v2 — the rail fits without scrolling", () => {
     const last = items.last();
     await last.scrollIntoViewIfNeeded();
     await expect(last).toBeInViewport();
-    const box = await last.boundingBox();
-    const railBox = await scroll.boundingBox();
-    expect(box && railBox, "the last entry and the rail have a box").toBeTruthy();
-    expect(
-      box!.y + box!.height,
-      "the last entry lies inside the rail's scroll area",
-    ).toBeLessThanOrEqual(railBox!.y + railBox!.height + 1);
+    // Polled, not read once: the entries fade in with a transform, so a box read mid-animation sits
+    // a fraction of a pixel lower than the settled one. The bound itself is unchanged.
+    await expect
+      .poll(
+        async () => {
+          await last.scrollIntoViewIfNeeded();
+          const box = await last.boundingBox();
+          const railBox = await scroll.boundingBox();
+          if (!box || !railBox) return Number.POSITIVE_INFINITY;
+          return box.y + box.height - (railBox.y + railBox.height);
+        },
+        { message: "the last entry lies inside the rail's scroll area" },
+      )
+      .toBeLessThanOrEqual(1);
   });
 });
 
