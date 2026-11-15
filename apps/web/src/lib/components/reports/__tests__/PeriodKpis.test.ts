@@ -353,3 +353,42 @@ describe("PeriodKpis - source", () => {
     expect(document.querySelectorAll(".kpi-strip")).toHaveLength(3);
   });
 });
+
+// Issue #985 (D-01): the running month counts Soll, Ist and saldo through yesterday; the strip names
+// that Stichtag, and only for a running-month answer.
+describe("PeriodKpis - running month note (#985)", () => {
+  const NOTE =
+    "Laufender Monat bis gestern (14.11.): Soll, Ist und Saldo zählen bis zu diesem Tag.";
+
+  it("names the Stichtag when the answer ends in the running month", () => {
+    renderWithTheme(PeriodKpis, {
+      kpis: kpis({ closingAsOf: "2026-11-14", closingConfirmed: false }),
+      filterActive: false,
+      loading: false,
+      periodTo: "2026-11",
+    });
+    expect(screen.getByTestId("period-kpis-running-month").textContent?.trim()).toBe(NOTE);
+  });
+
+  it("renders nothing for a past period", () => {
+    renderWithTheme(PeriodKpis, {
+      kpis: kpis({ closingAsOf: "2026-09-30" }),
+      filterActive: false,
+      loading: false,
+      periodTo: "2026-09",
+    });
+    // control: the strip itself rendered, only the note is absent
+    expect(screen.getByTestId("period-kpis-persons")).toBeTruthy();
+    expect(screen.queryByTestId("period-kpis-running-month")).toBeNull();
+  });
+
+  it("renders nothing without periodTo", () => {
+    renderWithTheme(PeriodKpis, {
+      kpis: kpis({ closingAsOf: "2026-11-14" }),
+      filterActive: false,
+      loading: false,
+    });
+    expect(screen.getByTestId("period-kpis-persons")).toBeTruthy();
+    expect(screen.queryByTestId("period-kpis-running-month")).toBeNull();
+  });
+});

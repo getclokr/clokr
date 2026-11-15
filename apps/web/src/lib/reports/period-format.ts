@@ -57,3 +57,25 @@ export function fmtDateShortDe(isoDay: string): string {
 export function monthNameDe(year: number, month: number): string {
   return `${MONTH_NAMES_DE[month - 1]} ${year}`;
 }
+
+const YEAR_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/**
+ * Issue #985 (D-01): the period report counts the running month like the Arbeitszeitkonto - Soll,
+ * Ist and saldo through tenant-local yesterday. The page derives no figure; this only names the
+ * Stichtag. `to` is the answer's `YYYY-MM`, `closingAsOf` its `kpis.closingAsOf` (`YYYY-MM-DD`): the
+ * server sets it to yesterday when `to` is the running month and to the last day of `to` otherwise,
+ * so the note is due exactly when `closingAsOf` lies before the last calendar day of `to`. Pure, no
+ * clock read; malformed input returns null. It lives here and not in `period-state.ts` because this
+ * module already imports from that one - the reverse import would create a cycle.
+ */
+export function runningMonthNote(to: string, closingAsOf: string): string | null {
+  const ym = YEAR_MONTH_RE.exec(to);
+  if (!ym || !ISO_DAY_RE.test(closingAsOf)) return null;
+  const year = Number(ym[1]);
+  const month = Number(ym[2]);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const lastIso = `${ym[1]}-${ym[2]}-${String(lastDay).padStart(2, "0")}`;
+  if (closingAsOf >= lastIso) return null;
+  return `Laufender Monat bis gestern (${fmtDateShortDe(closingAsOf)}): Soll, Ist und Saldo zählen bis zu diesem Tag.`;
+}

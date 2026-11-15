@@ -926,6 +926,7 @@
           filterActive={pageSalonId !== null}
           withoutHomeSalonCount={period?.withoutHomeSalonCount ?? null}
           loading={periodLoading}
+          periodTo={period?.to ?? null}
         />
       </div>
 
