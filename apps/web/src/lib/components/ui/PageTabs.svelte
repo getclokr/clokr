@@ -19,8 +19,15 @@
   // head: avatar, name, sub line, segments). The semantics, the roving focus and the panels are the
   // same as the strip's; below 760 px of the row's width the segments wrap under the head and scroll
   // inside their own box, never widening the page.
+  //
+  // Issue #978 - a strip that scrolls sideways (a phone, many tabs) keeps the current tab in view:
+  // on mount and after every change of the current tab (click, arrow keys, hash, link) the STRIP is
+  // scrolled horizontally - never the page (no `scrollIntoView`). A soft edge fades out on the side
+  // where more tabs are hidden.
   import type { Snippet } from "svelte";
+  import { tick } from "svelte";
   import { Tabs } from "bits-ui";
+  import { scrollLeftToReveal } from "./page-tabs-scroll";
 
   interface PageTab {
     /** Control value of the tab, never shown. */
@@ -89,6 +96,50 @@
     }
   }
 
+  let strip = $state<HTMLElement | null>(null);
+  let fadeStart = $state(false);
+  let fadeEnd = $state(false);
+
+  function updateFades(): void {
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    fadeStart = strip.scrollLeft > 1;
+    fadeEnd = max - strip.scrollLeft > 1;
+  }
+
+  function revealCurrent(): void {
+    if (!strip) return;
+    const active = strip.querySelector<HTMLElement>('[data-state="active"], [aria-current="page"]');
+    if (active) {
+      strip.scrollLeft = scrollLeftToReveal(
+        { scrollLeft: strip.scrollLeft, clientWidth: strip.clientWidth },
+        {
+          // Measured against the strip, so no offsetParent chain is involved.
+          offsetLeft:
+            active.getBoundingClientRect().left -
+            strip.getBoundingClientRect().left +
+            strip.scrollLeft,
+          offsetWidth: active.getBoundingClientRect().width,
+        },
+      );
+    }
+    updateFades();
+  }
+
+  $effect(() => {
+    void current;
+    if (!strip) return;
+    // After the DOM marked the new tab active.
+    void tick().then(revealCurrent);
+  });
+
+  $effect(() => {
+    if (!strip || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => revealCurrent());
+    observer.observe(strip);
+    return () => observer.disconnect();
+  });
+
   function select(next: string) {
     tab = next;
     onTabChange?.(next);
@@ -118,7 +169,11 @@
     {#snippet child({ props: listProps })}
       <div
         {...listProps}
+        bind:this={strip}
         class="page-tab-strip"
+        class:page-tab-strip--fade-start={fadeStart}
+        class:page-tab-strip--fade-end={fadeEnd}
+        onscroll={updateFades}
         data-testid={testIdPrefix ? `${testIdPrefix}-tabs` : undefined}
       >
         {#each tabs as item (item.value)}
@@ -147,7 +202,13 @@
     aria-label={tabsLabel}
     data-testid={testIdPrefix ? `${testIdPrefix}-tabs` : undefined}
   >
-    <div class="page-tab-strip">
+    <div
+      bind:this={strip}
+      class="page-tab-strip"
+      class:page-tab-strip--fade-start={fadeStart}
+      class:page-tab-strip--fade-end={fadeEnd}
+      onscroll={updateFades}
+    >
       {#each tabs as item (item.value)}
         <a
           class="page-tab"
@@ -206,6 +267,26 @@
 
   .page-tab-strip::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Issue #978: a soft edge on the side where more tabs are hidden. A mask, so no colour is involved
+     and the strip's baseline and the active underline fade with the labels. */
+  .page-tab-strip--fade-start {
+    mask-image: linear-gradient(to right, transparent, currentColor 32px);
+  }
+
+  .page-tab-strip--fade-end {
+    mask-image: linear-gradient(to left, transparent, currentColor 32px);
+  }
+
+  .page-tab-strip--fade-start.page-tab-strip--fade-end {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      currentColor 32px,
+      currentColor calc(100% - 32px),
+      transparent
+    );
   }
 
   .page-tab {
