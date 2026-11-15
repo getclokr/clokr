@@ -1829,8 +1829,8 @@
     return addActionForDay(rowsOfDay(daySheetDay), multiEntryUi).kind === "edit"
       ? null
       : rowsOfDay(daySheetDay).length > 0
-        ? "Weiteren Eintrag hinzufügen"
-        : "Eintrag hinzufügen";
+        ? "Weitere Zeit eintragen"
+        : "Zeit eintragen";
   });
 
   // Phase 116 (issue #119) — the ONE answer to "what does the list render right now".
@@ -1870,7 +1870,7 @@
       <!-- quick 260820-fkz — Gesamt-Saldo lives outside the page head, as the Stundenkonto cell
            of the figures strip below (Issue #853, D-853-18). -->
       <button class="btn btn-primary" onclick={() => openAdd()}>
-        <span aria-hidden="true">＋</span> Eintrag hinzufügen
+        <span aria-hidden="true">＋</span> Zeit eintragen
       </button>
     {/if}
   {/snippet}
@@ -2539,7 +2539,7 @@
   {#snippet footer()}
     <button class="btn btn-ghost" onclick={closeModal} disabled={saving}>Abbrechen</button>
     <button class="btn btn-primary" onclick={saveEntry} disabled={saving}>
-      {saving ? "Speichern…" : editEntry ? "Änderungen speichern" : "Eintrag hinzufügen"}
+      {saving ? "Speichern…" : editEntry ? "Änderungen speichern" : "Zeit eintragen"}
     </button>
   {/snippet}
 </Modal>

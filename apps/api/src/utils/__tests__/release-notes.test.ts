@@ -334,3 +334,54 @@ describe("section audience (Issue #576, D-576-01)", () => {
     expect(unknown, "use a heading of docs/RELEASE_NOTES_TEMPLATE.md").toEqual([]);
   });
 });
+
+describe("operator marker (Issue #946)", () => {
+  const md = [
+    "## v2.0.0 — Titel",
+    "",
+    "Für alle sichtbarer Satz.",
+    "",
+    "[Betrieb] **Sieben Migrationen**, kein Image-Rollback.",
+    "",
+    "### Neue Funktionen",
+    "",
+    "- Etwas Neues für alle.",
+    "- [Betrieb] VAPID-Schlüssel setzen.",
+    "",
+    "### Achtung / Breaking Changes",
+    "",
+    "- [Betrieb] **Kein einfacher Rollback.**",
+    "",
+  ].join("\n");
+
+  it("moves marked intro paragraphs and bullets into the admin-only operator section", () => {
+    const note = parseReleaseNote("2.0.0", md);
+    expect(note.intro).toEqual(["Für alle sichtbarer Satz."]);
+    const everyone = note.sections.filter((s) => s.audience === "all");
+    const everyoneText = JSON.stringify(everyone);
+    expect(everyoneText).not.toContain("VAPID");
+    expect(everyoneText).not.toContain("Rollback");
+    expect(everyoneText).not.toContain("[Betrieb]");
+    const operator = note.sections.find((s) => s.heading === "Betrieb & Migration");
+    expect(operator?.audience).toBe("admin");
+    expect(operator?.bullets).toHaveLength(3);
+    expect(JSON.stringify(operator)).not.toContain("[Betrieb]");
+  });
+
+  it("keeps a marked bullet of an existing operator section in place and only strips the marker", () => {
+    const note = parseReleaseNote(
+      "2.0.0",
+      "## v2.0.0 — T\n\n### Betrieb & Migration\n\n- [Betrieb] Schritt eins.\n- Schritt zwei.\n",
+    );
+    expect(note.sections).toHaveLength(1);
+    expect(note.sections[0].bullets.map((b) => b.spans.map((x) => x.text).join(""))).toEqual([
+      "Schritt eins.",
+      "Schritt zwei.",
+    ]);
+  });
+
+  it("leaves a note without markers unchanged", () => {
+    const note = parseReleaseNote("2.0.0", "## v2.0.0 — T\n\n### Neue Funktionen\n\n- A.\n");
+    expect(note.sections.map((s) => s.heading)).toEqual(["Neue Funktionen"]);
+  });
+});

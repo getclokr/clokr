@@ -254,7 +254,7 @@
   // Highlighted request (from notification deep-link)
   let highlightRequestId: string | null = $state(null);
 
-  // ── Manager-on-behalf-of: Neue Abwesenheit anlegen ───────────────────────
+  // ── Manager-on-behalf-of: Neue Abwesenheit eintragen ───────────────────────
   // Phase 415 (#415): the create dialog itself — fields, balances, preview, overlap, the
   // collision-confirm flow, and the mutation — moved into the shared `LeaveRequestForm.svelte`.
   // The page keeps only the person picker (its one addition, Phase 415 D-03) and what opens it.
@@ -1633,7 +1633,7 @@
   </Modal>
 {/if}
 
-<!-- ── Create-Modal: Neue Abwesenheit anlegen (Manager-on-behalf-of) ─────── -->
+<!-- ── Create-Modal: Neue Abwesenheit eintragen (Manager-on-behalf-of) ─────── -->
 <!-- Phase 415 (#415): the shared create/edit dialog. Only the person picker is added here
      (Phase 415 D-03) — every other field, balance box, warning and preview is identical to
      `/leave`'s own dialog and refers to the SELECTED person via `employeeId`. -->

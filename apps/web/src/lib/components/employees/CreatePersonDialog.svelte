@@ -361,7 +361,7 @@
   );
 </script>
 
-<Dialog bind:open title="Person anlegen" eyebrow="Mitarbeiter einladen" size="wide">
+<Dialog bind:open title="Person anlegen" eyebrow="Stammdaten" size="wide">
   <div class="cp-body" data-testid="create-person-dialog">
     <ol class="cp-steps" aria-label="Schritte">
       {#each CREATE_STEPS as s, i (s)}

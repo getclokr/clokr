@@ -1786,7 +1786,7 @@
             <a class="btn btn-outline btn-sm" href="/team/zeiten">Zeit eintragen</a>
           {/if}
           {#if view === "team" && mayOpenPath($authStore.user, "/team/abwesenheiten")}
-            <a class="btn btn-primary btn-sm" href="/team/abwesenheiten">Abwesenheit anlegen</a>
+            <a class="btn btn-primary btn-sm" href="/team/abwesenheiten">Abwesenheit eintragen</a>
           {/if}
           <!-- Owner 13.11.2026: no own clock action on Heute im Salon (was #846 D-05); the own clock
                lives on Mein Tag, the team page stays a team page. -->

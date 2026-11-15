@@ -6,6 +6,7 @@
  * Pure: no Svelte, no store, no fetch, no `Date`. Every comparator is explicit.
  */
 import { forecastLabel } from "$lib/saldo/forecast-label";
+import { countWord } from "$lib/utils/count-word";
 import type { PeriodRow } from "./period-report";
 
 export type PeriodSortKey = "name" | "soll" | "ist" | "opening" | "balance" | "closing" | "status";
@@ -65,7 +66,7 @@ export function rowStatus(row: PeriodRow): RowStatus {
     label: forecastLabel(unconfirmed, hasClosedMonth),
     detail:
       row.confirmedMonthCount >= 1
-        ? `${row.confirmedMonthCount} von ${row.monthCount} Monaten bestätigt`
+        ? `${row.confirmedMonthCount} von ${countWord(row.monthCount, "Monat", "Monaten")} bestätigt`
         : null,
   };
 }

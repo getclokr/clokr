@@ -18,6 +18,7 @@
  */
 
 import type { YearMonth } from "./period-report";
+import { monthsLabel } from "$lib/utils/count-word";
 
 /** At most this many whole months in one period (P-10). */
 export const MAX_PERIOD_MONTHS = 12;
@@ -233,7 +234,7 @@ export function periodEyebrow(from: YearMonth, to: YearMonth, today: YearMonth):
     case "year":
       return "Jahr";
     default:
-      return `Zeitraum · ${monthsBetween(from, to)} Monate`;
+      return `Zeitraum · ${monthsLabel(monthsBetween(from, to))}`;
   }
 }
 

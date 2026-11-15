@@ -20,12 +20,23 @@ part of a text: the API gate names the permission in words.
 ## 2. Address form: „du“
 
 - The app always addresses the reader with **du** — lowercase: du, dich, dir, dein, deine. A team
-  is addressed as „ihr / euch“. Owner decision of 19.10.2026.
+  or a company is addressed with „du“ too („in deinem Unternehmen“), never as „ihr / euch / eure“
+  (Issue #946, which replaced the earlier „ihr / euch“ for teams of 19.10.2026).
 - Never „Sie / Ihnen / Ihr“. Where „Sie“ means „she / it / they“ at the start of a sentence, the
   sentence is rephrased with the noun instead („Die Regel bleibt nachvollziehbar.“), so the lint
   needs no exception list.
 - Buttons say what happens — verb and object: „Vertrag speichern“, „Antrag genehmigen“. This is a
   guideline, not a lint rule; the redesign tickets apply it page by page.
+
+- **Verbs for creating** (Issue #946). „anlegen“ creates master data that stays and is managed:
+  Person, Salon, Rolle, Vorlage, Regel, Feiertag, Betriebsurlaub. „eintragen“ records what happened
+  or is planned for a time: Zeit, Abwesenheit (and „nachtragen“ for a Zeitnachtrag). „erstellen“ is
+  for generated artefacts (Schlüssel, Export, Bericht), „hinzufügen“ only for adding an item to an
+  existing list (a person to a Betriebsurlaub list, a salon to a person). „einladen“ is never the verb
+  of a create dialog — an invitation is a step inside „Person anlegen“. Review rule, not a lint rule:
+  the verbs cannot be told apart mechanically without false positives.
+- Counts go through `countWord()` (`apps/web/src/lib/utils/count-word.ts`): „1 Monat“, „2 Monate“,
+  never „1 Monate“. A sentence never uses the same word twice in a row („ohne … ohne“).
 
 Examples:
 
@@ -104,6 +115,7 @@ module is the one source.
 | `generator`   | Muster anwenden (Schichtplanung only) |
 | `audit-spur`  | wird protokolliert (Schichtplanung)   |
 | `sie-form`    | Address form „du“                     |
+| `ihr-form`    | Address form „du“ (euch, eure, euer)  |
 
 `lint:api-terms` adds one term of its own: `permission-key` (no permission key in a text).
 

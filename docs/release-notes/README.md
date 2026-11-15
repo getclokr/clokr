@@ -60,6 +60,16 @@ any HTML — it only removes delimiter characters — so it does not weaken the 
 guarantee above. A genuinely unrecognised construct (`[link](url)`, `> [!CAUTION]`) is still left
 completely untouched, punctuation and all.
 
+## Operator marker (Issue #946)
+
+Operator content (migrations, image rollback, VAPID keys, deploy steps) that would otherwise sit in
+the intro or in a section everybody sees is written as its own intro paragraph or bullet that
+starts with `[Betrieb]`. The parser moves it into the admin-only section „Betrieb & Migration“
+(created when missing) and strips the marker, so the What's-New panel shows it only to persons who
+may change system settings. The marker is the literal `OPERATOR_MARKER` in
+`apps/api/src/utils/release-notes.ts`; the GitHub Release body keeps the file text as written.
+Write user sentences without migration, rollback or key names — those belong behind the marker.
+
 ## Audience
 
 Each section carries an audience (Issue #576): „Sicherheit“ and „Betrieb & Migration“ are operator

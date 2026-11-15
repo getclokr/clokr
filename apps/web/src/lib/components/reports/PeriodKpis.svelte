@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { personsLabel } from "$lib/utils/count-word";
   // Issue #612 (D-612-3) rebuilt on the blocks for Issue #854 (D-854-22): the figures of the period
   // as KpiStrips - the time figures, the vacation figures and, under a salon filter, the hours
   // worked in the salon in a strip of their own. Pattern 3: every value is the server's own figure
@@ -114,9 +115,7 @@
   });
 
   const personsNote = $derived(
-    kpis === null
-      ? null
-      : `Summe über ${kpis.personCount} ${kpis.personCount === 1 ? "Person" : "Personen"}`,
+    kpis === null ? null : `Summe über ${personsLabel(kpis.personCount)}`,
   );
   // Saldo is covered for fewer persons than listed: say so (and only then).
   const saldoNote = $derived(

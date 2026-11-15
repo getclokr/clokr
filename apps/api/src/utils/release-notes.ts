@@ -72,6 +72,18 @@ export function sectionAudience(heading: string): ReleaseNoteAudience {
     : "all";
 }
 
+/**
+ * Issue #946 — operator marker. A bullet or an intro paragraph of the Markdown source that starts
+ * with this literal belongs to the operator (migrations, image rollback, VAPID, deploy steps) even
+ * though it sits in a section everybody sees. The parser — the ONE place — moves it into the
+ * admin-only section below and strips the marker, so the What's-New panel never shows it to a
+ * person who may not change system settings. docs/RELEASE_NOTES_TEMPLATE.md documents the grammar.
+ */
+export const OPERATOR_MARKER = "[Betrieb]";
+
+/** The admin-only section that collects marker items (a heading of the template, see above). */
+export const OPERATOR_SECTION_HEADING = "Betrieb & Migration";
+
 export interface ReleaseNote {
   version: string; // "1.9.18" -- no leading "v"
   title: string; // "Krank im Urlaub & Saldo-Korrekturen"
@@ -262,7 +274,69 @@ export function parseReleaseNote(version: string, markdown: string): ReleaseNote
   }
   flushParagraph();
 
-  return { version, title, intro, sections, footnote };
+  return { version, title, ...extractOperatorItems(intro, sections), footnote };
+}
+
+/** True when the text starts with the operator marker (leading whitespace ignored). */
+function hasOperatorMarker(text: string): boolean {
+  return text.trimStart().startsWith(OPERATOR_MARKER);
+}
+
+function withoutMarker(text: string): string {
+  return text.trimStart().slice(OPERATOR_MARKER.length).trimStart();
+}
+
+/**
+ * Issue #946: moves marker items out of the intro and out of sections everybody sees into the
+ * admin-only operator section (created at the end when the note has none). Items already inside an
+ * admin section keep their place and only lose the marker.
+ */
+function extractOperatorItems(
+  intro: string[],
+  sections: ReleaseNoteSection[],
+): { intro: string[]; sections: ReleaseNoteSection[] } {
+  const moved: ReleaseNoteBullet[] = [];
+  const keptIntro: string[] = [];
+  for (const paragraph of intro) {
+    if (hasOperatorMarker(paragraph)) {
+      moved.push({ spans: splitSpans(withoutMarker(paragraph)) });
+    } else {
+      keptIntro.push(paragraph);
+    }
+  }
+
+  const keptSections = sections.map((section) => {
+    const bullets: ReleaseNoteBullet[] = [];
+    for (const bullet of section.bullets) {
+      const first = bullet.spans[0];
+      if (!first || !hasOperatorMarker(first.text)) {
+        bullets.push(bullet);
+        continue;
+      }
+      const stripped: ReleaseNoteBullet = {
+        spans: [{ ...first, text: withoutMarker(first.text) }, ...bullet.spans.slice(1)].filter(
+          (span) => span.text !== "",
+        ),
+      };
+      if (section.audience === "admin") bullets.push(stripped);
+      else moved.push(stripped);
+    }
+    return { ...section, bullets };
+  });
+
+  if (moved.length === 0) return { intro: keptIntro, sections: keptSections };
+
+  const operator = keptSections.find((section) => section.heading === OPERATOR_SECTION_HEADING);
+  if (operator) {
+    operator.bullets = [...moved, ...operator.bullets];
+  } else {
+    keptSections.push({
+      heading: OPERATOR_SECTION_HEADING,
+      audience: sectionAudience(OPERATOR_SECTION_HEADING),
+      bullets: moved,
+    });
+  }
+  return { intro: keptIntro, sections: keptSections };
 }
 
 function compareVersionsDescending(a: string, b: string): number {

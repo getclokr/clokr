@@ -287,7 +287,7 @@ export async function activityRoutes(app: FastifyInstance) {
             id: `tlr-${lr.id}`,
             icon: "inbox",
             who: empName,
-            what: `hat einen ${typeName}-Antrag eingereicht`,
+            what: `hat einen Antrag auf ${typeName} eingereicht`,
             when: lr.createdAt.toISOString(),
             category: "leave",
           });

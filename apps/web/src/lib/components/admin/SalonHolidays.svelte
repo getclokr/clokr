@@ -202,7 +202,7 @@
       </FormField>
     </div>
     {#if canManage}
-      <button type="button" class="btn btn-primary" onclick={openAdd}>Feiertag hinzufügen</button>
+      <button type="button" class="btn btn-primary" onclick={openAdd}>Feiertag anlegen</button>
     {/if}
   </div>
 
@@ -270,7 +270,7 @@
   {/if}
 </section>
 
-<Dialog bind:open={addOpen} title="Feiertag hinzufügen">
+<Dialog bind:open={addOpen} title="Feiertag anlegen">
   <form
     id="salon-holiday-form"
     class="sh-form"
