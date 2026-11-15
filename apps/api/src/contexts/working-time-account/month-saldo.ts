@@ -188,6 +188,28 @@ export type MonthReportFigures = {
   /** false only for the three unlabelled populations above. */
   labelled: boolean;
   basis: "snapshot" | "fullMonth" | "toDate" | "untracked";
+  /**
+   * Issue #985 (D-01): the account's to-date triple of an OPEN month - the header of the account's
+   * own month result (`computeMonthSaldo`, the last computed day: tenant-local yesterday in the
+   * running month, the month's last day in a past open month), the same Stichtag as
+   * `closingBalanceMinutes`. Present for EVERY open labelled answer (SHIFT_BASED too, where it equals
+   * the main triple because that basis already is "toDate"); ABSENT - never a fabricated value - for a
+   * closed month and for an unlabelled, exempt or unknown person. Read only by the period report (an
+   * account view); `/reports/monthly`, both PDFs, DATEV and the dashboard keep reading the main
+   * triple, so the whole-month Soll of P-03 (#451) is unchanged.
+   */
+  toDate?: { workedMinutes: number; expectedMinutes: number; balanceMinutes: number };
+  /**
+   * Issue #985 (D-02, D-02b): the carry INTO a closed month = stored `carryOver − balanceMinutes`
+   * (`closeEmployeeMonth`: `carryOverOut = carryOverIn + balanceMinutes`; #599 corrections are inside
+   * the balance, and an opening balance folded into the first close is part of the carry-in). Present
+   * only for a CLOSED labelled answer whose contract valid at the month's end is NOT track-only by
+   * `isTrackOnlySchedule()`: a track-only close stores carryOver 0 next to the raw balance (#494), so
+   * the difference is no carry-in and the key is ABSENT. Also absent for open, unlabelled, exempt and
+   * unknown answers. The rule is decided here only (never re-derived by a caller); the track-only
+   * function stays unexported from the context index (#494 D-01).
+   */
+  carryInMinutes?: number;
 };
 
 /**
@@ -260,15 +282,31 @@ export async function computeMonthReportFigures(
   const source = ms.closed || !ms.fullMonth ? ms : ms.fullMonth;
   const balanceAdjustmentMinutes =
     source.balanceMinutes - (source.workedMinutes - source.expectedMinutes);
+  const closingBalanceMinutes = ms.days.at(-1)?.cumulativeSaldoMinutes ?? null;
   return {
     workedMinutes: source.workedMinutes,
     expectedMinutes: source.expectedMinutes,
     balanceMinutes: source.balanceMinutes,
     balanceAdjustmentMinutes,
-    closingBalanceMinutes: ms.days.at(-1)?.cumulativeSaldoMinutes ?? null,
+    closingBalanceMinutes,
     confirmed: ms.closed,
     labelled: true,
     basis,
+    // Issue #985 (D-01): the to-date header itself (`ms`, never `ms.fullMonth`) for an open month.
+    ...(!ms.closed
+      ? {
+          toDate: {
+            workedMinutes: ms.workedMinutes,
+            expectedMinutes: ms.expectedMinutes,
+            balanceMinutes: ms.balanceMinutes,
+          },
+        }
+      : {}),
+    // Issue #985 (D-02, D-02b): a closed answer's terminal cumulative value is the stored carryOver;
+    // a track-only close (the contract valid at the month's end) gives no carry-in.
+    ...(ms.closed && closingBalanceMinutes !== null && !isTrackOnlySchedule(schedule)
+      ? { carryInMinutes: closingBalanceMinutes - ms.balanceMinutes }
+      : {}),
   };
 }
 
@@ -298,6 +336,10 @@ export function monthReportFiguresKey(employeeId: string, year: number, month: n
  * schedules sharing the deciding `validFrom`, where the single read's order is not defined) goes
  * through `computeMonthReportFigures` itself, one after another — so the answer is that function's
  * answer for every pair, which the parity test of #688 pins.
+ *
+ * Issue #985: open pairs go through `computeMonthReportFigures` (so `toDate` is its own), closed pairs
+ * apply the same track-only rule on the same contract row for `carryInMinutes` — bulk = single for
+ * both keys (#696/#688 parity).
  */
 export async function computeMonthReportFiguresForMany(
   app: FastifyInstance,
@@ -332,7 +374,14 @@ export async function computeMonthReportFiguresForMany(
       validFrom: { lte: latestMonthEnd },
     },
     orderBy: { validFrom: "desc" },
-    select: { employeeId: true, validFrom: true, type: true, monthlyHours: true },
+    // Issue #985 (D-02b): `overtimeMode` feeds `isTrackOnlySchedule()` for the closed pairs below.
+    select: {
+      employeeId: true,
+      validFrom: true,
+      type: true,
+      monthlyHours: true,
+      overtimeMode: true,
+    },
   });
   const schedulesByEmp = new Map<string, typeof schedules>();
   for (const row of schedules) {
@@ -404,6 +453,10 @@ export async function computeMonthReportFiguresForMany(
           confirmed: true,
           labelled: true,
           basis: "snapshot",
+          // Issue #985 (D-02, D-02b): the same rule on the same contract row as the single read.
+          ...(!isTrackOnlySchedule(schedule)
+            ? { carryInMinutes: snapshot.carryOver - snapshot.balanceMinutes }
+            : {}),
         });
         continue;
       }
