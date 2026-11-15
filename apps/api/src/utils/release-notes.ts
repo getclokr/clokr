@@ -67,7 +67,7 @@ export const RELEASE_NOTE_SECTION_AUDIENCE: Readonly<Record<string, ReleaseNoteA
     "Anzeige & Bedienung": "all",
     Sicherheit: "admin",
     "Betrieb & Migration": "operator",
-    "Achtung / Breaking Changes": "all",
+    "Bitte beachten": "all",
   });
 
 /** The audience of a section heading; a heading the template does not name is for everyone. */

@@ -82,15 +82,12 @@ describe("#842 D-842-22 - theme cards with light and dark previews", () => {
 });
 
 describe("#854 plan 16 - the page is built from blocks", () => {
-  it("has one H1 and the three settings groups Farbwelt, Modus and Sprache", () => {
+  // Issue #983 (owner 15.11.2026): the Sprache group went with the language stub.
+  it("has one H1 and the two settings groups Farbwelt and Modus", () => {
     const { container } = render(Page);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Erscheinungsbild");
     const groups = [...container.querySelectorAll("section.settings-group")];
-    expect(groups.map((g) => g.querySelector("h2")?.textContent)).toEqual([
-      "Farbwelt",
-      "Modus",
-      "Sprache",
-    ]);
+    expect(groups.map((g) => g.querySelector("h2")?.textContent)).toEqual(["Farbwelt", "Modus"]);
   });
 
   it("has no SaveBar (a theme or mode click saves at once) and no legacy section chrome", () => {
@@ -99,9 +96,11 @@ describe("#854 plan 16 - the page is built from blocks", () => {
     expect(container.querySelector(".section-title, .section-stack")).toBeNull();
   });
 
-  it("promises no release version for the English UI", () => {
+  // Issue #983: there is no second language, so the page offers no language choice at all (the
+  // former stub promised a release) and still names no release version.
+  it("offers no language choice and promises no release version", () => {
     const { container } = render(Page);
-    expect(container.textContent).toContain("Englisch folgt später.");
+    expect(container.textContent).not.toMatch(/Englisch|English|Sprache/);
     expect(container.textContent).not.toMatch(/v\d+\.\d+/);
   });
 });
@@ -138,11 +137,6 @@ describe("#842 D-842-16, D-842-20 - what is gone and what the subtitle says", ()
     for (const retired of ["Skin", "Dichte", "Modern"]) {
       expect(text, retired).not.toContain(retired);
     }
-  });
-
-  it("keeps the Sprache section", () => {
-    const { container } = render(Page);
-    expect(container.textContent).toContain("Sprache");
   });
 
   it("the subtitle does not claim the choice applies to every employee", () => {
