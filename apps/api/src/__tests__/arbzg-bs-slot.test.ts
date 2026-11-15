@@ -141,7 +141,7 @@ describe("checkArbZG slot-aware BS minutes (Phase 76.31-05, D-08 FULL)", () => {
       // At the OLD flat 480: 480 + 40 = 520 min = 8.7h < 10h → would NOT have fired.
       expect(w).toBeDefined();
       expect(w!.severity).toBe("error");
-      expect(w!.message).toMatch(/10\.2 h/);
+      expect(w!.message).toMatch(/10:10 Std\./);
     });
 
     it("does NOT fire: 40 min work would stay under 10h if BS were only 480 (guards the 570 delta)", async () => {
@@ -183,7 +183,7 @@ describe("checkArbZG slot-aware BS minutes (Phase 76.31-05, D-08 FULL)", () => {
       expect(w).toBeDefined();
       expect(w!.severity).toBe("error");
       // 47.5h (BS block) + 1h (Sat) = 48.5h.
-      expect(w!.message).toMatch(/48\.5 h/);
+      expect(w!.message).toMatch(/48:30 Std\./);
     });
 
     it("does NOT fire with only the 5-day block (47.5h, no regular work)", async () => {
