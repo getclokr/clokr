@@ -7,6 +7,7 @@ import {
   loadReleaseNotes,
   RELEASE_NOTES_DIR,
   RELEASE_NOTE_SECTION_AUDIENCE,
+  releaseNotesForApp,
   sectionAudience,
 } from "../release-notes";
 
@@ -275,7 +276,7 @@ describe("release-notes corpus (AK-16 backfill)", () => {
 });
 
 describe("section audience (Issue #576, D-576-01)", () => {
-  it("tags operator sections admin and every other section all", () => {
+  it("tags Sicherheit admin, Betrieb & Migration operator (#946) and every other section all", () => {
     const md = [
       "## v2.0.0 — Titel",
       "### Neue Funktionen",
@@ -289,7 +290,7 @@ describe("section audience (Issue #576, D-576-01)", () => {
     ].join("\n");
     expect(parseReleaseNote("2.0.0", md).sections.map((s) => [s.heading, s.audience])).toEqual([
       ["Neue Funktionen", "all"],
-      ["Betrieb & Migration", "admin"],
+      ["Betrieb & Migration", "operator"],
       ["Sicherheit", "admin"],
       ["Wartung", "all"],
     ]);
@@ -332,5 +333,108 @@ describe("section audience (Issue #576, D-576-01)", () => {
       }
     }
     expect(unknown, "use a heading of docs/RELEASE_NOTES_TEMPLATE.md").toEqual([]);
+  });
+});
+
+describe("operator marker (Issue #946)", () => {
+  const md = [
+    "## v2.0.0 — Titel",
+    "",
+    "Für alle sichtbarer Satz.",
+    "",
+    "[Betrieb] **Sieben Migrationen**, kein Image-Rollback.",
+    "",
+    "### Neue Funktionen",
+    "",
+    "- Etwas Neues für alle.",
+    "- [Betrieb] VAPID-Schlüssel setzen.",
+    "",
+    "### Achtung / Breaking Changes",
+    "",
+    "- [Betrieb] **Kein einfacher Rollback.**",
+    "",
+  ].join("\n");
+
+  it("moves marked intro paragraphs and bullets into the operator section", () => {
+    const note = parseReleaseNote("2.0.0", md);
+    expect(note.intro).toEqual(["Für alle sichtbarer Satz."]);
+    const everyone = note.sections.filter((s) => s.audience === "all");
+    const everyoneText = JSON.stringify(everyone);
+    expect(everyoneText).not.toContain("VAPID");
+    expect(everyoneText).not.toContain("Rollback");
+    expect(everyoneText).not.toContain("[Betrieb]");
+    const operator = note.sections.find((s) => s.heading === "Betrieb & Migration");
+    expect(operator?.audience).toBe("operator");
+    expect(operator?.bullets).toHaveLength(3);
+    expect(JSON.stringify(operator)).not.toContain("[Betrieb]");
+  });
+
+  it("keeps a marked bullet of an existing operator section in place and only strips the marker", () => {
+    const note = parseReleaseNote(
+      "2.0.0",
+      "## v2.0.0 — T\n\n### Betrieb & Migration\n\n- [Betrieb] Schritt eins.\n- Schritt zwei.\n",
+    );
+    expect(note.sections).toHaveLength(1);
+    expect(note.sections[0].bullets.map((b) => b.spans.map((x) => x.text).join(""))).toEqual([
+      "Schritt eins.",
+      "Schritt zwei.",
+    ]);
+  });
+
+  it("leaves a note without markers unchanged", () => {
+    const note = parseReleaseNote("2.0.0", "## v2.0.0 — T\n\n### Neue Funktionen\n\n- A.\n");
+    expect(note.sections.map((s) => s.heading)).toEqual(["Neue Funktionen"]);
+  });
+});
+
+describe("releaseNotesForApp (Issue #946, owner decision 15.11.2026)", () => {
+  it("drops every operator section, marker items included, and keeps admin and public ones", () => {
+    const note = parseReleaseNote(
+      "2.0.0",
+      [
+        "## v2.0.0 — T",
+        "",
+        "[Betrieb] Sieben Migrationen.",
+        "",
+        "### Neue Funktionen",
+        "",
+        "- Neu.",
+        "- [Betrieb] VAPID setzen.",
+        "",
+        "### Sicherheit",
+        "",
+        "- Passwortregel.",
+        "",
+        "### Betrieb & Migration",
+        "",
+        "- Backfill fahren.",
+        "",
+      ].join("\n"),
+    );
+    const [served] = releaseNotesForApp([note]);
+    expect(served.sections.map((s) => s.heading)).toEqual(["Neue Funktionen", "Sicherheit"]);
+    const text = JSON.stringify(served);
+    for (const operatorText of ["Migrationen", "VAPID", "Backfill", "[Betrieb]"]) {
+      expect(text).not.toContain(operatorText);
+    }
+  });
+
+  it("drops a release with only operator content and keeps one without any section", () => {
+    const onlyOperator = parseReleaseNote(
+      "2.0.1",
+      "## v2.0.1 — T\n\n### Betrieb & Migration\n\n- x\n",
+    );
+    const noSections = parseReleaseNote("2.0.2", "## v2.0.2 — T\n\nNur ein Satz.\n");
+    expect(releaseNotesForApp([onlyOperator, noSections]).map((n) => n.version)).toEqual(["2.0.2"]);
+  });
+
+  it("the real corpus served by the app carries no operator section", () => {
+    const served = releaseNotesForApp(loadReleaseNotes());
+    expect(served.length).toBeGreaterThan(0);
+    for (const note of served) {
+      for (const section of note.sections) {
+        expect(section.audience, `${note.version} ${section.heading}`).not.toBe("operator");
+      }
+    }
   });
 });

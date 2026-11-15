@@ -72,7 +72,7 @@ export const de = {
   // time
   time_entries: "Zeitbuchungen",
   no_entries: "Keine Einträge",
-  add_entry: "Eintrag hinzufügen",
+  add_entry: "Zeit eintragen",
   edit_entry: "Eintrag bearbeiten",
   start: "Beginn",
   end: "Ende",
@@ -118,7 +118,7 @@ export const de = {
 
   // admin
   employees: "Mitarbeitende",
-  invite_employee: "Person einladen",
+  invite_employee: "Person anlegen",
   bulk_import: "CSV-Import",
   role: "Rolle",
   status: "Status",

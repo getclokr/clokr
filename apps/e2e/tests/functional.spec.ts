@@ -346,9 +346,10 @@ test.describe("Functional — happy paths across primary surfaces", () => {
 
   // Issue #576: the What's-New panel opens only on click; an unread release shows a „Neu“ badge
   // on the sidebar's version entry. The tenant fixture stubs an empty corpus, so this test serves
-  // its own synthetic release (one section for everyone, one operator section) — Playwright applies
-  // the later route over the fixture's stub. The tenant admin holds tenant-settings:update and
-  // therefore sees the operator section too.
+  // its own synthetic release (one section for everyone, one admin section, one operator section) —
+  // Playwright applies the later route over the fixture's stub. The tenant admin holds
+  // tenant-settings:update and therefore sees the admin section, but never the operator section
+  // (Issue #946, owner decision 15.11.2026; the real API no longer sends it, the panel hides it too).
   test.describe("What's-New nur auf Klick (Issue #576)", () => {
     test("no automatic opening; the badge leads to the panel", async ({ page, tenant }) => {
       await page.route("**/api/v1/release-notes*", (route) =>
@@ -369,8 +370,13 @@ test.describe("Functional — happy paths across primary surfaces", () => {
                     bullets: [{ spans: [{ text: "Neues für alle", bold: false }] }],
                   },
                   {
-                    heading: "Betrieb & Migration",
+                    heading: "Sicherheit",
                     audience: "admin",
+                    bullets: [{ spans: [{ text: "Hinweis zur Sicherheit", bold: false }] }],
+                  },
+                  {
+                    heading: "Betrieb & Migration",
+                    audience: "operator",
                     bullets: [{ spans: [{ text: "Hinweis für den Betrieb", bold: false }] }],
                   },
                 ],
@@ -391,7 +397,8 @@ test.describe("Functional — happy paths across primary surfaces", () => {
       await entry.click();
       await expect(panel).toBeVisible();
       await expect(panel.getByText("Neues für alle")).toBeVisible();
-      await expect(panel.getByText("Hinweis für den Betrieb")).toBeVisible();
+      await expect(panel.getByText("Hinweis zur Sicherheit")).toBeVisible();
+      await expect(panel.getByText("Hinweis für den Betrieb")).toHaveCount(0);
       await page.getByRole("button", { name: "Schließen" }).click();
       await expect(panel).not.toBeVisible();
       await expect(entry.getByText("Neu", { exact: true })).toHaveCount(0);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { personsLabel } from "$lib/utils/count-word";
   // Issue #612 (D-612-4, UI-SPEC "Tab Zeiten & Konten") - one row per person for the period:
   // Soll, Ist and the three saldo figures of the server's answer, searchable, sortable and paged.
   // Rebuilt on the blocks for Issue #854: a DataTable (it turns into cards below 760 px of container
@@ -115,17 +116,13 @@
     sort = nextSort(sort, (next?.key ?? sort.key) as PeriodSortKey);
   }
 
-  function personCount(n: number): string {
-    return `${n} ${n === 1 ? "Person" : "Personen"}`;
-  }
-
   // One string, so the separators survive the template's whitespace collapsing.
   const medianText = $derived(
     `Median Saldo am Ende ${
       figures.medianMinutes === null ? DASH : fmtHoursDe(figures.medianMinutes, { signed: true })
     } h${
       withoutRecording.length > 0
-        ? ` – ohne ${personCount(withoutRecording.length)} ohne Erfassung`
+        ? ` (${personsLabel(withoutRecording.length)} ohne Erfassung nicht mitgezählt)`
         : ""
     }`,
   );

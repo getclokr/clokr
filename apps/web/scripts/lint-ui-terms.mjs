@@ -127,6 +127,11 @@ export const FORBIDDEN_TERMS = [
     re: /\b(Sie|Ihnen|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres)\b/,
     reason: "address the reader with „du“",
   },
+  {
+    id: "ihr-form",
+    re: /\b(euch|eure[nmrs]?|euer)\b/i,
+    reason: "address the reader with „du“, never „ihr / euch“ (Issue #946)",
+  },
 ];
 
 /** Exact (file, term, text) triples that are not a finding, each with its reason. Stays empty. */

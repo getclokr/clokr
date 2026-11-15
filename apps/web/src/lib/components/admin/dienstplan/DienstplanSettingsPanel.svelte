@@ -352,7 +352,7 @@
     </FormField>
     <FormField
       label="Uhrzeit der Abend-Erinnerung"
-      help="Schichten, die nach dieser Uhrzeit enden, bekommen an diesem Tag keine Abend-Erinnerung. Wähle eine Uhrzeit nach eurem spätesten Schichtende."
+      help="Schichten, die nach dieser Uhrzeit enden, bekommen an diesem Tag keine Abend-Erinnerung. Wähle eine Uhrzeit nach deinem spätesten Schichtende."
     >
       {#snippet field({ id, describedBy })}
         <input

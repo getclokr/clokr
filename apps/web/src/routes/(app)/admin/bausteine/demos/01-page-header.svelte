@@ -32,7 +32,7 @@
   >
     {#snippet actions()}
       <button type="button" class="btn btn-secondary">Exportieren</button>
-      <button type="button" class="btn btn-primary">Person hinzufügen</button>
+      <button type="button" class="btn btn-primary">Person anlegen</button>
     {/snippet}
   </PageHeader>
 

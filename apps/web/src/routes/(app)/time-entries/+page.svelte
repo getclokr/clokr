@@ -3361,7 +3361,7 @@
           disabled={saving}
           data-testid="time-entry-modal-save"
         >
-          {saving ? "Speichern…" : editEntry ? "Änderungen speichern" : "Eintrag hinzufügen"}
+          {saving ? "Speichern…" : editEntry ? "Änderungen speichern" : "Zeit eintragen"}
         </button>
       {/if}
     {/snippet}

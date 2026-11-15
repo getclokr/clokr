@@ -59,7 +59,7 @@ async function typeDate(day: string, month: string, year: string) {
 }
 
 async function openAddDialog() {
-  await fireEvent.click(screen.getByRole("button", { name: "Feiertag hinzufügen" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Feiertag anlegen" }));
   return screen.findByRole("dialog");
 }
 
@@ -168,7 +168,7 @@ describe("SalonHolidays", () => {
   it("shows the lists but no add form and no remove buttons without the manage right", async () => {
     mount(false);
     await screen.findByText("Salonjubiläum");
-    expect(screen.queryByRole("button", { name: "Feiertag hinzufügen" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Feiertag anlegen" })).toBeNull();
     expect(screen.queryByRole("button", { name: /entfernen/ })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
   });

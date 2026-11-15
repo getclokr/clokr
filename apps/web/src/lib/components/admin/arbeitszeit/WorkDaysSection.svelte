@@ -75,7 +75,7 @@
 
 <SettingsGroup
   title="Arbeitstage"
-  description="Welche Wochentage bei euch Arbeitstage sind, unabhängig vom Arbeitszeitmodell."
+  description="Welche Wochentage in deinem Unternehmen Arbeitstage sind, unabhängig vom Arbeitszeitmodell."
   changes={changeCount}
   errors={errorCount}
   {saving}

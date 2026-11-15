@@ -10,6 +10,7 @@ import {
   leaveTypeCodeForName,
   SICK_LEAVE_TYPE_CODES,
   isSickLeaveTypeCode,
+  leaveRequestNoun,
 } from "../leave-type";
 
 /**
@@ -229,5 +230,16 @@ describe("LEAVE_REQUEST_EMAIL_SUBJECT (Issue #200)", () => {
     for (const code of REQUESTABLE_CODES) {
       expect(LEAVE_REQUEST_EMAIL_SUBJECT).not.toContain(LEAVE_TYPE_DEFS[code].name);
     }
+  });
+});
+
+describe("leaveRequestNoun (Issue #946)", () => {
+  it("writes Urlaubsantrag for vacation, never the glued Urlaub-Antrag", () => {
+    expect(leaveRequestNoun("VACATION", "Urlaub")).toBe("Urlaubsantrag");
+  });
+
+  it("reads Antrag auf <name> for every other type", () => {
+    expect(leaveRequestNoun("SPECIAL", "Sonderurlaub")).toBe("Antrag auf Sonderurlaub");
+    expect(leaveRequestNoun(null, "Überstundenausgleich")).toBe("Antrag auf Überstundenausgleich");
   });
 });

@@ -12,15 +12,16 @@ Verbindliche Vorlage für alle GitHub-Releases von Clokr. **Immer** dieses Forma
 - **Migrations-/Deploy-Hinweis** immer angeben: entweder „Keine Schema-Migration." oder die nötigen Schritte.
 - **Audit-Hinweis** bei saldo-/lohn-/abwesenheits-/compliance-relevanten Änderungen (Revisionssicherheit) ans Ende.
 - Ton: knapp, sachlich, fette **Schlüsselbegriffe** für Scanbarkeit. Keine Emojis.
-- **Zielgruppe (#576):** Der „Was ist neu“-Dialog zeigt „Sicherheit“ und „Betrieb & Migration“ nur Personen, die Systemeinstellungen ändern dürfen. Skriptnamen, GHSA-IDs, Deploy-Schritte und Backfills gehören deshalb dorthin; alle anderen Abschnitte sieht jede Person. Die Überschriften der Struktur nicht umbenennen — der Parser ordnet sie danach ein.
+- **Zielgruppe (#576, #946):** Der „Was ist neu“-Dialog zeigt „Sicherheit“ nur Personen, die Systemeinstellungen ändern dürfen. „Betrieb & Migration“ zeigt er niemandem — die API liefert den Abschnitt gar nicht aus (Owner-Entscheidung 15.11.2026: Mandanten-Admins betreiben den Server nicht); er steht nur in der Datei und auf der GitHub-Release-Seite. Skriptnamen, Deploy-Schritte und Backfills gehören deshalb nach „Betrieb & Migration“, GHSA-IDs nach „Sicherheit“; alle anderen Abschnitte sieht jede Person. Die Überschriften der Struktur nicht umbenennen — der Parser ordnet sie danach ein.
+- **Betreiber-Text getrennt (#946):** Der Dialog zeigt allen nur Nutzer-Text. Alles, was nur den Betrieb betrifft (Migrationen, Image-Rollback, VAPID-/Konfig-Schlüssel, Deploy-Reihenfolge, Skripte), steht entweder in „Betrieb & Migration“ / „Sicherheit“ oder als Einleitungsabsatz bzw. Stichpunkt mit dem Präfix `[Betrieb]` — der Parser verschiebt ihn dann in „Betrieb & Migration“. In „Neue Funktionen“, „Verbesserungen“, „Fehlerbehebungen“ und der Einleitung steht kein Betreiber-Wort (Migration, Rollback, VAPID, Image, Stage, Backfill).
 
 ## Struktur
 
 ```markdown
 ## vX.Y.Z — <kurzer deutscher Titel>
 
-<1–2 Sätze: Art des Releases (Feature/Fix/Security) + Migrations-Hinweis. z. B.
-"Fix-Version auf der 1.8.x-Linie. Keine Schema-Migration.">
+<1–2 Sätze: Art des Releases (Feature/Fix/Security) für Nutzer. Den Migrations-Hinweis als eigenen Absatz mit Präfix `[Betrieb]` darunter, z. B.
+"[Betrieb] Keine Schema-Migration.">
 
 ### Neue Funktionen
 
@@ -69,8 +70,8 @@ _<optionaler Audit-/Revisionssicherheits-Hinweis>_
    Job erneut laufen lassen.
 
 Die Datei wird zusätzlich ins API-Abbild gebacken (`apps/api/Dockerfile`) und im
-What's-New-Dialog angezeigt — derselbe Text, eine Wahrheit. Dort sehen „Sicherheit“ und
-„Betrieb & Migration“ nur Personen, die Systemeinstellungen ändern dürfen.
+What's-New-Dialog angezeigt — derselbe Text, eine Wahrheit. Dort sehen „Sicherheit“ nur Personen,
+die Systemeinstellungen ändern dürfen; „Betrieb & Migration“ zeigt der Dialog niemandem (#946).
 
 ## Referenz-Beispiel (Auszug v1.8.25)
 

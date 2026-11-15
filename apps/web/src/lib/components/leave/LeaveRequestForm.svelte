@@ -619,7 +619,7 @@
   title={editingRequest
     ? "Antrag bearbeiten"
     : personPicker
-      ? "Neue Abwesenheit anlegen"
+      ? "Neue Abwesenheit eintragen"
       : "Neuer Abwesenheitsantrag"}
 >
   <div data-testid="leave-form-modal" style="display: contents">
@@ -1033,7 +1033,7 @@
   </div>
 </Modal>
 
-<!-- Phase 87: Terminkollision-Warnung (Abwesenheit anlegen) -->
+<!-- Phase 87: Terminkollision-Warnung (Abwesenheit eintragen) -->
 {#if collisionSummary}
   <ConfirmDialog
     bind:open={collisionConfirmOpen}

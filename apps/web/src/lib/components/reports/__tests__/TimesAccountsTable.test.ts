@@ -421,7 +421,7 @@ describe("TimesAccountsTable - the team median (P-12, #588 rule)", () => {
       ]),
     );
     expect(screen.getByTestId("period-median")).toHaveTextContent(
-      "Median Saldo am Ende +1:00 h – ohne 2 Personen ohne Erfassung",
+      "Median Saldo am Ende +1:00 h (2 Personen ohne Erfassung nicht mitgezählt)",
     );
     const flagged = bodyRows().filter((r) => within(r).queryByText("ohne Erfassung") !== null);
     expect(flagged).toHaveLength(2);

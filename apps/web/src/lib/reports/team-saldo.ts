@@ -42,6 +42,7 @@
  * Pure: no Svelte, no store, no fetch, no `Date`. Every comparator is explicit.
  */
 import { fmtBalance } from "$lib/utils/format-minutes";
+import { monthsLabel } from "$lib/utils/count-word";
 import { forecastCaption, forecastColumnLabel, forecastLabel } from "$lib/saldo/forecast-label";
 
 export { forecastCaption, forecastColumnLabel, forecastLabel };
@@ -216,7 +217,7 @@ export function teamSaldoCells(row: TeamSaldoRow): TeamSaldoCells {
       ? { text: fmtBalance(row.openMonthMinutes) }
       : { text: DASH };
   if (typeof row.unconfirmedMonths === "number" && row.unconfirmedMonths > 1) {
-    open.title = `${row.unconfirmedMonths} Monate ohne Monatsabschluss`;
+    open.title = `${monthsLabel(row.unconfirmedMonths)} ohne Monatsabschluss`;
   }
   return { confirmed, open, total: { text: fmtBalance(totalMinutesOf(row)) } };
 }

@@ -33,7 +33,7 @@ import type { Prisma } from "@clokr/db";
 import { closedMonthLeaveMessage } from "./correction-lock";
 import { findClosedMonthsInRange } from "./closed-month-guard";
 import { findBlockingLeaveOverlap, LEAVE_OVERLAP_ERROR } from "./leave-overlap";
-import { isSickLeaveTypeCode } from "./leave-type";
+import { isSickLeaveTypeCode, leaveRequestNoun } from "./leave-type";
 import { EFFECTIVE_LEAVE_STATUSES } from "./effective-leave-statuses";
 import { findSection9Overlaps } from "./section9-detect";
 import { scheduledLeaveMinutes } from "./overtime-comp-minutes";
@@ -809,7 +809,7 @@ export async function decidePendingLeaveRequest(
       type: input.status === "APPROVED" ? "LEAVE_APPROVED" : "LEAVE_REJECTED",
       title: input.status === "APPROVED" ? "Antrag genehmigt" : "Antrag abgelehnt",
       // Issue #602 (Phase 851): the notice names the process and its period.
-      message: `Dein ${existing.leaveType.name}-Antrag ${decisionPeriodDe(existing.startDate, existing.endDate)} wurde ${input.status === "APPROVED" ? "genehmigt" : "abgelehnt"}.`,
+      message: `Dein ${leaveRequestNoun(existing.leaveType.code, existing.leaveType.name)} ${decisionPeriodDe(existing.startDate, existing.endDate)} wurde ${input.status === "APPROVED" ? "genehmigt" : "abgelehnt"}.`,
       link: `/leave?request=${existing.id}`,
       tenantId: requestEmployee.tenantId,
     });

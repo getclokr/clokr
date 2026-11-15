@@ -228,6 +228,16 @@ export const DISPLAY_NAME: Record<LeaveTypeCode, string> = {
 };
 
 /**
+ * The noun phrase of a request of the given type, for running text ("Dein Urlaubsantrag", "Dein
+ * Antrag auf Sonderurlaub"). Vacation has its own compound; every other type reads "Antrag auf
+ * <name>" because the stored name can be any word, and gluing "-Antrag" onto it gives "Urlaub-Antrag"
+ * (Issue #946). Display text only, never a control value.
+ */
+export function leaveRequestNoun(code: LeaveTypeCode | null | undefined, name: string): string {
+  return code === "VACATION" ? "Urlaubsantrag" : `Antrag auf ${name}`;
+}
+
+/**
  * The neutral email subject for a leave-request notification, uniform across all nine types
  * (Issue #200, owner decision 2026-09-15). `notify.ts` appends the brand suffix itself — do not
  * append it here.
