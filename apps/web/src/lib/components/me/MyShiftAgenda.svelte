@@ -4,7 +4,13 @@
   // (own shifts, shift:read:EIGENE), GET /leave/requests (own) and GET /holidays (Stammsalon); the
   // grouping is lib/me/agenda.ts. The salon name comes from the own salon context; a salon outside it
   // is named „anderer Salon“.
-  import { onMount } from "svelte";
+  //
+  // Issue #589 (D-589-09, D-589-10, D-589-11): the component WAITS for `$salonContext.loaded`. Before the
+  // store has loaded, `homeSalonId` is null and the names map is empty, so every shift was named „anderer
+  // Salon“ and the holidays of the Stammsalon were never requested - the root cause of both symptoms the
+  // owner saw on 15.11.2026. It also fetches the own contract (GET /employees/:id, `workSchedule`) and
+  // full ISO weeks of shifts (Monday of the first week to Sunday of the last), so „Frei“ (no contract
+  // work) can be told from „Noch nicht geplant“ and the week rule sees earlier days of the current week.
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
@@ -13,7 +19,12 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
   import { fmtMin } from "$lib/utils/format-minutes";
-  import { buildAgenda, type AgendaShift, type AgendaWeek } from "$lib/me/agenda";
+  import {
+    buildAgenda,
+    type AgendaContract,
+    type AgendaShift,
+    type AgendaWeek,
+  } from "$lib/me/agenda";
 
   interface OwnRequest {
     typeCode: string | null;
@@ -39,21 +50,35 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
+  /** Monday of the local ISO week of a date. */
+  function mondayOf(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  }
+
   async function load() {
     loading = true;
     failed = false;
     const start = new Date();
     const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + DAYS - 1);
+    // Whole ISO weeks: the week rule of the agenda needs the shifts of the days before today as well.
+    const fetchFrom = mondayOf(start);
+    const lastMonday = mondayOf(end);
+    const fetchTo = new Date(
+      lastMonday.getFullYear(),
+      lastMonday.getMonth(),
+      lastMonday.getDate() + 6,
+    );
     const homeSalonId = $salonContext.homeSalonId;
+    const employeeId = $authStore.user?.employeeId ?? "";
     const years = [...new Set([start.getFullYear(), end.getFullYear()])];
     try {
-      const [shifts, requests, holidays] = await Promise.all([
-        api.get<AgendaShift[]>(`/shifts/range?from=${iso(start)}&to=${iso(end)}`).catch(() => []),
+      const [shifts, requests, holidays, own] = await Promise.all([
+        api
+          .get<AgendaShift[]>(`/shifts/range?from=${iso(fetchFrom)}&to=${iso(fetchTo)}`)
+          .catch(() => []),
         Promise.all(
           years.map((y) =>
-            api.get<OwnRequest[]>(
-              `/leave/requests?year=${y}&employeeId=${$authStore.user?.employeeId ?? ""}`,
-            ),
+            api.get<OwnRequest[]>(`/leave/requests?year=${y}&employeeId=${employeeId}`),
           ),
         ).then((r) => r.flat()),
         homeSalonId
@@ -65,6 +90,12 @@
               ),
             ).then((r) => r.flat())
           : Promise.resolve([] as { date: string; name: string }[]),
+        // The own contract (newest row); a failed read means "unknown" and falls back to the week rule.
+        employeeId
+          ? api
+              .get<{ workSchedule?: AgendaContract | null }>(`/employees/${employeeId}`)
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
       const names = new Map($salonContext.salons.map((s) => [s.id, s.name]));
       weeks = buildAgenda(start, DAYS, {
@@ -77,8 +108,8 @@
           label: (r.typeCode && LEAVE_LABEL[r.typeCode]) ?? "Abwesend",
         })),
         holidays,
-        homeSalonId,
-        salonName: (id) => (id ? (names.get(id) ?? "anderer Salon") : ""),
+        salonNames: names,
+        contract: own?.workSchedule ?? null,
       });
     } catch {
       failed = true;
@@ -87,9 +118,21 @@
     }
   }
 
-  const empty = $derived(weeks.every((w) => w.days.every((d) => d.kind === "free")));
+  // Nothing planned at all: no day of kind shift, leave or holiday (a „Noch nicht geplant“ day is no plan).
+  const empty = $derived(
+    weeks.every((w) =>
+      w.days.every((d) => d.kind !== "shift" && d.kind !== "leave" && d.kind !== "holiday"),
+    ),
+  );
 
-  onMount(load);
+  // Load once, as soon as the salon context is there (D-589-11). The retry button calls `load()` itself.
+  let started = false;
+  $effect(() => {
+    if ($salonContext.loaded && !started) {
+      started = true;
+      void load();
+    }
+  });
 </script>
 
 {#if loading}
