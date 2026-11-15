@@ -977,21 +977,21 @@ export const MOBILE_TAB_SLOTS = 3;
 /**
  * Issue #945 — the ONE priority list of the phone tab bar: after Mein Tag the bar takes the first
  * `MOBILE_TAB_SLOTS` entries of this list that the person sees in the navigation (`visibleRoute`), so it
- * follows the person's permissions and never a role name. Team work comes first (the salon's day, its times,
- * the roster), then the person-and-month work of an administration role (Personen, Monatsabschluss,
- * Berichte), then the team's inbox and absences, and finally the own pages for a person without a team
+ * follows the person's permissions and never a role name. Team work comes first (the salon's day, the team's
+ * inbox — it stays in the bar, owner 15.11.2026 — its times, the roster), then the person-and-month work of an administration role (Personen, Monatsabschluss,
+ * Berichte), then the team's absences, and finally the own pages for a person without a team
  * reach. An entry whose page name is already in the bar is skipped (Team › Zeiten and Ich › Zeiten are both
  * „Zeiten“). Every href is a rail entry of the table (`routes-844.test.ts`).
  */
 export const MOBILE_TAB_PRIORITY: readonly string[] = [
   "/team/heute",
+  "/team/aufgaben",
   "/team/zeiten",
   "/team/dienstplan",
   "/verwalten/personen",
   "/team/personen",
   "/verwalten/monatsabschluss",
   "/team/berichte",
-  "/team/aufgaben",
   "/team/abwesenheiten",
   "/ich/zeiten",
   "/ich/abwesenheiten",

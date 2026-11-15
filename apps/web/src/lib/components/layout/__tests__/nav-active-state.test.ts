@@ -71,7 +71,8 @@ describe("BottomTabBar — current location (#515)", () => {
     // Since #83 the admin items behind „Mehr“ are permission-gated (since #844 by the route table), so the
     // fixture also holds the rights its Personen and Monatsabschluss pages need. #853 (D-853-15): Verwalten › Personen shows in the
     // navigation for whoever edits persons. #945: without team-overview:read Heute im Salon is skipped, so the
-    // derived bar is Mein Tag · Zeiten · Dienstplan · Personen · Mehr, and Aufgaben lives behind „Mehr“.
+    // derived bar is Mein Tag · Aufgaben · Zeiten · Dienstplan · Mehr (Aufgaben stays in the bar, owner
+    // 15.11.2026), and Personen lives behind „Mehr“.
     signInAs([
       ...ALL_TEAM_PERMISSIONS,
       "employee:read:ZUGEWIESEN",
@@ -142,13 +143,14 @@ describe("BottomTabBar — current location (#515)", () => {
     expect(mehr).toHaveAccessibleName("Mehr, aktuelle Seite: Profil");
   });
 
-  it("a page behind Mehr that used to be a tab (Aufgaben) names itself on the trigger (#945)", () => {
+  it("Aufgaben is a tab of the team bar and is marked as the page there (owner 15.11.2026)", () => {
     renderWithTheme(BottomTabBar, { currentPath: "/team/aufgaben" });
     const nav = mobileNav();
-    expect(within(nav).queryByRole("link", { name: "Aufgaben", hidden: true })).toBeNull();
-    expect(within(nav).getByRole("button", { hidden: true })).toHaveAccessibleName(
-      "Mehr, aktuelle Seite: Aufgaben",
-    );
+    const tasks = within(nav).getByRole("link", { name: "Aufgaben", hidden: true });
+    expect(tasks).toHaveAttribute("href", "/team/aufgaben");
+    expect(tasks).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("button", { hidden: true })).toHaveAccessibleName("Mehr");
+    expect(currentElements(nav)).toHaveLength(1);
   });
 
   it("marks nothing on an unknown route and keeps the plain Mehr name", () => {

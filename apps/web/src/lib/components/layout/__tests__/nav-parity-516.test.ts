@@ -158,7 +158,7 @@ describe("phone tab bar (#945)", () => {
 
   for (const [persona, names] of [
     ["EMPLOYEE", ["Mein Tag", "Zeiten", "Abwesenheiten", "Dienstplan"]],
-    ["SALON_MANAGER", ["Mein Tag", "Heute im Salon", "Zeiten", "Dienstplan"]],
+    ["SALON_MANAGER", ["Mein Tag", "Heute im Salon", "Aufgaben", "Zeiten"]],
     ["HR", ["Mein Tag", "Personen", "Monatsabschluss", "Berichte"]],
   ] as const) {
     it(`${persona}: the bar shows the role's pages under their page names, each with its icon, then Mehr`, () => {
