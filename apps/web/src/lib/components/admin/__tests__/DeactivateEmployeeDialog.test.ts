@@ -70,7 +70,7 @@ function mount() {
 
 const field = () => screen.getByLabelText("Letzter Arbeitstag") as HTMLInputElement;
 const confirmButton = () =>
-  screen.getByRole("button", { name: "Deaktivieren" }) as HTMLButtonElement;
+  screen.getByRole("button", { name: "Austritt eintragen" }) as HTMLButtonElement;
 const PREVIEW_URL = `/employees/${EMPLOYEE.id}/deactivate/preview`;
 const DEACTIVATE_URL = `/employees/${EMPLOYEE.id}/deactivate`;
 
@@ -392,8 +392,10 @@ describe("DeactivateEmployeeDialog", () => {
     expect(screen.queryByText(/Resturlaub/)).toBeNull();
     // One question on open, no second one for a chosen day.
     expect(post).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(confirmButton().disabled).toBe(false));
-    await fireEvent.click(confirmButton());
+    // no exit day to enter: the action is named after what it does, the login lock only
+    const lockButton = screen.getByRole("button", { name: "Zugang sperren" }) as HTMLButtonElement;
+    await waitFor(() => expect(lockButton.disabled).toBe(false));
+    await fireEvent.click(lockButton);
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     expect(patch).toHaveBeenCalledWith(DEACTIVATE_URL, {});
     await waitFor(() => expect(onDeactivated).toHaveBeenCalledTimes(1));

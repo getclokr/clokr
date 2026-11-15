@@ -58,6 +58,7 @@ const INVITED = { role: "EMPLOYEE" as const, email: "probe@example.invalid", isA
 
 function mount(
   props: Partial<{
+    firstName: string;
     rights: Rights;
     user: { role: "EMPLOYEE" | null; email: string; isActive: boolean } | null;
     invitationStatus: "ACCEPTED" | "PENDING" | "EXPIRED" | "NONE";
@@ -68,7 +69,7 @@ function mount(
     employee: {
       id: "emp-1",
       userId: "user-1",
-      firstName: "Probe",
+      firstName: props.firstName ?? "Probe",
       lastName: "Eins",
       user: props.user === undefined ? ACTIVE : props.user,
       invitationStatus: props.invitationStatus ?? "ACCEPTED",
@@ -91,10 +92,8 @@ describe("ZugangTab - groups by permission", () => {
   it("shows Rollen, Anmeldung and the deletion group with every right", async () => {
     mount();
     expect(screen.getByRole("heading", { name: "Rollen" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Anmeldung" })).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Beschäftigung beenden und Daten löschen" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Anmeldung und Austritt" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Daten anonymisieren und löschen" })).toBeTruthy();
     await waitFor(() => expect(listRoleAssignments).toHaveBeenCalledWith("user-1"));
   });
 
@@ -104,9 +103,7 @@ describe("ZugangTab - groups by permission", () => {
     expect(screen.getByText(/siehst du nur mit dem Recht, Rollen zuzuweisen/)).toBeTruthy();
     expect(screen.queryByTestId("zugang-deactivate")).toBeNull();
     expect(screen.queryByTestId("zugang-reactivate")).toBeNull();
-    expect(
-      screen.queryByRole("heading", { name: "Beschäftigung beenden und Daten löschen" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Daten anonymisieren und löschen" })).toBeNull();
     // the account facts stay readable
     expect(screen.getByText("probe@example.invalid")).toBeTruthy();
   });
@@ -129,8 +126,9 @@ describe("ZugangTab - login actions", () => {
     await waitFor(() => expect(success).toHaveBeenCalledWith("Einladung erneut gesendet."));
   });
 
-  it("offers no resend for an active account, and deactivate instead of reactivate", () => {
+  it("offers no resend for an active account, and the exit entry instead of reactivate", () => {
     mount();
+    expect(screen.getByTestId("zugang-deactivate").textContent).toMatch(/Austritt eintragen/);
     expect(screen.queryByTestId("zugang-resend-invitation")).toBeNull();
     expect(screen.getByTestId("zugang-deactivate")).toBeTruthy();
     expect(screen.queryByTestId("zugang-reactivate")).toBeNull();
@@ -157,7 +155,18 @@ describe("ZugangTab - anonymise and hard delete", () => {
     await fireEvent.click(screen.getByTestId("zugang-anonymize"));
     expect(apiDelete).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Anonymisieren" }));
+    // the weight of the action: the confirm stays off until the person's name is typed
+    const confirm = within(dialog).getByTestId("zugang-anonymize-confirm") as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    await fireEvent.input(within(dialog).getByTestId("zugang-anonymize-name"), {
+      target: { value: "Falscher Name" },
+    });
+    expect(confirm.disabled).toBe(true);
+    await fireEvent.input(within(dialog).getByTestId("zugang-anonymize-name"), {
+      target: { value: "Probe Eins" },
+    });
+    expect(confirm.disabled).toBe(false);
+    await fireEvent.click(confirm);
     await waitFor(() => expect(apiDelete).toHaveBeenCalledWith("/employees/emp-1"));
     await waitFor(() => expect(onRemoved).toHaveBeenCalledTimes(1));
   });
@@ -167,9 +176,20 @@ describe("ZugangTab - anonymise and hard delete", () => {
     const { onRemoved } = mount();
     await fireEvent.click(screen.getByTestId("zugang-anonymize"));
     const dialog = await screen.findByRole("dialog");
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Anonymisieren" }));
+    await fireEvent.input(within(dialog).getByTestId("zugang-anonymize-name"), {
+      target: { value: "Probe Eins" },
+    });
+    await fireEvent.click(within(dialog).getByTestId("zugang-anonymize-confirm"));
     await waitFor(() => expect(error).toHaveBeenCalledWith("Monat ist abgeschlossen."));
     expect(onRemoved).not.toHaveBeenCalled();
+  });
+
+  it("offers no hard delete for a person who is not anonymised yet, and says why", () => {
+    mount();
+    expect(screen.queryByTestId("zugang-hard-delete")).toBeNull();
+    expect(screen.getByTestId("zugang-hard-delete-unavailable").textContent).toMatch(
+      /anonymisiert wurde/,
+    );
   });
 
   it("a hard delete inside the retention period shows the end date and needs the explicit confirmation", async () => {
@@ -177,7 +197,7 @@ describe("ZugangTab - anonymise and hard delete", () => {
       data: { retentionExpiresAt: "2036-12-31T00:00:00.000Z" },
     });
     apiDelete.mockRejectedValueOnce(refusal);
-    const { onRemoved } = mount();
+    const { onRemoved } = mount({ firstName: "Gelöscht" });
     await fireEvent.click(screen.getByTestId("zugang-hard-delete"));
     const dialog = await screen.findByRole("dialog");
     await fireEvent.click(within(dialog).getByRole("button", { name: "Endgültig löschen" }));
