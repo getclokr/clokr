@@ -176,3 +176,81 @@ test.describe("an open entry of an earlier day (Issue #942)", () => {
     await expect(page.getByRole("dialog")).toContainText("Eintrag bearbeiten");
   });
 });
+
+test.describe("an open entry of yesterday (Issue #959)", () => {
+  const TZ = "Europe/Berlin";
+  test.use({ timezoneId: TZ });
+
+  function yesterday(): string {
+    const [y, m, d] = new Date()
+      .toLocaleDateString("sv-SE", { timeZone: TZ })
+      .split("-")
+      .map(Number);
+    return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+  }
+
+  async function openYesterday(request: APIRequestContext, tenant: TestTenant, hhmm: string) {
+    const day = yesterday();
+    const res = await request.post(`${API_BASE}/api/v1/time-entries`, {
+      headers: { "content-type": "application/json", Authorization: `Bearer ${tenant.adminToken}` },
+      data: { date: day, startTime: zonedInstant(day, hhmm, TZ).toISOString(), breakMinutes: 0 },
+    });
+    expect(res.status(), `record an open entry on ${day} (${await res.text()})`).toBe(201);
+    return day;
+  }
+
+  test("inside the tenant bound it is the running session: Mein Tag shows it and Ausstempeln ends it", async ({
+    page,
+    request,
+    tenant,
+  }) => {
+    // The widest bound (168 h) makes yesterday 09:15 a running session whatever the wall clock says.
+    const cfg = await request.put(`${API_BASE}/api/v1/settings/work`, {
+      headers: { "content-type": "application/json", Authorization: `Bearer ${tenant.adminToken}` },
+      data: { autoDeleteOpenHours: 168 },
+    });
+    expect(cfg.ok(), `set autoDeleteOpenHours (${cfg.status()} ${await cfg.text()})`).toBe(true);
+    const day = await openYesterday(request, tenant, "09:15");
+
+    await signIn(page, request, tenant);
+    await page.goto("/ich/tag");
+    await expect(page.getByTestId("clock-state")).toHaveText("Du arbeitest");
+    await expect(page.locator(".clock-meta")).toContainText("seit gestern, 09:15");
+    await expect(page.getByTestId("mein-tag-cross-day")).toContainText(
+      "Du bist seit gestern, 09:15 Uhr eingestempelt.",
+    );
+    // the #942 hint does not contradict the stage
+    await expect(page.getByTestId("mein-tag-open-earlier")).toHaveCount(0);
+    await expect(page.getByTestId("mein-tag-cross-day-end")).toHaveAttribute(
+      "href",
+      new RegExp(`/ich/zeiten\\?date=${day}&end=`),
+    );
+
+    await page.getByRole("button", { name: "Ausstempeln" }).click();
+    await expect(page.getByTestId("toast-region-status")).toContainText("Ausgestempelt");
+    await expect(page.getByTestId("clock-state")).toHaveText("Noch nicht eingestempelt");
+    await expect(page.getByTestId("mein-tag-cross-day")).toHaveCount(0);
+  });
+
+  test("beyond the tenant bound it blocks nothing: the hint promises a new entry and Einstempeln starts one", async ({
+    page,
+    request,
+    tenant,
+  }) => {
+    // 00:15 yesterday lies more than 14 h (the default bound) before any moment of today.
+    await openYesterday(request, tenant, "00:15");
+
+    await signIn(page, request, tenant);
+    await page.goto("/ich/tag");
+    await expect(page.getByTestId("clock-state")).toHaveText("Noch nicht eingestempelt");
+    const hint = page.getByTestId("mein-tag-open-earlier");
+    await expect(hint).toContainText("seit 00:15");
+    await expect(hint).toContainText("Einstempeln beginnt heute einen neuen Eintrag");
+
+    await page.getByRole("button", { name: "Einstempeln" }).click();
+    await expect(page.getByTestId("toast-region-status")).toContainText("Eingestempelt");
+    await expect(page.getByTestId("clock-state")).toHaveText("Du arbeitest");
+    // the forgotten entry stays open for its correction
+    await expect(hint).toBeVisible();
+  });
+});

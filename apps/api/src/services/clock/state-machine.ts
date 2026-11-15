@@ -59,3 +59,26 @@ export function decideBreak(entry: BreakEntryState, action: BreakAction): BreakD
     ? { kind: "BREAK_END", startedAt: entry.breakStartedAt }
     : { kind: "CONFLICT", reason: "NOT_ON_BREAK" };
 }
+
+/**
+ * Issue #959 — the ONE rule whether an entry left open on the PREVIOUS calendar day is still the
+ * running clock session (Phase 376: a shift across local midnight). It is, while the time since its
+ * start is at most the tenant's `autoDeleteOpenHours` (the same bound after which
+ * `attendance-checker.ts` invalidates an open entry as a missing clock-out); `0` or a missing value
+ * falls back to the fixed cap `fallbackHours`, never to "forever".
+ *
+ * Inside the bound the person IS clocked in: every trigger acts on that entry (AUTO and OUT stop it,
+ * IN answers ALREADY_CLOCKED_IN) and Mein Tag shows it as running. Beyond the bound the entry is a
+ * forgotten clock-out: it blocks nothing, a clock event starts or re-opens an entry of its own day,
+ * and the old entry stays open for its correction (its end is never fabricated). Pure: the resolver
+ * and the own clock-state read (`open-entry.ts`) both decide through it.
+ */
+export function crossDaySessionRuns(
+  startTime: Date,
+  at: Date,
+  autoDeleteOpenHours: number | null | undefined,
+  fallbackHours: number,
+): boolean {
+  const boundHours = autoDeleteOpenHours || fallbackHours;
+  return at.getTime() - startTime.getTime() <= boundHours * 3600_000;
+}

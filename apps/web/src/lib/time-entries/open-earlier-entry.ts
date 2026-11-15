@@ -98,12 +98,21 @@ export interface OpenEarlierEntryText {
  * The wording of the stage hint. The clock resolver looks back ONE day only (Phase 376: a shift
  * across midnight, bounded by the tenant's `autoDeleteOpenHours`), so for an entry older than
  * yesterday it is certain that clocking in today starts a new entry and leaves the old one open.
- * For yesterday's entry the outcome depends on that tenant bound, so nothing is promised.
+ *
+ * Issue #959: for yesterday's entry the server's clock state decides (`GET /time-entries/clock-state`).
+ * While it is the running session it is shown on the stage as running and never reaches this hint
+ * (the page passes the rows without it); once the clock state is KNOWN (`clockStateKnown`), every
+ * entry that does reach the hint blocks nothing, so the promise holds for yesterday's entry too.
+ * Without a known clock state nothing is promised for yesterday's entry.
  */
-export function openEarlierEntryText(entry: OpenEarlierEntry, today: string): OpenEarlierEntryText {
+export function openEarlierEntryText(
+  entry: OpenEarlierEntry,
+  today: string,
+  clockStateKnown = false,
+): OpenEarlierEntryText {
   const title = `Dein Eintrag vom ${dayLabel(entry.day)} ist noch offen – seit ${localHm(entry.startTime)}.`;
   const parts = ["Trag sein Ende ein – solange es fehlt, zählt die Zeit nicht."];
-  if (entry.day < previousDay(today)) {
+  if (clockStateKnown || entry.day < previousDay(today)) {
     parts.push("Einstempeln beginnt heute einen neuen Eintrag, der offene bleibt offen.");
   }
   if (entry.count > 1) {

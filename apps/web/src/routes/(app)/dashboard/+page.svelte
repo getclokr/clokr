@@ -123,6 +123,14 @@
     type OpenEarlierEntry,
   } from "$lib/time-entries/open-earlier-entry"; // Issue #942
   import {
+    loadClockState,
+    clockRows,
+    crossDaySession,
+    crossDaySinceLabel,
+    crossDaySessionText,
+    type ClockStateAnswer,
+  } from "$lib/dashboard/clock-state"; // Issue #959
+  import {
     attendanceBand,
     attendanceFilterOf,
     filterAttendance,
@@ -276,7 +284,11 @@
   // Everything the hero card and the "Heutiger Eintrag" card show derives from it,
   // so the two cards cannot contradict each other the way they did in issue #118.
   let todayEntries = $state<ClockDayEntry[]>([]);
-  let day = $derived(resolveDayState(todayEntries));
+  // Issue #959: the server's answer which open entry the clock acts on. A session across midnight
+  // (yesterday's open entry inside the tenant bound) joins today's rows, so the stage shows it as
+  // running exactly where the clock answers „bereits eingestempelt“; `null` = unknown, as before.
+  let clockState = $state<ClockStateAnswer | null>(null);
+  let day = $derived(resolveDayState(clockRows(todayEntries, clockState)));
   // DERIVED alias, never assigned — kept for the nine existing readers.
   let clockedIn = $derived(day.kind === "running");
   let activeEntryId = $derived(day.kind === "running" ? (day.entry?.id ?? null) : null);
@@ -476,10 +488,12 @@
       const today = format(new Date(), "yyyy-MM-dd");
 
       // Parallel laden — allSettled so a stats failure doesn't break clock state
-      const [entriesResult, statsResult] = await Promise.allSettled([
+      const [entriesResult, statsResult, clockStateResult] = await Promise.allSettled([
         api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`),
         api.get<DashboardStats>("/dashboard"),
+        loadClockState(),
       ]);
+      clockState = clockStateResult.status === "fulfilled" ? clockStateResult.value : null;
 
       if (entriesResult.status === "fulfilled") {
         todayEntries = entriesResult.value;
@@ -595,7 +609,22 @@
   let recentEntries = $state<ClockDayEntry[]>([]);
   // Issue #942: an own entry of an EARLIER day that was never clocked out. Today's clock state
   // stays per day (`day` above); this only adds the hint on the stage.
-  let openEarlier = $state<OpenEarlierEntry | null>(null);
+  // Issue #959: a cross-day session the clock acts on is shown as running on the stage and is
+  // therefore never this hint.
+  let pastWindowRows = $state<ClockDayEntry[] | null>(null);
+  let runningSession = $derived(
+    day.kind === "running" && day.entry && day.entry.id === crossDaySession(clockState)?.id
+      ? day.entry
+      : null,
+  );
+  let openEarlier = $derived.by((): OpenEarlierEntry | null => {
+    if (!pastWindowRows) return null;
+    const sessionId = crossDaySession(clockState)?.id;
+    return openEarlierEntry(
+      pastWindowRows.filter((e) => e.id !== sessionId),
+      todayIso,
+    );
+  });
   let meinTagLoaded = $state(false);
 
   async function loadMeinTag(today: string) {
@@ -661,7 +690,7 @@
             (e) => e.endTime !== null && !isTravelRow(e) && entryDay(e) >= twoWeeksBack,
           )
         : [];
-    openEarlier = recentR.status === "fulfilled" ? openEarlierEntry(recentR.value, today) : null;
+    pastWindowRows = recentR.status === "fulfilled" ? recentR.value : null;
     cumulativeByDate = new Map(
       saldoR.flatMap((r) =>
         r.status === "fulfilled"
@@ -683,7 +712,12 @@
     // Also refresh clock-in status
     try {
       const today = format(new Date(), "yyyy-MM-dd");
-      todayEntries = await api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`);
+      const [rows, state] = await Promise.all([
+        api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`),
+        loadClockState(),
+      ]);
+      todayEntries = rows;
+      clockState = state;
     } catch (err) {
       console.error("Failed to poll clock status:", err);
     }
@@ -1354,7 +1388,10 @@
 
   // ── Issue #845: the stage view model (D-02, D-03, D-845-01/02/08) ─────────────────────────────
   let todayIso = $derived(format(currentTime, "yyyy-MM-dd"));
-  let openEarlierText = $derived(openEarlier ? openEarlierEntryText(openEarlier, todayIso) : null);
+  let openEarlierText = $derived(
+    openEarlier ? openEarlierEntryText(openEarlier, todayIso, clockState !== null) : null,
+  );
+  let runningSessionText = $derived(runningSession ? crossDaySessionText(runningSession) : null);
   // Issue #596 (#845): the day goal is today's Soll of the working-time account (its core, served by
   // GET /dashboard), never a fixed 8 h; 0 or no answer = no goal today.
   let goalMin = $derived.by((): number | null => {
@@ -1407,7 +1444,13 @@
 
   let stageMeta = $derived.by((): { label: string; value: string }[] => {
     if (stageState === "arbeitet") {
-      const out = [{ label: "seit", value: clockStart ? format(clockStart, "HH:mm") : "—" }];
+      // Issue #959: a session across midnight names its day („gestern, 20:00“)
+      const since = runningSession
+        ? crossDaySinceLabel(runningSession)
+        : clockStart
+          ? format(clockStart, "HH:mm")
+          : "—";
+      const out = [{ label: "seit", value: since }];
       // D-845-02: the break taken so far, never a § 4 budget computed here
       out.push({ label: "Pause", value: fmtClock(entryBreakMin) });
       if (goalMin !== null)
@@ -1455,8 +1498,9 @@
   let timelineSegments = $derived.by(() => {
     const pos = (d: Date) => tlPos(d.getHours() * 60 + d.getMinutes());
     const segs: { kind: "work" | "break"; left: number; width: number }[] = [];
-    for (const e of todayEntries) {
-      const l = pos(new Date(e.startTime));
+    // Issue #959: a session across midnight runs from the left edge of today's bar
+    for (const e of runningSession ? [runningSession, ...todayEntries] : todayEntries) {
+      const l = e === runningSession ? 0 : pos(new Date(e.startTime));
       const r = pos(e.endTime ? new Date(e.endTime) : currentTime);
       segs.push({ kind: "work", left: l, width: Math.max(0.6, r - l) });
     }
@@ -1863,6 +1907,21 @@
               {/if}
             {/snippet}
           </Stage>
+          {#if runningSession && runningSessionText}
+            <!-- Issue #959: yesterday's open entry is still the running session (inside the tenant
+               bound); the stage shows it as running, this note names the start and the correction. -->
+            <div class="mt-open-earlier" data-testid="mein-tag-cross-day">
+              <Note tone="info">
+                <strong>{runningSessionText.title}</strong>
+                {runningSessionText.detail}
+              </Note>
+              <a
+                class="btn btn-outline btn-sm"
+                href={endEntryHref({ id: runningSession.id, day: entryDay(runningSession) })}
+                data-testid="mein-tag-cross-day-end">Ende eintragen</a
+              >
+            </div>
+          {/if}
           {#if openEarlier && openEarlierText}
             <!-- Issue #942: an own entry of an earlier day is still open. Today's clock stays as it
                is (the resolver decides per day, #70); the action opens the Zeiten edit dialog. -->

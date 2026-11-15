@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decide } from "../state-machine";
+import { decide, crossDaySessionRuns } from "../state-machine";
 import type { ClockState } from "../types";
 
 describe("services/clock/state-machine — decide()", () => {
@@ -96,5 +96,45 @@ describe("services/clock/state-machine — decide()", () => {
         reason: "NOT_CLOCKED_IN",
       });
     });
+  });
+});
+
+// Issue #959 — whether yesterday's open entry is still the running clock session. Both sides of the
+// tenant bound and a shift across midnight; the resolver and the own clock-state read decide
+// through this one function.
+describe("services/clock/state-machine — crossDaySessionRuns()", () => {
+  const H = 3600_000;
+  const start = new Date("2026-11-09T19:00:00.000Z"); // 20:00 Europe/Berlin
+
+  it("inside the bound (12 h of 14 h) → running", () => {
+    expect(crossDaySessionRuns(start, new Date(start.getTime() + 12 * H), 14, 24)).toBe(true);
+  });
+
+  it("exactly at the bound (14 h) → still running", () => {
+    expect(crossDaySessionRuns(start, new Date(start.getTime() + 14 * H), 14, 24)).toBe(true);
+  });
+
+  it("one millisecond beyond the bound → no longer running", () => {
+    expect(crossDaySessionRuns(start, new Date(start.getTime() + 14 * H + 1), 14, 24)).toBe(false);
+  });
+
+  it("an overnight shift (23:30 → 00:30) → running", () => {
+    expect(
+      crossDaySessionRuns(
+        new Date("2026-11-09T22:30:00.000Z"),
+        new Date("2026-11-09T23:30:00.000Z"),
+        14,
+        24,
+      ),
+    ).toBe(true);
+  });
+
+  it("bound 0 or missing falls back to the fixed cap, never to 'forever'", () => {
+    for (const bound of [0, null, undefined]) {
+      expect(crossDaySessionRuns(start, new Date(start.getTime() + 24 * H), bound, 24)).toBe(true);
+      expect(crossDaySessionRuns(start, new Date(start.getTime() + 24 * H + 1), bound, 24)).toBe(
+        false,
+      );
+    }
   });
 });
