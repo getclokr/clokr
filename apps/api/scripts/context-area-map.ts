@@ -372,6 +372,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/leave-check.ts": "abwesenheiten", // Absence/LeaveRequest overlap checks
   "src/contexts/absence/leave-days.ts": "abwesenheiten", // Phase 101B (Issue #101) — lifted out of api/leave.ts; writes LeaveEntitlement (deduct/reverse/carry-over) primarily, same subject as leave.ts above
   "src/contexts/absence/hire-date-entitlements.ts": "abwesenheiten", // Issue #961 — the reaction to a changed hire date, writes LeaveEntitlement
+  "src/contexts/absence/plugins/hire-date-entitlements-decorate.ts": "abwesenheiten", // Issue #961 — decoration handing the hire-date rule to the Unterbau route
 
   "src/contexts/absence/leave-self-heal.ts": "abwesenheiten", // LeaveEntitlement/LeaveRequest/LeaveType self-heal
   "src/contexts/absence/leave-type.ts": "abwesenheiten", // LeaveTypeCode -> German display-name registry
