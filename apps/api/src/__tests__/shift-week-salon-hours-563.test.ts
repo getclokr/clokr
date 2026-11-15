@@ -202,6 +202,8 @@ describe("Issue #563 — GET /shifts/week salonOpeningHours", () => {
         "absenceMinutesByEmp",
         "availability",
         "contractSollMinutesByEmp",
+        // Issue #589: the contract workdays of fixed/flex persons joined the response.
+        "contractWorkDaysByEmp",
         "coverage",
         "employees",
         "leaveMinutesByEmp",

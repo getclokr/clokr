@@ -185,6 +185,13 @@ const HOME_SALON_REGISTER: readonly HomeSalonCaller[] = [
     reason: "attributes the monthly report's sick and § 9 days to a salon filter (Issue #542)",
   },
   {
+    file: "contexts/scheduling/api/shifts.ts",
+    region: "get /week",
+    reason:
+      "attributes a person's contract presence to the chosen salon's Stammsalon per day under a salon " +
+      "filter (Issue #589, D-589-04); reads no leave row and counts no parallel leave",
+  },
+  {
     file: "contexts/platform/api/employees.ts",
     region: "function directoryFields",
     reason:

@@ -2070,7 +2070,7 @@ describe("Shift Planning API", () => {
   // guard never triggers on these eligibility tests. Original 2026-06-XX dates were authored
   // around 2026-05-20 and silently became past dates after the v1.7 release window.
   // ── Phase 47.1: Shift eligibility (SHIFT_BASED-only) ─────────────────
-  describe("Shift eligibility (47.1)", () => {
+  describe("Shift eligibility (47.1, contract rule since Issue #589)", () => {
     let shiftEmp: { id: string };
     let fixedEmp: { id: string };
     let monthlyEmp: { id: string };
@@ -2142,30 +2142,31 @@ describe("Shift Planning API", () => {
       expect(res.statusCode).toBe(201);
     });
 
-    it("rejects FIXED_SCHEDULE employee (422 + SHIFT_INVALID_EMPLOYEE_TYPE)", async () => {
+    // Issue #589 (owner decision 19.10.2026, OD-589-1): "Alle Personen eines Salons ... koennen
+    // Schichten bekommen, unabhaengig vom Arbeitszeitmodell." The Phase 47.1 SHIFT_BASED-only gate
+    // (422 SHIFT_INVALID_EMPLOYEE_TYPE) is retired: any Arbeitszeitmodell may receive a shift when a
+    // contract is valid on the shift's date; a date without a contract is 422 SHIFT_NO_CONTRACT.
+    it("accepts FIXED_SCHEDULE employee (201) - Issue #589", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/v1/shifts",
         headers: { authorization: `Bearer ${data.adminToken}` },
         payload: validShiftBody(fixedEmp.id, "2099-06-02"),
       });
-      expect(res.statusCode).toBe(422);
-      const body = JSON.parse(res.body);
-      expect(body.code).toBe("SHIFT_INVALID_EMPLOYEE_TYPE");
+      expect(res.statusCode, res.body).toBe(201);
     });
 
-    it("rejects MONTHLY_HOURS employee (422 + SHIFT_INVALID_EMPLOYEE_TYPE)", async () => {
+    it("accepts MONTHLY_HOURS employee (201) - Issue #589", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/v1/shifts",
         headers: { authorization: `Bearer ${data.adminToken}` },
         payload: validShiftBody(monthlyEmp.id, "2099-06-03"),
       });
-      expect(res.statusCode).toBe(422);
-      expect(JSON.parse(res.body).code).toBe("SHIFT_INVALID_EMPLOYEE_TYPE");
+      expect(res.statusCode, res.body).toBe(201);
     });
 
-    it("rejects employee without any WorkSchedule (422)", async () => {
+    it("rejects employee without any WorkSchedule (422 + SHIFT_NO_CONTRACT) - Issue #589", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/v1/shifts",
@@ -2173,10 +2174,10 @@ describe("Shift Planning API", () => {
         payload: validShiftBody(noScheduleEmp.id, "2099-06-04"),
       });
       expect(res.statusCode).toBe(422);
-      expect(JSON.parse(res.body).code).toBe("SHIFT_INVALID_EMPLOYEE_TYPE");
+      expect(JSON.parse(res.body).code).toBe("SHIFT_NO_CONTRACT");
     });
 
-    it("PUT /shifts/:id rejects move to non-SHIFT_BASED employee (422)", async () => {
+    it("PUT /shifts/:id moves a shift to a FIXED_SCHEDULE employee (200) and refuses one without a contract - Issue #589", async () => {
       // Create on SHIFT_BASED emp first
       const createRes = await app.inject({
         method: "POST",
@@ -2186,15 +2187,21 @@ describe("Shift Planning API", () => {
       });
       expect(createRes.statusCode).toBe(201);
       const shiftId = JSON.parse(createRes.body).id;
-      // Try to move to FIXED_SCHEDULE emp
+      const refused = await app.inject({
+        method: "PUT",
+        url: `/api/v1/shifts/${shiftId}`,
+        headers: { authorization: `Bearer ${data.adminToken}` },
+        payload: { employeeId: noScheduleEmp.id, date: "2099-06-05" },
+      });
+      expect(refused.statusCode).toBe(422);
+      expect(JSON.parse(refused.body).code).toBe("SHIFT_NO_CONTRACT");
       const moveRes = await app.inject({
         method: "PUT",
         url: `/api/v1/shifts/${shiftId}`,
         headers: { authorization: `Bearer ${data.adminToken}` },
         payload: { employeeId: fixedEmp.id, date: "2099-06-05" },
       });
-      expect(moveRes.statusCode).toBe(422);
-      expect(JSON.parse(moveRes.body).code).toBe("SHIFT_INVALID_EMPLOYEE_TYPE");
+      expect(moveRes.statusCode, moveRes.body).toBe(200);
     });
   });
 

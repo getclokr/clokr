@@ -29,13 +29,16 @@ import type { FastifyInstance } from "fastify";
  */
 const TARGET_DAY_ISO = nextWeekdayStr(futureDateStr(1));
 
-// The full twelve-key response shape of GET /week. Pinned here so a future field-omission
+// The full thirteen-key response shape of GET /week (Issue #589 added `contractWorkDaysByEmp`, the contract
+// workdays of fixed/flex persons - person facts of the listed people, not a Soll).
+// Pinned here so a future field-omission
 // "fix" that quietly drops a key (rather than gating the whole route) shows up as a failing test.
 // Issue #563 (D-15) added `salonOpeningHours` (display data, the salons inside the caller's reach).
 const FULL_WEEK_RESPONSE_KEYS = [
   "absenceMinutesByEmp",
   "availability",
   "contractSollMinutesByEmp",
+  "contractWorkDaysByEmp",
   "coverage",
   "employees",
   "leaveMinutesByEmp",
