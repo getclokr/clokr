@@ -38,7 +38,35 @@
       "slug": "regeln-arbeitszeit",
       "path": "/verwalten/regeln/arbeitszeit",
       "heading": "Arbeitszeit & Verträge",
-      "tabs": []
+      "tabs": [
+        {
+          "label": "Standard-Arbeitszeit"
+        },
+        {
+          "label": "Überstunden"
+        },
+        {
+          "label": "Arbeitstage"
+        },
+        {
+          "label": "Gleitzeit"
+        },
+        {
+          "label": "Pausen"
+        },
+        {
+          "label": "ArbZG-Prüfung"
+        },
+        {
+          "label": "Offene Einträge"
+        },
+        {
+          "label": "Rückwirkende Einträge"
+        },
+        {
+          "label": "Berufsschule"
+        }
+      ]
     },
     {
       "slug": "regeln-monatsabschluss",
@@ -106,6 +134,12 @@
         },
         {
           "label": "API-Schlüssel"
+        },
+        {
+          "label": "E-Mail-Versand"
+        },
+        {
+          "label": "DATEV"
         }
       ]
     },

@@ -1,6 +1,7 @@
 <!--
-  SmtpSection - „E-Mail-Server“ of Regeln › Benachrichtigungen & E-Mail (Issue #854, D-854-03): the outgoing
-  mail server and its test mail. Moved from the System page (Kommunikation); one SaveBar sends exactly the
+  SmtpSection - the form of the „E-Mail-Versand“ tab of System › Integrationen (Issue #854, D-854-03; moved here
+  from Regeln › Benachrichtigungen & E-Mail by Issue #951): the outgoing mail server and its test mail.
+  Originally from the System page (Kommunikation); one SaveBar sends exactly the
   seven keys of the registry section `benachrichtigungen-smtp` to `PUT /settings/smtp` (#878).
 
   The password is WRITE-ONLY (T-854-22): the field is always empty, the page only knows whether one is stored

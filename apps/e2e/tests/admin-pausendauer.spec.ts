@@ -70,9 +70,9 @@ async function seedEmployee(
 test.describe("Admin Pausendauer — Phase 65 (BREAK-05/06/07)", () => {
   test("tenant-default Pausendauer saves and persists across reload", async ({ page, tenant }) => {
     await loginAsTenantAdmin(page, tenant);
-    // Issue #854: the Pausen section lives on Regeln › Arbeitszeit & Verträge and saves through its
+    // Issue #854/#951: the Pausen section is a tab of Regeln › Arbeitszeit & Verträge and saves through its
     // own SaveBar (one request for the whole section).
-    await page.goto("/verwalten/regeln/arbeitszeit");
+    await page.goto("/verwalten/regeln/arbeitszeit#pausen");
     await expect(page.getByRole("heading", { level: 2, name: "Pausen" })).toBeVisible();
 
     const over6h = page.getByTestId("arbeitszeit-pausen-over6h");

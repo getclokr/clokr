@@ -10,11 +10,13 @@ const tabsOf = (permissions: string[]) =>
   visibleIntegrationenTabs({ permissions }).map((tab) => tab.value);
 
 describe("Integrationen tabs", () => {
-  it("lists the three tabs in strip order", () => {
+  it("lists the tabs in strip order", () => {
     expect(INTEGRATIONEN_TABS.map((tab) => tab.label)).toEqual([
       "WLAN-Anwesenheit",
       "NFC-Terminals",
       "API-Schlüssel",
+      "E-Mail-Versand",
+      "DATEV",
     ]);
   });
 
@@ -22,29 +24,41 @@ describe("Integrationen tabs", () => {
     expect(tabsOf(["presence-source:manage:ZUGEWIESEN"])).toEqual(["wlan"]);
   });
 
-  it("a System permission opens the two moved tabs, never the WLAN tab", () => {
+  it("a System permission opens the moved tabs and the mail tab, never the WLAN or DATEV tab", () => {
     for (const permission of [
       "terminal:manage:ZUGEWIESEN",
       "api-key:manage:ZUGEWIESEN",
       "tenant-settings:read:ZUGEWIESEN",
       "tenant-settings:update:ZUGEWIESEN",
     ]) {
-      expect(tabsOf([permission]), permission).toEqual(["terminals", "schluessel"]);
+      expect(tabsOf([permission]), permission).toEqual(["terminals", "schluessel", "email"]);
     }
   });
 
-  it("holds nothing, sees nothing; holds everything, sees all three", () => {
+  it("report:export opens the DATEV tab alone (Issue #951, D-854-05)", () => {
+    expect(tabsOf(["report:export:ZUGEWIESEN"])).toEqual(["datev"]);
+  });
+
+  it("holds nothing, sees nothing; holds everything, sees all five", () => {
     expect(tabsOf([])).toEqual([]);
     expect(tabsOf(["presence-source:manage:ZUGEWIESEN", "terminal:manage:ZUGEWIESEN"])).toEqual([
       "wlan",
       "terminals",
       "schluessel",
+      "email",
     ]);
+    expect(
+      tabsOf([
+        "presence-source:manage:ZUGEWIESEN",
+        "terminal:manage:ZUGEWIESEN",
+        "report:export:ZUGEWIESEN",
+      ]),
+    ).toEqual(["wlan", "terminals", "schluessel", "email", "datev"]);
   });
 
   it("the route opens under exactly the union of the tabs' sections", () => {
     const route = APP_ROUTES.find((entry) => entry.href === "/verwalten/system/integrationen");
     expect(route?.requires).toEqual(pageAlternatives("/verwalten/system/integrationen"));
-    expect(pageAlternatives("/verwalten/system/integrationen")).toHaveLength(5);
+    expect(pageAlternatives("/verwalten/system/integrationen")).toHaveLength(6);
   });
 });

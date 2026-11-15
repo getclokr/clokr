@@ -272,24 +272,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     page: BENACHRICHTIGUNGEN_PAGE,
     source: "/admin/system",
     requires: SYSTEM_REQUIRES,
-    id: "benachrichtigungen-smtp",
-    title: "E-Mail-Server",
-    endpoint: "/settings/smtp",
-    keys: [
-      "smtpHost",
-      "smtpPort",
-      "smtpUser",
-      "smtpPassword",
-      "smtpFromEmail",
-      "smtpFromName",
-      "smtpSecure",
-    ],
-    renderedBy: `${BENACHRICHTIGUNGEN_DIR}/SmtpSection.svelte`,
-  },
-  {
-    page: BENACHRICHTIGUNGEN_PAGE,
-    source: "/admin/system",
-    requires: SYSTEM_REQUIRES,
     id: "benachrichtigungen-email",
     title: "E-Mail-Benachrichtigungen",
     endpoint: "/settings/security",
@@ -545,25 +527,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     renderedBy: `${ABWESENHEITEN_DIR}/UrlaubsgrenzenPanel.svelte`,
   },
 
-  // ── /admin/export ──────────────────────────────────────────────────────────────────────────────
-  {
-    id: "export-datev-einrichtung",
-    page: "/verwalten/daten/export",
-    title: "DATEV-Einrichtung",
-    endpoint: "/settings/work",
-    keys: [
-      "datevNormalstundenNr",
-      "datevUrlaubNr",
-      "datevKrankNr",
-      "datevSonderurlaubNr",
-      "datevBeraterNr",
-      "datevMandantenNr",
-    ],
-    source: "/admin/export",
-    requires: EXPORT_REQUIRES,
-    renderedBy: "routes/(app)/admin/export/+page.svelte",
-  },
-
   // ── Daten › Protokoll (plan 854-23, D-854-21) ──────────────────────────────────────────────────
   // The retention period of the former audit page, rendered by a component of the rebuilt Protokoll page.
   {
@@ -610,6 +573,46 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     source: "/admin/system",
     requires: SYSTEM_REQUIRES,
     renderedBy: `${INTEGRATIONEN_DIR}/ApiKeysPanel.svelte`,
+  },
+  {
+    // Issue #951: the mail server is technical setup, not a rule - it moved on to System › Integrationen
+    // (tab „E-Mail-Versand“). The id stays (every reference keeps working); `source` and `requires` are those
+    // of the System page it always came from (D-854-05: nobody gains or loses access).
+    page: INTEGRATIONEN_PAGE,
+    source: "/admin/system",
+    requires: SYSTEM_REQUIRES,
+    id: "benachrichtigungen-smtp",
+    title: "E-Mail-Versand",
+    endpoint: "/settings/smtp",
+    keys: [
+      "smtpHost",
+      "smtpPort",
+      "smtpUser",
+      "smtpPassword",
+      "smtpFromEmail",
+      "smtpFromName",
+      "smtpSecure",
+    ],
+    renderedBy: `${INTEGRATIONEN_DIR}/SmtpSection.svelte`,
+  },
+  // Issue #951: the DATEV numbers moved from Daten › Export to System › Integrationen (tab „DATEV“); the export
+  // page only downloads. `source` and `requires` stay those of the export page (D-854-05).
+  {
+    id: "export-datev-einrichtung",
+    page: INTEGRATIONEN_PAGE,
+    title: "DATEV",
+    endpoint: "/settings/work",
+    keys: [
+      "datevNormalstundenNr",
+      "datevUrlaubNr",
+      "datevKrankNr",
+      "datevSonderurlaubNr",
+      "datevBeraterNr",
+      "datevMandantenNr",
+    ],
+    source: "/admin/export",
+    requires: EXPORT_REQUIRES,
+    renderedBy: `${INTEGRATIONEN_DIR}/DatevPanel.svelte`,
   },
 
   // ── /admin/phorest ─────────────────────────────────────────────────────────────────────────────

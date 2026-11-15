@@ -178,6 +178,8 @@ describe("admin route permissions (Issue #83)", () => {
         "/admin/salons",
         "/admin/month-close",
         "/admin/export",
+        // Issue #951: the DATEV setup is a tab of Integrationen, opened by report:export (D-854-05).
+        "/admin/integrations",
       ].sort(),
     );
     expect(visibleFor(p.SALON_MANAGER)).toEqual(

@@ -1,17 +1,21 @@
 <!--
-  Verwalten › Regeln › Benachrichtigungen & E-Mail (Issue #854, D-854-03): the mail server (with a test
-  mail), the e-mail notification switches and the reminder settings of the company. The sections were moved
-  here from the System page (Kommunikation) and the Urlaub page (Erinnerungen) - every setting lives exactly
-  once (lib/settings/settings-pages.ts). The shift reminders are not here, they belong to the roster settings.
+  Verwalten › Regeln › Benachrichtigungen & E-Mail (Issue #854, D-854-03): the e-mail notification switches
+  and the reminder settings of the company. The sections were moved here from the System page (Kommunikation)
+  and the Urlaub page (Erinnerungen) - every setting lives exactly once (lib/settings/settings-pages.ts). The
+  shift reminders are not here, they belong to the roster settings. The mail server is technical setup and
+  lives under System › Integrationen › E-Mail-Versand (Issue #951); this page only reads whether mail can be
+  delivered, to show the one warning of Issue #847 with a link there, and sends the old anchor
+  `#mailserver` on to the new place.
 
-  The three sections read three different endpoints, so the page loads each one only when the person may
-  open the section that needs it (D-854-05: a section keeps the permission alternatives of the page it came
-  from). A section whose data could not be loaded shows that instead of an editable form with made-up
+  The sections read different endpoints, so the page loads each one only when the person may open the section
+  that needs it (D-854-05: a section keeps the permission alternatives of the page it came from). A section whose data could not be loaded shows that instead of an editable form with made-up
   defaults: saving those would overwrite the stored values. Each section keeps its own snapshot and sends
   only its own fields (#878).
 -->
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { markUnsaved } from "$stores/unsaved";
@@ -26,7 +30,6 @@
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
-  import SmtpSection from "$lib/components/admin/benachrichtigungen/SmtpSection.svelte";
   import EmailSection from "$lib/components/admin/benachrichtigungen/EmailSection.svelte";
   import RemindersSection from "$lib/components/admin/benachrichtigungen/RemindersSection.svelte";
 
@@ -39,7 +42,6 @@
     | { status: "ready"; data: T }
     | { status: "failed"; message: string };
 
-  let smtp = $state<Loaded<SmtpConfig>>({ status: "idle" });
   let security = $state<Loaded<SecurityEmailConfig>>({ status: "idle" });
   let work = $state<Loaded<ReminderConfig>>({ status: "idle" });
 
@@ -55,15 +57,9 @@
     ),
   );
 
-  /** Re-read after an SMTP save: the warning follows the server's answer, not the typed form. */
-  async function refreshDelivery() {
-    deliveryReady =
-      (await api.get<SmtpConfig>("/settings/smtp").catch(() => null))?.deliveryReady ??
-      deliveryReady;
-  }
-
   const user = $derived($authStore.user);
   const show = $derived({
+    // The mail server itself lives under System › Integrationen; only its delivery answer is read here.
     smtp: mayOpenSection(user, settingsSection("benachrichtigungen-smtp")),
     email: mayOpenSection(user, settingsSection("benachrichtigungen-email")),
     erinnerungen: mayOpenSection(user, settingsSection("benachrichtigungen-erinnerungen")),
@@ -79,12 +75,22 @@
   }
 
   // Each endpoint is asked once, as soon as the person is known to be allowed to open its section.
+  let smtpAsked = false;
   $effect(() => {
-    if (show.smtp && untrack(() => smtp.status) === "idle") {
-      void load<SmtpConfig>("/settings/smtp", (next) => {
-        smtp = next;
-        if (next.status === "ready") deliveryReady = next.data.deliveryReady ?? null;
-      });
+    if (show.smtp && !smtpAsked) {
+      smtpAsked = true;
+      void api
+        .get<SmtpConfig>("/settings/smtp")
+        .then((config) => (deliveryReady = config.deliveryReady ?? null))
+        .catch(() => undefined);
+    }
+  });
+
+  // Issue #951: the mail server moved to System › Integrationen; an old link to its anchor follows it (only for
+  // a person who may open it there - everyone else stays on this page).
+  onMount(() => {
+    if ($page.url.hash === "#mailserver" && untrack(() => show.smtp)) {
+      void goto("/verwalten/system/integrationen#email", { replaceState: true });
     }
   });
   $effect(() => {
@@ -103,14 +109,12 @@
 
   // The unsaved counts of the sections, summed into ONE registration (a second registration under the
   // same id would let one section's cleanup disarm the others).
-  const changes = $state({ smtp: 0, email: 0, erinnerungen: 0 });
-  const totalChanges = $derived(changes.smtp + changes.email + changes.erinnerungen);
+  const changes = $state({ email: 0, erinnerungen: 0 });
+  const totalChanges = $derived(changes.email + changes.erinnerungen);
 
   // Gated on "a baseline has been taken": only a loaded section can have unsaved changes, and a page
   // that shows nothing but errors must not arm the navigation guard.
-  const snapshotsReady = $derived(
-    smtp.status === "ready" || security.status === "ready" || work.status === "ready",
-  );
+  const snapshotsReady = $derived(security.status === "ready" || work.status === "ready");
 
   $effect(() => {
     markUnsaved("regeln-benachrichtigungen", snapshotsReady && totalChanges > 0);
@@ -118,8 +122,7 @@
   });
 
   const loading = $derived(
-    (show.smtp && (smtp.status === "idle" || smtp.status === "loading")) ||
-      (show.email && (security.status === "idle" || security.status === "loading")) ||
+    (show.email && (security.status === "idle" || security.status === "loading")) ||
       (show.erinnerungen && (work.status === "idle" || work.status === "loading")),
   );
 </script>
@@ -130,25 +133,13 @@
 
 <PageHead
   title={pageLabel("/verwalten/regeln/benachrichtigungen")}
-  sub="Hier richtest du den E-Mail-Versand ein und legst fest, worüber Clokr benachrichtigt und woran es erinnert."
+  sub="Hier legst du fest, worüber Clokr per E-Mail benachrichtigt und woran es erinnert. Den Mailserver richtest du unter System › Integrationen ein."
 />
 
 {#if loading}
   <Skeleton shape="card" lines={4} />
 {/if}
 
-{#if show.smtp}
-  {#if smtp.status === "ready"}
-    <SmtpSection
-      config={smtp.data}
-      bind:changes={changes.smtp}
-      {mailWarning}
-      onSaved={refreshDelivery}
-    />
-  {:else if smtp.status === "failed"}
-    <div role="alert"><Note tone="bad">{LOAD_ERROR} (E-Mail-Server)</Note></div>
-  {/if}
-{/if}
 {#if show.email}
   {#if security.status === "ready"}
     <EmailSection

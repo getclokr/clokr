@@ -21,7 +21,7 @@ import { renderWithTheme } from "$tests/test-utils";
 import { settingsSection } from "$lib/settings/settings-pages";
 import EmailSection from "../EmailSection.svelte";
 import RemindersSection from "../RemindersSection.svelte";
-import SmtpSection from "../SmtpSection.svelte";
+import SmtpSection from "../../integrationen/SmtpSection.svelte";
 
 const keysOf = (id: string) => [...settingsSection(id).keys].sort();
 const bar = () => screen.queryByRole("region", { name: "Speicherleiste" });

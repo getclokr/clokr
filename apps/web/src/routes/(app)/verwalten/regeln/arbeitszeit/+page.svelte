@@ -6,17 +6,24 @@
   The page loads `GET /settings/work` once and hands it to the sections; each section keeps its own
   snapshot and sends only its own fields (#878). A person sees a section only under the permission
   alternatives of the page it came from (D-854-05); the page itself opens under their union.
+
+  Issue #951: one tab per section (PageTabs, hash-addressable like Regeln › Abwesenheiten, e.g. `#pausen`),
+  because the sections stacked made the page ~2,900 px long. Every panel stays in the DOM, so a draft in one
+  tab survives a tab change and the unsaved-changes guard still counts it; each section keeps its own SaveBar.
 -->
 <script lang="ts">
   import { onMount } from "svelte";
+  import { page } from "$app/stores";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { markUnsaved } from "$stores/unsaved";
   import { pageLabel } from "$lib/nav/page-labels";
-  import { mayOpenSection, settingsSection } from "$lib/settings/settings-pages";
+  import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
+  import { visibleArbeitszeitTabs } from "$lib/settings/arbeitszeit-tabs";
   import type { WorkConfig } from "$lib/settings/arbeitszeit";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Note from "$components/ui/Note.svelte";
+  import PageTabs from "$components/ui/PageTabs.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import BreaksSection from "$lib/components/admin/arbeitszeit/BreaksSection.svelte";
   import RetroWindowSection from "$lib/components/admin/arbeitszeit/RetroWindowSection.svelte";
@@ -57,19 +64,17 @@
   });
 
   const user = $derived($authStore.user);
-  const show = $derived({
-    pausen: mayOpenSection(user, settingsSection("arbeitszeit-pausen")),
-    rueckwirkend: mayOpenSection(user, settingsSection("arbeitszeit-rueckwirkend")),
-    arbeitstage: mayOpenSection(user, settingsSection("arbeitszeit-arbeitstage")),
-    gleitzeit: mayOpenSection(user, settingsSection("arbeitszeit-gleitzeit")),
-    berufsschule: mayOpenSection(user, settingsSection("arbeitszeit-berufsschule")),
-    standard: mayOpenSection(user, settingsSection("arbeitszeit-standard")),
-    ueberstunden: mayOpenSection(user, settingsSection("arbeitszeit-ueberstunden")),
-    compliance: mayOpenSection(user, settingsSection("arbeitszeit-compliance")),
-    offeneEintraege: mayOpenSection(user, settingsSection("arbeitszeit-offene-eintraege")),
-  });
+  const visibleTabs = $derived(visibleArbeitszeitTabs(user));
+  const visibleTabIds = $derived(visibleTabs.map((tab) => tab.value as string));
+  let activeTab = $state<string>("");
+
+  function selectTab(next: string) {
+    activeTab = next;
+    writeTabHash(next);
+  }
 
   onMount(async () => {
+    activeTab = visibleTabIds.length > 0 ? tabFromHash($page.url.hash, visibleTabIds) : "";
     try {
       config = await api.get<WorkConfig>("/settings/work");
     } catch (err) {
@@ -95,31 +100,32 @@
 {:else if loadError || config === null}
   <div role="alert"><Note tone="bad">{loadError}</Note></div>
 {:else}
-  {#if show.standard}
-    <DefaultHoursSection {config} bind:changes={changes.standard} />
-  {/if}
-  {#if show.ueberstunden}
-    <MaxNegativeSection {config} bind:changes={changes.ueberstunden} />
-  {/if}
-  {#if show.arbeitstage}
-    <WorkDaysSection {config} bind:changes={changes.arbeitstage} />
-  {/if}
-  {#if show.gleitzeit}
-    <CoreHoursSection {config} bind:changes={changes.gleitzeit} />
-  {/if}
-  {#if show.pausen}
-    <BreaksSection {config} bind:changes={changes.pausen} />
-  {/if}
-  {#if show.compliance}
-    <ComplianceSection {config} bind:changes={changes.compliance} />
-  {/if}
-  {#if show.offeneEintraege}
-    <OpenEntriesSection {config} bind:changes={changes.offeneEintraege} />
-  {/if}
-  {#if show.rueckwirkend}
-    <RetroWindowSection {config} bind:changes={changes.rueckwirkend} />
-  {/if}
-  {#if show.berufsschule}
-    <VocationalSlotsSection {config} bind:changes={changes.berufsschule} />
-  {/if}
+  <PageTabs
+    tabs={visibleTabs.map(({ value, label }) => ({ value, label }))}
+    tab={activeTab}
+    onTabChange={selectTab}
+    tabsLabel="Bereiche der Arbeitszeit"
+  >
+    {#snippet panel(value)}
+      {#if value === "standard"}
+        <DefaultHoursSection config={config!} bind:changes={changes.standard} />
+      {:else if value === "ueberstunden"}
+        <MaxNegativeSection config={config!} bind:changes={changes.ueberstunden} />
+      {:else if value === "arbeitstage"}
+        <WorkDaysSection config={config!} bind:changes={changes.arbeitstage} />
+      {:else if value === "gleitzeit"}
+        <CoreHoursSection config={config!} bind:changes={changes.gleitzeit} />
+      {:else if value === "pausen"}
+        <BreaksSection config={config!} bind:changes={changes.pausen} />
+      {:else if value === "arbzg"}
+        <ComplianceSection config={config!} bind:changes={changes.compliance} />
+      {:else if value === "offene-eintraege"}
+        <OpenEntriesSection config={config!} bind:changes={changes.offeneEintraege} />
+      {:else if value === "rueckwirkend"}
+        <RetroWindowSection config={config!} bind:changes={changes.rueckwirkend} />
+      {:else if value === "berufsschule"}
+        <VocationalSlotsSection config={config!} bind:changes={changes.berufsschule} />
+      {/if}
+    {/snippet}
+  </PageTabs>
 {/if}

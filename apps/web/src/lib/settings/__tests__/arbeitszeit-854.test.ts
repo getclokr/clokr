@@ -275,8 +275,8 @@ describe("Berufsschule", () => {
   });
 
   it("shows minutes as German hours", () => {
-    expect(minutesAsHours(480)).toBe("= 8 h");
-    expect(minutesAsHours(450)).toBe("= 7,5 h");
+    expect(minutesAsHours(480)).toBe("= 8:00 h");
+    expect(minutesAsHours(450)).toBe("= 7:30 h");
     expect(minutesAsHours(null)).toBe("");
   });
 });

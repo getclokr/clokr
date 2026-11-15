@@ -70,19 +70,14 @@ test.describe("Verwalten › Übersicht (#847)", () => {
     await expect(page.getByTestId("mail-warning")).toHaveCount(deliveryReady ? 0 : 1);
 
     // The setup check „E-Mail-Versand eingerichtet“ links to the section that holds the mail server
-    // (Regeln › Benachrichtigungen); following that link must land on it.
+    // (System › Integrationen › E-Mail-Versand, Issue #951); following that link must land on it.
     const mailLink = page
       .getByTestId("setup-checks")
       .getByRole("link", { name: "E-Mail", exact: true });
-    await expect(mailLink).toHaveAttribute(
-      "href",
-      "/verwalten/regeln/benachrichtigungen#mailserver",
-    );
+    await expect(mailLink).toHaveAttribute("href", "/verwalten/system/integrationen#email");
     await mailLink.click();
-    await expect(page).toHaveURL(/\/verwalten\/regeln\/benachrichtigungen#mailserver$/);
-    await expect(
-      page.getByTestId("benachrichtigungen-email-emailNotificationsEnabled"),
-    ).toBeAttached();
+    await expect(page).toHaveURL(/\/verwalten\/system\/integrationen#email$/);
+    await expect(page.getByTestId("benachrichtigungen-smtp-host")).toBeVisible();
     await expect(page.getByTestId("mail-warning-smtp")).toHaveCount(deliveryReady ? 0 : 1);
   });
 

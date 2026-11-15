@@ -54,6 +54,7 @@ const MANDANT_ALLOWED = [
   "src/lib/components/operator/",
   "src/lib/operator/",
   "src/routes/(app)/admin/export/", // DATEV's own field name „Mandantennummer“
+  "src/lib/components/admin/integrationen/DatevPanel.svelte", // the DATEV setup (Issue #951), same field name
 ];
 /**
  * The shift planning surface (Issue #850): its own jargon (flag, generator, audit trail) is

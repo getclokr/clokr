@@ -1,5 +1,5 @@
 // Issue #854 (D-854-03) - the tabs of Verwalten › System › Integrationen: WLAN-Anwesenheit, NFC-Terminals and
-// API-Schlüssel. The page merges sections of two old pages (the integrations page and System) and opens under
+// API-Schlüssel, plus (Issue #951) E-Mail-Versand and DATEV. The page merges sections of two old pages (the integrations page and System) and opens under
 // the union of their gates (D-854-05), so each tab is offered only under the alternatives of its own registry
 // section. Presentation only; the API's 403 stays the authority. No runes and no `$app` imports on purpose.
 
@@ -7,7 +7,7 @@ import type { PermissionHolder } from "$lib/permissions";
 import { mayOpenSection, settingsSection } from "$lib/settings/settings-pages";
 
 export interface IntegrationenTab {
-  value: "wlan" | "terminals" | "schluessel";
+  value: "wlan" | "terminals" | "schluessel" | "email" | "datev";
   label: string;
   /** The registry section the tab shows. */
   section: string;
@@ -18,6 +18,8 @@ export const INTEGRATIONEN_TABS: readonly IntegrationenTab[] = [
   { value: "wlan", label: "WLAN-Anwesenheit", section: "integrationen-wlan" },
   { value: "terminals", label: "NFC-Terminals", section: "integrationen-terminals" },
   { value: "schluessel", label: "API-Schlüssel", section: "integrationen-api-schluessel" },
+  { value: "email", label: "E-Mail-Versand", section: "benachrichtigungen-smtp" },
+  { value: "datev", label: "DATEV", section: "export-datev-einrichtung" },
 ];
 
 /** The tabs `user` may open (T-854-35): a tab is offered under the alternatives of its own section only. */

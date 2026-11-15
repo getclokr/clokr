@@ -143,6 +143,9 @@ describe("lint-ui-terms: area scoping", () => {
   });
   it("allows Mandant on the DATEV export page", () => {
     expect(termsOf("src/routes/(app)/admin/export/+page.svelte", mandant)).toEqual([]);
+    expect(termsOf("src/lib/components/admin/integrationen/DatevPanel.svelte", mandant)).toEqual(
+      [],
+    );
   });
   it("checks the shift-planning terms only in the shift planning area (Issue #850)", () => {
     const text = `<p>Generator setzt ein Flag und eine Audit-Spur.</p>`;

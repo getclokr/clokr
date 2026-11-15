@@ -573,7 +573,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     requires: "children",
     inNav: true,
     parent: "/verwalten",
-    description: "Allgemeines, Darstellung, Schnittstellen und Rollen",
+    description: "Allgemeines, Integrationen mit E-Mail-Versand und DATEV, Phorest und Rollen",
   },
   // Plan 854-14: the terminal and API keys moved to System › Integrationen
   {
@@ -601,18 +601,19 @@ export const APP_ROUTES: readonly AppRoute[] = [
     icon: "wifi",
     width: "read",
     // Plan 854-14: tabs WLAN-Anwesenheit (presence-source:manage), NFC-Terminals and API-Schlüssel (the
-    // System alternatives); the registry (settings-pages.ts) pins this to the union of the tabs' sections.
+    // System alternatives); Issue #951 adds E-Mail-Versand (System alternatives) and DATEV (report:export); the registry (settings-pages.ts) pins this to the union of the tabs' sections.
     requires: [
       [Z("presence-source:manage")],
       [Z("tenant-settings:read")],
       [Z("tenant-settings:update")],
       [Z("terminal:manage")],
       [Z("api-key:manage")],
+      [Z("report:export")],
     ],
     file: "/admin/integrations",
     inNav: false,
     parent: "/verwalten/system",
-    description: "WLAN-Anwesenheit, NFC-Terminals und API-Schlüssel",
+    description: "WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV",
   },
   // /integrations/phorest/*
   {

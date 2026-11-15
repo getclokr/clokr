@@ -359,7 +359,22 @@ export function registryProblems(
       .split("/")
       .at(-1)!
       .replace(/\.(svelte|ts)$/, "");
-    if (pageSource === undefined || !pageSource.text.includes(base))
+    // The page may reach the section through a loading panel it imports (Issue #951: SmtpPanel -> SmtpSection),
+    // so the rendering file also counts when a `.svelte` file the page imports names it.
+    const allSvelte = walkFiles(SRC_ROOT, [".svelte"], { includeTests: false });
+    const importedByPage = (pageSource?.text.match(/from "([^"]+\.svelte)"/g) ?? [])
+      .map((m) =>
+        m
+          .slice(6, -1)
+          .replace(/^\$lib\//, "lib/")
+          .replace(/^\$components\//, "lib/components/"),
+      )
+      .map((rel) => allSvelte.find((f) => f.rel === rel))
+      .filter((f) => f !== undefined);
+    const reached =
+      pageSource !== undefined &&
+      (pageSource.text.includes(base) || importedByPage.some((f) => f!.text.includes(base)));
+    if (!reached)
       problems.push(`${section.id}: ${section.renderedBy} is neither ${page} nor imported by it`);
   }
 
@@ -423,7 +438,11 @@ describe("settings registry against the sources (#854, D-854-03)", () => {
   it("every section sits on one of the final Verwalten pages and every final page has a section", () => {
     for (const section of SETTINGS_SECTIONS)
       expect(FINAL_PAGES, `${section.id} -> ${section.page}`).toContain(section.page);
-    for (const page of FINAL_PAGES) expect(sectionsOfPage(page).length, page).toBeGreaterThan(0);
+    // Issue #951: Daten › Export only downloads since its DATEV setup moved to Integrationen.
+    const DOWNLOAD_ONLY = ["/verwalten/daten/export"];
+    for (const page of FINAL_PAGES.filter((p) => !DOWNLOAD_ONLY.includes(p)))
+      expect(sectionsOfPage(page).length, page).toBeGreaterThan(0);
+    for (const page of DOWNLOAD_ONLY) expect(sectionsOfPage(page), page).toEqual([]);
   });
 
   // The #878 own-fields rule is carried by (3) of registryProblems. What it cannot see is a page that keeps a
