@@ -16,6 +16,10 @@
  * unchanged; the same-day non-overlapping POST that used to be refused is proven in
  * `time-entry-multi-entry-70.test.ts`. Case count unchanged.
  *
+ * Amendment 2026-11-15 (Issue #954): the ArbZG texts print durations as H:MM instead of decimal
+ * hours ("10.5 h." -> "10:30 Std.", "Ruhezeit: 10.0 h." -> "10:00 Std."). Only the message strings of
+ * the checkArbZG snapshot changed; codes, severities and case count are unchanged.
+ *
  * It deliberately enters only through signatures the refactor does NOT change — `checkArbZG`,
  * `resolveClockEvent`, and the HTTP routes (`/time-entries`, `/presence/events`,
  * `/overtime/:employeeId`) — never `checkOneEntryPerDay` or `consolidateSameDayEntries` directly,
@@ -280,12 +284,12 @@ describe("Phase 69b — day-lookup characterization (pinned before the refactor)
         },
         {
           "code": "MAX_DAILY_EXCEEDED",
-          "message": "§ 3 ArbZG: Tägliche Höchstarbeitszeit von 10 Stunden überschritten. Erfasst: 10.5 h.",
+          "message": "§ 3 ArbZG: Tägliche Höchstarbeitszeit von 10 Stunden überschritten. Erfasst: 10:30 Std.",
           "severity": "error",
         },
         {
           "code": "MIN_REST_VIOLATED",
-          "message": "§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: 10.0 h.",
+          "message": "§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: 10:00 Std.",
           "severity": "warning",
         },
       ]
@@ -296,7 +300,7 @@ describe("Phase 69b — day-lookup characterization (pinned before the refactor)
       [
         {
           "code": "MIN_REST_VIOLATED",
-          "message": "§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: 10.0 h.",
+          "message": "§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: 10:00 Std.",
           "severity": "warning",
         },
       ]
@@ -307,7 +311,7 @@ describe("Phase 69b — day-lookup characterization (pinned before the refactor)
       [
         {
           "code": "MIN_REST_VIOLATED",
-          "message": "§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: 10.0 h.",
+          "message": "§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: 10:00 Std.",
           "severity": "warning",
         },
       ]
@@ -336,7 +340,7 @@ describe("Phase 69b — day-lookup characterization (pinned before the refactor)
       [
         {
           "code": "MIN_REST_VIOLATED",
-          "message": "§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: 6.5 h.",
+          "message": "§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: 6:30 Std.",
           "severity": "warning",
         },
       ]

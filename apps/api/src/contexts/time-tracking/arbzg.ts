@@ -114,6 +114,15 @@ function ceilMinutes(minutes: number): number {
   return Math.ceil(minutes - 1e-9);
 }
 
+/**
+ * Whole minutes as "H:MM Std." — the one duration format of every ArbZG text (Issue #954). The
+ * caller rounds: a figure over a limit rounds up (`ceilMinutes`), so "überschritten" never prints
+ * the limit itself; a figure under a limit rounds down, so "unterschritten" never prints it either.
+ */
+function hmText(wholeMinutes: number): string {
+  return `${Math.floor(wholeMinutes / 60)}:${String(wholeMinutes % 60).padStart(2, "0")} Std.`;
+}
+
 /** Renders the finding's intervals as "08:00–14:01, 15:00–21:30" in the tenant time zone. */
 function rangesText(finding: PlacementFinding, tz: string): string {
   return finding.intervals
@@ -186,7 +195,7 @@ export function dayLimitWarnings(
     warnings.push({
       code: "MAX_DAILY_EXCEEDED",
       severity: "error",
-      message: `§ 3 ArbZG: Tägliche Höchstarbeitszeit von 10 Stunden überschritten. Erfasst: ${(dailyTotalMin / 60).toFixed(1)} h.`,
+      message: `§ 3 ArbZG: Tägliche Höchstarbeitszeit von 10 Stunden überschritten. Erfasst: ${hmText(ceilMinutes(dailyTotalMin))}`,
       ...crossFlag,
     });
   }
@@ -222,7 +231,7 @@ export function placementWarnings(
     switch (finding.code) {
       case "BREAK_TOO_LATE": {
         const longest = ceilMinutes(finding.longestBlockMin ?? 0);
-        const duration = `${Math.floor(longest / 60)}:${String(longest % 60).padStart(2, "0")} Std.`;
+        const duration = hmText(longest);
         text =
           `${finding.legalBasis}: ${duration} am Stück ohne Ruhepause von mindestens ` +
           `${minSegmentMin} Min (${rangesText(finding, options.tz)}). ` +
@@ -465,11 +474,11 @@ export async function checkArbZG(
     if (prevLastSlot?.endTime && daySlots.length > 0) {
       const restMin = (daySlots[0].startTime.getTime() - prevLastSlot.endTime.getTime()) / 60000;
       if (restMin < 11 * 60) {
-        const restH = (restMin / 60).toFixed(1);
+        const restH = hmText(Math.floor(restMin + 1e-9));
         warnings.push({
           code: "MIN_REST_VIOLATED",
           severity: "warning",
-          message: `§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: ${restH} h.`,
+          message: `§ 5 ArbZG: Mindestruhezeit von 11 Stunden zwischen Arbeitstagen unterschritten. Ruhezeit: ${restH}`,
         });
       }
     }
@@ -493,11 +502,11 @@ export async function checkArbZG(
     if (nextFirstSlot && lastSlotToday.endTime) {
       const restMin = (nextFirstSlot.startTime.getTime() - lastSlotToday.endTime.getTime()) / 60000;
       if (restMin < 11 * 60) {
-        const restH = (restMin / 60).toFixed(1);
+        const restH = hmText(Math.floor(restMin + 1e-9));
         warnings.push({
           code: "MIN_REST_VIOLATED",
           severity: "warning",
-          message: `§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: ${restH} h.`,
+          message: `§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: ${restH}`,
         });
       }
     }
@@ -535,11 +544,11 @@ export async function checkArbZG(
       const bsEndUtc = fromZonedTime(bsEndLocal, tz);
       const restMin = (nextFirstSlot.startTime.getTime() - bsEndUtc.getTime()) / 60000;
       if (restMin < 11 * 60) {
-        const restH = (restMin / 60).toFixed(1);
+        const restH = hmText(Math.floor(restMin + 1e-9));
         warnings.push({
           code: "MIN_REST_VIOLATED",
           severity: "warning",
-          message: `§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: ${restH} h.`,
+          message: `§ 5 ArbZG: Mindestruhezeit zum Folgetag unterschritten. Ruhezeit: ${restH}`,
         });
       }
     }
@@ -601,7 +610,7 @@ export async function checkArbZG(
     warnings.push({
       code: "MAX_WEEKLY_EXCEEDED",
       severity: "error",
-      message: `§ 3 ArbZG: Wöchentliche Höchstarbeitszeit von 48 Stunden überschritten. Diese Woche: ${(weeklyTotalMin / 60).toFixed(1)} h.`,
+      message: `§ 3 ArbZG: Wöchentliche Höchstarbeitszeit von 48 Stunden überschritten. Diese Woche: ${hmText(ceilMinutes(weeklyTotalMin))}`,
     });
   }
 
@@ -651,11 +660,11 @@ export async function checkArbZG(
     const avgPerWerktag = totalWithBsMin / WERKTAGE_IN_24_WEEKS;
 
     if (avgPerWerktag > 8 * 60) {
-      const avgH = (avgPerWerktag / 60).toFixed(1);
+      const avgH = hmText(ceilMinutes(avgPerWerktag));
       warnings.push({
         code: "MAX_DAILY_AVG_EXCEEDED",
         severity: "warning",
-        message: `§ 3 ArbZG: 24-Wochen-Durchschnitt von 8 Stunden überschritten. Aktueller Schnitt: ${avgH} h/Tag.`,
+        message: `§ 3 ArbZG: 24-Wochen-Durchschnitt von 8 Stunden überschritten. Aktueller Schnitt: ${avgH} pro Werktag.`,
       });
     }
   }

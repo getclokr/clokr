@@ -26,11 +26,13 @@ import {
   type LegacyDaySlot,
   type LegacyDayWarning,
 } from "./fixtures/legacy-day-warnings-pre80";
+import { withDailyMaxTextAmendment } from "./fixtures/day-text-amendment-954";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Amendment register (Issue #523): cells whose expected result changed on purpose. The frozen
-// legacy fixture itself is untouched; see the register for the rule and the reason.
+// Amendment register (Issues #523, #954): cells whose expected result changed on purpose. The
+// frozen legacy fixture itself is untouched; see the register for the rule and the reason. The
+// #954 text amendment is applied by `withDailyMaxTextAmendment` to every expectation.
 interface EquivalenceAmendment {
   id: string;
   issue: number;
@@ -222,9 +224,10 @@ function amendedLegacyWarnings(daySlots: Row[], bsMinutesToday: number): LegacyD
 
 /** Legacy expectation, or the register's amended expectation for an amended cell. */
 function expectedWarnings(rows: Row[], bs: number): LegacyDayWarning[] {
-  return hasSameSalonGapOverCap(rows)
+  const base = hasSameSalonGapOverCap(rows)
     ? amendedLegacyWarnings(rows, bs)
     : legacyDayWarningsPre80(rows, bs);
+  return withDailyMaxTextAmendment(base, rows, bs);
 }
 
 // ── (a) single-entry matrix ───────────────────────────────────────────────────────────────────
@@ -233,6 +236,7 @@ describe("Issue #80 80-AC6 (a) — every single-entry day is unchanged", () => {
   it("equals the frozen pre-80 warnings for the full cartesian matrix", () => {
     let cases = 0;
     let withFinding = 0;
+    let textAmended = 0;
     const mismatches: string[] = [];
     for (const day of DAYS) {
       for (const duration of DURATIONS_MS) {
@@ -241,7 +245,9 @@ describe("Issue #80 80-AC6 (a) — every single-entry day is unchanged", () => {
             for (const bs of BS_MINUTES) {
               cases++;
               const rows = [makeRow("salon-a", dayStart(day) + 8 * MS_H, duration, brk, status)];
-              const legacy = legacyDayWarningsPre80(rows, bs);
+              const frozen = legacyDayWarningsPre80(rows, bs);
+              const legacy = withDailyMaxTextAmendment(frozen, rows, bs);
+              if (JSON.stringify(legacy) !== JSON.stringify(frozen)) textAmended++;
               const current = newWarnings(rows, bs);
               if (legacy.length > 0) withFinding++;
               try {
@@ -258,6 +264,8 @@ describe("Issue #80 80-AC6 (a) — every single-entry day is unchanged", () => {
     }
     expect(cases).toBeGreaterThan(5000);
     expect(withFinding).toBeGreaterThan(500);
+    // anti-vacuity for the #954 register entry: it matched cells and changed their text
+    expect(textAmended).toBeGreaterThan(100);
     if (mismatches.length > 0) console.error(mismatches.slice(0, 5));
     expect(mismatches).toHaveLength(0);
   });
@@ -286,7 +294,12 @@ describe("Issue #80 80-AC6 (b) — every same-salon multi-entry day is unchanged
       const legacy = expectedWarnings(rows, bs);
       if (hasSameSalonGapOverCap(rows)) {
         amended++;
-        if (JSON.stringify(legacy) !== JSON.stringify(legacyDayWarningsPre80(rows, bs))) {
+        const frozenWithText = withDailyMaxTextAmendment(
+          legacyDayWarningsPre80(rows, bs),
+          rows,
+          bs,
+        );
+        if (JSON.stringify(legacy) !== JSON.stringify(frozenWithText)) {
           amendedDiffersFromLegacy++;
         }
       }
@@ -434,7 +447,7 @@ describe("Issue #80 80-AC6 (d) — the matrix can see a drift of the 120-minute 
   it("a strict `< 120` copy of the legacy function differs from the kernel on at least one same-salon case", () => {
     let differing = 0;
     for (const { rows, bs } of SAME_SALON_CASES) {
-      const perturbed = perturbedLegacyWarnings(rows, bs);
+      const perturbed = withDailyMaxTextAmendment(perturbedLegacyWarnings(rows, bs), rows, bs);
       const current = newWarnings(rows, bs);
       if (JSON.stringify(perturbed) !== JSON.stringify(current)) differing++;
     }

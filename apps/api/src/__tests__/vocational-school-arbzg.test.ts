@@ -164,7 +164,7 @@ describe("checkArbZG VOCATIONAL_SCHOOL integration (Phase 63 Plan 03 — BERSCH-
       expect(w).toBeDefined();
       expect(w!.severity).toBe("error");
       // Week total ≈ 40h + 12h = 52h
-      expect(w!.message).toMatch(/52(\.0)? h/);
+      expect(w!.message).toMatch(/52:00 Std\./);
     });
 
     it("does NOT fire with only 5 BS days (40h, no regular work)", async () => {

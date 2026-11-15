@@ -2,7 +2,8 @@
  * Issue #511 — the placement evaluation is ADDITIVE: it never moves a Phase-80 result.
  *
  * The left side of (a) is `./fixtures/legacy-day-warnings-pre80.ts`, the frozen verbatim pre-80 day
- * statements, imported read-only (the frozen equivalence test and its fixture are never edited).
+ * statements, imported read-only (the frozen equivalence test and its fixture are never edited;
+ * the #954 text change of the daily maximum enters through the register, `day-text-amendment-954.ts`).
  * The right side is what `checkArbZG` runs today, now with an explicit `regime`.
  *
  *   (a) every single-entry day: `dayLimitWarnings` equals the frozen warnings byte for byte;
@@ -16,6 +17,7 @@
  * test red instead of green.
  */
 import { describe, it, expect } from "vitest";
+import { withDailyMaxTextAmendment } from "./fixtures/day-text-amendment-954";
 import { evaluateDayBreaks, type DayBreakRow } from "../day-break-rule";
 import { dayLimitWarnings } from "../arbzg";
 import { BREAK_REGIMES } from "../break-regime";
@@ -110,7 +112,11 @@ describe("Issue #511 (a) — dayLimitWarnings of a single-entry day is the froze
     let withFinding = 0;
     const mismatches: string[] = [];
     for (const c of CASES) {
-      const legacy = legacyDayWarningsPre80([c.row], c.bs);
+      const legacy = withDailyMaxTextAmendment(
+        legacyDayWarningsPre80([c.row], c.bs),
+        [c.row],
+        c.bs,
+      );
       const current = dayLimitWarnings(
         evaluateDayBreaks({ rows: [c.row], dayBreaks: [], acks: [], regime: "ARBZG_4" }),
         c.bs,

@@ -2,8 +2,8 @@
 //
 // `checkArbZG` sums EVERY entry of the person: the day (all salons), the previous and next day
 // (rest period), the ISO week (weekly total) and the last 168 days (24-week average). A manager
-// whose read reach covers only one salon therefore learns from "Diese Woche: 47.5 h" or
-// "Ruhezeit: 8.5 h" how much the person worked in a salon the manager cannot see (DSGVO Art. 5
+// whose read reach covers only one salon therefore learns from "Diese Woche: 47:30 Std." or
+// "Ruhezeit: 8:30 Std." how much the person worked in a salon the manager cannot see (DSGVO Art. 5
 // Abs. 1 lit. c, the same leak class as the day check of D-07).
 //
 // This module decides VISIBILITY only, never whether a warning exists. A warning stays exactly as

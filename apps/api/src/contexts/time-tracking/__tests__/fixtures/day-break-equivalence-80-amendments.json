@@ -10,6 +10,15 @@
       "from": "the gap does not count towards the break total (pre-80 rule, kept by Phase 80 D-01 and Phase 511 D-16)",
       "to": "the gap counts towards the break total like every shorter same-salon gap; a gap between different salons still never counts",
       "reason": "Owner decision of 15.10.2026 on Issue #523: a Ruhepause has no maximum duration under § 4 ArbZG (BAG 25.02.2015, 5 AZR 886/12, Rn. 21), so the 120-minute cap on same-salon gaps is removed. Only the break total of days with such a gap changes; entry durations, working time and the saldo do not. Closed months are never re-evaluated."
+    },
+    {
+      "id": "DAILY_MAX_TEXT_HM",
+      "issue": 954,
+      "date": "2026-11-15",
+      "appliesTo": "every matrix day with a MAX_DAILY_EXCEEDED warning (all groups); only that warning's message changes",
+      "from": "Erfasst: <hours with one decimal> h. (e.g. \"10.7 h.\")",
+      "to": "Erfasst: <H:MM> Std. with the day total rounded UP to whole minutes (e.g. \"10:42 Std.\")",
+      "reason": "Owner decision of 15.11.2026 on Issue #954: every other duration in Clokr reads H:MM, and a decimal hour (10.7 h = 10:42) is easy to misread as 10:07. The total is rounded up so an exceeded limit never prints as exactly 10:00. Only the text changes; the code, the severity, the threshold, working time and the saldo do not."
     }
   ]
 }
