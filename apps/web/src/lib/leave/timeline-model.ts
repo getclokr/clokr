@@ -12,6 +12,7 @@
  * masked bar carries no type and the neutral word (Art. 9 DSGVO, T-840-49). Tracer subset of plan
  * 840-02, completed in 840-05.
  */
+import type { HomeSalonMark } from "$lib/salons/home-salon-mark";
 import { MONTH_NAMES_DE, MONTH_NAMES_SHORT_DE } from "$lib/reports/period-state";
 import {
   ROW_STATE_LABELS,
@@ -199,6 +200,8 @@ export interface TimelinePerson {
   outsideRanges?: Array<{ start: string; end: string }>;
   /** The #835 forecast column „Anspruch“; `null` outside the reader's entitlement reach. */
   forecast?: { forecastDays: number; forecastNegative: boolean } | null;
+  /** Why the person's Stammsalon is not one of the reader's salons (#949); absent = nothing to say. */
+  homeSalonMark?: HomeSalonMark | null;
   bars: TimelineBar[];
 }
 

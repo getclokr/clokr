@@ -11,7 +11,7 @@
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
-  import { salonContext, showSalonOptions } from "$stores/salon-context";
+  import { homeSalonMarksApply, salonContext, showSalonOptions } from "$stores/salon-context";
   import { pageLabel } from "$lib/nav/page-labels";
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import PageHead from "$lib/components/layout/PageHead.svelte";
@@ -149,7 +149,11 @@
   // Browser-local calendar day: the web has no tenant-local "today" helper.
   const today = localCalendarDay();
   const salonNames = $derived(new Map($salonContext.salons.map((salon) => [salon.id, salon.name])));
-  const allRows = $derived(personenRows(people, today, salonNames));
+  const allRows = $derived(
+    personenRows(people, today, salonNames, {
+      markHomeSalon: homeSalonMarksApply($salonContext),
+    }),
+  );
   const salonFilter = $derived(salonFilterOffered ? view.salon : "");
   const shownRows = $derived(
     sortPersonen(

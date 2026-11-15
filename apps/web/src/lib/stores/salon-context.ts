@@ -100,6 +100,16 @@ export function showSalonOptions(state: Pick<SalonContextState, "isMultiSalon" |
 }
 
 /**
+ * Issue #949: whether person lists mark a Stammsalon outside the caller's salons
+ * (`lib/salons/home-salon-mark.ts`). Only with more than one active salon in the tenant - unlike
+ * `showSalonOptions`, a caller who reaches a single salon still gets the mark, because that is the
+ * reader the Springer of another salon confuses. Display only, never an access boundary.
+ */
+export function homeSalonMarksApply(state: Pick<SalonContextState, "isMultiSalon">): boolean {
+  return state.isMultiSalon;
+}
+
+/**
  * Whether the tenant booked a module: true/false, or null while the packages are unknown. A teaser
  * shows only on `=== false`; unknown never hides a create control — the server answers 409 for an
  * unbooked module anyway (Phase 566, D-12). Display only, never an access boundary.

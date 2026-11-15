@@ -620,8 +620,20 @@
             {@const layout = layouts.get(person.employeeId) ?? { bars: [], lanes: 1 }}
             {@const height = rowHeight(person)}
             <div class="tl-line tl-person" data-testid="plan-row-{person.employeeId}">
-              <div class="tl-name" class:tl-name--own={person.isOwn} title={person.name}>
-                {person.name}
+              <div
+                class="tl-name"
+                class:tl-name--own={person.isOwn}
+                title={person.homeSalonMark
+                  ? `${person.name} - ${person.homeSalonMark.hint}`
+                  : person.name}
+              >
+                <span class="tl-name-text">{person.name}</span>
+                {#if person.homeSalonMark}
+                  <!-- Issue #949: why this person is listed although homed elsewhere. -->
+                  <span class="tl-home-mark" data-testid="plan-home-mark-{person.employeeId}"
+                    >{person.homeSalonMark.shortLabel}</span
+                  >
+                {/if}
               </div>
               {#if isYear}
                 <div
@@ -913,6 +925,28 @@
 
   .tl-name--own {
     font-weight: 600;
+  }
+
+  .tl-name-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Issue 949: a quiet tag after the name; the name gives way first, the tag keeps its words. */
+  .tl-home-mark {
+    flex: none;
+    max-width: 60%;
+    margin-left: 0.35rem;
+    padding: 0 0.35rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    font-size: var(--fs-xs);
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tl-track {

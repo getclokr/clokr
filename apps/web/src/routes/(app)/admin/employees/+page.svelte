@@ -12,7 +12,7 @@
   import { authStore } from "$stores/auth";
   import { employeeAdminRights } from "$lib/page-rights";
   import { api } from "$api/client";
-  import { salonContext, showSalonOptions } from "$stores/salon-context";
+  import { homeSalonMarksApply, salonContext, showSalonOptions } from "$stores/salon-context";
   import {
     createRoleAssignment,
     listAssignablePeople,
@@ -67,6 +67,7 @@
     type PersonenSortKey,
   } from "$lib/team/personen-model";
   import { verwaltenPersonenUrlSchema as personenUrlSchema } from "$lib/team/personen-url-state";
+  import { NO_HOME_SALON_FILTER } from "$lib/salons/home-salon-mark";
 
   // What the admin list reads beyond the shared table's fields.
   type Employee = PersonenEmployee & {
@@ -152,9 +153,13 @@
   // The Stammsalon filter is offered only with salon choice (#64 rule) and while the header salon
   // does not narrow the request already (#558).
   const salonFilterOffered = $derived(showSalonOptions($salonContext) && pageSalonId === null);
+  // Issue #949: one more choice lists the persons without a Stammsalon today.
   const salonOptions = $derived(
     salonFilterOffered
-      ? $salonContext.salons.map((salon) => ({ value: salon.id, label: salon.name }))
+      ? [
+          ...$salonContext.salons.map((salon) => ({ value: salon.id, label: salon.name })),
+          { value: NO_HOME_SALON_FILTER, label: "Ohne Stammsalon" },
+        ]
       : null,
   );
   function onFilterChange(key: "status" | "vertrag" | "salon", value: string) {
@@ -179,7 +184,10 @@
   const today = localCalendarDay();
   const salonNames = $derived(new Map($salonContext.salons.map((salon) => [salon.id, salon.name])));
   const allRows = $derived(
-    personenRows(employees, today, salonNames, { includeAnonymized: showAnonymized }),
+    personenRows(employees, today, salonNames, {
+      includeAnonymized: showAnonymized,
+      markHomeSalon: homeSalonMarksApply($salonContext),
+    }),
   );
   const salonFilter = $derived(salonFilterOffered ? view.salon : "");
   // The search filters on the parsed input at once (as before #854), not on the URL's echo.

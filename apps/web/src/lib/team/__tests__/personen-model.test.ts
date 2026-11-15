@@ -291,3 +291,37 @@ describe("personenUrlSchema", () => {
     expect(parse(`q=${"a".repeat(200)}`).q).toHaveLength(80);
   });
 });
+
+// Issue #949: a Springer listed through an Einsatz (Phase 91b D-12) is marked instead of reading as
+// "no Stammsalon", and Verwalten › Personen can list the persons without one.
+describe("Stammsalon mark and filter (#949)", () => {
+  const names = new Map([["nord", "Clokr Demo Nord"]]);
+  const people = [
+    employee({ id: "home", homeSalonId: "nord" }),
+    employee({ id: "springer", homeSalonId: "demo" }),
+    employee({ id: "none", homeSalonId: null }),
+  ];
+
+  it("marks a Stammsalon outside the reader's salons and a missing one", () => {
+    const rows = personenRows(people, TODAY, names, { markHomeSalon: true });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    expect(byId.get("home")?.salonMark).toBeNull();
+    expect(byId.get("home")?.salonName).toBe("Clokr Demo Nord");
+    expect(byId.get("springer")?.salonMark?.kind).toBe("ELSEWHERE");
+    expect(byId.get("springer")?.salonName).toBe("Anderer Stammsalon");
+    expect(byId.get("none")?.salonMark?.kind).toBe("NONE");
+    expect(byId.get("none")?.salonName).toBe("Ohne Stammsalon");
+  });
+
+  it("marks nothing in a single-salon tenant", () => {
+    const rows = personenRows(people, TODAY, names);
+    expect(rows.every((row) => row.salonMark === null)).toBe(true);
+    expect(rows.find((row) => row.id === "springer")?.salonName).toBe("–");
+  });
+
+  it("the filter value „ohne“ lists only the persons without a Stammsalon", () => {
+    const rows = personenRows(people, TODAY, names, { markHomeSalon: true });
+    const shown = filterPersonen(rows, { q: "", status: "alle", vertrag: "", salon: "ohne" });
+    expect(shown.map((row) => row.id)).toEqual(["none"]);
+  });
+});
