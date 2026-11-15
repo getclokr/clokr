@@ -251,7 +251,7 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
       key: "salon945",
       title: "Salonleitung",
       template: "SALON_MANAGER",
-      tabs: ["Mein Tag", "Heute im Salon", "Zeiten", "Dienstplan", "Mehr"],
+      tabs: ["Mein Tag", "Heute im Salon", "Aufgaben", "Zeiten", "Mehr"],
       page: "/team/dienstplan",
       heading: "Dienstplan",
     },

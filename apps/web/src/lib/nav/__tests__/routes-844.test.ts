@@ -605,12 +605,12 @@ describe("phone tabs (#945, derived from permissions and the route table)", () =
     expect(hrefs("EMPLOYEE", { availabilityEnabled: false })).toEqual(own);
   });
 
-  it("Salonleitung: Mein Tag · Heute im Salon · Zeiten · Dienstplan (the team's times and roster)", () => {
+  it("Salonleitung: Mein Tag · Heute im Salon · Aufgaben · Zeiten (Aufgaben stays in the bar, owner 15.11.2026)", () => {
     expect(hrefs("SALON_MANAGER")).toEqual([
       "/ich/tag",
       "/team/heute",
+      "/team/aufgaben",
       "/team/zeiten",
-      "/team/dienstplan",
     ]);
     for (const persona of ["MANAGER", "OWNER", "ADMIN"]) {
       expect(hrefs(persona), persona).toEqual(hrefs("SALON_MANAGER"));
