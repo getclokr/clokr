@@ -1288,6 +1288,36 @@ export async function employeeRoutes(app: FastifyInstance, opts: EmployeeRoutesO
             );
           }
 
+          // Issue #961 — invariant-carrying (ADR 0002 Entscheidung 10), like the #447 sync above:
+          // the entitlement rows follow the new hire date inside this transaction; leave before a
+          // later hire date refuses the whole change (refused through app.absenceHireDate.refusal, 409 below).
+          if (
+            body.hireDate !== undefined &&
+            tz !== null &&
+            employee.hireDate.getTime() !== updatedEmp.hireDate.getTime()
+          ) {
+            await app.absenceHireDate.sync(
+              tx,
+              {
+                employeeId: id,
+                tenantId: req.user.tenantId,
+                oldHireDate: employee.hireDate,
+                newHireDate: updatedEmp.hireDate,
+                newHireDay: tenantLocalDay(updatedEmp.hireDate, tz),
+                currentYear: Number(tenantLocalDay(new Date(), tz).slice(0, 4)),
+              },
+              (entry) =>
+                app.audit({
+                  action: entry.action,
+                  entity: "LeaveEntitlement",
+                  entityId: entry.entityId,
+                  oldValue: entry.oldValue,
+                  tx,
+                  ...requestAuditFields(req, entry.newValue as object | undefined),
+                }),
+            );
+          }
+
           if (body.hireDate !== undefined && tz !== null) {
             const gapOutcome = await fillHomeGapBeforeHireDate(
               tx,
@@ -1343,6 +1373,9 @@ export async function employeeRoutes(app: FastifyInstance, opts: EmployeeRoutesO
         if (err instanceof RoleLockoutError) {
           return reply.code(409).send({ error: ROLE_LOCKOUT_MESSAGE });
         }
+        // Issue #961: the hire-date rule's own refusal, recognised by Abwesenheiten itself.
+        const hireDateRefusal = app.absenceHireDate.refusal(err);
+        if (hireDateRefusal) return reply.code(409).send(hireDateRefusal);
         if (err instanceof RoleDemotionBlockedError) {
           // Issue #357 sub-fix B: name the surviving assignments so the admin knows what to
           // remove first, instead of the API silently deleting a customer-role assignment (an

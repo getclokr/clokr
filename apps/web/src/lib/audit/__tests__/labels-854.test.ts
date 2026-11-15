@@ -98,10 +98,10 @@ const DYNAMIC_AUDIT_SITES: DynamicSite[] = [
   },
   {
     file: "contexts/platform/api/employees.ts",
-    count: 6,
+    count: 7,
     anchor: "action: entry.action",
     reason:
-      "employment-exit and entitlement audit callbacks; the entry literals live in employment-exit.ts and entitlement-audit.ts",
+      "employment-exit and entitlement audit callbacks (incl. the #961 hire-date sync); the entry literals live in employment-exit.ts, entitlement-audit.ts and hire-date-entitlements.ts",
     codes: { actions: ["CREATE", "UPDATE", "CANCEL", "DELETE", "LEAVE_CORRECTED"] },
   },
   {
