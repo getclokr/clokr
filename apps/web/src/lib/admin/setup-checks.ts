@@ -207,6 +207,22 @@ export function adminTaskCounts(employees: EmployeeRow[], today: string): AdminT
   };
 }
 
+/** Answer of `GET /leave/entitlements/missing-count` (Issue #962). */
+export interface MissingEntitlementAnswer {
+  year: number;
+  count: number;
+}
+
+/**
+ * The line under the „Ohne Urlaubsanspruch“ tile: it names the year the server counted for and
+ * stays calm at 0 (no warn tone is derived from it by the caller).
+ */
+export function missingEntitlementExplanation(answer: MissingEntitlementAnswer): string {
+  return answer.count === 0
+    ? `alle haben für ${answer.year} einen Anspruch`
+    : `Personen ohne Urlaubstage für ${answer.year}`;
+}
+
 /** „E-Mail aktiv, SMTP nicht eingerichtet“: notification mails are switched on but cannot be sent. */
 export function mailWithoutDelivery(
   security: { emailNotificationsEnabled?: boolean } | null,

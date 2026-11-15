@@ -40,6 +40,7 @@ test.describe("Verwalten › Übersicht (#847)", () => {
       ["admin-overdue", "/verwalten/monatsabschluss"],
       ["admin-invitations", "/verwalten/personen"],
       ["admin-no-contract", "/verwalten/personen"],
+      ["admin-no-entitlement", "/verwalten/personen"],
     ] as const) {
       const cell = page.getByTestId(id);
       await expect(cell).toBeVisible();

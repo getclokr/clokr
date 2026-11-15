@@ -110,6 +110,43 @@ export async function listEntitlementsForYear(
   });
 }
 
+// ── Issue #962 — persons without a vacation entitlement in a year ───────────────────────────
+
+/**
+ * Issue #962 — how many persons of `employeeIds` (or of the whole tenant for `"all"`) hold no
+ * usable VACATION entitlement in `year`: no row, or a row with `totalDays` of 0 (the zero
+ * placeholder the #445 heal replaces). The persons come from the Unterbau rule
+ * `reportPopulationWhere` (employed at some point in `period`, never anonymised, the login state
+ * never decides, #613) and are counted in ONE query — nothing is healed, computed per person or
+ * written, so the Verwalten overview can call it on every load. The caller narrows `employeeIds`
+ * to its `leave-entitlement:read` reach; an empty array counts 0.
+ */
+export async function countEmployeesWithoutVacationEntitlement(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  year: number,
+  period: { start: Date; end: Date },
+  employeeIds: readonly string[] | "all",
+): Promise<number> {
+  if (employeeIds !== "all" && employeeIds.length === 0) return 0;
+  return db.employee.count({
+    where: {
+      tenantId,
+      ...(employeeIds === "all" ? {} : { id: { in: [...employeeIds] } }),
+      AND: [
+        reportPopulationWhere(period.start, period.end),
+        {
+          NOT: {
+            leaveEntitlements: {
+              some: { year, totalDays: { gt: 0 }, leaveType: { code: "VACATION", tenantId } },
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
 // ── A13 — per employee, by year ──────────────────────────────────────────────────────────────
 
 /**

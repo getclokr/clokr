@@ -180,6 +180,7 @@
 ├── /api/v1/invitations/accept (POST)
 ├── /api/v1/leave/calendar (GET, HEAD)
 ├── /api/v1/leave/entitlements/:employeeId (GET, HEAD)
+├── /api/v1/leave/entitlements/missing-count (GET, HEAD)
 ├── /api/v1/leave/hours-preview (GET, HEAD)
 ├── /api/v1/leave/ical/personal (GET, HEAD)
 ├── /api/v1/leave/ical/team (GET, HEAD)
