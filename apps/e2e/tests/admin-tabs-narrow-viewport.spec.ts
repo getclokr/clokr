@@ -213,3 +213,52 @@ for (const viewport of VIEWPORTS) {
     }
   });
 }
+
+// Issue #978 — a tab opened directly (hash or link) behind the strip's edge is scrolled into the
+// strip's view on load, and only the strip moves, never the page. Before the fix the strip stood at
+// its start, so the current tab of `#urlaubsgrenzen` (the last of five) was invisible on a phone.
+for (const viewport of VIEWPORTS) {
+  test(`#978 — a tab opened by hash is visible at ${viewport.width} px`, async ({
+    page,
+    request,
+    tenant,
+  }) => {
+    await page.setViewportSize(viewport);
+    const auth = await login(request, tenant, "pflaume");
+    await page.addInitScript(({ accessToken, refreshToken, user }) => {
+      try {
+        localStorage.setItem("accessToken", accessToken);
+        localStorage.setItem("refreshToken", refreshToken);
+        localStorage.setItem("user", JSON.stringify(user));
+      } catch {
+        /* see above */
+      }
+    }, auth);
+    const where = `#urlaubsgrenzen / ${viewport.width} px`;
+    const strip = await openPage(page, "/verwalten/regeln/abwesenheiten#urlaubsgrenzen");
+    const tabs = strip.getByRole("tab");
+    const count = await tabs.count();
+    const lastLabel = (await tabs.nth(count - 1).textContent())?.trim() ?? "";
+    // Non-vacuous: the hash really selects the last tab, and the strip really overflows.
+    await expect(tabs.nth(count - 1)).toHaveAttribute("aria-selected", "true");
+    const g0 = await measure(strip);
+    expect(g0.stripScrollWidth, `${where}: the strip overflows`).toBeGreaterThan(
+      g0.stripClientWidth,
+    );
+    await expect
+      .poll(async () => (await measure(strip)).active?.right ?? Infinity)
+      .toBeLessThanOrEqual(g0.strip.right + TOLERANCE_PX);
+    const g = await measure(strip);
+    expectActiveInside(g, lastLabel, where);
+    expect(g.docScrollWidth, `${where}: no page scroll sideways`).toBeLessThanOrEqual(g.innerWidth);
+    // The strip scrolled, not the page.
+    expect(
+      await strip.evaluate((el) => el.scrollLeft),
+      `${where}: the strip moved`,
+    ).toBeGreaterThan(0);
+    expect(
+      await page.evaluate(() => window.scrollX),
+      `${where}: the page did not move sideways`,
+    ).toBe(0);
+  });
+}
