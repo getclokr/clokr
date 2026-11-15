@@ -1637,8 +1637,12 @@
     </TeamSection>
   {/if}
 
-  <!-- The week grid is the page's one surface (D-853-18): no card around it. -->
-  <div class="week-surface">
+  <!-- The week grid is the page's one surface (D-853-18): no card around it. It scrolls
+       sideways below 1020 px, so it is a focusable, named region: keyboard users reach the
+       hidden days with the arrow keys even when the visible part holds no button
+       (axe scrollable-region-focusable). -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div class="week-surface" role="region" aria-label="Wochenplan" tabindex="0">
     <div class="week-body">
       {#if loading}
         <Skeleton shape="block" height="360px" />
@@ -2453,6 +2457,7 @@
   /* ── Issue #923: the week grid on v2 ─────────────────────────────────────────── */
   .week-surface {
     min-width: 0;
+    outline-offset: 2px;
     overflow-x: auto;
     border: 1px solid var(--line);
     border-radius: var(--r-card);
