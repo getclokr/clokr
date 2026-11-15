@@ -1,6 +1,7 @@
 <!--
-  SmtpSection - „E-Mail-Server“ of Regeln › Benachrichtigungen & E-Mail (Issue #854, D-854-03): the outgoing
-  mail server and its test mail. Moved from the System page (Kommunikation); one SaveBar sends exactly the
+  SmtpSection - the form of the „E-Mail-Versand“ tab of System › Integrationen (Issue #854, D-854-03; moved here
+  from Regeln › Benachrichtigungen & E-Mail by Issue #951): the outgoing mail server and its test mail.
+  Originally from the System page (Kommunikation); one SaveBar sends exactly the
   seven keys of the registry section `benachrichtigungen-smtp` to `PUT /settings/smtp` (#878).
 
   The password is WRITE-ONLY (T-854-22): the field is always empty, the page only knows whether one is stored
@@ -68,6 +69,21 @@
   const changeCount = $derived(countChanges(snapshot, values, keys));
   const messages = $derived(smtpMessages(values));
   const errorCount = $derived(messageCount(messages));
+  // Issue #951: a message is shown only for a field the person has left or changed, or after a save attempt, so
+  // an untouched empty form carries no red (same rule as the Phorest connection). `errorCount` still gates the save.
+  let touched = $state<Partial<Record<SmtpField, boolean>>>({});
+  let saveAttempted = $state(false);
+  const shownMessages = $derived(
+    Object.fromEntries(
+      Object.entries(messages).filter(
+        ([key]) =>
+          saveAttempted ||
+          touched[key as SmtpField] === true ||
+          values[key as SmtpField] !== snapshot[key as SmtpField],
+      ),
+    ) as typeof messages,
+  );
+  const shownErrorCount = $derived(messageCount(shownMessages));
 
   $effect(() => {
     changes = changeCount;
@@ -75,6 +91,7 @@
 
   async function save() {
     if (errorCount > 0) {
+      saveAttempted = true;
       toasts.error("Bitte prüf die markierten Felder.");
       return;
     }
@@ -125,7 +142,7 @@
   title="E-Mail-Server"
   description="Über diesen Server verschickt Clokr E-Mails, zum Beispiel Einladungen und Benachrichtigungen."
   changes={changeCount}
-  errors={errorCount}
+  errors={shownErrorCount}
   {saving}
   saveLabel="Server speichern"
   onSave={save}
@@ -137,7 +154,7 @@
     </div>
   {/if}
 
-  <FormField label="Server" error={messages.smtpHost}>
+  <FormField label="Server" error={shownMessages.smtpHost}>
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}
@@ -146,6 +163,7 @@
         placeholder="smtp.example.com"
         autocomplete="off"
         bind:value={values.smtpHost}
+        onblur={() => (touched.smtpHost = true)}
         disabled={!canEdit || saving}
         data-testid="benachrichtigungen-smtp-host"
         aria-invalid={invalid ? "true" : undefined}
@@ -154,7 +172,7 @@
     {/snippet}
   </FormField>
 
-  <FormField label="Port" error={messages.smtpPort}>
+  <FormField label="Port" error={shownMessages.smtpPort}>
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}
@@ -165,6 +183,7 @@
         step="1"
         placeholder="587"
         bind:value={values.smtpPort}
+        onblur={() => (touched.smtpPort = true)}
         disabled={!canEdit || saving}
         data-testid="benachrichtigungen-smtp-port"
         aria-invalid={invalid ? "true" : undefined}
@@ -181,7 +200,7 @@
     testid="benachrichtigungen-smtp-secure"
   />
 
-  <FormField label="Benutzername" error={messages.smtpUser}>
+  <FormField label="Benutzername" error={shownMessages.smtpUser}>
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}
@@ -190,6 +209,7 @@
         placeholder="user@example.com"
         autocomplete="off"
         bind:value={values.smtpUser}
+        onblur={() => (touched.smtpUser = true)}
         disabled={!canEdit || saving}
         data-testid="benachrichtigungen-smtp-user"
         aria-invalid={invalid ? "true" : undefined}
@@ -219,7 +239,7 @@
     {/snippet}
   </FormField>
 
-  <FormField label="Absenderadresse" error={messages.smtpFromEmail}>
+  <FormField label="Absenderadresse" error={shownMessages.smtpFromEmail}>
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}
@@ -227,6 +247,7 @@
         type="email"
         placeholder="noreply@example.com"
         bind:value={values.smtpFromEmail}
+        onblur={() => (touched.smtpFromEmail = true)}
         disabled={!canEdit || saving}
         data-testid="benachrichtigungen-smtp-from-email"
         aria-invalid={invalid ? "true" : undefined}
@@ -235,7 +256,7 @@
     {/snippet}
   </FormField>
 
-  <FormField label="Absendername" error={messages.smtpFromName}>
+  <FormField label="Absendername" error={shownMessages.smtpFromName}>
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}
@@ -243,6 +264,7 @@
         type="text"
         placeholder="Clokr"
         bind:value={values.smtpFromName}
+        onblur={() => (touched.smtpFromName = true)}
         disabled={!canEdit || saving}
         data-testid="benachrichtigungen-smtp-from-name"
         aria-invalid={invalid ? "true" : undefined}

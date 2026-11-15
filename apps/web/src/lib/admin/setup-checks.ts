@@ -132,7 +132,7 @@ export function setupChecks(input: CheckInputs, today: string): SetupCheck[] {
         ? "E-Mails können verschickt werden."
         : "Es ist kein Mailserver eingerichtet.",
       state: canDeliver(input.smtp) ? "erledigt" : "offen",
-      href: "/verwalten/regeln/benachrichtigungen#mailserver",
+      href: "/verwalten/system/integrationen#email",
       action: "E-Mail",
     });
   }

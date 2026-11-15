@@ -29,11 +29,7 @@ const PAGES = [
     href: "/verwalten/regeln/benachrichtigungen",
     rel: "routes/(app)/verwalten/regeln/benachrichtigungen/+page.svelte",
     unsavedId: "regeln-benachrichtigungen",
-    sectionIds: [
-      "benachrichtigungen-smtp",
-      "benachrichtigungen-email",
-      "benachrichtigungen-erinnerungen",
-    ],
+    sectionIds: ["benachrichtigungen-email", "benachrichtigungen-erinnerungen"],
   },
 ] as const;
 
@@ -100,7 +96,7 @@ describe.each(PAGES)("$href", ({ href, rel, unsavedId, sectionIds }) => {
 });
 
 describe("Regeln › Benachrichtigungen & E-Mail", () => {
-  const smtp = read("lib/components/admin/benachrichtigungen/SmtpSection.svelte");
+  const smtp = read("lib/components/admin/integrationen/SmtpSection.svelte");
   const page = read("routes/(app)/verwalten/regeln/benachrichtigungen/+page.svelte");
 
   it("T-854-22: the SMTP password is never read back into the form or logged", () => {
@@ -115,6 +111,12 @@ describe("Regeln › Benachrichtigungen & E-Mail", () => {
     expect(smtp).toContain('api.post("/settings/smtp/test"');
   });
 
+  it("the mail server left this page for System › Integrationen (Issue #951)", () => {
+    expect(page).not.toContain("<SmtpSection");
+    expect(page).toContain("/verwalten/system/integrationen#email");
+    expect(page).toContain('"#mailserver"');
+  });
+
   it("each endpoint is loaded only for a section the person may open", () => {
     expect(page).toContain("show.smtp &&");
     expect(page).toContain("show.email &&");
@@ -123,7 +125,8 @@ describe("Regeln › Benachrichtigungen & E-Mail", () => {
 
   it("no environment variable name (SMTP_*) appears in the files", () => {
     for (const file of [
-      "lib/components/admin/benachrichtigungen/SmtpSection.svelte",
+      "lib/components/admin/integrationen/SmtpSection.svelte",
+      "lib/components/admin/integrationen/SmtpPanel.svelte",
       "lib/components/admin/benachrichtigungen/EmailSection.svelte",
       "lib/components/admin/benachrichtigungen/RemindersSection.svelte",
       "routes/(app)/verwalten/regeln/benachrichtigungen/+page.svelte",

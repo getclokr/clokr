@@ -196,8 +196,7 @@
         <div data-testid="mail-warning">
           <Note tone="bad"
             >{MAIL_WITHOUT_DELIVERY_TEXT}
-            <a href="/verwalten/regeln/benachrichtigungen#mailserver">Mailserver einrichten</a
-            ></Note
+            <a href="/verwalten/system/integrationen#email">Mailserver einrichten</a></Note
           >
         </div>
       {/if}

@@ -36,7 +36,6 @@ const REGISTERED: Record<string, string> = {
   "phorest/+page.svelte": "admin-phorest",
   "shifts/+page.svelte": "admin-shifts",
   "shutdowns/[id]/+page.svelte": "admin-shutdown-detail",
-  "export/+page.svelte": "admin-export",
   "audit/+page.svelte": "admin-audit",
   "availability/[employeeId]/+page.svelte": "admin-availability-detail",
   "salons/[id]/+page.svelte": "admin-salon-detail",
@@ -54,7 +53,9 @@ const EXCLUDED: Record<string, string> = {
   "import/+page.svelte":
     "an operation (paste CSV -> POST /imports/:mode), nothing is held as a setting",
   "integrations/+page.svelte":
-    "no update endpoint exists; the single write creates a NEW API key and the two inputs clear afterwards",
+    "the page itself holds no form state; the forms of its tabs register their own ids (SmtpPanel, DatevPanel - Issue #951), the other tabs create keys or rows through dialogs",
+  "export/+page.svelte":
+    "downloads only since Issue #951 (the DATEV setup moved to Integrationen); month, person and period are read state",
   "bausteine/+page.svelte":
     "example page of the building blocks (#843): demo data only, no write path",
   "availability/+page.svelte": "list view — no write path",

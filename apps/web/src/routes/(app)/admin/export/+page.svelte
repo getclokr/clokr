@@ -6,9 +6,10 @@
 
   Before a month that is not closed is exported, a warning says so (advisory: the API decides, the button stays
   usable). „Letzte Exporte“ lists the company's recent `EXPORT` audit rows in German words (only with
-  `audit-log:read`). The DATEV numbers (Berater-, Mandantennummer and the four Lohnarten) are set here and only
-  here (registry section `export-datev-einrichtung`); the save sends exactly those six keys and the page keeps
-  no copy of the other settings (#878).
+  `audit-log:read`). The DATEV numbers (Berater-, Mandantennummer and the four Lohnarten) are NOT set here any
+  more (Issue #951): they live under Verwalten › System › Integrationen › DATEV (registry section
+  `export-datev-einrichtung`). This page only shows a hint with a link while the saved Berater- or
+  Mandantennummer is missing, and never writes a setting.
 
   The DATEV file is never narrowed by a salon (§ 41 EStG, CLAUDE.md "Two report documents"): there is no salon
   choice on this page. The rules (hint, history, preselection) live in `$lib/export/export-centre`.
@@ -16,18 +17,16 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, untrack } from "svelte";
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { api } from "$api/client";
   import { downloadFromApi } from "$api/download";
   import { authStore } from "$stores/auth";
-  import { markUnsaved } from "$stores/unsaved";
   import { toasts } from "$stores/toast";
   import { salonContext, showSalonOptions } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions";
   import { addMonths, compareMonths } from "$lib/reports/period-state";
   import { periodAbsencesCsvPath, periodCsvPath, type YearMonth } from "$lib/reports/period-report";
-  import { countChanges, pickSection } from "$lib/settings/section-state";
-  import { settingsSection } from "$lib/settings/settings-pages";
   import {
     csvPeriodProblem,
     exportHistoryRows,
@@ -39,7 +38,6 @@
     type ExportLogLike,
   } from "$lib/export/export-centre";
   import PageHead from "$lib/components/layout/PageHead.svelte";
-  import SettingsGroup from "$lib/components/admin/settings/SettingsGroup.svelte";
   import Combobox from "$components/ui/Combobox.svelte";
   import FormField from "$components/ui/FormField.svelte";
   import List from "$components/ui/List.svelte";
@@ -54,7 +52,6 @@
   const canReadAudit = $derived(hasPermission(user, "audit-log:read:ZUGEWIESEN"));
   const canPickPerson = $derived(hasPermission(user, "employee:read:ZUGEWIESEN"));
   const canReadTeamLeave = $derived(hasPermission(user, "leave-request:read:ZUGEWIESEN"));
-  const canEditSettings = $derived(hasPermission(user, "tenant-settings:update:ZUGEWIESEN"));
 
   // ── The months: browser-local "today" (the API judges by the tenant zone) ──
   const now = new Date();
@@ -238,123 +235,33 @@
     }
   }
 
-  // ── DATEV-Einrichtung (registry section `export-datev-einrichtung`) ──
-  interface DatevConfig {
-    datevNormalstundenNr?: number;
-    datevUrlaubNr?: number;
-    datevKrankNr?: number;
-    datevSonderurlaubNr?: number;
-    // No default: null means "not configured", and the export refuses to run (409) rather than shipping 0/0.
-    datevBeraterNr?: number | null;
-    datevMandantenNr?: number | null;
-  }
-  type DatevValues = {
-    datevBeraterNr: number | null;
-    datevMandantenNr: number | null;
-    datevNormalstundenNr: number | null;
-    datevUrlaubNr: number | null;
-    datevKrankNr: number | null;
-    datevSonderurlaubNr: number | null;
-  };
+  // ── The DATEV numbers (set under System › Integrationen › DATEV, registry section `export-datev-einrichtung`) ──
+  // This page only READS the two numbers the export refuses to run without, to show the hint below. A refused
+  // read (no settings permission) shows no hint; the API's 409 stays the authority.
+  let kanzleiMissing = $state(false);
 
-  const datevFrom = (c: DatevConfig): DatevValues => ({
-    datevBeraterNr: typeof c.datevBeraterNr === "number" ? c.datevBeraterNr : null,
-    datevMandantenNr: typeof c.datevMandantenNr === "number" ? c.datevMandantenNr : null,
-    datevNormalstundenNr: Number(c.datevNormalstundenNr ?? 100),
-    datevUrlaubNr: Number(c.datevUrlaubNr ?? 300),
-    datevKrankNr: Number(c.datevKrankNr ?? 200),
-    datevSonderurlaubNr: Number(c.datevSonderurlaubNr ?? 302),
-  });
-
-  let datev = $state<DatevValues>(datevFrom({}));
-  let datevSnapshot = $state<DatevValues>(datevFrom({}));
-  let datevSaving = $state(false);
-  let datevLoadError = $state("");
-  // Gated on "the baseline has been taken": a failed load must not arm the navigation guard on a page whose
-  // save provably cannot write.
-  let snapshotsReady = $state(false);
-
-  const datevKeys = settingsSection("export-datev-einrichtung")
-    .keys as readonly (keyof DatevValues)[];
-  const datevChanges = $derived(countChanges(datevSnapshot, datev, datevKeys));
-
-  const datevProblems = $derived({
-    datevBeraterNr: wholeNumberProblem("Berater-Nr.", datev.datevBeraterNr, {
-      min: 1,
-      max: 9999999,
-      optional: true,
-    }),
-    datevMandantenNr: wholeNumberProblem("Mandantennummer", datev.datevMandantenNr, {
-      min: 1,
-      max: 99999,
-      optional: true,
-    }),
-    datevNormalstundenNr: wholeNumberProblem("Normalstunden", datev.datevNormalstundenNr, {
-      min: 1,
-      max: 9999,
-    }),
-    datevUrlaubNr: wholeNumberProblem("Urlaub", datev.datevUrlaubNr, { min: 1, max: 9999 }),
-    datevKrankNr: wholeNumberProblem("Krank / AU", datev.datevKrankNr, { min: 1, max: 9999 }),
-    datevSonderurlaubNr: wholeNumberProblem("Sonderurlaub", datev.datevSonderurlaubNr, {
-      min: 1,
-      max: 9999,
-    }),
-  });
-  const datevErrorCount = $derived(Object.values(datevProblems).filter((p) => p !== null).length);
-
-  // The saved numbers decide the hint, not the draft: the API refuses the export while either is unset.
-  const kanzleiMissing = $derived(
-    snapshotsReady &&
-      (datevSnapshot.datevBeraterNr === null || datevSnapshot.datevMandantenNr === null),
-  );
-
-  $effect(() => {
-    markUnsaved("admin-export", snapshotsReady && datevChanges > 0);
-    return () => markUnsaved("admin-export", false);
-  });
-
-  async function loadDatev() {
+  async function loadKanzleiHint() {
     try {
-      const cfg = await api.get<DatevConfig>("/settings/work");
-      datev = datevFrom(cfg);
-      datevSnapshot = datevFrom(cfg);
-      snapshotsReady = true;
-    } catch (e: unknown) {
-      datevLoadError =
-        e instanceof Error ? e.message : "Die DATEV-Einrichtung konnte nicht geladen werden.";
+      const cfg = await api.get<{
+        datevBeraterNr?: number | null;
+        datevMandantenNr?: number | null;
+      }>("/settings/work");
+      kanzleiMissing =
+        typeof cfg.datevBeraterNr !== "number" || typeof cfg.datevMandantenNr !== "number";
+    } catch {
+      kanzleiMissing = false;
     }
-  }
-
-  async function saveDatev() {
-    if (!snapshotsReady || datevErrorCount > 0) return;
-    datevSaving = true;
-    try {
-      // Exactly the six keys of the registry section: a cleared Berater- or Mandantennummer is an explicit
-      // null ("not configured"), which the API accepts for these two only.
-      await api.put(
-        "/settings/work",
-        pickSection(
-          datev as Record<string, unknown>,
-          settingsSection("export-datev-einrichtung").keys,
-        ),
-      );
-      datevSnapshot = $state.snapshot(datev);
-      toasts.success("DATEV-Einrichtung gespeichert.");
-    } catch (e: unknown) {
-      toasts.error(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
-    } finally {
-      datevSaving = false;
-    }
-  }
-
-  function discardDatev() {
-    datev = $state.snapshot(datevSnapshot);
   }
 
   const multiSalon = $derived(showSalonOptions($salonContext));
 
   onMount(() => {
-    void loadDatev();
+    // Issue #951: the old anchor of the DATEV setup follows it to System › Integrationen › DATEV.
+    if ($page.url.hash === "#datev-einrichtung") {
+      void goto("/verwalten/system/integrationen#datev", { replaceState: true });
+      return;
+    }
+    void loadKanzleiHint();
     void loadHistory();
     if (untrack(() => canPickPerson)) void loadPeople();
   });
@@ -395,7 +302,8 @@
       <div data-testid="export-kanzlei-missing">
         <Note tone="warn">
           Berater-Nr. und Mandantennummer fehlen. Der DATEV-Export wird abgelehnt, bis beide unter
-          <a href="#datev-einrichtung">DATEV-Einrichtung</a> hinterlegt sind.
+          <a href="/verwalten/system/integrationen#datev">System › Integrationen › DATEV</a> hinterlegt
+          sind.
         </Note>
       </div>
     {/if}
@@ -584,150 +492,6 @@
       </List>
     {/if}
   </section>
-
-  <SettingsGroup
-    id="datev-einrichtung"
-    title="DATEV-Einrichtung"
-    description="Berater-Nr., Mandantennummer und die Lohnarten für DATEV LODAS. Die Nummern gelten für jede erzeugte Datei."
-    changes={datevChanges}
-    errors={datevErrorCount}
-    saving={datevSaving}
-    saveLabel="DATEV-Einrichtung speichern"
-    onSave={saveDatev}
-    onDiscard={discardDatev}
-  >
-    {#if datevLoadError}
-      <div role="alert"><Note tone="bad">{datevLoadError}</Note></div>
-    {:else if !snapshotsReady}
-      <Skeleton shape="card" lines={3} />
-    {:else}
-      {#if !canEditSettings}
-        <Note tone="info"
-          >Die Nummern kannst du nur ändern, wenn du die Einstellungen ändern darfst.</Note
-        >
-      {/if}
-      <FormField
-        label="Berater-Nr."
-        help="Nummer der Steuerkanzlei im DATEV-Kopf. Ohne sie wird der Export abgelehnt."
-        error={datevProblems.datevBeraterNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="9999999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevBeraterNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-      <FormField
-        label="Mandantennummer"
-        help="Nummer dieses Unternehmens bei der Kanzlei. Ohne sie lässt sich die Datei keinem Unternehmen zuordnen."
-        error={datevProblems.datevMandantenNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="99999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevMandantenNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-      <FormField
-        label="Normalstunden"
-        help="Lohnart für reguläre Arbeitsstunden."
-        error={datevProblems.datevNormalstundenNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="9999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevNormalstundenNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-      <FormField
-        label="Urlaub"
-        help="Lohnart für genommene Urlaubstage."
-        error={datevProblems.datevUrlaubNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="9999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevUrlaubNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-      <FormField
-        label="Krank / AU"
-        help="Lohnart für entgeltfortzahlungspflichtige Krankheitstage."
-        error={datevProblems.datevKrankNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="9999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevKrankNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-      <FormField
-        label="Sonderurlaub"
-        help="Lohnart für Sonderurlaub nach § 616 BGB oder Tarif."
-        error={datevProblems.datevSonderurlaubNr ?? undefined}
-      >
-        {#snippet field({ id, describedBy, invalid })}
-          <input
-            {id}
-            type="number"
-            min="1"
-            max="9999"
-            step="1"
-            class="form-input"
-            bind:value={datev.datevSonderurlaubNr}
-            disabled={!canEditSettings || datevSaving}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-          />
-        {/snippet}
-      </FormField>
-    {/if}
-  </SettingsGroup>
 </div>
 
 <style>

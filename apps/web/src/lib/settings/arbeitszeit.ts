@@ -6,6 +6,8 @@
 // The server stays the authority for every rule (the Zod schema of `PUT /settings/work`); the checks
 // here only save a round trip and mirror the bounds the pages always showed.
 
+import { fmtMin } from "$lib/utils/format-minutes";
+
 /** The part of `GET /settings/work` the Arbeitszeit sections read. Every field is optional on the wire. */
 export interface WorkConfig {
   autoBreakEnabled?: boolean;
@@ -335,10 +337,13 @@ export function vocationalSlotsWire(
   };
 }
 
-/** "= 8 h" for a minute count; "" for an empty or invalid one. */
+/**
+ * "= 8:00 h" for a minute count; "" for an empty or invalid one. H:MM like every other time figure of the
+ * app (Issue #951: it used to read "= 7,5 h" next to „40:00 h“ on the same page); display only.
+ */
 export function minutesAsHours(minutes: number | null): string {
   if (minutes === null || !Number.isFinite(minutes)) return "";
-  return `= ${(minutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h`;
+  return `= ${fmtMin(Math.round(minutes))} h`;
 }
 
 // ── Standard-Arbeitszeit ─────────────────────────────────────────────────────────────────────────

@@ -242,7 +242,12 @@ describe("no permission change (D-06, AC: keine Berechtigungsänderung)", () => 
     expect(mayOpenPath({ permissions: ["report:export:ZUGEWIESEN"] }, "/verwalten/daten")).toBe(
       true,
     );
+    // Issue #951: report:export opens the DATEV tab of Integrationen, so it also opens the System hub; a
+    // permission that opens no System child does not.
     expect(mayOpenPath({ permissions: ["report:export:ZUGEWIESEN"] }, "/verwalten/system")).toBe(
+      true,
+    );
+    expect(mayOpenPath({ permissions: ["audit-log:read:ZUGEWIESEN"] }, "/verwalten/system")).toBe(
       false,
     );
   });

@@ -21,7 +21,7 @@ import { renderWithTheme } from "$tests/test-utils";
 import { settingsSection } from "$lib/settings/settings-pages";
 import EmailSection from "../EmailSection.svelte";
 import RemindersSection from "../RemindersSection.svelte";
-import SmtpSection from "../SmtpSection.svelte";
+import SmtpSection from "../../integrationen/SmtpSection.svelte";
 
 const keysOf = (id: string) => [...settingsSection(id).keys].sort();
 const bar = () => screen.queryByRole("region", { name: "Speicherleiste" });
@@ -52,6 +52,18 @@ describe("SmtpSection", () => {
     expect(password().value).toBe("");
     expect(screen.getByText("Passwort (gespeichert)")).toBeTruthy();
     expect(bar()).toBeNull();
+  });
+
+  it("Issue #951: an untouched empty form shows no error, a left empty field does", async () => {
+    renderWithTheme(SmtpSection, {
+      config: { ...SMTP, smtpHost: "", smtpUser: "", smtpFromEmail: "", smtpFromName: "" },
+    });
+    expect(screen.queryByText("Gib den Servernamen ein.")).toBeNull();
+    expect(screen.queryByText("Gib den Benutzernamen ein.")).toBeNull();
+    expect(screen.queryByText("Gib den Absendernamen ein.")).toBeNull();
+    await fireEvent.blur(screen.getByLabelText("Server"));
+    expect(await screen.findByText("Gib den Servernamen ein.")).toBeTruthy();
+    expect(screen.queryByText("Gib den Benutzernamen ein.")).toBeNull();
   });
 
   it("an edit without a typed password sends the six other keys and NO smtpPassword", async () => {

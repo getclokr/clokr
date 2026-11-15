@@ -38,7 +38,23 @@
       "slug": "regeln-arbeitszeit",
       "path": "/verwalten/regeln/arbeitszeit",
       "heading": "Arbeitszeit & Verträge",
-      "tabs": []
+      "tabs": [
+        {
+          "label": "Arbeitszeit"
+        },
+        {
+          "label": "Überstunden"
+        },
+        {
+          "label": "Pausen & ArbZG"
+        },
+        {
+          "label": "Einträge"
+        },
+        {
+          "label": "Berufsschule"
+        }
+      ]
     },
     {
       "slug": "regeln-monatsabschluss",
@@ -106,6 +122,12 @@
         },
         {
           "label": "API-Schlüssel"
+        },
+        {
+          "label": "E-Mail-Versand"
+        },
+        {
+          "label": "DATEV"
         }
       ]
     },

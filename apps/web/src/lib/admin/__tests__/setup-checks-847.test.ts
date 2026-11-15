@@ -96,14 +96,6 @@ describe("setupChecks — each link opens the page and section that holds its se
         "arbzg",
         "bind:checked={values.arbzgEnabled}",
       ],
-      [
-        "smtp",
-        "/verwalten/regeln/benachrichtigungen#mailserver",
-        `${ROUTES}/verwalten/regeln/benachrichtigungen/+page.svelte`,
-        `${SECTIONS}/benachrichtigungen/SmtpSection.svelte`,
-        "mailserver",
-        'data-testid="benachrichtigungen-smtp-host"',
-      ],
     ];
     for (const [key, href, pageFile, sectionFile, anchor, marker] of expected) {
       expect(byKey[key]).toBe(href);
@@ -119,6 +111,30 @@ describe("setupChecks — each link opens the page and section that holds its se
     }
   });
 
+  it("smtp opens the E-Mail-Versand tab of System › Integrationen (Issue #951)", () => {
+    const checks = setupChecks(
+      {
+        salons: null,
+        employees: null,
+        smtp: { deliveryReady: false },
+        work: null,
+        terminals: null,
+      },
+      TODAY,
+    );
+    expect(checks.find((c) => c.key === "smtp")?.href).toBe(
+      "/verwalten/system/integrationen#email",
+    );
+    const page = read(`${ROUTES}/admin/integrations/+page.svelte`);
+    expect(page).toContain('value === "email"');
+    expect(page).toContain("<SmtpPanel");
+    expect(read("../../settings/integrationen.ts")).toContain('value: "email"');
+    expect(read(`${SECTIONS}/integrationen/SmtpPanel.svelte`)).toContain("<SmtpSection");
+    const section = read(`${SECTIONS}/integrationen/SmtpSection.svelte`);
+    expect(section).toContain('id="mailserver"');
+    expect(section).toContain('data-testid="benachrichtigungen-smtp-host"');
+  });
+
   it("terminals opens the NFC-Terminals tab of System › Integrationen", () => {
     const checks = setupChecks(
       { salons: null, employees: null, smtp: null, work: null, terminals: [] },
@@ -129,7 +145,7 @@ describe("setupChecks — each link opens the page and section that holds its se
     const page = read(`${ROUTES}/admin/integrations/+page.svelte`);
     expect(page.length).toBeGreaterThan(500);
     // the page opens the tab named by the hash (allow-listed in tab-hash.ts) and renders the terminals panel for it
-    expect(page).toContain("tabFromHash($page.url.hash, visibleTabIds)");
+    expect(page).toContain("tabFromHash($page.url.hash, visibleTabIds, TAB_ALIASES)");
     expect(page).toContain('value === "terminals"');
     expect(page).toContain("<TerminalsPanel");
     expect(read("../../settings/integrationen.ts")).toContain('value: "terminals"');
@@ -139,7 +155,7 @@ describe("setupChecks — each link opens the page and section that holds its se
   it("the overview strips the hash before it asks the route table", () => {
     const overview = read(`${ROUTES}/verwalten/+page.svelte`);
     expect(overview).toContain('mayOpenPath($authStore.user, href.split("#")[0])');
-    expect(overview).toContain('href="/verwalten/regeln/benachrichtigungen#mailserver"');
+    expect(overview).toContain('href="/verwalten/system/integrationen#email"');
     expect(overview).not.toMatch(/mayOpenPath\(\$authStore\.user, c\.href\)/);
   });
 });
@@ -203,12 +219,11 @@ describe("mailWithoutDelivery — one rule for the overview and the mail setting
     expect(overview).toContain("MAIL_WITHOUT_DELIVERY_TEXT");
     // the settings page hands the result to both sections, which show the one text
     expect(settings).toContain("{mailWarning}");
-    const sections = "../../components/admin/benachrichtigungen";
     for (const [file, testid] of [
-      ["EmailSection.svelte", "mail-warning"],
-      ["SmtpSection.svelte", "mail-warning-smtp"],
+      ["benachrichtigungen/EmailSection.svelte", "mail-warning"],
+      ["integrationen/SmtpSection.svelte", "mail-warning-smtp"],
     ]) {
-      const src = read(`${sections}/${file}`);
+      const src = read(`../../components/admin/${file}`);
       expect(src.length).toBeGreaterThan(1000);
       expect(src).toContain("MAIL_WITHOUT_DELIVERY_TEXT");
       expect(src).toContain(`data-testid="${testid}"`);

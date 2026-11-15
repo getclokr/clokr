@@ -10,6 +10,8 @@
   import ApiKeysPanel from "$lib/components/admin/integrationen/ApiKeysPanel.svelte";
   import PresenceSourcesPanel from "$lib/components/admin/integrationen/PresenceSourcesPanel.svelte";
   import TerminalsPanel from "$lib/components/admin/integrationen/TerminalsPanel.svelte";
+  import SmtpPanel from "$lib/components/admin/integrationen/SmtpPanel.svelte";
+  import DatevPanel from "$lib/components/admin/integrationen/DatevPanel.svelte";
   import Note from "$components/ui/Note.svelte";
   import PageTabs from "$components/ui/PageTabs.svelte";
 
@@ -20,6 +22,9 @@
   const visibleTabs = $derived(visibleIntegrationenTabs(user));
   const visibleTabIds = $derived(visibleTabs.map((tab) => tab.value as string));
   let activeTab = $state<string>("");
+  // Issue #951: anchors of the places the two new tabs came from keep working (Benachrichtigungen#mailserver,
+  // Export#datev-einrichtung).
+  const TAB_ALIASES = { mailserver: "email", "datev-einrichtung": "datev" } as const;
 
   function selectTab(next: string) {
     activeTab = next;
@@ -29,7 +34,8 @@
   // Issue #83 (D-13): access is decided by the admin layout guard (admin-route-permissions.ts); the API
   // answers 403 regardless. Each panel loads its own data the first time its tab is shown.
   onMount(() => {
-    activeTab = visibleTabIds.length > 0 ? tabFromHash($page.url.hash, visibleTabIds) : "";
+    activeTab =
+      visibleTabIds.length > 0 ? tabFromHash($page.url.hash, visibleTabIds, TAB_ALIASES) : "";
     // Forced, so a freshly booked module shows without waiting for the navigation throttle (Issue #566).
     void salonContext.load($authStore.user?.id ?? null, { force: true });
   });
@@ -39,7 +45,7 @@
 
 <PageHead
   title={pageLabel("/admin/integrations")}
-  sub="WLAN-Anwesenheit, NFC-Terminals und API-Schlüssel für das ganze Unternehmen."
+  sub="WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV für das ganze Unternehmen."
 />
 
 {#if visibleTabs.length === 0}
@@ -60,6 +66,10 @@
         <TerminalsPanel active={activeTab === "terminals"} />
       {:else if value === "schluessel"}
         <ApiKeysPanel active={activeTab === "schluessel"} />
+      {:else if value === "email"}
+        <SmtpPanel active={activeTab === "email"} />
+      {:else if value === "datev"}
+        <DatevPanel active={activeTab === "datev"} />
       {/if}
     {/snippet}
   </PageTabs>

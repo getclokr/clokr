@@ -11,6 +11,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  ARBEITSZEIT_TAB_ALIASES,
+  ARBEITSZEIT_TABS,
+  visibleArbeitszeitTabs,
+} from "$lib/settings/arbeitszeit-tabs";
 import { SETTINGS_SECTIONS, sectionsOfPage } from "$lib/settings/settings-pages";
 
 import { SRC_ROOT } from "./design-source-files";
@@ -20,6 +25,7 @@ const PAGE_REL = "routes/(app)/verwalten/regeln/arbeitszeit/+page.svelte";
 const read = (rel: string) => readFileSync(join(SRC_ROOT, rel), "utf8");
 const PAGE = read(PAGE_REL);
 const SECTIONS = sectionsOfPage(PAGE_HREF);
+const TABS = ARBEITSZEIT_TABS;
 
 describe("the Arbeitszeit page", () => {
   it("has its sections registered (not vacuous)", () => {
@@ -36,12 +42,28 @@ describe("the Arbeitszeit page", () => {
   it.each(SECTIONS.map((s) => [s.id, s] as const))(
     "%s: shown only under mayOpenSection, rendered by an imported component",
     (id, section) => {
+      // Issue #951: the sections sit in tabs (arbeitszeit-tabs.ts) and each is still gated on its own.
+      expect(TABS.some((tab) => tab.sections.includes(id))).toBe(true);
       expect(PAGE).toContain(`mayOpenSection(user, settingsSection("${id}"))`);
       const component = section.renderedBy.split("/").at(-1)!.replace(".svelte", "");
       expect(PAGE).toContain(`import ${component} from`);
       expect(PAGE).toMatch(new RegExp(`<${component}\\s`));
     },
   );
+
+  it("groups every section into exactly one tab, a tab offered when one of its sections is (Issue #951)", () => {
+    expect(TABS.flatMap((tab) => tab.sections).sort()).toEqual(SECTIONS.map((s) => s.id).sort());
+    const holder = (permissions: string[]) => visibleArbeitszeitTabs({ permissions });
+    expect(holder([])).toEqual([]);
+    expect(holder(["tenant-settings:update:ZUGEWIESEN"]).length).toBe(TABS.length);
+    expect(TABS.length).toBe(5);
+    // every old per-section hash still lands on the tab that holds its section
+    for (const [hash, tab] of Object.entries(ARBEITSZEIT_TAB_ALIASES))
+      expect(TABS.find((t) => t.value === tab)?.sections.length, hash).toBeGreaterThan(1);
+    // the Urlaub page alternative opens only the sections that came from the Urlaub page
+    expect(holder(["leave-config:manage:ZUGEWIESEN"]).length).toBeGreaterThan(0);
+    expect(holder(["leave-config:manage:ZUGEWIESEN"]).length).toBeLessThan(TABS.length);
+  });
 
   it("sums the section counts into one registration", () => {
     expect(PAGE).toContain("const totalChanges = $derived(");

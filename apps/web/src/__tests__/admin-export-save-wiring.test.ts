@@ -1,4 +1,5 @@
-// Phase 109 (Issue #35), Plan 10 - regression net for `admin/export/+page.svelte`, rewritten by plan 854-24.
+// Phase 109 (Issue #35), Plan 10 - regression net for the DATEV setup (once on `admin/export/+page.svelte`, now
+// `DatevPanel.svelte`, Issue #951) and the download page.
 //
 // A source-read PIN, not a behaviour test: `apps/web/vitest.config.ts` has no `$app` alias, so a route page
 // cannot be mounted (see `nav-guard.test.ts` for the established `readRouteFile` shape this file follows).
@@ -30,7 +31,14 @@ function readRouteFile(relativeFromHere: string, relativeFromCwd: string): strin
   }
 }
 
+// Issue #951: the DATEV setup moved from the export page to the DATEV tab of System › Integrationen. PAGE is
+// now that tab's panel (every pin below still holds for it); EXPORT_PAGE is the download page, pinned to write
+// nothing at all.
 const PAGE = readRouteFile(
+  "../lib/components/admin/integrationen/DatevPanel.svelte",
+  "src/lib/components/admin/integrationen/DatevPanel.svelte",
+);
+const EXPORT_PAGE = readRouteFile(
   "../routes/(app)/admin/export/+page.svelte",
   "src/routes/(app)/admin/export/+page.svelte",
 );
@@ -139,12 +147,19 @@ describe("saveDatev is a no-op after a failed load", () => {
 });
 
 describe("the downloads are read state - no marker for them", () => {
-  it("the page writes exactly one thing: the DATEV-Einrichtung", () => {
+  it("the panel writes exactly one thing: the DATEV-Einrichtung", () => {
     expect((PAGE.match(/api\.(put|post|patch|delete)\(/g) ?? []).length).toBe(1);
   });
 
+  it("the export page writes no setting and holds no unsaved state (Issue #951)", () => {
+    expect(EXPORT_PAGE).not.toMatch(/api\.(put|post|patch|delete)\(/);
+    expect(EXPORT_PAGE).not.toContain("markUnsaved(");
+    expect(EXPORT_PAGE).not.toContain("<SettingsGroup");
+    expect(EXPORT_PAGE).toContain("/verwalten/system/integrationen#datev");
+  });
+
   it("the month, person, period and busy flag never reach the unsaved marker or a write body", () => {
-    const start = PAGE.indexOf('markUnsaved("admin-export"');
+    const start = PAGE.indexOf('markUnsaved("integrationen-datev"');
     const line = PAGE.slice(start, PAGE.indexOf(")", start + 30) + 1);
     expect(line).not.toMatch(/exportMonth|personId|csvFrom|csvTo|busy/);
     const body = fnBody("async function saveDatev");
@@ -157,6 +172,7 @@ describe("the downloads are read state - no marker for them", () => {
 describe("AK-02", () => {
   it("no text/number input in admin/export carries an inline write handler", () => {
     expect(textOrNumberInputHandlers(PAGE)).toEqual([]);
+    expect(textOrNumberInputHandlers(EXPORT_PAGE)).toEqual([]);
   });
 });
 
@@ -169,12 +185,14 @@ describe("D-11/D-12 - unsaved marker and guard registration on admin/export", ()
   });
 
   it("the registration is gated on snapshotsReady (WR-01)", () => {
-    expect(PAGE).toContain('markUnsaved("admin-export", snapshotsReady && datevChanges > 0)');
-    expect(PAGE).not.toContain('markUnsaved("admin-export", datevChanges > 0)');
+    expect(PAGE).toContain(
+      'markUnsaved("integrationen-datev", snapshotsReady && datevChanges > 0)',
+    );
+    expect(PAGE).not.toContain('markUnsaved("integrationen-datev", datevChanges > 0)');
   });
 
   it("the effect de-registers on unmount", () => {
-    expect(PAGE).toContain('return () => markUnsaved("admin-export", false);');
+    expect(PAGE).toContain('return () => markUnsaved("integrationen-datev", false);');
   });
 
   it("T-109-24 - the snapshot moves after the successful write, before the catch, never in finally", () => {
