@@ -12,7 +12,6 @@
   import { applyPreferences } from "$stores/apply-preferences";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
-  import LanguageToggle from "$components/ui/LanguageToggle.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
 
   // #842 D-842-22: three themes, each previewed in light and dark. The previews are elements that
@@ -96,12 +95,6 @@
       onchange={selectMode}
     />
   </div>
-</section>
-
-<section class="settings-group" aria-labelledby="themes-sprache-title">
-  <h2 class="settings-group-title" id="themes-sprache-title">Sprache</h2>
-  <p class="settings-group-desc">Clokr ist auf Deutsch. Englisch folgt später.</p>
-  <div><LanguageToggle variant="segmented" /></div>
 </section>
 
 <style>

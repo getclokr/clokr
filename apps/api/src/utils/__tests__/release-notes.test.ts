@@ -349,7 +349,7 @@ describe("operator marker (Issue #946)", () => {
     "- Etwas Neues für alle.",
     "- [Betrieb] VAPID-Schlüssel setzen.",
     "",
-    "### Achtung / Breaking Changes",
+    "### Bitte beachten",
     "",
     "- [Betrieb] **Kein einfacher Rollback.**",
     "",
@@ -436,5 +436,44 @@ describe("releaseNotesForApp (Issue #946, owner decision 15.11.2026)", () => {
         expect(section.audience, `${note.version} ${section.heading}`).not.toBe("operator");
       }
     }
+  });
+});
+
+// Issue #983 — what the What's-New panel shows everyone must read as product news, not as an
+// operator log. The operator marker (#946) only helps where it is used; this sweep over the whole
+// corpus is what keeps an unmarked migration line or a „Mandant“ from reaching an employee.
+describe("served release notes carry no operator wording (Issue #983)", () => {
+  // „Mandant“ is operator vocabulary (docs/glossar.md: „Unternehmen“); DATEV's own field
+  // „Mandantennummer“ is the one allowed spelling.
+  const OPERATOR_WORDING =
+    /mandant(?!ennummer)|migration|deploy|rollback|backfill|vapid|breaking|\bschema|abbild|\bimage\b|skript|script|prisma|docker|kubectl|argocd|runbook|abhängigkeit|\btenant\b|\.ts\b|\bpnpm\b|-linie\b/i;
+
+  it("no intro or everyone-section of any served release names an operator term", () => {
+    const served = releaseNotesForApp(loadReleaseNotes());
+    expect(served.length, "the corpus is not empty").toBeGreaterThan(20);
+    const hits: string[] = [];
+    let checked = 0;
+    for (const note of served) {
+      for (const paragraph of note.intro) {
+        checked++;
+        if (OPERATOR_WORDING.test(paragraph)) hits.push(`v${note.version} intro: ${paragraph}`);
+      }
+      for (const section of note.sections) {
+        if (section.audience !== "all") continue;
+        if (OPERATOR_WORDING.test(section.heading))
+          hits.push(`v${note.version} heading: ${section.heading}`);
+        for (const bullet of section.bullets) {
+          checked++;
+          const text = bullet.spans.map((span) => span.text).join("");
+          if (OPERATOR_WORDING.test(text))
+            hits.push(`v${note.version} ${section.heading}: ${text}`);
+        }
+      }
+    }
+    expect(checked, "the sweep looked at served text").toBeGreaterThan(200);
+    expect(
+      hits,
+      "mark it [Betrieb] or say it for the reader (docs/RELEASE_NOTES_TEMPLATE.md)",
+    ).toEqual([]);
   });
 });

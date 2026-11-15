@@ -8,7 +8,6 @@
   import { clearUnsaved } from "$stores/unsaved";
   import { api } from "$api/client";
   import { fetchAvatarObjectUrl } from "$api/avatar";
-  import LanguageToggle from "$lib/components/ui/LanguageToggle.svelte";
   import SalonSwitcher from "./SalonSwitcher.svelte";
   import { removeThisDevicePush } from "$lib/push/logout";
   import { pageLabel } from "$lib/nav/page-labels";
@@ -301,10 +300,6 @@
       {#if $mode === "dark"}{@render iconSun()}{:else}{@render iconMoon()}{/if}
     </button>
 
-    <div class="topbar-lang">
-      <LanguageToggle variant="compact" />
-    </div>
-
     <div class="bell-wrap">
       <button
         class="icon-btn"
@@ -565,10 +560,6 @@
       width: 44px;
       height: 44px;
     }
-  }
-  .topbar-lang {
-    display: inline-flex;
-    align-items: center;
   }
   .icon-btn .dot {
     position: absolute;
@@ -833,9 +824,6 @@
     }
   }
   @media (max-width: 720px) {
-    .topbar-lang {
-      display: none;
-    }
     .topbar {
       padding: 0 12px;
     }
