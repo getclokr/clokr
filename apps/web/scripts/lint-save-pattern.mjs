@@ -10,7 +10,8 @@
  * The rule (D-02): inside the admin scope, a text or number `<input>` must never write
  * outside a button-gated group — no debounced autosave, no save-on-blur, regardless of
  * whether the field has siblings. Concretely, such an input must not carry:
- *   (a) any `onblur=` handler, or
+ *   (a) any `onblur=` handler — except one whose whole body only marks the field as touched
+ *       (`() => (touched.<field> = true)`, see TOUCHED_ONLY_BLUR; Issue #951), or
  *   (b) an `onchange=` / `oninput=` handler whose expression matches
  *       /\b(api\.|save[A-Z]|toggle[A-Z])/ — i.e. it writes to the server or flips a
  *       named save/toggle handler, rather than only touching local component state.
@@ -81,6 +82,11 @@ export const SCOPES = [
 // only exists between a non-word and a word char, so `\bsave[A-Z]` cannot match the `SaveF`
 // inside `handleSaveField` — the exact near-miss that motivated widening this pattern.
 const WRITEISH = /(\bapi\.|[Ss]ave[A-Z]|\btoggle[A-Z]|[Pp]ersist|[Cc]ommit[A-Z]|\bfetch\()/;
+
+// Issue #951: marking a field as touched on blur shows its validation message once the person
+// has left it; it writes no value anywhere. Only this exact shape is exempt from rule (a) — any
+// other expression on `onblur` (a call, a second statement, another target) is still a violation.
+const TOUCHED_ONLY_BLUR = /^\(\)\s*=>\s*\(\s*touched(?:\.\w+|\[[^\]]+\])\s*=\s*true\s*\)$/;
 
 // A missing or unrecognised `type` IS a text input per the HTML spec, so the detector must
 // default to "text" rather than skipping the tag (WR-04: seven text inputs inside the linted
@@ -172,6 +178,7 @@ export function findSavePatternViolations(source, file) {
 
     if (/onblur=/.test(tag)) {
       const onblur = tag.match(/onblur=\{([\s\S]*?)\}\s*(?:\n|\/?>|[a-z-]+=)/);
+      if (onblur && TOUCHED_ONLY_BLUR.test(onblur[1].trim())) continue;
       violations.push({ file, type, handler: onblur?.[1]?.trim() ?? "(onblur)", rule: "a" });
       continue;
     }

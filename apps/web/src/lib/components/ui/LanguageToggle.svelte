@@ -53,7 +53,7 @@
 {/if}
 
 <style>
-  /* Segmented variant — mirrors the .seg/.seg-btn recipe from /admin/themes. */
+  /* Segmented variant — mirrors the .seg/.seg-btn recipe from /settings/erscheinungsbild. */
   .seg {
     display: inline-flex;
     padding: 2px;

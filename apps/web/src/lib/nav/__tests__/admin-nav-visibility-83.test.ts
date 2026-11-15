@@ -68,7 +68,6 @@ describe("Verwalten navigation (Issue #83, #844)", () => {
     ]);
     expect(labelsOf("/verwalten/system")).toEqual([
       "Allgemein",
-      "Branding & Themes",
       "Integrationen",
       "Phorest",
       "Rollen & Rechte",

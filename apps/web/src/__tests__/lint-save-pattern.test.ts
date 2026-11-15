@@ -49,6 +49,26 @@ describe("findSavePatternViolations (D-02/AK-02 gate, Phase 109 Plan 08)", () =>
     expect(violations[0]).toMatchObject({ file: "fixture.svelte", type: "number", rule: "a" });
   });
 
+  it("Issue #951: allows an onblur that only marks the field as touched", () => {
+    const clean = `
+      <input type="text" bind:value={a} onblur={() => (touched.businessId = true)} />
+      <input type="number" bind:value={b} onblur={() => (touched["prep"] = true)} />
+    `;
+    expect(findSavePatternViolations(clean, "fixture.svelte")).toEqual([]);
+  });
+
+  it("Issue #951: still flags an onblur that does anything beyond marking touched", () => {
+    const broken = `
+      <input type="text" onblur={() => (touched.a = true) && saveA()} />
+      <input type="text" onblur={() => { touched.b = true; persist(); }} />
+      <input type="text" onblur={() => (dirty.c = true)} />
+      <input type="text" onblur={() => (touched.d = value)} />
+    `;
+    const violations = findSavePatternViolations(broken, "fixture.svelte");
+    expect(violations).toHaveLength(4);
+    expect(violations.every((v) => v.rule === "a")).toBe(true);
+  });
+
   it('returns one entry for <input type="text" onchange={saveThing} />', () => {
     const broken = `<input type="text" onchange={saveThing} class="form-input" />`;
     const violations = findSavePatternViolations(broken, "fixture.svelte");

@@ -25,6 +25,7 @@
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
   import { urlState } from "$lib/table/url-state";
   import { auditActorLabel } from "$lib/audit/actor-label";
+  import { auditChangeSummary } from "$lib/audit/field-diff";
   import { actionLabel, AUDIT_ENTITY_CODES, entityLabel } from "$lib/audit/labels";
   import {
     auditExportQuery,
@@ -68,6 +69,7 @@
     action: string;
     entity: string;
     entityId: string | null;
+    oldValue: unknown;
     newValue: unknown;
     createdAt: string;
     user: { email: string } | null;
@@ -202,6 +204,7 @@
     { key: "what", label: "Was" },
     { key: "person", label: "Betroffene Person" },
     { key: "object", label: "Objekt" },
+    { key: "change", label: "Änderung" },
   ];
 
   function fmtDate(iso: string): string {
@@ -421,6 +424,23 @@
                 {/if}
               {:else if column.key === "object"}
                 {entityLabel(row.entity)}
+              {:else if column.key === "change"}
+                {@const summary = auditChangeSummary(row.entity, row.oldValue, row.newValue)}
+                {#if summary.lines.length === 0}
+                  <span class="audit-muted">—</span>
+                {:else}
+                  <ul class="audit-change" data-testid="audit-change">
+                    {#each summary.lines as line (line.key)}
+                      <li>
+                        <span class="audit-muted">{line.label}:</span>
+                        {line.before} → {line.after}
+                      </li>
+                    {/each}
+                    {#if summary.more > 0}
+                      <li class="audit-muted">+ {summary.more} weitere</li>
+                    {/if}
+                  </ul>
+                {/if}
               {/if}
             {/snippet}
           </DataTable>
@@ -488,6 +508,16 @@
 
   .audit-time {
     white-space: nowrap;
+  }
+
+  .audit-change {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    overflow-wrap: anywhere;
   }
 
   .audit-muted {

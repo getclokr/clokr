@@ -79,6 +79,21 @@ describe("SalonSwitcher (Issue #82)", () => {
     expect(select.value).toBe("s2");
   });
 
+  it("Issue #951: is disabled with a hint on a page that never reads the salon, active on one that does", async () => {
+    const view = render(SalonSwitcher, { pathname: "/verwalten/regeln/arbeitszeit" });
+    await loadWith(answer());
+    const select = screen.getByRole("combobox", { name: "Salon" }) as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.closest("label")?.getAttribute("title")).toBe("Wirkt auf dieser Seite nicht");
+    view.unmount();
+
+    render(SalonSwitcher, { pathname: "/team/zeiten" });
+    await tick();
+    const active = screen.getByRole("combobox", { name: "Salon" }) as HTMLSelectElement;
+    expect(active.disabled).toBe(false);
+    expect(active.closest("label")?.getAttribute("title")).toBeNull();
+  });
+
   it("renders nothing before any load", () => {
     render(SalonSwitcher);
     expect(screen.queryByRole("combobox")).toBeNull();

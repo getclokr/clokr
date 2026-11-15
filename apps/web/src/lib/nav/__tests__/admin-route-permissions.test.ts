@@ -163,7 +163,7 @@ describe("admin route permissions (Issue #83)", () => {
     )
       .map((e) => e.file!)
       .sort();
-    expect(ALL.length).toBe(16);
+    expect(ALL.length).toBe(15);
     const p = personas as Record<string, string[]>;
     expect(visibleFor(p.ADMIN)).toEqual(ALL);
     expect(visibleFor(p.OWNER)).toEqual(ALL);

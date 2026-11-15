@@ -94,6 +94,39 @@ export function auditFieldRows(
   }));
 }
 
+/** One changed field of the compact list diff: „Feld: alt → neu“. */
+export type AuditChangeLine = { key: string; label: string; before: string; after: string };
+
+const COMPACT_VALUE_MAX = 40;
+
+function compactValue(text: string): string {
+  return text.length > COMPACT_VALUE_MAX ? `${text.slice(0, COMPACT_VALUE_MAX - 1)}…` : text;
+}
+
+/**
+ * Issue #951 — the compact diff of a list row: the fields whose value differs between the old and the new value
+ * (at most `limit`, the rest only counted), values shortened to one line. A row with no old value (a creation, a
+ * login) has no change to compare and yields nothing; the detail page shows its full field table.
+ */
+export function auditChangeSummary(
+  entity: string,
+  oldValue: unknown,
+  newValue: unknown,
+  limit = 2,
+): { lines: AuditChangeLine[]; more: number } {
+  if (asRecord(oldValue) === null) return { lines: [], more: 0 };
+  const changed = auditFieldRows(entity, oldValue, newValue).filter((row) => row.changed);
+  return {
+    lines: changed.slice(0, limit).map((row) => ({
+      key: row.key,
+      label: row.label,
+      before: compactValue(row.before),
+      after: compactValue(row.after),
+    })),
+    more: Math.max(0, changed.length - limit),
+  };
+}
+
 /**
  * The heading of one entry, composed from the two labels, never from a code: „Zeiteintrag geändert“. An
  * action label that already names the object („Abwesenheit korrigiert“) stands alone; a label of several

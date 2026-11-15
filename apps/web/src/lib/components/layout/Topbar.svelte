@@ -289,7 +289,7 @@
   <button type="button" class="topbar-search" onclick={openPalette} data-testid="topbar-search">
     <span>Suchen …</span><kbd>⌘K</kbd>
   </button>
-  <div class="topbar-context"><SalonSwitcher /></div>
+  <div class="topbar-context"><SalonSwitcher pathname={currentPath} /></div>
   <div class="topbar-actions">
     <button
       class="icon-btn"

@@ -3,7 +3,7 @@
   working-time defaults, the closing settings, the mail settings, the roster settings and the integrations
   moved to their own pages - the company and its region, and the security of the sign-in (two-factor,
   password policy, sessions). The page is a settings page without tabs: four sections, each with its own
-  save (lib/settings/settings-pages.ts). Branding & Themes is its own page.
+  save (lib/settings/settings-pages.ts). Themes are a personal setting that lives under the profile.
 
   The company section reads `GET /settings/work`, the three security sections read `GET /settings/security`.
   A section whose data could not be loaded shows that instead of an editable form with made-up defaults:

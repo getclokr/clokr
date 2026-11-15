@@ -193,6 +193,22 @@ describe("the form", () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it("Issue #951: an untouched empty form shows no error, a left empty field does", async () => {
+    await mount({
+      ...CONFIG,
+      configured: false,
+      phorestBusinessId: null,
+      phorestUsername: null,
+      branchId: null,
+    });
+    expect(screen.queryByText("Gib die Business-ID ein.")).toBeNull();
+    expect(screen.queryByText("Gib die Branch-ID ein.")).toBeNull();
+    expect(screen.queryByText("Gib den API-Benutzernamen ein.")).toBeNull();
+    await fireEvent.blur(screen.getByLabelText(/Business-ID/));
+    expect(await screen.findByText("Gib die Business-ID ein.")).toBeTruthy();
+    expect(screen.queryByText("Gib die Branch-ID ein.")).toBeNull();
+  });
+
   it("keeps the edit and says why when the save is refused", async () => {
     put.mockRejectedValueOnce(new Error("Diese Filiale ist schon gekoppelt."));
     await mount();

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Issue #851 (D-851-02): the personal appearance in the profile - Farbwelt and Modus. The same stores and
-  // the same single PUT /me/preferences as the Branding page (Issue #392 rationale in apply-preferences.ts);
+  // the same single PUT /me/preferences as the Erscheinungsbild page (Issue #392 rationale in apply-preferences.ts);
   // a personal preference every person may set, so no permission is involved.
   import Section from "$lib/components/admin/Section.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
@@ -48,10 +48,18 @@
         onchange={selectMode}
       />
     </div>
+    <p class="appearance-more">
+      <a href="/ich/profil/erscheinungsbild">Vorschau der Farbwelten und Sprache</a>
+    </p>
   </div>
 </Section>
 
 <style>
+  .appearance-more {
+    margin: 0;
+    font-size: var(--fs-sm);
+  }
+
   .appearance-rows {
     display: flex;
     flex-direction: column;

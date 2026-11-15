@@ -140,7 +140,7 @@ const DESIGN_SHOTS = [
   { name: "16-admin", path: "/admin", role: "admin", vp: VP_DESKTOP },
   { name: "17-admin-month-close", path: "/admin/month-close", role: "admin", vp: VP_DESKTOP },
   { name: "18-admin-audit", path: "/admin/audit", role: "admin", vp: VP_DESKTOP },
-  { name: "19-admin-themes", path: "/admin/themes", role: "admin", vp: VP_DESKTOP },
+  { name: "19-admin-themes", path: "/ich/profil/erscheinungsbild", role: "admin", vp: VP_DESKTOP },
   { name: "20-admin-export", path: "/admin/export", role: "admin", vp: VP_DESKTOP },
   { name: "21-admin-integrations", path: "/admin/integrations", role: "admin", vp: VP_DESKTOP },
   { name: "22-admin-phorest", path: "/admin/phorest", role: "admin", vp: VP_DESKTOP }, // v1.9 new

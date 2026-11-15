@@ -85,7 +85,7 @@ describe("Issue #82 — SalonSwitcher in the Topbar", () => {
   it("the Topbar renders the switcher before its actions", () => {
     expect(TOPBAR).toContain('import SalonSwitcher from "./SalonSwitcher.svelte";');
     const header = TOPBAR.indexOf('<header class="topbar">');
-    const switcher = TOPBAR.indexOf("<SalonSwitcher />", header);
+    const switcher = TOPBAR.indexOf("<SalonSwitcher pathname={currentPath} />", header);
     expect(header).toBeGreaterThan(-1);
     expect(switcher).toBeGreaterThan(header);
     expect(switcher).toBeLessThan(TOPBAR.indexOf('<div class="topbar-actions">', header));

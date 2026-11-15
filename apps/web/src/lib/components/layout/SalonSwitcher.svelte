@@ -7,7 +7,12 @@
 <script lang="ts">
   import { ALL_SALONS, salonContext, showSalonOptions } from "$stores/salon-context";
   import Icon from "$lib/components/Icon.svelte";
+  import { salonFilterActive } from "$lib/nav/routes";
 
+  /** Issue #951: the current page; the selector is disabled where the page never reads it. Omitted = active. */
+  let { pathname }: { pathname?: string } = $props();
+
+  let acts = $derived(pathname === undefined ? true : salonFilterActive(pathname));
   let visible = $derived(showSalonOptions($salonContext));
   let value = $derived($salonContext.selection ?? ALL_SALONS);
 
@@ -17,11 +22,20 @@
 </script>
 
 {#if visible}
-  <label class="salon-switcher">
+  <label
+    class="salon-switcher"
+    class:salon-switcher--off={!acts}
+    title={acts ? undefined : "Wirkt auf dieser Seite nicht"}
+  >
     <span class="salon-switcher-label">Salon</span>
     <span class="salon-switcher-field">
       <span class="salon-switcher-icon" aria-hidden="true"><Icon name="store" size={15} /></span>
-      <select class="select filter-select salon-switcher-select" {value} onchange={handleChange}>
+      <select
+        class="select filter-select salon-switcher-select"
+        {value}
+        disabled={!acts}
+        onchange={handleChange}
+      >
         <option value={ALL_SALONS}>Alle Salons</option>
         {#each $salonContext.salons as salon (salon.id)}
           <option value={salon.id}>{salon.name}</option>
@@ -32,6 +46,9 @@
 {/if}
 
 <style>
+  .salon-switcher--off {
+    opacity: 0.55;
+  }
   .salon-switcher {
     display: inline-flex;
     align-items: center;
