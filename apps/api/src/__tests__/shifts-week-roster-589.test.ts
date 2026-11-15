@@ -470,6 +470,40 @@ describe("Issue #589 — GET /shifts/week counts every visible person, every mod
     }
   });
 
+  // ── D-589-05 / AC-589-4: counted persons are roster rows (cross-layer) ──────────────────
+  it("(counted ⊆ rows) every person counted in coverage is a row of the web roster", async () => {
+    // The web helper is a pure module; it is loaded by path so the API build (rootDir src) never
+    // follows the import.
+    const modulePath = path.resolve(
+      __dirname,
+      "../../../web/src/lib/shifts/roster-rows.ts",
+    ) as string;
+    const { rosterRows } = (await import(/* @vite-ignore */ modulePath)) as {
+      rosterRows: (w: WeekBody) => Array<{ id: string }>;
+    };
+    expect(typeof rosterRows).toBe("function");
+    const probes: Array<[string, string, WeekBody]> = [
+      ["T1 W1", "t1", await week(t1.adminToken, W1)],
+      ["T1 W2", "t1", await week(t1.adminToken, W2)],
+      ["T2 W1", "t2", await week(t2.adminToken, W1)],
+      ["T2 A", "t2", await week(t2.adminToken, `${W1}&salonId=${salonA.id}`)],
+      ["T2 B", "t2", await week(t2.adminToken, `${W1}&salonId=${salonB.id}`)],
+      ["T2 mgr", "t2", await week(managerToken, W1)],
+    ];
+    for (const [label, , body] of probes) {
+      const rowIds = new Set(rosterRows(body).map((e) => e.id));
+      expect(rowIds.size, label).toBeGreaterThan(0);
+      const counted = new Set<string>();
+      for (const c of body.coverage) for (const id of c.contractEmployeeIds) counted.add(id);
+      for (const s of body.shifts) {
+        // A shift counts only for a listed employee (empById); mirror that rule for the check.
+        if (body.employees.some((e) => e.id === s.employeeId)) counted.add(s.employeeId);
+      }
+      expect(counted.size, label).toBeGreaterThan(0);
+      for (const id of counted) expect(rowIds.has(id), `${label}: ${id}`).toBe(true);
+    }
+  });
+
   // ── D-589-02: every model can receive a shift ───────────────────────────────────────────
   it("(f) POST /shifts accepts any contract model and refuses a date without a contract", async () => {
     const post = (employeeId: string, date: string) =>
