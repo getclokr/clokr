@@ -32,8 +32,9 @@ export interface ReleaseNoteBullet {
 
 export interface ReleaseNoteSection {
   heading: string;
-  /** Issue #576: "admin" sections (Sicherheit, Betrieb & Migration) only for system-settings holders. */
-  audience?: "all" | "admin";
+  /** Issue #576: "admin" sections (Sicherheit) only for system-settings holders. "operator"
+   *  („Betrieb & Migration“) is never shown in the app (Issue #946); the API no longer sends it. */
+  audience?: "all" | "admin" | "operator";
   bullets: ReleaseNoteBullet[];
 }
 
@@ -96,15 +97,19 @@ export function readerSeesAdminSections(user: PermissionHolder | null | undefine
 }
 
 /**
- * The releases as a reader sees them: a non-admin keeps only sections whose audience is exactly
+ * The releases as a reader sees them: an admin keeps every section but the operator ones (#946); a
+ * non-admin keeps only sections whose audience is exactly
  * "all" (a missing audience — an older API image — is hidden from them, fail-closed); a release
  * whose sections are all hidden disappears from the reader's list, one without sections stays.
  */
 export function releasesForReader(notes: ReleaseNote[], seesAdmin: boolean): ReleaseNote[] {
-  if (seesAdmin) return notes;
   return notes.flatMap((note) => {
     if (note.sections.length === 0) return [note];
-    const sections = note.sections.filter((section) => section.audience === "all");
+    // Issue #946: an operator section is hidden from everyone, admins included (defence in depth —
+    // the API drops it already).
+    const sections = note.sections.filter((section) =>
+      seesAdmin ? section.audience !== "operator" : section.audience === "all",
+    );
     return sections.length === 0 ? [] : [{ ...note, sections }];
   });
 }

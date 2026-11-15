@@ -64,17 +64,18 @@ completely untouched, punctuation and all.
 
 Operator content (migrations, image rollback, VAPID keys, deploy steps) that would otherwise sit in
 the intro or in a section everybody sees is written as its own intro paragraph or bullet that
-starts with `[Betrieb]`. The parser moves it into the admin-only section „Betrieb & Migration“
-(created when missing) and strips the marker, so the What's-New panel shows it only to persons who
-may change system settings. The marker is the literal `OPERATOR_MARKER` in
+starts with `[Betrieb]`. The parser moves it into the operator section „Betrieb & Migration“
+(created when missing) and strips the marker, so the What's-New panel never shows it. The marker is the literal `OPERATOR_MARKER` in
 `apps/api/src/utils/release-notes.ts`; the GitHub Release body keeps the file text as written.
 Write user sentences without migration, rollback or key names — those belong behind the marker.
 
 ## Audience
 
-Each section carries an audience (Issue #576): „Sicherheit“ and „Betrieb & Migration“ are operator
-content (script names, GHSA ids, deploy steps) and are shown in the What's-New panel only to persons
-who may change system settings (`tenant-settings:update`); every other section is shown to everyone.
+Each section carries an audience (Issue #576): „Sicherheit“ (`admin`) is shown in the What's-New
+panel only to persons who may change system settings (`tenant-settings:update`). „Betrieb & Migration“
+(`operator`, Issue #946, owner decision 15.11.2026) is never served: `releaseNotesForApp` drops it
+before `GET /release-notes` answers, because tenant admins do not run the server — the operator reads
+it in the file and on the GitHub Release. Every other section is shown to everyone.
 The classification lives once in `apps/api/src/utils/release-notes.ts`
 (`RELEASE_NOTE_SECTION_AUDIENCE`), pinned to the headings of `docs/RELEASE_NOTES_TEMPLATE.md`.
 

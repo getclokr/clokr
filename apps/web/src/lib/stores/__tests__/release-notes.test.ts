@@ -291,22 +291,46 @@ describe("release-notes store (Phase 110)", () => {
 });
 
 describe("release notes by audience (Issue #576)", () => {
-  const sec = (heading: string, audience?: "all" | "admin") => ({ heading, audience, bullets: [] });
+  const sec = (heading: string, audience?: "all" | "admin" | "operator") => ({
+    heading,
+    audience,
+    bullets: [],
+  });
   const rel = (version: string, sections: ReturnType<typeof sec>[]) => note({ version, sections });
 
   it("a non-admin keeps only sections for everyone; an unknown audience is hidden from them", async () => {
     const { releasesForReader } = await freshModule();
     const notes = [
-      rel("1.20.0", [
-        sec("Neue Funktionen", "all"),
-        sec("Betrieb & Migration", "admin"),
-        sec("Alt"),
-      ]),
+      rel("1.20.0", [sec("Neue Funktionen", "all"), sec("Sicherheit", "admin"), sec("Alt")]),
     ];
     expect(releasesForReader(notes, false)[0].sections.map((s) => s.heading)).toEqual([
       "Neue Funktionen",
     ]);
     expect(releasesForReader(notes, true)[0].sections).toHaveLength(3);
+  });
+
+  it("hides an operator section from everyone, admins included (Issue #946)", async () => {
+    const { releasesForReader } = await freshModule();
+    const notes = [
+      rel("1.20.0", [
+        sec("Neue Funktionen", "all"),
+        sec("Sicherheit", "admin"),
+        sec("Betrieb & Migration", "operator"),
+      ]),
+      rel("1.19.0", [sec("Betrieb & Migration", "operator")]),
+    ];
+    for (const seesAdmin of [false, true]) {
+      const served = releasesForReader(notes, seesAdmin);
+      expect(
+        served.map((n) => n.version),
+        String(seesAdmin),
+      ).toEqual(["1.20.0"]);
+      expect(served[0].sections.map((s) => s.heading)).not.toContain("Betrieb & Migration");
+    }
+    expect(releasesForReader(notes, true)[0].sections.map((s) => s.heading)).toEqual([
+      "Neue Funktionen",
+      "Sicherheit",
+    ]);
   });
 
   it("drops a release that has nothing left for the reader, keeps one without sections", async () => {

@@ -37,8 +37,12 @@ export interface ReleaseNoteBullet {
   spans: ReleaseNoteSpan[];
 }
 
-/** Who sees a section in the What's-New panel (Issue #576, D-576-01). */
-export type ReleaseNoteAudience = "all" | "admin";
+/**
+ * Who sees a section in the What's-New panel (Issue #576, D-576-01). "operator" (Issue #946, owner
+ * decision 15.11.2026) is never served by the app at all: tenant admins do not run the server, the
+ * operator reads that part in the Markdown file and on the GitHub release page.
+ */
+export type ReleaseNoteAudience = "all" | "admin" | "operator";
 
 export interface ReleaseNoteSection {
   heading: string; // e.g. "Neue Funktionen"
@@ -48,9 +52,10 @@ export interface ReleaseNoteSection {
 
 /**
  * Issue #576 (D-576-01) — the ONE classification of the template's fixed section headings
- * (docs/RELEASE_NOTES_TEMPLATE.md) by audience. „Sicherheit“ and „Betrieb & Migration“ carry
- * script names, GHSA ids, deploy steps and backfills — operator content shown only to persons who
- * may change system settings; every other section is for everyone. These headings are part of the
+ * (docs/RELEASE_NOTES_TEMPLATE.md) by audience. „Sicherheit“ is shown only to persons who may change
+ * system settings; „Betrieb & Migration“ (deploy steps, migrations, backfills, rollback) is operator
+ * content and never leaves the image (Issue #946, `releaseNotesForApp`); every other section is for
+ * everyone. These headings are part of the
  * documented grammar the parser already relies on, not a display string reused as a control value;
  * a test pins the map to the template's headings in both directions.
  */
@@ -61,7 +66,7 @@ export const RELEASE_NOTE_SECTION_AUDIENCE: Readonly<Record<string, ReleaseNoteA
     Fehlerbehebungen: "all",
     "Anzeige & Bedienung": "all",
     Sicherheit: "admin",
-    "Betrieb & Migration": "admin",
+    "Betrieb & Migration": "operator",
     "Achtung / Breaking Changes": "all",
   });
 
@@ -76,12 +81,11 @@ export function sectionAudience(heading: string): ReleaseNoteAudience {
  * Issue #946 — operator marker. A bullet or an intro paragraph of the Markdown source that starts
  * with this literal belongs to the operator (migrations, image rollback, VAPID, deploy steps) even
  * though it sits in a section everybody sees. The parser — the ONE place — moves it into the
- * admin-only section below and strips the marker, so the What's-New panel never shows it to a
- * person who may not change system settings. docs/RELEASE_NOTES_TEMPLATE.md documents the grammar.
+ * operator section below and strips the marker, so the What's-New panel never shows it. docs/RELEASE_NOTES_TEMPLATE.md documents the grammar.
  */
 export const OPERATOR_MARKER = "[Betrieb]";
 
-/** The admin-only section that collects marker items (a heading of the template, see above). */
+/** The operator section that collects marker items (a heading of the template, see above). */
 export const OPERATOR_SECTION_HEADING = "Betrieb & Migration";
 
 export interface ReleaseNote {
@@ -288,8 +292,8 @@ function withoutMarker(text: string): string {
 
 /**
  * Issue #946: moves marker items out of the intro and out of sections everybody sees into the
- * admin-only operator section (created at the end when the note has none). Items already inside an
- * admin section keep their place and only lose the marker.
+ * operator section (created at the end when the note has none). Items already inside a section that
+ * is not for everyone keep their place and only lose the marker.
  */
 function extractOperatorItems(
   intro: string[],
@@ -318,7 +322,7 @@ function extractOperatorItems(
           (span) => span.text !== "",
         ),
       };
-      if (section.audience === "admin") bullets.push(stripped);
+      if (section.audience !== "all") bullets.push(stripped);
       else moved.push(stripped);
     }
     return { ...section, bullets };
@@ -337,6 +341,21 @@ function extractOperatorItems(
     });
   }
   return { intro: keptIntro, sections: keptSections };
+}
+
+/**
+ * Issue #946 (owner decision 15.11.2026) — the releases as the app serves them: every "operator"
+ * section is removed, so the public route never carries deploy or migration text. A release whose
+ * sections were all operator sections and that has no intro disappears; one that never had a
+ * section stays.
+ */
+export function releaseNotesForApp(notes: ReleaseNote[]): ReleaseNote[] {
+  return notes.flatMap((note) => {
+    if (note.sections.length === 0) return [note];
+    const sections = note.sections.filter((section) => section.audience !== "operator");
+    if (sections.length === 0 && note.intro.length === 0) return [];
+    return [{ ...note, sections }];
+  });
 }
 
 function compareVersionsDescending(a: string, b: string): number {
