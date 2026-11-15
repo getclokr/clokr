@@ -663,6 +663,10 @@ describe("Issue #86 (Phase 86b), D-02 — day lists only within time-entry:read 
         method: "GET",
         url: "/api/v1/time-entries/clock-salon",
       },
+      "GET /api/v1/time-entries/clock-state": {
+        method: "GET",
+        url: "/api/v1/time-entries/clock-state",
+      },
       "GET /api/v1/time-entries/summary": {
         method: "GET",
         url: `/api/v1/time-entries/summary?employeeId=${employeeX.id}&${range}`,
@@ -782,6 +786,15 @@ describe("Issue #86 (Phase 86b), D-02 — day lists only within time-entry:read 
     "GET /api/v1/time-entries/clock-salon": {
       reason: "own clock only: no person parameter, the answer concerns the caller's own clock-in",
       check: () => [],
+    },
+    // Issue #959: the open entry of the caller's OWN clock; the answer never names another person.
+    "GET /api/v1/time-entries/clock-state": {
+      reason:
+        "own clock only: no person parameter, the answer is the caller's own open entry or null",
+      check: (res) =>
+        res.body.includes(xEntryId) || res.body.includes(xOpenEntryId)
+          ? [`names an entry of person X`]
+          : [],
     },
     "POST /api/v1/time-entries/nfc-punch": {
       reason: "terminal-authenticated by a device key: a user token is no device key, answered 401",
