@@ -1898,6 +1898,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
       });
       const missingEntriesDays = resolveMissingEntriesDays(openItemsConfig);
       const windowStart = addDaysUtc(today, -missingEntriesDays);
+      // Issue #987: the scan also reaches back to the first day of the tenant-local month, so
+      // „Mein Tag“ can name every past gap of the running month, not only the last N days.
+      const monthFirstOfToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const scanStart = monthFirstOfToday < windowStart ? monthFirstOfToday : windowStart;
       // findMissingWorkdays' effectiveEnd is INCLUSIVE; the replaced loop ran `cursor < today`,
       // so the last day of the window is yesterday. The window's SIZE is now configured
       // (missingEntriesDays); its bounds (windowStart..yesterday, inclusive) are unchanged.
@@ -1908,6 +1912,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       // Personal open items (only when the user has an employee record)
       const missingDays: string[] = [];
+      // Issue #987: the missing days of the whole current month (first day..yesterday), from the
+      // SAME day-status loop as `missingDays`. `missingDays` keeps the configured window (#141).
+      const missingDaysInMonth: string[] = [];
       let pendingRequestsCount = 0;
       let invalidEntriesCount = 0;
       let unconfirmedBreakDays: string[] = [];
@@ -1938,7 +1945,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           const recentEntries = await getRecordedWorkEntriesInRange(
             app.prisma,
             employeeScopeFor(access, { employeeId }),
-            windowStart,
+            scanStart,
             yesterday,
           );
 
@@ -1947,7 +1954,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           const openItemsWorkEntries = await getWorkedEntriesInRange(
             app.prisma,
             employeeScopeFor(access, { employeeId }),
-            windowStart,
+            scanStart,
             today,
           );
           const openItemsWorkLocationEntries: WorkLocationEntry[] = openItemsWorkEntries.map(
@@ -1962,7 +1969,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
             app.prisma,
             tenantId,
             [employeeId],
-            dateStrInTz(windowStart, tz),
+            dateStrInTz(scanStart, tz),
             dateStrInTz(today, tz),
             openItemsWorkLocationEntries,
           );
@@ -1975,19 +1982,19 @@ export async function dashboardRoutes(app: FastifyInstance) {
           const openItemsLeave = await getCalendarLeaveOverlapping(
             app.prisma,
             employeeScopeFor(access, { employeeId }),
-            windowStart,
+            scanStart,
             today,
           );
           const absencesInWindow = await getAbsencesOverlapping(
             app.prisma,
             employeeScopeFor(access, { employeeId }),
-            windowStart,
+            scanStart,
             today,
           );
           const openItemsShifts = await getShiftsInRange(
             app.prisma,
             employeeScopeFor(access, { employeeId }),
-            windowStart,
+            scanStart,
             yesterday,
           );
           const openItemsContracts = await contractsOfPerson(app, employeeId, yesterdayEnd);
@@ -1996,7 +2003,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           const openItemsNowHHMM = timeStrInTz(openItemsNow, tz);
 
           for (
-            let cursor = new Date(windowStart);
+            let cursor = new Date(scanStart);
             cursor.getTime() <= yesterday.getTime();
             cursor.setUTCDate(cursor.getUTCDate() + 1)
           ) {
@@ -2035,7 +2042,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
             // leave cancellation) - naming the day a second time would send the person to a
             // Nachtrag that cannot fix it.
             if (dayEntries.length > 0 && dayEntries.every((e) => e.isInvalid)) continue;
-            missingDays.push(dayStr);
+            const dayInstant = new Date(`${dayStr}T00:00:00.000Z`);
+            if (dayInstant >= windowStart) missingDays.push(dayStr);
+            if (dayInstant >= monthFirstOfToday) missingDaysInMonth.push(dayStr);
           }
         }
 
@@ -2107,6 +2116,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       return {
         missingDays,
+        missingDaysInMonth,
         pendingRequests: pendingRequestsCount,
         invalidEntries: invalidEntriesCount,
         pendingApprovals: pendingApprovalsCount,

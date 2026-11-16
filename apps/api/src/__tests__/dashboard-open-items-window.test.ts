@@ -163,7 +163,11 @@ describe("GET /api/v1/dashboard/open-items — configured window (issue #141)", 
     await closeTestApp();
   });
 
-  async function openItems(): Promise<{ missingDays: string[]; total: number }> {
+  async function openItems(): Promise<{
+    missingDays: string[];
+    missingDaysInMonth: string[];
+    total: number;
+  }> {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/dashboard/open-items",
@@ -195,6 +199,19 @@ describe("GET /api/v1/dashboard/open-items — configured window (issue #141)", 
       body.missingDays,
       `expected missingDays to still contain NEAR_DAY=${NEAR_DAY}; got ${JSON.stringify(body.missingDays)}`,
     ).toContain(NEAR_DAY);
+  });
+
+  it("names every missing day of the running month beyond the window (Issue #987)", async () => {
+    // The window is 7 days (set by the previous test); the clock stands on 2026-10-27.
+    const body = await openItems();
+    const monthStart = "2026-10-01";
+    const expected = weekdayCandidates(1, 26).filter((d) => d >= monthStart);
+    expect(expected).toContain(monthStart); // the fixture reaches the first of the month
+    expect(body.missingDaysInMonth).toEqual(expected);
+    // `missingDays` keeps the configured window and `total` is unchanged by the month list.
+    expect(body.missingDays).not.toContain(monthStart);
+    expect(body.missingDays.every((d) => body.missingDaysInMonth.includes(d))).toBe(true);
+    expect(body.total).toBe(body.missingDays.length);
   });
 
   it("resolveMissingEntriesDays() is the single source for the default (AC-141-04)", () => {

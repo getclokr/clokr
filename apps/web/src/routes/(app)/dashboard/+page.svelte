@@ -138,8 +138,10 @@
     TEAM_WEEK_PAGE_SIZE,
     openTeamLeaveTasks,
     leaveTypeLabel,
+    pastWeeksOfMonth,
+    missingDaysOfMonth,
     type TeamTaskLeave,
-  } from "$lib/dashboard/heute-im-salon"; // Issue #846
+  } from "$lib/dashboard/heute-im-salon"; // Issue #846, #987
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
@@ -362,6 +364,8 @@
   let openItems = $state<{
     pendingApprovals: number;
     missingDays: string[];
+    /** Issue #987: every missing day of the running month (the window list is a subset). */
+    missingDaysInMonth?: string[];
     pendingRequests: number;
     invalidEntries: number;
     unconfirmedBreakDays: string[];
@@ -729,12 +733,14 @@
     teamGeneration++;
     teamUnavailable = false;
     teamWeek = null;
+    pastWeeks = null;
     teamPage = 1;
     upcomingLeaves = [];
     attendance = null;
     teamMonth = null;
     await Promise.allSettled([
       loadTeamWeek(),
+      loadPastWeeks(),
       loadTodayAttendance(),
       loadTeamMonth(),
       loadUpcomingLeaves(),
@@ -754,6 +760,22 @@
       void reloadTeam();
     });
   });
+
+  // Issue #987: the earlier weeks of the running month, asked once per salon selection; the
+  // missing days are the server's „Fehlt“ statuses, collected by `missingDaysOfMonth`.
+  let pastWeeks = $state<TeamWeek[] | null>(null);
+  async function loadPastWeeks() {
+    const filter = teamFilter;
+    const generation = teamGeneration;
+    const results = await Promise.allSettled(
+      pastWeeksOfMonth(todayIso).map((monday) =>
+        api.get<TeamWeek>(withSalonId(`/dashboard/team-week?date=${monday}`, filter)),
+      ),
+    );
+    if (generation !== teamGeneration) return;
+    // A failed week leaves its days out; the section only claims what the server answered.
+    pastWeeks = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  }
 
   async function loadTeamWeek() {
     const filter = teamFilter;
@@ -1388,6 +1410,11 @@
 
   // ── Issue #845: the stage view model (D-02, D-03, D-845-01/02/08) ─────────────────────────────
   let todayIso = $derived(format(currentTime, "yyyy-MM-dd"));
+  const missingMonthRows = $derived(
+    pastWeeks === null
+      ? null
+      : missingDaysOfMonth(teamWeek ? [...pastWeeks, teamWeek] : pastWeeks, todayIso),
+  );
   let openEarlierText = $derived(
     openEarlier ? openEarlierEntryText(openEarlier, todayIso, clockState !== null) : null,
   );
@@ -1637,6 +1664,9 @@
     testId?: string;
     hint?: string;
   }
+  function missingDayLabel(iso: string): string {
+    return dayShort(iso);
+  }
   function dayShort(iso: string): string {
     return format(new Date(iso + "T12:00:00"), "EEEEEE d.M.", { locale: de });
   }
@@ -1655,7 +1685,12 @@
         testId: out.length === 0 ? "dashboard-break-nudge" : undefined,
       });
     }
-    for (const missDate of openItems?.missingDays ?? []) {
+    // Issue #987: the server names the month's gaps; the window list only matters when the month
+    // list is absent (an older answer), so the union keeps both without a second derivation.
+    const missingDates = [
+      ...new Set([...(openItems?.missingDays ?? []), ...(openItems?.missingDaysInMonth ?? [])]),
+    ].sort();
+    for (const missDate of missingDates) {
       out.push({
         key: `miss-${missDate}`,
         title: `${dayShort(missDate)} ohne Zeiteintrag`,
@@ -1698,7 +1733,7 @@
         subtitle: "Du bekommst Bescheid, sobald entschieden ist.",
         chip: "Offen",
         tone: "neutral",
-        href: "/ich/abwesenheiten?view=requests",
+        href: "/ich/abwesenheiten?tab=antraege",
         action: "Ansehen",
       });
     }
@@ -2165,6 +2200,30 @@
           </div>
 
           <div class="ts-col">
+            {#if missingMonthRows !== null && missingMonthRows.length > 0}
+              <section class="ts-sec" aria-labelledby="ts-missing" data-testid="team-missing-days">
+                <h2 id="ts-missing" class="mt-h2">Fehlende Zeiten</h2>
+                <List ariaLabel="Fehlende Zeiten">
+                  {#each missingMonthRows as row (row.id)}
+                    <ListRow
+                      title={row.name}
+                      subtitle={row.days.map(missingDayLabel).join(" · ")}
+                      avatarKey={row.id}
+                      href={canOpenTeamDay
+                        ? (teamDayHref(row.id, row.days[0]) ?? undefined)
+                        : undefined}
+                    >
+                      {#snippet trailing()}
+                        <Chip tone="bad"
+                          >{row.days.length === 1 ? "1 Tag" : `${row.days.length} Tage`}</Chip
+                        >
+                      {/snippet}
+                    </ListRow>
+                  {/each}
+                </List>
+              </section>
+            {/if}
+
             {#if taskSourceGates.page}
               <section class="ts-sec" aria-labelledby="ts-tasks">
                 <h2 id="ts-tasks" class="mt-h2">
