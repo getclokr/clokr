@@ -27,6 +27,7 @@
   import { zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
   import { fmtBalance } from "$lib/utils/format-minutes";
   import { pauseLabel, teamDayRows, type TeamDayRow } from "$lib/team/zeiten-day-rows";
+  import { weekMondaysIn, serverMissingDatesOf } from "$lib/dashboard/heute-im-salon"; // Issue #987
   import DaySheet, { type DaySheetEntry } from "$lib/components/me/DaySheet.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import Modal from "$components/ui/Modal.svelte";
@@ -587,6 +588,31 @@
     markFirstListLoaded();
   }
 
+  // Issue #987: the days the SERVER named „missing“ (`resolveDayStatus`, via the team week) for the
+  // shown person and month; null = no statement (no reach for the team overview, no contract), the
+  // page then keeps its own reading. The page never decides „missing“ for a person the server judged.
+  let serverMissing = $state<Set<string> | null>(null);
+  async function loadServerMissing(empId: string): Promise<Set<string> | null> {
+    const next = new Date(`${toDate}T00:00:00Z`).getTime() + 86_400_000;
+    const end = new Date(next).toISOString().slice(0, 10);
+    const exclusive = end < todayStr ? end : todayStr;
+    if (exclusive <= fromDate) return new Set();
+    const results = await Promise.allSettled(
+      weekMondaysIn(fromDate, exclusive).map((monday) =>
+        api.get<Parameters<typeof serverMissingDatesOf>[0][number]>(
+          `/dashboard/team-week?date=${monday}`,
+        ),
+      ),
+    );
+    const weeks = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    // An unanswered week would read as „nothing missing“; without every week there is no statement.
+    if (weeks.length !== results.length) return null;
+    const missing = serverMissingDatesOf(weeks, empId);
+    return missing === null
+      ? null
+      : new Set([...missing].filter((d) => d >= fromDate && d <= toDate && d < todayStr));
+  }
+
   async function loadAll() {
     // The salon view loads its own month (see the effect above); nothing to do for the person view.
     if (teamMode === "salon") return;
@@ -684,6 +710,9 @@
       // Issue #660 (WR-03): a newer load started meanwhile; this response belongs to a person or
       // month that is no longer shown.
       if (!loadGuard.isCurrent(loadToken)) return;
+      const missingAnswer = await loadServerMissing(empId);
+      if (!loadGuard.isCurrent(loadToken)) return;
+      serverMissing = missingAnswer;
       entries = rawEntries;
       dayChecks = rawDayChecks?.days ?? [];
       dayChecksEmployeeId = rawDayChecks ? rawDayChecks.employeeId : null;
@@ -762,16 +791,19 @@
       } else {
         shiftMinByDate = new Map();
       }
-      calendarDays = buildCalendarDays(
-        calMonth,
-        entries,
-        schedule,
-        holidays,
-        absences,
-        hireDate,
-        schedule?.type === "MONTHLY_HOURS",
-        shiftMinByDate,
-        bsAbsences,
+      calendarDays = applyServerMissing(
+        buildCalendarDays(
+          calMonth,
+          entries,
+          schedule,
+          holidays,
+          absences,
+          hireDate,
+          schedule?.type === "MONTHLY_HOURS",
+          shiftMinByDate,
+          bsAbsences,
+        ),
+        serverMissing,
       );
     } catch (e: unknown) {
       if (loadGuard.isCurrent(loadToken)) {
@@ -969,6 +1001,17 @@
       );
     }
     return days;
+  }
+
+  // Issue #987: where the server answered, it alone decides „Fehlt“ on a day without entries: a day
+  // it names is marked, a day the page's own reading marked but the server did not is a plain day.
+  function applyServerMissing(days: CalDay[], missing: Set<string> | null): CalDay[] {
+    if (missing === null) return days;
+    return days.map((d) => {
+      if (d.hasEntries || d.isFuture || d.isToday) return d;
+      if (missing.has(d.dateStr)) return d.status === "missing" ? d : { ...d, status: "missing" };
+      return d.status === "missing" ? { ...d, status: "noExpect" } : d;
+    });
   }
 
   function makeCalDay(
@@ -1755,6 +1798,7 @@
       dayInfo: (day) => calendarDayByDate.get(day),
       sollVisible,
       findingDays: new Set(arbzgDayMap.keys()),
+      missingDays: serverMissing ?? undefined,
     }),
   );
   const listColumns = $derived<DataTableColumn[]>([
@@ -2086,8 +2130,10 @@
                       >{b >= 0 ? "+" : "−"}{fmtMin(Math.abs(b))}</span
                     >
                   {/if}
-                {:else if day.isCurrentMonth && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget}
+                {:else if day.isCurrentMonth && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget && (day.status === "missing" || day.isToday)}
                   <span class="day-missing">−{fmtMin(day.expectedMin)}&thinsp;h</span>
+                {:else if day.isCurrentMonth && day.status === "missing"}
+                  <span class="day-missing">Fehlt</span>
                 {/if}
               </button>
             {/each}

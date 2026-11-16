@@ -43,6 +43,11 @@ export interface TeamDayRowsInput {
   sollVisible: boolean;
   /** Days with a finding of the server's day check. */
   findingDays: ReadonlySet<string>;
+  /**
+   * Issue #987: past workdays the server named „missing“ (`resolveDayStatus` through the team
+   * week); each becomes a row, so a gap is never an absent line. Nothing is derived here.
+   */
+  missingDays?: ReadonlySet<string>;
 }
 
 export interface TeamDayRow {
@@ -61,6 +66,8 @@ export interface TeamDayRow {
   /** A quiet status instead of a difference: a running entry or an invalid one. */
   state: { label: string; tone: ChipTone } | null;
   finding: boolean;
+  /** The server named this day „missing“ and it has no entry. */
+  missing: boolean;
   vocationalSchool: boolean;
   entryIds: string[];
 }
@@ -106,7 +113,12 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
     list.push(e);
     byDay.set(day, list);
   }
-  const days = new Set<string>([...byDay.keys(), ...input.vocationalSchoolDays]);
+  const missingSet = input.missingDays ?? new Set<string>();
+  const days = new Set<string>([
+    ...byDay.keys(),
+    ...input.vocationalSchoolDays,
+    ...[...missingSet].filter((d) => !byDay.has(d)),
+  ]);
 
   const rows: TeamDayRow[] = [];
   for (const day of days) {
@@ -139,7 +151,12 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
       day,
       dayLabel: weekdayDateLabel(day),
       salon: salons.length > 0 ? salons.join(", ") : "–",
-      times: list.length > 0 ? times : "Berufsschule",
+      times:
+        list.length > 0
+          ? times
+          : missingSet.has(day) && !input.vocationalSchoolDays.includes(day)
+            ? "Keine Zeit erfasst"
+            : "Berufsschule",
       pause: list.length > 0 ? pauseLabel(list) : "–",
       net: closedValid.length > 0 ? fmtMin(netMin) : "–",
       soll: sollMin === null ? null : sollMin > 0 ? fmtMin(sollMin) : "–",
@@ -151,15 +168,20 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
               tone: diffMin > 0 ? "ok" : diffMin < 0 ? "bad" : "neutral",
             },
       // A running entry of an earlier day is a clock-out that never came; today it simply runs.
-      state: running
-        ? info && !info.isToday && !info.isFuture
-          ? { label: "nicht ausgestempelt", tone: "warn" }
-          : { label: "läuft", tone: "neutral" }
-        : invalid
-          ? { label: "ungültig", tone: "warn" }
-          : null,
+      state:
+        missingSet.has(day) && list.length === 0
+          ? { label: "Fehlt", tone: "bad" }
+          : running
+            ? info && !info.isToday && !info.isFuture
+              ? { label: "nicht ausgestempelt", tone: "warn" }
+              : { label: "läuft", tone: "neutral" }
+            : invalid
+              ? { label: "ungültig", tone: "warn" }
+              : null,
       finding: input.findingDays.has(day),
-      vocationalSchool: input.vocationalSchoolDays.includes(day) && list.length === 0,
+      missing: missingSet.has(day) && list.length === 0,
+      vocationalSchool:
+        input.vocationalSchoolDays.includes(day) && list.length === 0 && !missingSet.has(day),
       entryIds: list.map((e) => e.id),
     });
   }

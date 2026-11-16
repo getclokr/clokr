@@ -141,3 +141,30 @@ describe("teamDayRows", () => {
     expect(weekdayDateLabel("2026-11-09")).toBe("Mo 9.11.");
   });
 });
+
+describe("teamDayRows — server-missing days (Issue #987)", () => {
+  it("lists a day the server named missing as its own „Fehlt“ row, between the entry days", () => {
+    const list = teamDayRows({
+      entries: [
+        entry({ id: "a", startTime: "2026-11-05T09:00:00", endTime: "2026-11-05T17:00:00" }),
+        entry({ id: "b", startTime: "2026-11-09T09:00:00", endTime: "2026-11-09T17:00:00" }),
+      ],
+      vocationalSchoolDays: [],
+      dayInfo: () => PAST,
+      sollVisible: true,
+      findingDays: new Set(),
+      missingDays: new Set(["2026-11-06"]),
+    });
+    expect(list.map((r) => r.day)).toEqual(["2026-11-09", "2026-11-06", "2026-11-05"]);
+    expect(list[1]).toMatchObject({
+      missing: true,
+      times: "Keine Zeit erfasst",
+      state: { label: "Fehlt", tone: "bad" },
+    });
+    expect(list[0].missing).toBe(false);
+  });
+
+  it("without a server answer no row appears", () => {
+    expect(rows([])).toEqual([]);
+  });
+});
