@@ -406,6 +406,32 @@ describe("taskRowsFrom - open tasks (the reach-scoped open-tasks read)", () => {
     );
   });
 
+  describe("an open task of the caller's OWN entry (Issue #1020)", () => {
+    const OWN = "11111111-1111-4111-8111-111111111111";
+    const SERVER_LINK =
+      "/team/zeiten?employeeId=7c9e6679-7425-40de-944b-e07fc1f90ae7&date=2026-11-10";
+    const hrefOf = (task: Partial<OpenTaskSource>, ownEmployeeId?: string | null) =>
+      taskRowsFrom(
+        { openTasks: { types: ["ausstempeln"], tasks: [openTask({ id: "t1", ...task })] } },
+        { leaveDays, ownEmployeeId },
+      )[0]?.href;
+
+    it("links to Ich › Zeiten for the day, where the Zeitnachtrag form applies", () => {
+      expect(hrefOf({ employeeId: OWN }, OWN)).toBe("/ich/zeiten?view=list&date=2026-11-10");
+    });
+
+    it("keeps the server link for another person, an unknown own id or a task without a person", () => {
+      expect(hrefOf({ employeeId: "someone-else" }, OWN)).toBe(SERVER_LINK);
+      expect(hrefOf({ employeeId: OWN })).toBe(SERVER_LINK);
+      expect(hrefOf({ employeeId: OWN }, null)).toBe(SERVER_LINK);
+      expect(hrefOf({}, OWN)).toBe(SERVER_LINK);
+    });
+
+    it("never builds a path from a day that is not YYYY-MM-DD", () => {
+      expect(hrefOf({ employeeId: OWN, day: "2026-11-10&x=1" }, OWN)).toBe(SERVER_LINK);
+    });
+  });
+
   it("drops a zeitkorrektur task when the answer's types does not list it (D-853-23)", () => {
     const rows = taskRowsFrom(
       {

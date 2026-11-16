@@ -123,6 +123,12 @@ export interface TaskSources {
 export interface TaskOptions {
   /** The day figure of a leave row, e.g. „3 Arbeitstage“: always the shared `leaveDaysLabel`. */
   leaveDays: (request: LeaveTaskSource) => string;
+  /**
+   * The caller's own employee id. An open task of the caller's OWN entry links to Ich › Zeiten
+   * (`/ich/zeiten?view=list&date=<day>`), where the Zeitnachtrag form applies, instead of the team
+   * page the server names (Issue #1020). Absent = every task keeps the server link.
+   */
+  ownEmployeeId?: string | null;
 }
 
 /** One row of the list. `title` is the person, so the avatar initials are the person's. */
@@ -271,11 +277,18 @@ function noticeRow(n: NoticeTaskSource): TaskRowModel | null {
   };
 }
 
-function openTaskRow(t: OpenTaskSource, types: readonly string[]): TaskRowModel | null {
+function openTaskRow(
+  t: OpenTaskSource,
+  types: readonly string[],
+  ownEmployeeId?: string | null,
+): TaskRowModel | null {
   // Only a type the answer lists is a kind of this list (the D-853-23 feature check).
   if (!types.includes(t.type)) return null;
   if (t.type !== "ausstempeln" && t.type !== "zeitkorrektur") return null;
   const start = t.startTime ? ` · seit ${t.startTime}` : "";
+  // Issue #1020: the own path is built only from a YYYY-MM-DD day, never from other server data.
+  const isOwn =
+    !!ownEmployeeId && t.employeeId === ownEmployeeId && /^\d{4}-\d{2}-\d{2}$/.test(t.day);
   return {
     key: `${t.type}:${t.id}`,
     kind: t.type,
@@ -288,7 +301,7 @@ function openTaskRow(t: OpenTaskSource, types: readonly string[]): TaskRowModel 
     decided: false,
     typeCode: null,
     label: t.label,
-    href: breakFindingHref(t.link),
+    href: isOwn ? `/ich/zeiten?view=list&date=${t.day}` : breakFindingHref(t.link),
   };
 }
 
@@ -331,7 +344,7 @@ export function taskRowsFrom(sources: TaskSources, options: TaskOptions): TaskRo
   }
   const open = sources.openTasks;
   for (const t of open?.tasks ?? []) {
-    const row = openTaskRow(t, open?.types ?? []);
+    const row = openTaskRow(t, open?.types ?? [], options.ownEmployeeId);
     if (row) rows.push(row);
   }
   return sortTasks(rows);

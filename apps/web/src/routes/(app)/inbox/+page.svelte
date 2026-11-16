@@ -417,7 +417,10 @@
         notices,
         openTasks,
       },
-      { leaveDays: (r) => leaveDaysLabel(Number(r.days), r.halfDay, r.typeCode as TypeCode) },
+      {
+        leaveDays: (r) => leaveDaysLabel(Number(r.days), r.halfDay, r.typeCode as TypeCode),
+        ownEmployeeId: $authStore.user?.employeeId ?? null, // Issue #1020
+      },
     ),
   );
   const openTaskRows = $derived(rowsForView(allTaskRows, "offen"));
