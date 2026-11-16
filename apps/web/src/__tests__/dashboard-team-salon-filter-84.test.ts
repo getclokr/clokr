@@ -137,9 +137,16 @@ describe("Issue #84 — the Team block follows the salon context through team-vi
   });
 
   it("D-05/D-12: the Soll is shown only when the server delivered one", () => {
-    expect(DASHBOARD).toMatch(/teamMonth\.shouldMinutes !== null\s*\?/);
-    // without a Soll the cell names what the hours cover, from the server's worked basis
-    expect(DASHBOARD).toContain('teamMonthBasis === "SCOPE_ENTRIES"');
+    // Issue #986: the decision moved into teamMonthKpi() (team-view.ts, pinned behaviourally by
+    // team-month-kpi-986.test.ts); the page shows a Soll only where that function returns one.
+    expect(DASHBOARD).toContain("teamMonthKpi(teamMonthResponse, teamMonth)");
+    expect(DASHBOARD).toMatch(/kpi\.shouldMinutes !== null\s*\?/);
+    // without a Soll the cell names what the hours cover, from the server's recorded basis
+    const TEAM_VIEW = readRouteFile(
+      "../lib/dashboard/team-view.ts",
+      "src/lib/dashboard/team-view.ts",
+    );
+    expect(TEAM_VIEW).toContain('resp.recordedBasis === "SCOPE_ENTRIES"');
   });
 
   it("D-01/D-15/D-16: the markup shows the divider label, the other-salon badge and the empty state", () => {

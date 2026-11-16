@@ -118,6 +118,14 @@
     resolveSaldoCardState,
     istOnlyMonthMetrics,
   } from "$lib/time-entries/month-view-state";
+  // Issue #986: a day is judged only against the account's Soll the caller may read.
+  import {
+    judgeZeitenDay,
+    mayReadPersonFigures,
+    type AccountDayShare,
+    type ZeitenDayStatus,
+  } from "$lib/team/zeiten-day-judgement";
+  import { DENIED } from "$lib/time-entries/month-view-state";
   import {
     getDayExpectedMinutes,
     monthlyHoursWorkDays,
@@ -165,16 +173,8 @@
     workDays?: number[];
   }
 
-  type CalStatus =
-    | "future"
-    | "today-ok"
-    | "today-partial"
-    | "today-empty"
-    | "ok"
-    | "partial"
-    | "missing"
-    | "noExpect"
-    | "absence";
+  // Issue #986: the status set, and the rule that decides it, live in lib/team/zeiten-day-judgement.ts.
+  type CalStatus = ZeitenDayStatus;
 
   interface CalDay {
     date: Date;
@@ -188,6 +188,8 @@
     holidayName: string;
     expectedMin: number;
     workedMin: number;
+    /** Issue #986: the account's Ist of the day (entries plus credits); null where not read. */
+    creditedMin: number | null;
     hasEntries: boolean;
     // Issue #70 — how many entries the day holds (a cell with several switches to the list).
     entryCount: number;
@@ -304,6 +306,10 @@
   interface MonthSaldoDay {
     date: string;
     cumulativeSaldoMinutes: number;
+    // Issue #594: the day's own Soll and Ist (credits included) from the account; absent on the
+    // single terminal entry of a closed month.
+    expectedMinutes?: number;
+    workedMinutes?: number;
   }
   interface MonthSaldo {
     workedMinutes: number;
@@ -322,9 +328,15 @@
     // fabricated 0 — for every other schedule type and for pure tracking.
     monthSollMinutes?: number;
     days: MonthSaldoDay[];
+    // #86 (D-02): true when the caller may not read this person's day lists (days is then empty).
+    dayDetailsWithheld?: boolean;
   }
   let monthSaldo = $state<MonthSaldo | null>(null);
   // Map from YYYY-MM-DD → cumulativeSaldoMinutes for O(1) cell lookup (per-month day cells).
+  // Issue #986: the account's day shares (#594) and whether the caller read a Soll at all; both set
+  // by loadAll right before the calendar days are built from them.
+  let dayShares: Map<string, AccountDayShare> = new Map();
+  let daySollReadable = false;
   let monthSaldoDayMap: Map<string, number> = $derived(
     monthSaldo
       ? new Map(monthSaldo.days.map((d) => [d.date, d.cumulativeSaldoMinutes]))
@@ -654,6 +666,10 @@
     try {
       const year = calMonth.getFullYear();
       const empId = selectedEmployeeId;
+      // Issue #986: a read the caller's permission set refuses anyway is not sent (it only produced a
+      // 403); it counts as refused, exactly like the server's answer would.
+      const mayReadContract = mayReadPersonFigures($authStore.user, "contract", empId);
+      const mayReadOvertime = mayReadPersonFigures($authStore.user, "overtime", empId);
       const [
         rawEntries,
         rawSchedule,
@@ -666,22 +682,26 @@
         rawDayChecks,
       ] = await Promise.all([
         api.get<TimeEntry[]>(`/time-entries?from=${fromDate}&to=${toDate}&employeeId=${empId}`),
-        settledAllowDenied(api.get<WorkSchedule>(`/settings/work/${empId}`)),
+        mayReadContract
+          ? settledAllowDenied(api.get<WorkSchedule>(`/settings/work/${empId}`))
+          : Promise.resolve(DENIED),
         api.get<PublicHoliday[]>(`/holidays?year=${year}`).catch(() => [] as PublicHoliday[]),
         api
           .get<Absence[]>(`/leave/requests?status=APPROVED&employeeId=${empId}`)
           .catch(() => [] as Absence[]),
-        settledAllowDenied(
-          api.get<{
-            balanceHours: number;
-            // Phase 97-05 (SALDO-DISP-01/03/04/07) — additive split fields.
-            confirmedMinutes?: number;
-            openMonthMinutes?: number | null;
-            hasClosedMonth?: boolean;
-            unconfirmedMonths?: number | null;
-            rosterIncomplete?: boolean;
-          }>(`/overtime/${empId}`),
-        ),
+        mayReadOvertime
+          ? settledAllowDenied(
+              api.get<{
+                balanceHours: number;
+                // Phase 97-05 (SALDO-DISP-01/03/04/07) — additive split fields.
+                confirmedMinutes?: number;
+                openMonthMinutes?: number | null;
+                hasClosedMonth?: boolean;
+                unconfirmedMonths?: number | null;
+                rosterIncomplete?: boolean;
+              }>(`/overtime/${empId}`),
+            )
+          : Promise.resolve(DENIED),
         api.get<{ hireDate?: string }>(`/employees/${empId}`).catch(() => null),
         api
           .get<{
@@ -742,15 +762,18 @@
       // v1.8.8 — fetch Shift rows for SHIFT_BASED so the calendar can render Soll.
       // Other schedule types compute expectedMin via getDayExpectedHours (D-03 returns 0
       // for SHIFT_BASED — this page-level wiring fills the gap).
-      // §615 Monatssaldo vom §615-Core-Endpoint laden — SHIFT_BASED, and (Issue #433, D-11)
-      // MONTHLY_HOURS with a target. It feeds the per-month header SOLL(BISHER)/IST/MONAT-SALDO
-      // tiles + the per-day cumulative cells for SHIFT_BASED, and the MONTHLY_HOURS header's
-      // monthSollMinutes below. GESAMT-SALDO is NO LONGER sourced from here (it must be
-      // month-INDEPENDENT — see the Gesamt-Saldo tile, bound to the live lifetime
-      // GET /overtime/:id), so non-SHIFT/non-MONTHLY_HOURS-with-target types never need this fetch.
+      // The account's month (GET /overtime/month-saldo) for every schedule type with a Soll
+      // (Issue #986; before only SHIFT_BASED and, Issue #433 D-11, MONTHLY_HOURS with a target). It
+      // feeds the month header SOLL(BISHER)/IST/MONAT-SALDO, the MONTHLY_HOURS header's
+      // monthSollMinutes, the SHIFT_BASED cumulative cells and the day shares (#594) every day is
+      // judged against - a Berufsschule credit is inside those shares, never a minus. GESAMT-SALDO
+      // is NOT sourced from here (it must be month-INDEPENDENT — see the Gesamt-Saldo tile, bound
+      // to the live lifetime GET /overtime/:id). Not read when the contract or the account was
+      // already refused: then nothing is judged at all.
       const isMonthlyHoursWithTarget =
         schedule?.type === "MONTHLY_HOURS" && Number(schedule.monthlyHours ?? 0) > 0;
-      if (schedule?.type === "SHIFT_BASED" || isMonthlyHoursWithTarget) {
+      const isTrackOnlyMonthly = schedule?.type === "MONTHLY_HOURS" && !isMonthlyHoursWithTarget;
+      if (schedule && !saldoDenied && !isTrackOnlyMonthly) {
         // Phase 116 (issue #119) — for SHIFT_BASED this endpoint is THE source of every figure
         // MonatSaldoCard shows. On failure monthMetrics silently fell through to the
         // FIXED_*/FLEXTIME branch and rendered a DIFFERENT, wrong number as fact.
@@ -791,6 +814,19 @@
       } else {
         shiftMinByDate = new Map();
       }
+      // Issue #986: a Soll is judged only when the contract and the account were both read; the
+      // account's day shares are used only where the server sent them (#86 may withhold them).
+      daySollReadable = !!schedule && !saldoDenied && !saldoFetchFailed;
+      dayShares = new Map(
+        monthSaldo && monthSaldo.dayDetailsWithheld !== true
+          ? monthSaldo.days.map((d) => [
+              d.date,
+              { expectedMinutes: d.expectedMinutes, workedMinutes: d.workedMinutes },
+            ])
+          : [],
+      );
+      // Issue #987 over #986: the server's day status (`resolveDayStatus`) marks a missing day
+      // even where no Soll is readable — it is no Soll judgement, so it is laid over the result.
       calendarDays = applyServerMissing(
         buildCalendarDays(
           calMonth,
@@ -1064,27 +1100,28 @@
     else if (absence && !absence.half) expectedMin = 0;
     else if (absence && absence.half) expectedMin = Math.round(expectedMin / 2);
 
-    let status: CalStatus = "noExpect";
-    if (isFuture) status = "future";
-    else if (absence && !absence.half && !isFuture) status = "absence";
-    else if (monthly) {
-      // MONTHLY_HOURS: no per-day targets — only show whether worked, never "missing"
-      if (isToday) status = hasEntries ? "today-ok" : "today-empty";
-      else if (hasEntries) status = "noExpect";
-      else status = "noExpect";
-    } else if (isToday && !hasEntries) status = "today-empty";
-    else if (isToday && workedMin >= expectedMin) status = "today-ok";
-    else if (isToday) status = "today-partial";
-    else if (!hasEntries && expectedMin > 0 && !isHoliday) status = "missing";
-    else if (workedMin >= expectedMin && expectedMin > 0) status = "ok";
-    else if (workedMin > 0) status = "partial";
-
     // bs-tage-in-calendar — Berufsschultag flag for this day. Single Set lookup;
     // independent of regular absenceType so half-day vacations on a BS day still
     // surface the BS marker for the cell when the regular absence does not paint
     // the cell (e.g. weekend BS, half-day vacation).
     const isVocationalSchool = bsByDate.has(dateStr);
     const isVocationalSchoolNoLeave = bsNoLeaveDates.has(dateStr);
+
+    // Issue #986: the status, the Soll shown and the account's Ist of the day come from the one
+    // judgement module - from the account's day share where the caller read it, never a guess.
+    const judged = judgeZeitenDay({
+      isFuture,
+      isToday,
+      hasEntries,
+      entryWorkedMin: workedMin,
+      fullAbsence: !!absence && !absence.half,
+      monthly,
+      sollReadable: daySollReadable,
+      share: dayShares.get(dateStr) ?? null,
+      rosterExpectedMin: sched?.type === "SHIFT_BASED" && !monthly ? expectedMin : null,
+      contractExpectedMin: expectedMin,
+      isVocationalSchool: isVocationalSchool || isVocationalSchoolNoLeave,
+    });
 
     return {
       date,
@@ -1096,11 +1133,12 @@
       isWeekend,
       isHoliday,
       holidayName,
-      expectedMin,
+      expectedMin: judged.expectedMin,
       workedMin,
+      creditedMin: judged.creditedMin,
       hasEntries,
       entryCount: slots.length,
-      status,
+      status: judged.status,
       absenceType,
       absenceHalf,
       isBeforeHire,
@@ -1658,7 +1696,21 @@
       };
     }
 
-    // FIXED_*/FLEXTIME
+    // FIXED_*/FLEXTIME — Issue #986: the account's own to-date header (the same computeMonthSaldo
+    // result as the day shares), so a Berufsschule credit is in the Ist and the month saldo equals
+    // the account's and the report's. The browser sum below is only reached when the account
+    // answer is missing, which saldoFetchFailed already routes into the card's error branch.
+    if (monthSaldo) {
+      return {
+        sollToDateMin: monthSaldo.expectedMinutes,
+        istMin: monthSaldo.workedMinutes,
+        saldoMin: monthSaldo.balanceMinutes,
+        sollLabel: "Soll (bisher)",
+        closed: monthSaldo.closed,
+        workdaysSoFar: monthSaldo.workedDays ?? null,
+        noSollTarget: false,
+      };
+    }
     return {
       sollToDateMin: totalExpected,
       istMin: totalWorked,
@@ -2125,12 +2177,17 @@
                       >
                     {/if}
                   {:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}
-                    {@const b = day.workedMin - day.expectedMin}
+                    <!-- Issue #986: against the account's Ist of the day (credits included) where
+                       the account was read, else the recorded minutes. -->
+                    {@const b = (day.creditedMin ?? day.workedMin) - day.expectedMin}
                     <span class="day-bal {balClass(b)}"
                       >{b >= 0 ? "+" : "−"}{fmtMin(Math.abs(b))}</span
                     >
                   {/if}
-                {:else if day.isCurrentMonth && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget && (day.status === "missing" || day.isToday)}
+                {:else if day.isCurrentMonth && day.status === "missing" && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget}
+                  <!-- Issue #986: only a past day the account judges as owed shows a minus; a
+                     Berufsschule day is credited. A day the server names missing without a
+                     readable Soll (#987) falls through to „Fehlt“ below. -->
                   <span class="day-missing">−{fmtMin(day.expectedMin)}&thinsp;h</span>
                 {:else if day.isCurrentMonth && day.status === "missing"}
                   <span class="day-missing">Fehlt</span>

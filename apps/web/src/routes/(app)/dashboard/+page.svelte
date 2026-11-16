@@ -170,6 +170,7 @@
     isTeamSalonRejected,
     teamSalonFilter,
     teamViewLabel,
+    teamMonthKpi,
     upcomingFromResponse,
     withSalonId,
     type TeamTrendMonth,
@@ -739,6 +740,7 @@
     upcomingLeaves = [];
     attendance = null;
     teamMonth = null;
+    teamMonthResponse = null;
     await Promise.allSettled([
       loadTeamWeek(),
       loadPastWeeks(),
@@ -805,7 +807,7 @@
   // `$lib/dashboard/heute-im-salon` only counts statuses the server decided and words them.
   let attendance = $state<TodayAttendanceData | null>(null);
   let teamMonth = $state<TeamTrendMonth | null>(null);
-  let teamMonthBasis = $state<TeamTrendResponse["workedBasis"] | null>(null);
+  let teamMonthResponse = $state<TeamTrendResponse | null>(null);
   let pendingLeave = $state<TeamTaskLeave[]>([]);
   // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
   let openTasks = $state<OpenTaskSummary | null>(null);
@@ -835,8 +837,8 @@
     }
   }
 
-  // „Monat bis gestern“: the running month of the team trend (closed valid entries through
-  // tenant-local yesterday); the Soll is null where it cannot be attributed (salon filter, reach).
+  // „Monat bis gestern“: the running month of the team trend - the recorded time through tenant-local
+  // yesterday, or with a visible Soll the account's to-date Ist and Soll (Issue #986, teamMonthKpi).
   async function loadTeamMonth() {
     const filter = teamFilter;
     const generation = teamGeneration;
@@ -846,7 +848,7 @@
       );
       if (generation !== teamGeneration) return;
       teamMonth = resp.months[resp.months.length - 1] ?? null;
-      teamMonthBasis = resp.workedBasis;
+      teamMonthResponse = resp;
     } catch (err) {
       if (isTeamSalonRejected(err)) {
         if (generation === teamGeneration) teamUnavailable = true;
@@ -973,21 +975,15 @@
         testId: "kpi-tasks",
       });
     }
-    if (teamMonth) {
-      const worked = fmtHours(teamMonth.workedMinutes / 60);
+    if (teamMonth && teamMonthResponse) {
+      // Issue #986: the wording and which figure (recorded time vs. the account's Ist) is decided
+      // by teamMonthKpi(), never here.
+      const kpi = teamMonthKpi(teamMonthResponse, teamMonth);
       items.push({
         label: "Monat bis gestern",
-        value: worked,
-        unit:
-          teamMonth.shouldMinutes !== null
-            ? `/ ${fmtHours(teamMonth.shouldMinutes / 60)}`
-            : undefined,
-        explanation:
-          teamMonth.shouldMinutes !== null
-            ? "erfasst / Soll"
-            : teamMonthBasis === "SCOPE_ENTRIES"
-              ? "erfasst in deiner Reichweite"
-              : "erfasst in diesem Salon",
+        value: fmtHours(kpi.valueMinutes / 60),
+        unit: kpi.shouldMinutes !== null ? `/ ${fmtHours(kpi.shouldMinutes / 60)}` : undefined,
+        explanation: kpi.explanation,
         testId: "kpi-month",
       });
     }
