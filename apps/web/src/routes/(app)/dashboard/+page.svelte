@@ -143,6 +143,7 @@
     type TeamTaskLeave,
     capMissingDays,
   } from "$lib/dashboard/heute-im-salon"; // Issue #846, #987
+  import { invalidEntryRows, type InvalidEntryDay } from "$lib/dashboard/invalid-entry-rows"; // Issue #1020
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
@@ -370,6 +371,8 @@
     missingDaysInMonth?: string[];
     pendingRequests: number;
     invalidEntries: number;
+    /** Issue #1020: the day (and open flag) of each own invalid entry; absent on an older answer. */
+    invalidEntryDays?: InvalidEntryDay[];
     unconfirmedBreakDays: string[];
     total: number;
   } | null>(null);
@@ -1715,18 +1718,7 @@
         testId: "dashboard-missing-more",
       });
     }
-    if ((openItems?.invalidEntries ?? 0) > 0) {
-      const n = openItems!.invalidEntries;
-      out.push({
-        key: "invalid",
-        title: n === 1 ? "1 Eintrag zu korrigieren" : `${n} Einträge zu korrigieren`,
-        subtitle: "Bitte prüfen und korrigieren.",
-        chip: "Prüfen",
-        tone: "warn",
-        href: "/ich/zeiten",
-        action: "Öffnen",
-      });
-    }
+    out.push(...invalidEntryRows(openItems, dayShort)); // Issue #1020
     if (karenzNudge.count > 0) {
       out.push({
         key: "karenz",
