@@ -118,6 +118,30 @@ async function seedApprovalTenant(app: FastifyInstance, suffix: string) {
   };
 }
 
+/** Issue #1021 — directly seed an APPROVED, uncoupled request (a "grant"): the state of a
+ * correction proposal approved before #1021 applied approvals. The grant-redeem paths of
+ * POST/PUT /time-entries stay for these Bestand rows, so their tests start from this state. */
+async function seedApprovedGrant(
+  app: FastifyInstance,
+  employeeId: string,
+  targetDate: string,
+  reason: string,
+): Promise<string> {
+  const grant = await app.prisma.retroEntryRequest.create({
+    data: {
+      employeeId,
+      targetDate: new Date(`${targetDate}T00:00:00Z`),
+      reason,
+      startTime: "08:00",
+      endTime: "17:00",
+      breakMinutes: 30,
+      status: "APPROVED",
+      reviewedAt: new Date(),
+    },
+  });
+  return grant.id;
+}
+
 /** Phase 96 (96-03) — directly seed a coupled pending TimeEntry + RetroEntryRequest
  * pair (entry-first flow), bypassing POST /time-entries, so the RETRO-13/RETRO-18
  * entry-first regression cases below exercise ONLY the PATCH /:id/review guard
@@ -445,7 +469,7 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(FROZEN_NOW);
       try {
-        const targetDate = daysAgoInTz(new Date(), 15);
+        const targetDate = daysAgoInTz(new Date(), 26); // Issue #1021: own day — the approval at day 15 above now creates an entry there
 
         const createRes = await app.inject({
           method: "POST",
@@ -649,29 +673,10 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
       try {
         const targetDate = daysAgoInTz(new Date(), 17);
 
-        // Create and approve a request
-        const createRes = await app.inject({
-          method: "POST",
-          url: "/api/v1/retro-entry-requests",
-          headers: { authorization: `Bearer ${empToken}` },
-          payload: {
-            employeeId,
-            targetDate,
-            reason: "Eintrag fehlt",
-            startTime: "08:00",
-            endTime: "17:00",
-            breakMinutes: 30,
-          },
-        });
-        if (createRes.statusCode !== 201) return;
-        const grantId = JSON.parse(createRes.body).id;
-
-        await app.inject({
-          method: "PATCH",
-          url: `/api/v1/retro-entry-requests/${grantId}/review`,
-          headers: { authorization: `Bearer ${manager2Token}` },
-          payload: { status: "APPROVED", reviewNote: "OK" },
-        });
+        // Issue #1021: approving an uncoupled request now APPLIES it (the request ends USED or
+        // coupled), so this case seeds its APPROVED grant directly — the state of a request
+        // approved before #1021 — and keeps every grant-redeem assertion below unchanged.
+        const grantId = await seedApprovedGrant(app, employeeId, targetDate, "Eintrag fehlt");
 
         // Employee uses the grant to create the entry
         const entryRes = await app.inject({
@@ -745,28 +750,10 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
       try {
         const targetDate = daysAgoInTz(new Date(), 18);
 
-        const createRes = await app.inject({
-          method: "POST",
-          url: "/api/v1/retro-entry-requests",
-          headers: { authorization: `Bearer ${empToken}` },
-          payload: {
-            employeeId,
-            targetDate,
-            reason: "Race condition test",
-            startTime: "08:00",
-            endTime: "17:00",
-            breakMinutes: 30,
-          },
-        });
-        if (createRes.statusCode !== 201) return;
-        const grantId = JSON.parse(createRes.body).id;
-
-        await app.inject({
-          method: "PATCH",
-          url: `/api/v1/retro-entry-requests/${grantId}/review`,
-          headers: { authorization: `Bearer ${manager2Token}` },
-          payload: { status: "APPROVED", reviewNote: "Race test approval" },
-        });
+        // Issue #1021: approving an uncoupled request now APPLIES it (the request ends USED or
+        // coupled), so this case seeds its APPROVED grant directly — the state of a request
+        // approved before #1021 — and keeps every grant-redeem assertion below unchanged.
+        const grantId = await seedApprovedGrant(app, employeeId, targetDate, "Race condition test");
 
         // Fire two concurrent writes against the same approved grant
         const [res1, res2] = await Promise.all([
@@ -843,33 +830,15 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
           },
         });
 
-        // Create a RetroEntryRequest for that targetDate
-        const createRes = await app.inject({
-          method: "POST",
-          url: "/api/v1/retro-entry-requests",
-          headers: { authorization: `Bearer ${empToken}` },
-          payload: {
-            employeeId,
-            targetDate,
-            reason: "SC-2 PUT test: entry needs correction",
-            startTime: "08:00",
-            endTime: "17:00",
-            breakMinutes: 30,
-          },
-        });
-        expect(createRes.statusCode, "retro-entry-request creation must succeed with 201").toBe(
-          201,
+        // Issue #1021: approving an uncoupled request now APPLIES it (the request ends USED or
+        // coupled), so this case seeds its APPROVED grant directly — the state of a request
+        // approved before #1021 — and keeps every grant-redeem assertion below unchanged.
+        const grantId = await seedApprovedGrant(
+          app,
+          employeeId,
+          targetDate,
+          "SC-2 PUT test: entry needs correction",
         );
-        const grantId = JSON.parse(createRes.body).id;
-
-        // Approve the request via a DIFFERENT manager (manager2)
-        const approveRes = await app.inject({
-          method: "PATCH",
-          url: `/api/v1/retro-entry-requests/${grantId}/review`,
-          headers: { authorization: `Bearer ${manager2Token}` },
-          payload: { status: "APPROVED", reviewNote: "SC-2 approved for PUT test" },
-        });
-        expect(approveRes.statusCode, "manager approval must succeed").toBe(200);
 
         // EMPLOYEE PUTs the existing entry with the approved grantId
         const putRes = await app.inject({
@@ -969,31 +938,15 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
           },
         });
 
-        // Create + approve a grant for the locked date
-        const createRes = await app.inject({
-          method: "POST",
-          url: "/api/v1/retro-entry-requests",
-          headers: { authorization: `Bearer ${empToken}` },
-          payload: {
-            employeeId,
-            targetDate: lockedDate,
-            reason: "SC-2 lock-first test: should never bypass lock",
-            startTime: "08:00",
-            endTime: "17:00",
-            breakMinutes: 30,
-          },
-        });
-        expect(createRes.statusCode, "retro-entry-request creation must succeed with 201").toBe(
-          201,
+        // Issue #1021: approving an uncoupled request now APPLIES it (the request ends USED or
+        // coupled), so this case seeds its APPROVED grant directly — the state of a request
+        // approved before #1021 — and keeps every grant-redeem assertion below unchanged.
+        const grantId = await seedApprovedGrant(
+          app,
+          employeeId,
+          lockedDate,
+          "SC-2 lock-first test: should never bypass lock",
         );
-        const grantId = JSON.parse(createRes.body).id;
-
-        await app.inject({
-          method: "PATCH",
-          url: `/api/v1/retro-entry-requests/${grantId}/review`,
-          headers: { authorization: `Bearer ${manager2Token}` },
-          payload: { status: "APPROVED", reviewNote: "Approved for lock-first test" },
-        });
 
         // PUT with the valid grant into a locked month → must still return month-lock 403
         const putRes = await app.inject({
@@ -1062,33 +1015,10 @@ describe("Retro approval-flow + lock-ordering + grant-race (76.29-00 RED)", () =
           },
         });
 
-        // Create and approve a grant for the locked date
-        const createRes = await app.inject({
-          method: "POST",
-          url: "/api/v1/retro-entry-requests",
-          headers: { authorization: `Bearer ${empToken}` },
-          payload: {
-            employeeId,
-            targetDate: lockedDate,
-            reason: "Locked month entry",
-            startTime: "08:00",
-            endTime: "17:00",
-            breakMinutes: 30,
-          },
-        });
-        if (createRes.statusCode !== 201) {
-          // Route not yet implemented — test is RED as expected
-          expect(createRes.statusCode, "RETRO-04: request route must exist (Plan 03)").toBe(201);
-          return;
-        }
-        const grantId = JSON.parse(createRes.body).id;
-
-        await app.inject({
-          method: "PATCH",
-          url: `/api/v1/retro-entry-requests/${grantId}/review`,
-          headers: { authorization: `Bearer ${manager2Token}` },
-          payload: { status: "APPROVED", reviewNote: "Genehmigt" },
-        });
+        // Issue #1021: approving an uncoupled request now APPLIES it (the request ends USED or
+        // coupled), so this case seeds its APPROVED grant directly — the state of a request
+        // approved before #1021 — and keeps every grant-redeem assertion below unchanged.
+        const grantId = await seedApprovedGrant(app, employeeId, lockedDate, "Locked month entry");
 
         // Attempt to create entry in locked month with approved grant
         const res = await app.inject({
