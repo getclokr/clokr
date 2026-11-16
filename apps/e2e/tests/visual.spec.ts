@@ -95,6 +95,12 @@ function realDateMasks(page: Page): Locator[] {
     saldo.locator(".kpi-explanation"),
     forYou.locator(".list-title"),
     forYou.locator(".list-subtitle"),
+    // Today's Soll (`GET /dashboard` today.sollMinutes) is computed for the server's real day, so
+    // the page sub-line („… · Soll heute 8:00 h“) and the clock stage's facts („Soll 8:00“ or
+    // „Heute kein Arbeitstag“) change with the real weekday — a baseline taken on a Sunday failed
+    // every weekday run. The day bar and the stage title stay in the comparison.
+    page.getByTestId("dashboard-page").locator(".page-head .sub"),
+    page.locator(".clock-meta"),
   ];
 }
 
