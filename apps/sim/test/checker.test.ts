@@ -4,7 +4,7 @@ import { emptyProgress } from "../src/bots/context";
 import { compareLiveFigures, saldoConsistency } from "../src/checker/invariants-api";
 import { compareChecksums, checksumMap } from "../src/checker/invariants-db";
 import { isIntended, noServerErrors, tenantIsolationProbes } from "../src/checker/invariants-rules";
-import { draftIssue, draftIssues, fileIssues, type Gh } from "../src/checker/issues";
+import { draftIssue, draftIssues, fileIssues, ghBinary, type Gh } from "../src/checker/issues";
 import { judgePerf, monthsBack, periodLimitMs, type TrendLine } from "../src/checker/perf";
 import { runInvariants } from "../src/checker/run";
 import type { CheckContext, Invariant } from "../src/checker/types";
@@ -364,7 +364,8 @@ describe("issue filing", () => {
       if (args[0] === "issue" && args[1] === "list")
         return { code: 0, stdout: JSON.stringify(open) };
       if (args[0] === "issue" && args[1] === "create")
-        open = [{ number: 7, body: args[args.indexOf("--body") + 1] }];
+        // Issue #1007: values travel as `--flag=value`.
+        open = [{ number: 7, body: args.find((a) => a.startsWith("--body="))!.slice(7) }];
       return { code: 0, stdout: "" };
     };
     const draft = draftIssue(finding, { date: "d", seed: "s" });
@@ -378,6 +379,42 @@ describe("issue filing", () => {
     const created = calls.filter((c) => c[0] === "issue" && c[1] === "create");
     expect(created).toHaveLength(1);
     expect(created[0]).toContain("simulation");
+  });
+
+  // Issue #1007 (Sonar S8705): no value that is not a literal of the module is its own argv item, so a
+  // title or body starting with "-" can never be read as an option of gh.
+  it("passes title, body, search and repo only as --flag=value", async () => {
+    const calls: string[][] = [];
+    const gh: Gh = async (args) => {
+      calls.push(args);
+      return { code: 0, stdout: "[]" };
+    };
+    const draft = { key: "k", title: "--web", body: "--help" };
+    await fileIssues([draft], { repo: "o/r", create: true, gh });
+    for (const call of calls) {
+      expect(call).not.toContain("--web");
+      expect(call).not.toContain("--help");
+      expect(call).not.toContain("o/r");
+    }
+    const create = calls.find((c) => c[0] === "issue" && c[1] === "create")!;
+    expect(create).toContain("--title=--web");
+    expect(create).toContain("--body=--help");
+    expect(create).toContain("--repo=o/r");
+  });
+
+  it("refuses a repository that is not owner/name", async () => {
+    const gh: Gh = async () => ({ code: 0, stdout: "[]" });
+    await expect(fileIssues([], { repo: "--help", create: false, gh })).rejects.toThrow();
+    await expect(fileIssues([], { repo: "o/r x", create: false, gh })).rejects.toThrow();
+  });
+});
+
+// Issue #1007 (Sonar S4036): gh is started by absolute path from fixed system directories only.
+describe("gh binary", () => {
+  it("takes the first fixed system directory that holds gh, never a PATH lookup", () => {
+    expect(ghBinary((p) => p === "/usr/local/bin/gh")).toBe("/usr/local/bin/gh");
+    expect(ghBinary((p) => p === "/usr/bin/gh" || p === "/usr/local/bin/gh")).toBe("/usr/bin/gh");
+    expect(() => ghBinary(() => false)).toThrow();
   });
 });
 

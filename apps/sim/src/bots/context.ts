@@ -3,7 +3,7 @@
  * persisted progress between days and the recorder that turns every call into a counted outcome.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import type { SimConfig } from "../config";
 import { ApiClient, login, type ApiResult, type Session } from "../http";
 import type { PersonSpec, SimTenantKey, TenantPlan } from "../plan";
@@ -204,8 +204,19 @@ export class BotContext {
   }
 }
 
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Writes one day's log as `<stateDir>/logs/<YYYY-MM-DD>.json`. The day becomes a file name, so it
+ * must be a plain calendar day and the resolved path must stay inside the log directory (Sonar
+ * S8707, Issue #1007) — a malformed day is a programming error, never a path.
+ */
 export function writeDayLog(stateDir: string, log: DayLog): void {
-  const dir = join(stateDir, "logs");
+  if (!DAY_RE.test(log.date))
+    throw new Error(`writeDayLog: not a calendar day: ${JSON.stringify(log.date)}`);
+  const dir = resolve(stateDir, "logs");
+  const file = resolve(dir, `${log.date}.json`);
+  if (!file.startsWith(dir + sep)) throw new Error("writeDayLog: path leaves the log directory");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${log.date}.json`), JSON.stringify(log, null, 1));
+  writeFileSync(file, JSON.stringify(log, null, 1));
 }
