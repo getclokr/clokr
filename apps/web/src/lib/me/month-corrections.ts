@@ -3,6 +3,13 @@
 // files a request, shows its status and maps the answer codes to what the person can do next.
 import { api, ApiError } from "$api/client";
 
+/**
+ * Owner decision 16.11.2026 (Issue #1013): nobody can decide a correction request in the web yet
+ * (Aufgaben does not list them), so v2.0.0 offers no new request — a request would wait unseen.
+ * Existing requests keep showing their status. Set back to `true` with #1013.
+ */
+export const MONTH_CORRECTION_REQUESTS_OPEN = false;
+
 export type MonthCorrectionStatus = "PENDING" | "APPROVED" | "REJECTED" | "WITHDRAWN";
 
 export interface MonthCorrection {
