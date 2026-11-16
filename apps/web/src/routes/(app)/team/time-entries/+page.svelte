@@ -7,6 +7,8 @@
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
+  import { teamEntryWriteError } from "$lib/team/entry-write-error"; // Issue #1020
+  import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1020
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import MonthBar from "$components/ui/MonthBar.svelte";
@@ -249,6 +251,7 @@
   // Safe because BOTH exits of loadAll() clear it: the early return above and the finally below.
   let loading = $state(true);
   let error = $state("");
+  let errorLink = $state<{ href: string; label: string } | null>(null); // Issue #1020
   // Phase 116 (issue #119) — true when /settings/work/:id, /overtime/:id or
   // /overtime/month-saldo/:id FAILED, as opposed to legitimately returning nothing.
   let saldoFetchFailed = $state(false);
@@ -260,6 +263,7 @@
   let overtimeDenied = $state(false);
   let saving = $state(false);
   let saveError = $state("");
+  let saveErrorLink = $state<{ href: string; label: string } | null>(null); // Issue #1020
   let arbzgEnabled = $state(true);
   // Issue #433 (D-05) — TenantConfig.defaultWorkDays, the MONTHLY_HOURS workday fallback tier
   // (the retired per-tenant holiday-deduction switch, D-04, is gone).
@@ -660,6 +664,7 @@
     }
     loading = true;
     error = "";
+    errorLink = null;
     saldoFetchFailed = false;
     saldoDenied = false;
     overtimeDenied = false;
@@ -1251,6 +1256,7 @@
     formNote = "";
     formReason = "";
     saveError = "";
+    saveErrorLink = null;
     modalOpen = true;
   }
 
@@ -1309,6 +1315,7 @@
     formNote = entry.note ?? "";
     formReason = "";
     saveError = "";
+    saveErrorLink = null;
     modalOpen = true;
   }
 
@@ -1427,14 +1434,17 @@
     // client-seitig vorab geblockt, mit derselben Fehlermeldung wie die API.
     if (isCorrectionEdit && !formReason.trim()) {
       saveError = "Begründung ist erforderlich (revisionssicherheitspflichtig).";
+      saveErrorLink = null;
       return;
     }
     if (travelActive && (!formTravelFrom || !formTravelTo)) {
       saveError = TRAVEL_TEXTS.salonsRequired;
+      saveErrorLink = null;
       return;
     }
     saving = true;
     saveError = "";
+    saveErrorLink = null;
     const { startISO, endISO, breaksPayload } = buildManualEntryFields();
     try {
       // Issue #80 (D-09a) + Issue #511 D-10: the response carries the server's break findings;
@@ -1493,11 +1503,15 @@
       const breakFindingNotice = breakFindingSaveNotice(saved?.warnings);
       if (breakFindingNotice) toasts.warning(breakFindingNotice);
     } catch (e: unknown) {
-      if (e instanceof Error && "status" in e && (e as { status: number }).status === 403) {
-        saveError = "Monat ist gesperrt";
-      } else {
-        saveError = e instanceof Error ? e.message : "Fehler beim Speichern";
-      }
+      // Issue #1020: a 403 is not always a lock — see teamEntryWriteError.
+      const shown = teamEntryWriteError(e, {
+        ownEntry:
+          !!selectedEmployeeId && selectedEmployeeId === ($authStore.user?.employeeId ?? null),
+        day: formDate || null,
+        fallback: "Fehler beim Speichern",
+      });
+      saveError = shown.text;
+      saveErrorLink = shown.link;
     } finally {
       saving = false;
     }
@@ -1519,11 +1533,15 @@
       deleteConfirmId = "";
       await loadAll();
     } catch (e: unknown) {
-      if (e instanceof Error && "status" in e && (e as { status: number }).status === 403) {
-        error = "Monat ist gesperrt";
-      } else {
-        error = e instanceof Error ? e.message : "Fehler beim Löschen";
-      }
+      const row = entries.find((x) => x.id === id);
+      const shown = teamEntryWriteError(e, {
+        ownEntry:
+          !!selectedEmployeeId && selectedEmployeeId === ($authStore.user?.employeeId ?? null),
+        day: row ? entryDay(row) : null,
+        fallback: "Fehler beim Löschen",
+      });
+      error = shown.text;
+      errorLink = shown.link;
     }
   }
 
@@ -2051,7 +2069,14 @@
     {/if}
   {:else if selectedEmployee}
     {#if error}
-      <div class="alert alert-error" role="alert"><span>⚠</span><span>{error}</span></div>
+      <div class="alert alert-error" role="alert">
+        <span>⚠</span><span
+          >{error}
+          {#if errorLink}<a href={errorLink.href} data-testid="team-entry-error-link"
+              >{errorLink.label}</a
+            >{/if}</span
+        >
+      </div>
     {/if}
 
     <!-- Figures strip (Issue #853, owner review; prototype #p-zeiten stats): Gearbeitet, Monatssaldo,
@@ -2426,7 +2451,14 @@
     : "Zeiteintrag"}
 >
   {#if saveError}
-    <div class="alert alert-error" role="alert"><span>⚠</span><span>{saveError}</span></div>
+    <div class="alert alert-error" role="alert">
+      <span>⚠</span><span
+        >{saveError}
+        {#if saveErrorLink}<a href={saveErrorLink.href} data-testid="team-entry-error-link"
+            >{saveErrorLink.label}</a
+          >{/if}</span
+      >
+    </div>
   {/if}
   <div class="form-group">
     <label class="form-label" for="f-date">Datum</label>
