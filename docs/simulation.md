@@ -46,7 +46,8 @@ apps/sim/
 
 Requirements: Docker with the compose plugin, Node 24 and pnpm 10 (for the bots and the checker, they
 run on the same host or on any host that can reach the API port), `gh` logged in for the checker's
-issues, 4 GB RAM and 2 vCPUs are enough for 300 people.
+issues (installed in `/usr/bin`, `/usr/local/bin` or `/bin` — the checker starts it by absolute path and never
+looks it up through PATH, Issue #1007), 4 GB RAM and 2 vCPUs are enough for 300 people.
 
 ```bash
 git clone https://github.com/getclokr/clokr.git && cd clokr

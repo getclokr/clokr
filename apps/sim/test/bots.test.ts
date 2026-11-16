@@ -105,3 +105,25 @@ describe("realizeDay", () => {
     expect(realizeDay(planned, calm, false, rngFor("c", "1"))).toEqual(a);
   });
 });
+
+// Issue #1007 (Sonar S8707): the day becomes a file name — only a calendar day, never a path.
+describe("writeDayLog", () => {
+  it("writes <stateDir>/logs/<day>.json and refuses anything that is not a calendar day", async () => {
+    const { mkdtempSync, existsSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { writeDayLog } = await import("../src/bots/context");
+    const dir = mkdtempSync(join(tmpdir(), "sim-log-"));
+    try {
+      const log = { date: "2026-11-16" } as Parameters<typeof writeDayLog>[1];
+      writeDayLog(dir, log);
+      expect(existsSync(join(dir, "logs", "2026-11-16.json"))).toBe(true);
+      for (const date of ["../../etc/passwd", "2026-11-16/../../x", "", "2026-1-1"]) {
+        expect(() => writeDayLog(dir, { ...log, date })).toThrow();
+      }
+      expect(existsSync(join(dir, "etc"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

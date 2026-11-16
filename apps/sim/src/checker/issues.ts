@@ -3,15 +3,41 @@
  * finding key. The default is a dry run; nothing is created without `create: true`.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { Finding } from "./types";
 
 export interface Gh {
   (args: string[]): Promise<{ code: number; stdout: string }>;
 }
 
+/**
+ * Sonar S4036 (Issue #1007): `gh` is never looked up through PATH. It is started by absolute path
+ * from fixed system directories that only root can write; the simulation host installs it there
+ * (`apt install gh` → /usr/bin/gh, docs/simulation.md).
+ */
+const GH_DIRS = ["/usr/bin", "/usr/local/bin", "/bin"] as const;
+
+export function ghBinary(exists: (path: string) => boolean = existsSync): string {
+  for (const dir of GH_DIRS) {
+    const candidate = `${dir}/gh`;
+    if (exists(candidate)) return candidate;
+  }
+  throw new Error(`gh not found in ${GH_DIRS.join(", ")}`);
+}
+
+/** A GitHub repository as `owner/name` — the only shape `fileIssues` passes on. */
+const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
 export const ghCli: Gh = (args) =>
   new Promise((resolve) => {
-    const child = spawn("gh", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let bin: string;
+    try {
+      bin = ghBinary();
+    } catch {
+      resolve({ code: 127, stdout: "" });
+      return;
+    }
+    const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     child.stdout.on("data", (d) => (stdout += String(d)));
     child.on("close", (code) => resolve({ code: code ?? 1, stdout }));
@@ -90,14 +116,16 @@ export async function fileIssues(
   options: { repo: string; create: boolean; gh?: Gh },
 ): Promise<FileResult[]> {
   const gh = options.gh ?? ghCli;
+  // Sonar S8705 (Issue #1007): every value that is not a literal of this file is passed as
+  // `--flag=value`, so gh can never read a title, body, search or repo as an option of its own.
+  if (!REPO_RE.test(options.repo)) throw new Error(`fileIssues: not a repository: ${options.repo}`);
   const results: FileResult[] = [];
   if (options.create) {
     await gh([
       "label",
       "create",
       "simulation",
-      "--repo",
-      options.repo,
+      `--repo=${options.repo}`,
       "--color",
       "5319e7",
       "--description",
@@ -108,14 +136,12 @@ export async function fileIssues(
     const listed = await gh([
       "issue",
       "list",
-      "--repo",
-      options.repo,
+      `--repo=${options.repo}`,
       "--label",
       "simulation",
       "--state",
       "open",
-      "--search",
-      `"sim-key: ${draft.key}" in:body`,
+      `--search="sim-key: ${draft.key}" in:body`,
       "--json",
       "number,body",
       "--limit",
@@ -141,14 +167,11 @@ export async function fileIssues(
     const created = await gh([
       "issue",
       "create",
-      "--repo",
-      options.repo,
+      `--repo=${options.repo}`,
       "--label",
       "simulation",
-      "--title",
-      draft.title,
-      "--body",
-      draft.body,
+      `--title=${draft.title}`,
+      `--body=${draft.body}`,
     ]);
     results.push({ key: draft.key, action: created.code === 0 ? "created" : "failed" });
   }
