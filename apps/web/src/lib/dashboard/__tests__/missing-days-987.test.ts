@@ -74,3 +74,31 @@ describe("Mein Tag links (Issue #987)", () => {
     expect(src).not.toContain("view=requests");
   });
 });
+
+describe("#987 — „Für dich“ names at most five missing days", () => {
+  it("keeps the five newest days in order and counts the rest", async () => {
+    const { capMissingDays, FOR_YOU_MISSING_DAYS_SHOWN } = await import("../heute-im-salon");
+    expect(FOR_YOU_MISSING_DAYS_SHOWN).toBe(5);
+    const days = [
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-05",
+      "2026-11-06",
+      "2026-11-09",
+      "2026-11-10",
+    ];
+    expect(capMissingDays(days)).toEqual({
+      shown: ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-09", "2026-11-10"],
+      more: 2,
+    });
+  });
+
+  it("shows every day and no summary when there are five or fewer, duplicates counted once", async () => {
+    const { capMissingDays } = await import("../heute-im-salon");
+    expect(capMissingDays(["2026-11-06", "2026-11-03", "2026-11-06"])).toEqual({
+      shown: ["2026-11-03", "2026-11-06"],
+      more: 0,
+    });
+  });
+});

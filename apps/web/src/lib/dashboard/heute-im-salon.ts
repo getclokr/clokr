@@ -205,3 +205,19 @@ export function missingDaysOfMonth(
     .map(([id, v]) => ({ id, name: v.name, days: [...v.days].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id));
 }
+
+/**
+ * Issue #987 (owner 16.11.2026): Mein Tag's „Für dich“ names at most this many missing days; the rest is
+ * one summary row that opens Zeiten. The newest days are shown (the ones still easy to remember); the
+ * order stays chronological.
+ */
+export const FOR_YOU_MISSING_DAYS_SHOWN = 5;
+
+export function capMissingDays(
+  dates: readonly string[],
+  max: number = FOR_YOU_MISSING_DAYS_SHOWN,
+): { shown: string[]; more: number } {
+  const sorted = [...new Set(dates)].sort();
+  const shown = sorted.slice(Math.max(0, sorted.length - max));
+  return { shown, more: sorted.length - shown.length };
+}

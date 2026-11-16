@@ -141,6 +141,7 @@
     pastWeeksOfMonth,
     missingDaysOfMonth,
     type TeamTaskLeave,
+    capMissingDays,
   } from "$lib/dashboard/heute-im-salon"; // Issue #846, #987
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
@@ -1687,10 +1688,12 @@
     }
     // Issue #987: the server names the month's gaps; the window list only matters when the month
     // list is absent (an older answer), so the union keeps both without a second derivation.
-    const missingDates = [
-      ...new Set([...(openItems?.missingDays ?? []), ...(openItems?.missingDaysInMonth ?? [])]),
-    ].sort();
-    for (const missDate of missingDates) {
+    // Owner 16.11.2026: at most five days by name, the rest as one row that opens Zeiten.
+    const missing = capMissingDays([
+      ...(openItems?.missingDays ?? []),
+      ...(openItems?.missingDaysInMonth ?? []),
+    ]);
+    for (const missDate of missing.shown) {
       out.push({
         key: `miss-${missDate}`,
         title: `${dayShort(missDate)} ohne Zeiteintrag`,
@@ -1699,6 +1702,21 @@
         tone: "bad",
         href: `/ich/zeiten?view=list&date=${missDate}`,
         action: "Nachtragen",
+      });
+    }
+    if (missing.more > 0) {
+      out.push({
+        key: "miss-more",
+        title:
+          missing.more === 1
+            ? "1 weiterer Tag ohne Zeiteintrag"
+            : `${missing.more} weitere Tage ohne Zeiteintrag`,
+        subtitle: "Alle fehlenden Tage siehst du unter Zeiten.",
+        chip: "Fehlt",
+        tone: "bad",
+        href: "/ich/zeiten?view=list",
+        action: "Ansehen",
+        testId: "dashboard-missing-more",
       });
     }
     if ((openItems?.invalidEntries ?? 0) > 0) {
