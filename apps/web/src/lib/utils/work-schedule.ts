@@ -122,6 +122,19 @@ function maybeWarnDivergence(s: WorkScheduleLike): void {
   );
 }
 
+/**
+ * Issue #589 (D-589-10) — does the contract itself fix the workdays of a week? True only for
+ * FIXED_SCHEDULE and FLEXTIME, a positive check: MONTHLY_HOURS has no daily targets and the days of a
+ * SHIFT_BASED contract come from the roster. Mirrors D-589-04 of `GET /shifts/week` (contract presence),
+ * so the roster's "laut Vertrag" and the own plan's "Noch nicht geplant" agree on whom the contract
+ * puts to work. An unknown contract (null / undefined) fixes nothing.
+ */
+export function contractFixesWorkDays(
+  schedule: Pick<WorkScheduleLike, "type"> | null | undefined,
+): boolean {
+  return schedule?.type === "FIXED_SCHEDULE" || schedule?.type === "FLEXTIME";
+}
+
 export function isWorkDay(schedule: WorkScheduleLike | null | undefined, date: Date): boolean {
   if (!schedule) return false;
   const dow = date.getDay();

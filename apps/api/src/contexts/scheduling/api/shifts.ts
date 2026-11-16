@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { isAvailabilityEnabled } from "../tenant-availability";
-import { coverageSalonInView, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen
+import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { getEffectiveBreakDuration, getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
 import { classifyLeaveTypeCode, type AvailabilityBucket } from "../shift-availability"; // Phase 98 (T3, plan 03) — the two classifiers' new home
 import {
@@ -25,6 +25,8 @@ import {
   resolveSalonInReach, // Issue #558, D-01/D-07 — the one validator of a client-given salon
   salonOnlyReach, // Issue #558, D-12 — the reach "only this salon", intersected with the caller's own
   holidaysAtWorkLocation, // Phase 71b (issue #71, D-07) — legal holidays by work location, week view only
+  reportPopulationWhere, // Issue #589 (D-589-01) — the #613 population rule: employed in the displayed week, never anonymised
+  homeSalonsForDays, // Issue #589 (D-589-04) — the Stammsalon per day, for contract presence under a salon filter
 } from "../../platform";
 import {
   isMonthClosed, // Phase 100B Plan 07 — W1
@@ -54,6 +56,7 @@ import {
   reverseVacationDays,
   resolveContractWorkDaysPerWeek, // Phase 430 (D-08) — planning-overview's "Vertragstage" column
   getShiftBasedLeaveDaysForWeek, // Phase 430 (D-08) — planning-overview's leave days + weekdays
+  workDaysSetFrom, // Issue #589 (D-589-04) — the ONE workday chain, for contract presence in the week coverage
 } from "../../absence"; // Phase 101B (Issue #101, wave 7) — merged from three deep imports
 import { getShiftsInRange } from "../facade/shifts"; // Phase 430 (D-12) — planning-overview's "geplant" column
 import { flagShiftIfConflictsWithApprovedLeave } from "../shift-leave-check"; // Phase 430 (D-03/D-04, moved 430-06 to avoid widening the boundary-import cycle) — S4, the inverse Type-1 direction
@@ -253,6 +256,14 @@ interface CoverageInfo {
   hasSupervisor: boolean;
   unsupervisedAzubis: number;
   coverageStatus: CoverageStatus;
+  // Issue #589 (D-589-06, AC-589-7): the day is closed in the salon in view (or in every salon of the
+  // caller's reach when none is in view); a closed day reads `coverageStatus: "ok"`, `minStaff` keeps
+  // the rule value.
+  closed: boolean;
+  // Issue #589 (D-589-04/D-589-05): the persons counted in `effectiveStaff` by their contract
+  // (FIXED_SCHEDULE / FLEXTIME workday without a shift), so the grid can mark exactly who is counted
+  // that way. Every id is a row of `employees`.
+  contractEmployeeIds: string[];
 }
 
 // Availability classification per employee × day
@@ -631,24 +642,31 @@ async function findWeekOverbookedConflicts(
 }
 
 /**
- * Phase 47.1 — Verify an employee is eligible for shift assignment.
- * Eligible = has an active WorkSchedule (most recent validFrom <= today) with type === SHIFT_BASED.
- * Returns null if eligible, otherwise a {code, message} payload for the 422 response.
+ * Phase 47.1 → Issue #589 (OD-589-1, D-589-02) — verify an employee can receive a shift on a date.
+ *
+ * Phase 47.1 allowed shifts only for SHIFT_BASED contracts (422 `SHIFT_INVALID_EMPLOYEE_TYPE`). The
+ * owner decision of 19.10.2026 (every person of a salon is in the roster and can be given shifts,
+ * whatever the Arbeitszeitmodell) replaces that gate: any Arbeitszeitmodell is eligible as
+ * long as a contract (a `WorkSchedule` row, any type) is valid on the shift's date; a date without a
+ * contract is 422 `SHIFT_NO_CONTRACT`. The bulk, generate-week and copy-week routes and the Phorest sync
+ * never had the type gate, so this makes the write paths consistent. Soll and saldo are untouched: a
+ * shift decides a Soll only for SHIFT_BASED (OD-589-2), and no reader of a non-SHIFT_BASED Soll reads
+ * shifts. Returns null if eligible, otherwise a {code, message} payload for the 422 response.
  */
-async function assertEmployeeShiftEligible(
+async function assertEmployeeHasContractOn(
   prisma: import("@clokr/db").PrismaClient,
   employeeId: string,
-): Promise<{ code: "SHIFT_INVALID_EMPLOYEE_TYPE"; message: string } | null> {
+  isoDate: string,
+  tenantTz: string,
+): Promise<{ code: "SHIFT_NO_CONTRACT"; message: string } | null> {
   const sched = await prisma.workSchedule.findFirst({
-    where: { employeeId, validFrom: { lte: new Date() } },
-    orderBy: { validFrom: "desc" },
-    select: { type: true },
+    where: { employeeId, validFrom: { lte: dayRangeUtc(isoDate, tenantTz).end } },
+    select: { id: true },
   });
-  if (sched?.type === "SHIFT_BASED") return null;
+  if (sched) return null;
   return {
-    code: "SHIFT_INVALID_EMPLOYEE_TYPE",
-    message:
-      "Mitarbeiter ist nicht im Schichtsystem (Arbeitszeitmodell „Nach Schichtplan“ erforderlich).",
+    code: "SHIFT_NO_CONTRACT",
+    message: "Für diese Person gilt an diesem Tag kein Vertrag.",
   };
 }
 
@@ -1381,7 +1399,10 @@ export async function shiftRoutes(app: FastifyInstance) {
       // = e.g. 2026-08-02T21:59:59.999Z, which toZonedTime maps back to the
       // correct local Sunday — making iterateDaysInTz count exactly 7 days.
       const tenantTz = await getTenantTimezone(app.prisma, tenantId);
-      const sundayForSoll = weekRangeUtc(refDate, tenantTz).end;
+      // Issue #589 (D-589-01): the displayed week's tenant-local instants, computed once — `end` is the
+      // Soll boundary below and, with `start`, the window of the #613 population rule.
+      const weekRange = weekRangeUtc(refDate, tenantTz);
+      const sundayForSoll = weekRange.end;
 
       const [
         shifts,
@@ -1430,13 +1451,18 @@ export async function shiftRoutes(app: FastifyInstance) {
           // Hide DSGVO-anonymized employees from shift planning — they keep their WorkSchedule
           // for retention but must never appear as plannable staff in the week grid.
           //
+          // Issue #589 (D-589-01, OD-589-1): the roster lists every plannable person who is EMPLOYED in
+          // the displayed week (hire day <= the week's end, exit day empty or >= its start — the #613
+          // population rule, which carries the anonymisation clause), whatever the Arbeitszeitmodell;
+          // the web keeps those with a contract or a shift as rows (`rosterRows`).
+          //
           // Phase 91b Plan 08 (Issue #91), D-12 — "plannable staff" is a person-master-data
           // question (which employees this manager may see/assign at all), not a shift-instance
           // question, so it narrows via `resolvePersonScopedEmployeeIds` (Stammsalon-TODAY OR an
           // active-DEPLOYMENT-TODAY row), not `shiftScopeWhere`.
           where: {
             tenantId,
-            ...NOT_ANONYMIZED_EMPLOYEE_WHERE,
+            ...reportPopulationWhere(weekRange.start, weekRange.end),
             ...(weekPersonScopedIds !== "all" ? { id: { in: weekPersonScopedIds } } : {}),
           },
           select: {
@@ -1444,6 +1470,10 @@ export async function shiftRoutes(app: FastifyInstance) {
             firstName: true,
             lastName: true,
             employeeNumber: true,
+            // Issue #589 (D-589-04): read for the per-day employment window of contract presence only;
+            // stripped from the response below (the planner never received them).
+            hireDate: true,
+            exitDate: true,
             classification: true,
             coverageWeight: true,
             requiresSupervision: true,
@@ -1760,13 +1790,8 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
-      // Issue #558 (D-02): under a salon filter the coverage is computed from the filtered shifts and
-      // people. Issue #647 (D-03/D-04/D-05): the salon in view is decided by `coverageSalonInView`
-      // (the filter, else the caller's single person-free reach salon (D-03a), else the tenant's only
-      // active salon, else none); the candidate rules are that salon's rules plus the tenant-wide
-      // ones; the ladder is unchanged, a salon rule wins only within a rung. See coverage-rule.ts.
-      // Compute coverage per day
-      // weekday lookup: iso → 0..6 (Mo=0..So=6) — note JS getUTCDay returns 0=Sun..6=Sat
+      // weekday lookup: iso → 0..6 (Mo=0..So=6) — note JS getUTCDay returns 0=Sun..6=Sat.
+      // (The coverage computation itself follows `getEmpHolidaySet` below — Issue #589.)
       function isoToDow(iso: string): number {
         const d = new Date(iso + "T00:00:00Z");
         const jsDow = d.getUTCDay(); // 0=Sun..6=Sat
@@ -1774,55 +1799,6 @@ export async function shiftRoutes(app: FastifyInstance) {
       }
 
       const empById = new Map(employees.map((e) => [e.id, e]));
-
-      const coverage: Array<{ date: string } & CoverageInfo> = [];
-      for (const iso of weekDays) {
-        const dow = isoToDow(iso);
-        // Shifts on this day, grouped by their template (or "no-template" bucket)
-        const dayShifts = shifts.filter((s) => s.date.toISOString().slice(0, 10) === iso);
-
-        // For now we compute one coverage row per day using the most-permissive
-        // rule scope (templateId = null) when shifts span multiple templates.
-        // If all shifts on the day share one template, use that template's rule.
-        // (More granular per-template-per-day coverage is exposed via the rules array.)
-        const templateIds = Array.from(
-          new Set(dayShifts.map((s) => s.templateId).filter((t): t is string => !!t)),
-        );
-        const ruleScopeTemplateId = templateIds.length === 1 ? templateIds[0] : null;
-        const rule = pickCoverageRule(rules, coverageSalonId, ruleScopeTemplateId, dow);
-
-        let effectiveStaff = 0;
-        let hasSupervisor = false;
-        let unsupervisedAzubis = 0;
-
-        for (const s of dayShifts) {
-          const emp = empById.get(s.employeeId);
-          if (!emp) continue;
-          // If the employee is on vacation/sick/etc that day, they don't count.
-          // Phase 46 — PREFERRED counts as effective staff (they want to work).
-          // UNAVAILABLE / vacation / sick / special / other do NOT count.
-          const av = availabilityMap.get(keyOf(emp.id, iso))?.availability ?? "available";
-          if (av !== "available" && av !== "preferred") continue;
-          effectiveStaff += Number(emp.coverageWeight);
-          if (!emp.requiresSupervision) hasSupervisor = true;
-          else unsupervisedAzubis += 1;
-        }
-
-        let status: CoverageStatus = "ok";
-        if (effectiveStaff < rule.minStaff) status = "under";
-        else if (rule.requiresNonSupervised && !hasSupervisor && unsupervisedAzubis > 0)
-          status = "supervision-missing";
-        else if (unsupervisedAzubis > 0 && !hasSupervisor) status = "supervision-missing";
-
-        coverage.push({
-          date: iso,
-          effectiveStaff: Math.round(effectiveStaff * 100) / 100,
-          minStaff: rule.minStaff,
-          hasSupervisor,
-          unsupervisedAzubis,
-          coverageStatus: status,
-        });
-      }
 
       // Phase 63 follow-up (post-v1.7) — Soll-Korrelation must count BS days as
       // worked minutes (D-01..D-04). The /shifts/week Soll-Korrelation row was
@@ -1840,6 +1816,8 @@ export async function shiftRoutes(app: FastifyInstance) {
           // v1.7.3: needed for Soll-Korrelation break deduction
           defaultBreakOver6h: true,
           defaultBreakOver9h: true,
+          // Issue #589 (D-589-04): the tenant default of the ONE workday chain (`workDaysSetFrom`).
+          defaultWorkDays: true,
         },
       });
       const vocationalSchoolMinutesByEmp: Record<string, number> = {};
@@ -1982,6 +1960,179 @@ export async function shiftRoutes(app: FastifyInstance) {
       // credit loops (WR-02) and contractSollMinutesByEmp loop below.
       function getEmpHolidaySet(employeeId: string): Set<string> {
         return new Set(weekHolidaysByEmployee.get(employeeId)?.keys() ?? []);
+      }
+
+      // ── Issue #589 (D-589-04..D-589-07) — contract presence, closed days, coverage ──────────────
+      // Placed after `getEmpHolidaySet` so the work-location holidays and the tenant default workdays
+      // are read once and shared with the Soll code above/below.
+      //
+      // A person counts on day D BY CONTRACT when all of these hold: listed and employed on D (tenant-
+      // local hire day <= D, exit day empty or >= D); the contract valid on D is FIXED_SCHEDULE or
+      // FLEXTIME (MONTHLY_HOURS has no daily targets and SHIFT_BASED days come from the roster, so those
+      // two count only through a shift — CLAUDE.md "Schedule Types"); D's weekday is in
+      // `workDaysSetFrom(contract, tenant default)` (the ONE workday chain); D is no public holiday at
+      // the person's work location; the person has NO shift on D in any salon (a shift replaces the
+      // contract presence — no double count — and a shift elsewhere means "not here", the same neutral
+      // class of fact as the #85 `workedElsewhere`); availability on D is available/preferred; the
+      // caller can read the person's leave and absences (`weekLeaveAbsenceScopedIds`), so a person whose
+      // leave is hidden is never counted blind; and under a salon filter the person's Stammsalon on D is
+      // the chosen salon. Only the coverage figure changes here, never a Soll (OD-589-2).
+      const contractWorkDaysByEmp: Record<string, string[]> = {};
+      const employmentByEmp = new Map(
+        employees.map((e) => [
+          e.id,
+          {
+            hireDay: dateStrInTz(e.hireDate, tenantTz),
+            exitDay: e.exitDate ? dateStrInTz(e.exitDate, tenantTz) : null,
+          },
+        ]),
+      );
+      for (const emp of employees) {
+        const perDay = schedulesByDay.get(emp.id) ?? [];
+        const employment = employmentByEmp.get(emp.id)!;
+        const holidays = getEmpHolidaySet(emp.id);
+        let fixesWorkDays = false;
+        const days: string[] = [];
+        weekDays.forEach((iso, i) => {
+          const ws = perDay[i];
+          if (!ws || (ws.type !== "FIXED_SCHEDULE" && ws.type !== "FLEXTIME")) return;
+          fixesWorkDays = true;
+          if (employment.hireDay > iso) return;
+          if (employment.exitDay !== null && employment.exitDay < iso) return;
+          const weekday = new Date(iso + "T00:00:00Z").getUTCDay();
+          const workDays = workDaysSetFrom(
+            ws as unknown as Parameters<typeof workDaysSetFrom>[0],
+            tenantConfig?.defaultWorkDays,
+          );
+          if (!workDays.includes(weekday)) return;
+          if (holidays.has(iso)) return;
+          days.push(iso);
+        });
+        if (fixesWorkDays) contractWorkDaysByEmp[emp.id] = days;
+      }
+      const contractCandidateIds = Object.entries(contractWorkDaysByEmp)
+        .filter(([, days]) => days.length > 0)
+        .map(([id]) => id);
+
+      // Who has a shift on a day, in ANY salon of the tenant. The main `shifts` list is already that
+      // when the caller reaches the whole tenant and chose no salon; otherwise it is narrowed, so one
+      // more read selects only (employeeId, date) of the candidates — its only output is whether a
+      // listed person is counted by contract. Tenant-scoped through the employee relation.
+      const shiftDaysAnySalon = new Set<string>();
+      if (weekScopeReach.kind === "wholeTenant" && chosenSalonId === null) {
+        for (const sh of shifts) {
+          shiftDaysAnySalon.add(`${sh.employeeId}::${sh.date.toISOString().slice(0, 10)}`);
+        }
+      } else if (contractCandidateIds.length > 0) {
+        const anySalon = await app.prisma.shift.findMany({
+          where: {
+            employee: { tenantId },
+            employeeId: { in: contractCandidateIds },
+            date: { gte: monday, lte: sunday },
+            deletedAt: null,
+          },
+          select: { employeeId: true, date: true },
+        });
+        for (const sh of anySalon) {
+          shiftDaysAnySalon.add(`${sh.employeeId}::${sh.date.toISOString().slice(0, 10)}`);
+        }
+      }
+      // Under a salon filter only a person whose Stammsalon on the day is the chosen salon counts by
+      // contract (HOME rows only, the same rule as #84's attribution).
+      const homeSalonByDay =
+        chosenSalonId !== null && contractCandidateIds.length > 0
+          ? await homeSalonsForDays(
+              app.prisma,
+              tenantId,
+              contractCandidateIds,
+              weekDays[0],
+              weekDays[6],
+            )
+          : null;
+
+      // Issue #558 (D-02): under a salon filter the coverage is computed from the filtered shifts and
+      // people. Issue #647 (D-03/D-04/D-05): the salon in view is decided by `coverageSalonInView`
+      // (the filter, else the caller's single person-free reach salon (D-03a), else the tenant's only
+      // active salon, else none); the candidate rules are that salon's rules plus the tenant-wide
+      // ones; the ladder is unchanged, a salon rule wins only within a rung. See coverage-rule.ts.
+      // Compute coverage per day
+      const coverage: Array<{ date: string } & CoverageInfo> = [];
+      for (const iso of weekDays) {
+        const dow = isoToDow(iso);
+        // Shifts on this day, grouped by their template (or "no-template" bucket)
+        const dayShifts = shifts.filter((s) => s.date.toISOString().slice(0, 10) === iso);
+
+        // For now we compute one coverage row per day using the most-permissive
+        // rule scope (templateId = null) when shifts span multiple templates.
+        // If all shifts on the day share one template, use that template's rule.
+        // (More granular per-template-per-day coverage is exposed via the rules array.)
+        const templateIds = Array.from(
+          new Set(dayShifts.map((s) => s.templateId).filter((t): t is string => !!t)),
+        );
+        const ruleScopeTemplateId = templateIds.length === 1 ? templateIds[0] : null;
+        const rule = pickCoverageRule(rules, coverageSalonId, ruleScopeTemplateId, dow);
+
+        let effectiveStaff = 0;
+        let hasSupervisor = false;
+        let unsupervisedAzubis = 0;
+
+        for (const s of dayShifts) {
+          const emp = empById.get(s.employeeId);
+          if (!emp) continue;
+          // If the employee is on vacation/sick/etc that day, they don't count.
+          // Phase 46 — PREFERRED counts as effective staff (they want to work).
+          // UNAVAILABLE / vacation / sick / special / other do NOT count.
+          const av = availabilityMap.get(keyOf(emp.id, iso))?.availability ?? "available";
+          if (av !== "available" && av !== "preferred") continue;
+          effectiveStaff += Number(emp.coverageWeight);
+          if (!emp.requiresSupervision) hasSupervisor = true;
+          else unsupervisedAzubis += 1;
+        }
+
+        // Issue #589 (D-589-04): contract presence of persons without a shift that day. Weight and
+        // supervision flags exactly as for shift staff.
+        const contractEmployeeIds: string[] = [];
+        for (const emp of employees) {
+          if (!contractWorkDaysByEmp[emp.id]?.includes(iso)) continue;
+          if (shiftDaysAnySalon.has(`${emp.id}::${iso}`)) continue;
+          const av = availabilityMap.get(keyOf(emp.id, iso))?.availability ?? "available";
+          if (av !== "available" && av !== "preferred") continue;
+          if (weekLeaveAbsenceScopedIds !== "all" && !weekLeaveAbsenceScopedIds.includes(emp.id)) {
+            continue;
+          }
+          if (homeSalonByDay && homeSalonByDay.get(emp.id)?.get(iso) !== chosenSalonId) continue;
+          contractEmployeeIds.push(emp.id);
+          effectiveStaff += Number(emp.coverageWeight);
+          if (!emp.requiresSupervision) hasSupervisor = true;
+          else unsupervisedAzubis += 1;
+        }
+        contractEmployeeIds.sort((a, b) => a.localeCompare(b));
+
+        // Issue #589 (D-589-06, AC-589-7): a closed day has no staffing target — it reads "ok", and
+        // its `minStaff` stays the rule value.
+        const closed = isCoverageDayClosed({
+          coverageSalonId,
+          activeSalons,
+          reachSalons: salonOpeningHours,
+          dayOfWeek: dow,
+        });
+        let status: CoverageStatus = "ok";
+        if (closed) status = "ok";
+        else if (effectiveStaff < rule.minStaff) status = "under";
+        else if (rule.requiresNonSupervised && !hasSupervisor && unsupervisedAzubis > 0)
+          status = "supervision-missing";
+        else if (unsupervisedAzubis > 0 && !hasSupervisor) status = "supervision-missing";
+
+        coverage.push({
+          date: iso,
+          effectiveStaff: Math.round(effectiveStaff * 100) / 100,
+          minStaff: rule.minStaff,
+          hasSupervisor,
+          unsupervisedAzubis,
+          coverageStatus: status,
+          closed,
+          contractEmployeeIds,
+        });
       }
 
       // Phase 104 (D-15, Tier 2): tagesbasierte Entdopplung für das Planungs-Soll.
@@ -2169,7 +2320,14 @@ export async function shiftRoutes(app: FastifyInstance) {
 
       return {
         weekDays,
-        employees,
+        // Issue #589 (D-589-04): the employment dates were read for contract presence only; the
+        // planner's person shape is unchanged.
+        employees: employees.map((e) => {
+          const { hireDate, exitDate, ...person } = e;
+          void hireDate;
+          void exitDate;
+          return person;
+        }),
         shifts,
         availability,
         coverage,
@@ -2197,6 +2355,12 @@ export async function shiftRoutes(app: FastifyInstance) {
             }),
         schoolHoliday,
         salonOpeningHours,
+        // Issue #589 (D-589-07): per FIXED_SCHEDULE / FLEXTIME person the ISO days of the week that
+        // are contract workdays (employed, no work-location holiday) — the source of the planner's
+        // "an diesem Tag ist laut Vertrag frei" hint, never a conflict and never a write block. A
+        // person fact of the listed people (their WorkSchedule row is already in `employees`), not a
+        // Soll.
+        contractWorkDaysByEmp,
       };
     },
   });
@@ -2489,12 +2653,18 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
-      // Phase 47.1 — Eligibility gate: only SHIFT_BASED employees may receive shift assignments.
-      const eligibility = await assertEmployeeShiftEligible(app.prisma, body.employeeId);
+      // Issue #589 (D-589-02): every Arbeitszeitmodell may receive a shift; the person needs a
+      // contract on the shift's date (Phase 47.1's SHIFT_BASED-only gate is retired).
+      const eligibility = await assertEmployeeHasContractOn(
+        app.prisma,
+        body.employeeId,
+        body.date,
+        await getTenantTimezone(app.prisma, req.user.tenantId),
+      );
       if (eligibility) {
         return reply.code(422).send({
-          error: "Schicht-Zuweisung nicht erlaubt",
-          code: "SHIFT_INVALID_EMPLOYEE_TYPE",
+          error: "Schicht-Zuweisung nicht möglich",
+          code: eligibility.code,
           message: eligibility.message,
         });
       }
@@ -2860,13 +3030,19 @@ export async function shiftRoutes(app: FastifyInstance) {
       const effStartTime = body.startTime ?? existing.startTime;
       const effEndTime = body.endTime ?? existing.endTime;
 
-      // Phase 47.1 — Eligibility gate: post-update employee must be SHIFT_BASED.
-      // Even when employeeId is unchanged, re-check defensively (schedule may have changed).
-      const eligibility = await assertEmployeeShiftEligible(app.prisma, effEmployeeId);
+      // Issue #589 (D-589-02): the post-update person needs a contract on the effective date (the
+      // Phase 47.1 SHIFT_BASED-only gate is retired). Even when employeeId is unchanged, re-check
+      // defensively (the contract may have changed, the date may have moved).
+      const eligibility = await assertEmployeeHasContractOn(
+        app.prisma,
+        effEmployeeId,
+        effDateIso,
+        await getTenantTimezone(app.prisma, req.user.tenantId),
+      );
       if (eligibility) {
         return reply.code(422).send({
-          error: "Schicht-Verschiebung nicht erlaubt",
-          code: "SHIFT_INVALID_EMPLOYEE_TYPE",
+          error: "Schicht-Verschiebung nicht möglich",
+          code: eligibility.code,
           message: eligibility.message,
         });
       }

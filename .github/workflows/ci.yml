@@ -588,6 +588,13 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @clokr/db exec prisma generate
 
+      - name: Sync SvelteKit generated files
+        # Issue #589: shifts-week-roster-589.test.ts loads the web module lib/shifts/roster-rows.ts
+        # to prove that every person counted in coverage is a row of the web roster (one fixture,
+        # both layers). Vite's transform of that file reads apps/web/tsconfig.json, which extends
+        # the gitignored ./.svelte-kit/tsconfig.json — so it must exist here as in the web job.
+        run: pnpm --filter @clokr/web exec svelte-kit sync
+
       - name: Runner capacity (Phase 106 / D-10 — measure, never assume)
         # CONTEXT.md D-10 forbids assuming the documented 4 vCPU / 16 GB standard-runner spec.
         # apps/api/vitest.config.ts pins a FIXED worker count derived from these numbers, so if

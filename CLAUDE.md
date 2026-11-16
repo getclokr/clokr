@@ -1440,9 +1440,33 @@ Clokr is a German-language, audit-proof time tracking and leave management SaaS 
   tenant-wide ones; the specificity ladder is unchanged; within a rung a salon rule beats a tenant-wide one).
   `POST`/`PUT /shifts/coverage-rules` validate a named salon only through `resolveSalonInReach` (one 404), a
   rule of a later deactivated salon stays and is marked (`PUT` re-checks only a changed salon), and `PUT`
-  checks a changed `templateId` against the tenant. The `/week` response gains no key; `/admin/shifts` offers
+  checks a changed `templateId` against the tenant. #647 added no key to the `/week` response (#589 later added `contractWorkDaysByEmp` and per-day `closed` / `contractEmployeeIds`); `/admin/shifts` offers
   the salon only under `showSalonOptions()` and stays exempt from the header filter. Details: ADR
   `docs/adr/0001-abweichungen.md`, section P, Nachtrag Phase 647.
+- **The roster lists every person and counts contract presence (Issue #589, owner decision 19.10.2026).**
+  `GET /shifts/week` lists every plannable person EMPLOYED in the displayed week (the #613 `reportPopulationWhere`
+  with the week's instants, whatever the Arbeitszeitmodell); the web keeps those with a contract or a shift as rows
+  (`rosterRows()` in `apps/web/src/lib/shifts/roster-rows.ts`). **Every model can receive a shift:** `POST` and `PUT
+  /shifts` need a contract (a `WorkSchedule` row, any type) valid on the shift date, else 422 `SHIFT_NO_CONTRACT`
+  (`assertEmployeeHasContractOn`; the Phase 47.1 code `SHIFT_INVALID_EMPLOYEE_TYPE` no longer exists, bulk,
+  generate-week, copy-week and the Phorest sync never had that gate). **Soll and saldo from shifts stay SHIFT_BASED-only**
+  (`contractSollMinutesByEmp` unchanged, nothing under `working-time-account/` moved; a shift never changes a
+  non-SHIFT_BASED Soll). **Coverage counts contract presence:** a person counts on a day when listed and employed, the
+  contract valid that day is FIXED_SCHEDULE or FLEXTIME, the weekday is in `workDaysSetFrom()` (the ONE workday chain,
+  exported through `contexts/absence/index.ts`), the day is no work-location holiday, the person has NO shift that day
+  in ANY salon (a shift replaces the presence, so nobody counts twice), availability is available/preferred, the caller
+  can read the person's leave and absences (a scoped caller never counts a person whose leave is hidden) and, under a
+  salon filter, the Stammsalon on that day (`homeSalonsForDays`) is the chosen salon; MONTHLY_HOURS and SHIFT_BASED
+  count only through a shift. Three response fields: per day `coverage[].contractEmployeeIds` (who is counted by
+  contract; always a subset of `employees`) and `coverage[].closed`, plus top-level `contractWorkDaysByEmp` (the ISO
+  contract workdays of fixed/flex persons, source of a tooltip hint on a shift outside them - never a conflict, never a
+  block). **A closed day reads no shortfall:** `closedWeekdaysOf()` / `isCoverageDayClosed()`
+  (`contexts/scheduling/coverage-rule.ts`) judge a day closed by the salon in view's opening hours, or - with none in view -
+  only when EVERY salon of the caller's reach closes it; `coverageStatus` is then "ok" and `minStaff` keeps the rule
+  value. PHOREST-origin shifts of any person stay owned by the sync (`services/phorest/` has no contract-type filter) and
+  render like any shift. The own plan (Ich › Dienstplan) names a shift's salon from the salon context and separates
+  „Frei“ from „Noch nicht geplant“ (`apps/web/src/lib/me/agenda.ts`). Proofs: `shifts-week-roster-589.test.ts`, the web
+  `roster-rows-589` and `agenda-851` tests.
 - **The reports follow the salon context (Issue #542).** `GET /reports/monthly`,
   `GET /dashboard/today-attendance`, `GET /dashboard/overtime-overview` and
   `GET /reports/monthly-export/pdf` take an optional `salonId`, validated by `resolveSalonInReach()` against the reach of

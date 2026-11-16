@@ -9,6 +9,14 @@
     staffingTooltip,
   } from "$lib/shifts/staffing"; // Issue #850
   import { shortGermanDay } from "$lib/shifts/planning-week"; // Issue #850
+  import {
+    contractFreeDayHint,
+    countedByContract,
+    rosterRows,
+    shiftHours,
+    shiftNoContractMessage,
+  } from "$lib/shifts/roster-rows"; // Issue #589 — the one place the roster decides its rows and cell facts
+  import { MODEL_LABELS } from "$lib/employees/contract-history"; // Issue #589 — the one German model name
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { api, ApiError } from "$api/client";
@@ -91,6 +99,10 @@
     hasSupervisor: boolean;
     unsupervisedAzubis: number;
     coverageStatus: "ok" | "under" | "supervision-missing";
+    // Issue #589 (D-589-06, D-589-05): optional so an older API during a rolling deploy degrades to
+    // "not closed" and "nobody counted by contract".
+    closed?: boolean;
+    contractEmployeeIds?: string[];
   }
   // v1.7.4 hotfix — SchoolHolidayPeriod marker per (employee × day). Emitted by
   // GET /api/v1/shifts/week when the employee's effective Bundesland is in a
@@ -138,6 +150,9 @@
     // Issue #563 (D-15) — opening hours of the active salons inside the caller's shift:read reach.
     // Optional so an older API during a rolling deploy dims nothing instead of failing.
     salonOpeningHours?: SalonOpeningHoursEntry[];
+    // Issue #589 (D-589-07) — per fixed/flex person the ISO days of the week that are contract workdays;
+    // the source of the tooltip hint on a shift outside them. Optional for a rolling deploy.
+    contractWorkDaysByEmp?: Record<string, string[]>;
   }
   interface Template {
     id: string;
@@ -677,29 +692,13 @@
     return map;
   });
 
-  // Phase 47.1 — Only SHIFT_BASED employees appear in the grid.
-  // Server (POST/PUT /shifts) rejects assignments to FIXED_SCHEDULE / FLEXTIME / MONTHLY_HOURS
-  // employees with 422 SHIFT_INVALID_EMPLOYEE_TYPE; this filter hides them so
-  // users don't try to drag onto rows that would just bounce.
-  const shiftEmployees = $derived.by(() => {
-    if (!week) return [];
-    return week.employees.filter((e) => e.workSchedules?.[0]?.type === "SHIFT_BASED");
-  });
+  // Issue #589 (owner decision 19.10.2026, OD-589-1) — every person of the plannable set with a contract
+  // in the displayed week or a shift in it is a row, whatever the Arbeitszeitmodell. The Phase 47.1 filter
+  // (SHIFT_BASED only) is gone: every row is plannable, and the server refuses only a shift on a date
+  // without a contract (422 SHIFT_NO_CONTRACT). Everything the Besetzung counts is such a row (AC-589-4).
+  const shiftEmployees = $derived(week ? rosterRows(week) : []);
 
   // ── Phase 45: SHIFT_BASED Soll-Row helpers ─────────────────────────────────
-  function parseHHMM(s: string): { h: number; m: number } {
-    const [h, m] = s.split(":").map(Number);
-    return { h: h || 0, m: m || 0 };
-  }
-
-  function shiftHours(start: string, end: string): number {
-    const a = parseHHMM(start);
-    const b = parseHHMM(end);
-    let dur = (b.h * 60 + b.m - (a.h * 60 + a.m)) / 60;
-    if (dur < 0) dur += 24; // cross-midnight shift (e.g. 22:00–06:00)
-    return Math.max(0, dur);
-  }
-
   // v1.7.3 — `shiftNetHours()` removed in favor of the server-computed
   // `week.shiftBreakMinutesByEmp` map which honors per-employee Pausen-Override
   // (Employee.breakOver6hOverride/9hOverride) and tenant defaults. The legacy
@@ -714,6 +713,16 @@
 
   function formatHours(n: number): string {
     return n.toFixed(1).replace(/\.0$/, "");
+  }
+
+  // Issue #589 (OD-589-2): the planned shift hours of a person without a shift-based contract — gross
+  // duration minus the server's effective break minutes, the same arithmetic as `sollRowByEmp`'s shiftH.
+  function plannedHours(employeeId: string): number {
+    if (!week) return 0;
+    const gross = week.shifts
+      .filter((s) => s.employeeId === employeeId)
+      .reduce((sum, s) => sum + shiftHours(s.startTime, s.endTime), 0);
+    return Math.max(0, gross - (week.shiftBreakMinutesByEmp?.[employeeId] ?? 0) / 60);
   }
 
   // Map<employeeId, { shiftH, bsH, assignedH, weeklyH, diff, klass, ... }> for the
@@ -905,7 +914,11 @@
         // Phase 47.4-02 — § 3 ArbZG hard-block (422). Drag never auto-forces; toast only.
         if (err instanceof ApiError && err.status === 422) {
           const data = err.data as { message?: string; code?: string } | undefined;
-          if (data?.code === "ARBZG_VIOLATION_DAILY_MAX") {
+          // Issue #589 (D-589-02): a person without a contract on that day (SHIFT_NO_CONTRACT).
+          const noContract = shiftNoContractMessage(err.status, data);
+          if (noContract) {
+            toasts.error(noContract);
+          } else if (data?.code === "ARBZG_VIOLATION_DAILY_MAX") {
             toasts.error(
               data?.message ??
                 "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
@@ -987,7 +1000,11 @@
       // Phase 47.4-02 — § 3 ArbZG hard-block (422). Drag never auto-forces; toast only.
       if (err instanceof ApiError && err.status === 422) {
         const data = err.data as { message?: string; code?: string } | undefined;
-        if (data?.code === "ARBZG_VIOLATION_DAILY_MAX") {
+        // Issue #589 (D-589-02): the target person holds no contract on the target day.
+        const noContract = shiftNoContractMessage(err.status, data);
+        if (noContract) {
+          toasts.error(noContract);
+        } else if (data?.code === "ARBZG_VIOLATION_DAILY_MAX") {
           toasts.error(
             data?.message ??
               "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
@@ -1112,13 +1129,20 @@
     const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
     const jsDow = d.getUTCDay();
     const dow = jsDow === 0 ? 6 : jsDow - 1;
-    return closedView.days.has(dow);
+    // Issue #589 (D-589-06, AC-589-7): also a day the server marks closed (the salon in view, or every
+    // salon of the reach) — a closed day never reads as a shortfall.
+    return closedView.days.has(dow) || coverageByDate.get(iso.slice(0, 10))?.closed === true;
   }
   // Issue #923 — the tooltip of a shift pill (grid and day view); plain words, no emoji.
   function shiftTitle(s: Shift, iso: string): string {
     if (isPastDay(iso)) return "Schicht in der Vergangenheit (nur lesen)";
     if (s.conflictsWithLeave) return "Konflikt mit Urlaub – bitte überprüfen oder entfernen";
-    return "Klicken zum Bearbeiten, ziehen zum Verschieben";
+    const base = "Klicken zum Bearbeiten, ziehen zum Verschieben";
+    // Issue #589 (D-589-07): a shift on a day the fixed or flexible contract leaves free gets a quiet
+    // hint, never the conflict styling (#950) and never a block.
+    const emp = week?.employees.find((e) => e.id === s.employeeId);
+    const hint = week && emp ? contractFreeDayHint(week, emp, iso) : null;
+    return hint ? `${base}\n${hint}` : base;
   }
   // Issue #923 — the staffing bar: share of the Mindestbesetzung that is covered (0–100).
   function staffFillPct(c: CoverageEntry): number {
@@ -1355,6 +1379,13 @@
       // no force-override path exists for this code.
       if (e instanceof ApiError && e.status === 422) {
         const data = e.data as { code?: string; message?: string } | undefined;
+        // Issue #589 (D-589-02): no contract on the shift's date — the dialog stays open and says so.
+        const noContract = shiftNoContractMessage(e.status, data);
+        if (noContract) {
+          modalError = noContract;
+          saving = false;
+          return;
+        }
         if (data?.code === "ARBZG_VIOLATION_DAILY_MAX") {
           toasts.error(
             data?.message ??
@@ -1489,10 +1520,16 @@
       class:sp-staff--closed={closed}
       title={staffingTooltip(c)}
     >
-      <span class="sp-staff-bar" aria-hidden="true">
-        <span class="sp-staff-fill" style:width="{staffFillPct(c)}%"></span>
-      </span>
-      <span class="sp-staff-num" data-testid="staffing-figure">{staffingFigure(c)}</span>
+      <!-- Issue #589 (owner 16.11.2026): a closed day shows no staffing figure at all, so no
+           grey "0 / 2" suggests a shortfall; its cells already read „geschlossen“. -->
+      {#if closed}
+        <span class="sr-only">geschlossen</span>
+      {:else}
+        <span class="sp-staff-bar" aria-hidden="true">
+          <span class="sp-staff-fill" style:width="{staffFillPct(c)}%"></span>
+        </span>
+        <span class="sp-staff-num" data-testid="staffing-figure">{staffingFigure(c)}</span>
+      {/if}
       {#if !closed && c.coverageStatus === "supervision-missing"}
         <span class="sp-coverage-note">{staffingStatusText(c.coverageStatus)}</span>
       {:else if !closed}
@@ -1535,6 +1572,20 @@
         </span>
         {#if sr.underCoverage}
           <span class="sr-only">{formatHours(sr.gapH)} Stunden weniger geplant als im Vertrag</span>
+        {/if}
+      {:else if u.workSchedules?.[0] && u.workSchedules[0].type !== "SHIFT_BASED"}
+        <!-- Issue #589 (OD-589-2): a row without a shift-based contract shows its model name and the
+             planned shift hours, never a "Vertrag" figure — Soll and saldo stay with the contract. -->
+        <span class="sp-model">{MODEL_LABELS[u.workSchedules[0].type] ?? ""}</span>
+        {#if plannedHours(u.id) > 0}
+          <span
+            class="sp-hours"
+            title="{u.firstName} {u.lastName}: {formatHours(
+              plannedHours(u.id),
+            )} h Schichten geplant"
+          >
+            {formatHours(plannedHours(u.id))} h geplant
+          </span>
         {/if}
       {/if}
     </div>
@@ -1652,11 +1703,9 @@
         {/if}
       {:else if shiftEmployees.length === 0}
         <div class="callout info card-animate sp-empty-shift-roster" role="status">
-          <strong>Keine Mitarbeiter im Schichtsystem.</strong>
+          <strong>Keine Personen in dieser Woche.</strong>
           <p class="sp-empty-sub">
-            Um hier Schichten zu planen, stell bei mindestens einer Person das Arbeitszeitmodell
-            „Nach Schichtplan“ ein — in
-            <a href="/admin/vacation">Administration → Personal &amp; Urlaub</a>.
+            Im gewählten Bereich hat in dieser Woche niemand einen Vertrag.
           </p>
         </div>
       {:else}
@@ -1774,7 +1823,15 @@
                 <div
                   class="shift-cell sp-cell off sp-cell--past"
                   title="Vergangenheit – nicht änderbar"
-                ></div>
+                >
+                  {#if week && countedByContract(week, u.id, iso)}
+                    <span
+                      class="sp-by-contract"
+                      title="Arbeitstag laut Vertrag – zählte zur Besetzung"
+                      data-testid="counted-by-contract">laut Vertrag</span
+                    >
+                  {/if}
+                </div>
               {:else}
                 <!-- Empty open cell: drop-target only. Its button stays in the tab order and shows
                      „+ Schicht“ on hover and focus (Issue #923). A school-holiday day is tinted and
@@ -1812,6 +1869,14 @@
                       >{dropPending === cellKey ? "speichere …" : "+ Schicht"}</span
                     >
                   </button>
+                  {#if week && countedByContract(week, u.id, iso)}
+                    <!-- Issue #589 (D-589-05): counted in the Besetzung by the contract, not by a shift. -->
+                    <span
+                      class="sp-by-contract"
+                      title="Arbeitstag laut Vertrag – zählt zur Besetzung"
+                      data-testid="counted-by-contract">laut Vertrag</span
+                    >
+                  {/if}
                   {#each cellItems(cellKey) as item (item.id)}
                     <!-- Hidden placeholder while a drag hovers; svelte-dnd-action draws the ghost in
                          the body via .dnd-action-dragged-el. -->
@@ -1876,7 +1941,22 @@
                     <span class="sp-closed-label">geschlossen</span>
                   {:else if av !== "available"}
                     {@render availBadge(av)}
-                  {:else if !isPastDay(dayIso)}
+                  {:else if isPastDay(dayIso)}
+                    {#if week && countedByContract(week, u.id, dayIso)}
+                      <span
+                        class="sp-by-contract sp-by-contract--inline"
+                        title="Arbeitstag laut Vertrag – zählte zur Besetzung"
+                        data-testid="counted-by-contract">laut Vertrag</span
+                      >
+                    {/if}
+                  {:else}
+                    {#if week && countedByContract(week, u.id, dayIso)}
+                      <span
+                        class="sp-by-contract sp-by-contract--inline"
+                        title="Arbeitstag laut Vertrag – zählt zur Besetzung"
+                        data-testid="counted-by-contract">laut Vertrag</span
+                      >
+                    {/if}
                     <button
                       type="button"
                       class="btn btn-secondary sm"
@@ -2450,10 +2530,6 @@
     color: var(--text-2);
     line-height: 1.5;
   }
-  .sp-empty-sub a {
-    color: var(--brand);
-    text-decoration: underline;
-  }
   /* ── Issue #923: the week grid on v2 ─────────────────────────────────────────── */
   .week-surface {
     min-width: 0;
@@ -2520,6 +2596,9 @@
 
   /* Staffing under the day header: a bar and the figure x / y. */
   .sp-staff {
+    /* Issue #589: the screen-reader text inside is absolutely positioned; without a positioned parent it
+       escaped the week surface's sideways scroll and widened the whole page at 1024 px. */
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2736,6 +2815,23 @@
     border: 0;
     cursor: pointer;
     padding: 6px;
+  }
+  /* Issue #589: the quiet mark of a person counted in the Besetzung by their contract workday. */
+  .sp-by-contract {
+    position: absolute;
+    left: 8px;
+    top: 6px;
+    font-size: var(--fs-xs);
+    color: var(--text-2);
+    pointer-events: none;
+    user-select: none;
+  }
+  .sp-by-contract--inline {
+    position: static;
+    margin-right: 6px;
+  }
+  .sp-model {
+    color: var(--text-2);
   }
   .sp-add {
     opacity: 0;

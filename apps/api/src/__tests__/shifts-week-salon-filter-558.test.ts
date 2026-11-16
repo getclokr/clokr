@@ -39,7 +39,7 @@ const NOT_FOUND = '{"error":"Salon nicht gefunden"}';
 type WeekBody = {
   employees: { id: string }[];
   shifts: { id: string; employeeId: string; salonId: string }[];
-  coverage: { date: string; effectiveStaff: number }[];
+  coverage: { date: string; effectiveStaff: number; contractEmployeeIds: string[] }[];
   contractSollMinutesByEmp: Record<string, number> | null;
   sollUnavailableReason?: string;
   salonOpeningHours: unknown;
@@ -225,11 +225,18 @@ describe("Issue #558 — GET /shifts/week?salonId", () => {
   it("coverage is computed from the filtered shifts (Thursday carries only B shifts)", async () => {
     const unfiltered = await weekBody(data.adminToken);
     const filtered = await weekBody(data.adminToken, salonA.id);
-    const thursday = (b: WeekBody) => b.coverage.find((c) => c.date === "2026-06-18");
-    expect(thursday(unfiltered)?.effectiveStaff).toBeGreaterThan(0);
-    expect(thursday(filtered)?.effectiveStaff).toBe(0);
-    const wednesday = (b: WeekBody) => b.coverage.find((c) => c.date === "2026-06-17");
-    expect(wednesday(filtered)?.effectiveStaff).toBe(wednesday(unfiltered)?.effectiveStaff);
+    const thursday = (b: WeekBody) => b.coverage.find((c) => c.date === "2026-06-18")!;
+    // Issue #589 (owner decision 19.10.2026, OD-589-1/AC-589-4): the coverage of a day is its shifts plus
+    // the persons counted by contract (`contractEmployeeIds`, weight 1 in this fixture). The seeded admin
+    // and employee have no Stammsalon, so they count by contract unfiltered only. The intent of this case
+    // is unchanged and asserted on the SHIFT part: no B shift counts under the A filter.
+    const shiftPart = (c: { effectiveStaff: number; contractEmployeeIds: string[] }) =>
+      c.effectiveStaff - c.contractEmployeeIds.length;
+    expect(shiftPart(thursday(unfiltered))).toBeGreaterThan(0);
+    expect(shiftPart(thursday(filtered))).toBe(0);
+    expect(thursday(filtered).effectiveStaff).toBe(thursday(filtered).contractEmployeeIds.length);
+    const wednesday = (b: WeekBody) => b.coverage.find((c) => c.date === "2026-06-17")!;
+    expect(shiftPart(wednesday(filtered))).toBe(shiftPart(wednesday(unfiltered)));
   });
 
   it("the contract Soll is withheld by a reason code under a filter and the opening hours stay", async () => {

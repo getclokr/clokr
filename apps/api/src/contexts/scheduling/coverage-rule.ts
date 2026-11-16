@@ -13,6 +13,12 @@ import type { AccessReach } from "../platform";
  * salon in view only the tenant-wide rules decide, which is exactly the behaviour before #647.
  *
  * Pure: a type-only import, no model access. Rule rows of other salons may be passed in and are ignored.
+ *
+ * Issue #589 (D-589-06, AC-589-7): the same module is the ONE server place a coverage day is judged
+ * CLOSED (`closedWeekdaysOf`, `isCoverageDayClosed`). A day on which the salon in view (or, with no salon
+ * in view, every salon of the caller's reach) is closed has no staffing target, so it never reads as a
+ * shortfall; its `minStaff` stays the rule value and only the status is forced to "ok". The write-side
+ * opening-hours check (`assertWithinStoreHours`) is a separate rule and is not touched.
  */
 
 export interface CoverageRuleCandidate {
@@ -94,4 +100,45 @@ export function pickCoverageRule(
   const allTemplatesAllDays = rung((r) => r.templateId === null && r.dayOfWeek === -1);
   if (allTemplatesAllDays) return allTemplatesAllDays;
   return { ...DEFAULT_COVERAGE_RULE };
+}
+
+/**
+ * Issue #589 (D-589-06) — the weekdays (0 = Montag .. 6 = Sonntag) a salon's stored opening hours mark
+ * `closed: true`. Malformed input yields no closed day and never throws; this is the same reading as the
+ * web's `closedWeekdays` (`apps/web/src/lib/shifts/closed-days.ts`).
+ */
+export function closedWeekdaysOf(openingHours: unknown): Set<number> {
+  const closed = new Set<number>();
+  if (!Array.isArray(openingHours)) return closed;
+  for (const entry of openingHours) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { day, closed: isClosed } = entry as { day?: unknown; closed?: unknown };
+    if (isClosed === true && typeof day === "number" && Number.isInteger(day)) closed.add(day);
+  }
+  return closed;
+}
+
+/**
+ * Issue #589 (D-589-06, AC-589-7) — is a coverage day closed? With a salon in view
+ * (`coverageSalonId`, validated by the caller) the answer is that salon's own opening hours, looked up
+ * among the ACTIVE salons; with none in view a day is closed only when the caller's reach holds at least
+ * one salon and EVERY salon of it closes that weekday — a day on which only one of two salons is closed
+ * still needs staff in the other. A salon in view that is not among the active salons judges nothing
+ * closed (fail-open towards showing a shortfall, never towards hiding one).
+ */
+export function isCoverageDayClosed(input: {
+  coverageSalonId: string | null;
+  activeSalons: readonly { id: string; openingHours: unknown }[];
+  reachSalons: readonly { salonId: string; openingHours: unknown }[];
+  /** 0 = Montag .. 6 = Sonntag */
+  dayOfWeek: number;
+}): boolean {
+  if (input.coverageSalonId !== null) {
+    const salon = input.activeSalons.find((s) => s.id === input.coverageSalonId);
+    return salon ? closedWeekdaysOf(salon.openingHours).has(input.dayOfWeek) : false;
+  }
+  return (
+    input.reachSalons.length > 0 &&
+    input.reachSalons.every((s) => closedWeekdaysOf(s.openingHours).has(input.dayOfWeek))
+  );
 }

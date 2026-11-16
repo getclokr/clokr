@@ -14,6 +14,9 @@ export interface StaffingDay {
   hasSupervisor: boolean;
   unsupervisedAzubis: number;
   coverageStatus: StaffingStatus;
+  // Issue #589 (D-589-06): the server marks a day closed (salon in view, or every salon of the reach).
+  // Optional so an older API during a rolling deploy reads as "not closed".
+  closed?: boolean;
 }
 
 /** A staffing number in German format: "2", "1,5", "0,75". */
@@ -42,6 +45,14 @@ export function staffingStatusText(status: StaffingStatus): string {
 /** The hover text of a day: "2 von 3 besetzt" plus the supervision note. */
 export function staffingTooltip(day: StaffingDay | undefined): string {
   if (!day) return "";
+  // Issue #589 (D-589-06, AC-589-7): a closed day has no Mindestbesetzung, so it never reads as a
+  // shortfall — whatever the status field carries.
+  if (day.closed) {
+    return [
+      "Geschlossen – keine Mindestbesetzung",
+      `${formatStaff(day.effectiveStaff)} Person(en) eingeplant`,
+    ].join("\n");
+  }
   const lines = [
     `${formatStaff(day.effectiveStaff)} von ${formatStaff(day.minStaff)} besetzt (Mindestbesetzung ${formatStaff(day.minStaff)})`,
   ];
@@ -57,11 +68,17 @@ export function staffingTooltip(day: StaffingDay | undefined): string {
   return lines.join("\n");
 }
 
-/** The explanation behind (i) next to the row label — it replaces the old formula footnote. */
+/**
+ * The explanation behind (i) next to the row label — it replaces the old formula footnote.
+ * Issue #589 (owner decision 19.10.2026, OD-589-1/D-589-04): contract workdays of fixed and flexible
+ * working hours count too; people on a shift schedule or monthly hours count only with a shift.
+ */
 export const STAFFING_EXPLANATION =
-  "Gezählt werden eingeplante Personen, die an dem Tag verfügbar sind. Wer in Ausbildung ist, kann " +
-  "je nach Einstellung nur halb zählen. Die Mindestbesetzung kommt aus den Bedarfsregeln des Dienstplans; " +
-  "ohne eigene Regel gelten 2 Personen.";
+  "Gezählt werden eingeplante Personen und Personen mit fester Arbeitszeit oder Gleitzeit an ihren " +
+  "Arbeitstagen laut Vertrag, wenn sie verfügbar sind. Personen „Nach Schichtplan“ oder mit " +
+  "Monatsstunden zählen nur mit einer Schicht. Wer in Ausbildung ist, kann je nach Einstellung nur " +
+  "halb zählen. Die Mindestbesetzung kommt aus den Bedarfsregeln des Dienstplans; ohne eigene Regel " +
+  "gelten 2 Personen. An geschlossenen Tagen gibt es keine Mindestbesetzung.";
 
 /**
  * The roster legend entries that name a problem. A shortfall (`under`) and a shift inside

@@ -220,6 +220,7 @@ export {
   recalcVacationEntitlementsForContractChange, // Issue #450 (D-06/D-08) — Erweiterung, additive; consumed by platform/api/settings.ts
   REGULAR_ENTITLEMENT_REASON_CONTRACT_CHANGE, // Issue #450 (D-06/D-08) — Erweiterung, additive; consumed by platform/api/settings.ts
   leaveDaysByCodeWithin, // Issue #451 (D-01) — Erweiterung, additive; consumed by composition/reports.ts (the DATEV export)
+  workDaysSetFrom, // Issue #589 (D-589-04) — the ONE workday chain, read by GET /shifts/week's contract presence
 } from "./leave-days";
 export type { LeaveDaysForCode } from "./leave-days"; // Issue #451 (D-01)
 export { checkJArbSchG } from "./jarbschg";

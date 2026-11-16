@@ -300,7 +300,12 @@ describe("Issue #647 — a coverage rule may name a salon (tracer)", () => {
     // The unfiltered view of a three-salon tenant has no salon in view: tenant-wide rules only
     const unfiltered = await weekBody();
     expect(unfiltered.coverage.every((c) => c.minStaff === 3)).toBe(true);
-    expect(unfiltered.coverage.find((c) => c.date.startsWith(TUESDAY))?.coverageStatus).toBe(
+    // Issue #589 (owner decision 19.10.2026, OD-589-1/AC-589-4): the seeded admin and employee are
+    // FIXED_SCHEDULE persons and now count by contract on their workdays, so Tuesday (them + pA's shift =
+    // 3 persons) meets the tenant-wide minimum of 3 and reads "ok". The shortfall against the tenant-wide
+    // rule is proven on Saturday, a salon-open day nobody works.
+    expect(unfiltered.coverage.find((c) => c.date.startsWith(TUESDAY))?.coverageStatus).toBe("ok");
+    expect(unfiltered.coverage.find((c) => c.date.startsWith("2026-06-20"))?.coverageStatus).toBe(
       "under",
     );
   });
@@ -398,10 +403,13 @@ describe("Issue #647 AC 1–3 — the week view of a multi-salon tenant", () => 
   let managerToken: string;
   let ruleA: { id: string };
 
+  // Issue #589: `contractWorkDaysByEmp` joined the response (13 keys unfiltered), and each coverage
+  // entry gained `closed` and `contractEmployeeIds` (eight keys); #647 itself added neither.
   const UNFILTERED_KEYS = [
     "absenceMinutesByEmp",
     "availability",
     "contractSollMinutesByEmp",
+    "contractWorkDaysByEmp",
     "coverage",
     "employees",
     "leaveMinutesByEmp",
@@ -413,6 +421,8 @@ describe("Issue #647 AC 1–3 — the week view of a multi-salon tenant", () => 
     "weekDays",
   ];
   const COVERAGE_KEYS = [
+    "closed",
+    "contractEmployeeIds",
     "coverageStatus",
     "date",
     "effectiveStaff",
@@ -478,7 +488,10 @@ describe("Issue #647 AC 1–3 — the week view of a multi-salon tenant", () => 
   it("AC 2: unfiltered, only the tenant-wide rules decide (no salon rule acts)", async () => {
     const body = await weekAs(app, data.adminToken);
     expect(minStaffByDay(body)).toEqual([3, 3, 3, 3, 5, 3, 3]);
-    expect(statusOn(body, TUESDAY)).toBe("under");
+    // Issue #589 (owner decision 19.10.2026, OD-589-1/AC-589-4): Tuesday is now met (admin + employee by
+    // contract + pA's shift = 3 = the tenant-wide minimum); Saturday, which nobody works, stays under.
+    expect(statusOn(body, TUESDAY)).toBe("ok");
+    expect(statusOn(body, "2026-06-20")).toBe("under");
   });
 
   it("AC 1/3: salon A — A beats tenant-wide within the all-days rung, the Friday tenant-wide rung beats A, B's rule never acts", async () => {
@@ -519,7 +532,7 @@ describe("Issue #647 AC 1–3 — the week view of a multi-salon tenant", () => 
     }
   });
 
-  it("the response keeps its shape: 12 keys unfiltered, 13 with a filter, six keys per coverage entry", async () => {
+  it("the response keeps its shape: 13 keys unfiltered, 14 with a filter, eight keys per coverage entry (#589)", async () => {
     const raw = async (salonId?: string) => {
       const res = await app.inject({
         method: "GET",
