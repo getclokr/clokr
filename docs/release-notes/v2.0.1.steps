@@ -1,0 +1,15 @@
+# Machine-readable twin of "Betrieb & Migration" in v2.0.1.md (Issue #709). The release notes and
+# scripts/release-rehearsal.sh walk THIS list, in this order; a change to the steps in the notes
+# changes this file in the same commit.
+#
+# Format:  phase | expected exit | id | kind | argument
+#   expected exit: one code or a comma list; audits exit 2 when they list findings, which is information, not a failure
+#   phase   pre = before the deploy (read-only), migrate = prisma migrate deploy, post = after it
+#   kind    sql = psql -c on the throwaway DB, script = `pnpm tsx scripts/<arg>` in the new api image,
+#           migrate = `prisma migrate deploy` as the image entrypoint runs it
+#
+# Deploy: v2.0.1 carries no migration; migrate deploy is a no-op and must still exit 0.
+migrate|0|migrate-deploy|migrate|
+# After the deploy (read-only, #1021): Zeitnachträge approved before the fix and never applied.
+# Ids, days and counts only; exit 2 lists findings, which is information, not a failure.
+post|0,2|audit-1021-approved-unapplied-retro|script|audit-1021-approved-unapplied-retro.ts
