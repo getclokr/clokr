@@ -376,8 +376,10 @@ export async function countLockedEntries(
 
 /**
  * T4 — every non-deleted `isInvalid: true` entry for `employeeId`, any type. Sole caller:
- * `dashboard.ts`'s open-items card (invalidEntriesCount). No date range and no `type` filter —
- * matches the pre-facade query exactly.
+ * `dashboard.ts`'s open-items card. The row count is `invalidEntries`; since Issue #1020 the rows
+ * also name each entry's calendar day (`date`, a `@db.Date`) and whether it is still open (no
+ * `endTime`), oldest day first. No date range and no `type` filter — the `where` matches the
+ * pre-facade query exactly, so the count never moves.
  */
 export async function getInvalidEntries(
   db: Prisma.TransactionClient,
@@ -386,7 +388,8 @@ export async function getInvalidEntries(
 ) {
   return db.timeEntry.findMany({
     where: { employeeId, employee: { tenantId }, deletedAt: null, isInvalid: true },
-    select: { id: true },
+    select: { id: true, date: true, startTime: true, endTime: true },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }, { id: "asc" }],
   });
 }
 
