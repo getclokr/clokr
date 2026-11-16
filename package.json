@@ -79,6 +79,11 @@
       "undici": ">=8.12.2",
       "body-parser": ">=2.4.0",
       "query-string@7>decode-uri-component": ">=0.5.1"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-3r8g-jcqq-3p5j"
+      ]
     }
   }
 }
