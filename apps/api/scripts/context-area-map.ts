@@ -291,6 +291,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/time-tracking/presence-pairing.ts": "zeiterfassung", // Issue #610 — issue/preview/confirm service of the one-time WLAN pairing code; writes PresencePairingCode/PresenceDevice
   "src/contexts/time-tracking/presence.ts": "zeiterfassung", // WiFi-presence detection helper feeding routes/presence.ts and the missing-entries gap detector
   "src/contexts/time-tracking/retro-config.ts": "zeiterfassung", // RetroEntryRequest tenant-config toggle
+  "src/contexts/time-tracking/retro-correction-apply.ts": "zeiterfassung", // Issue #1021 — applies an approved correction proposal in its approval transaction; writes TimeEntry/Break, flips RetroEntryRequest to USED
   "src/contexts/time-tracking/shift-reminders.ts": "zeiterfassung", // Issue #609 (D-04, D-17) — pure kernel of the shift reminders (instants, windows, start decision, dedupe keys, links); no model access, no clock read
   "src/contexts/time-tracking/shift-reminder-job.ts": "zeiterfassung", // Issue #609 (D-03, D-17) — the 5-minute shift reminder job; reads shifts, leave and absences through their facades, writes only notices
   "src/contexts/time-tracking/shift-reminder-dismiss.ts": "zeiterfassung", // Issue #609 review IN-03 — dismisses open start/end reminder notices after a successful clock-in/out; reactive, never fails the clock

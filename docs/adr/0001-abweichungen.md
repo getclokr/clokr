@@ -6819,6 +6819,58 @@ unverändert (Phase 376), sie liegt jetzt an einer Stelle und „Mein Tag“ lie
   `state-machine.test.ts` (5 neue Fälle der Grenze), Web `clock-state-959.test.ts`; die bestehenden Resolver-Tests
   (`resolver-overnight-shift.integration.test.ts` u. a.) sind unverändert grün.
 
+### Nachtrag 2026-11-16 (Issue #1021) — Freigegebener Korrekturvorschlag wird übernommen
+
+**Schwere:** keine Änderung am Unterbau, kein Schema, keine Migration; nur Zeiterfassung. Der Satz des #657-Nachtrags, ein
+freigegebener Korrekturvorschlag werde „von nichts im Produkt eingelöst“, gilt nur noch für Bestandszeilen.
+
+- **Vorher:** die Freigabe eines Korrekturvorschlags (`POST /retro-entry-requests`, keine gekoppelte Zeile) setzte nur den
+  Status `APPROVED` und wartete auf eine Einlösung als Freigabe (`grantId` an `POST`/`PUT /time-entries`), die kein Client
+  sendet. Die freigegebenen Zeiten erreichten die Buchung nie, der offene Eintrag blieb „Ausstempeln fehlt“ (28 Zeilen auf
+  prod, gemessen am 16.11.2026).
+- **Die Regel (eine Stelle):** `applyApprovedRetroRequestInTx()` (`contexts/time-tracking/retro-correction-apply.ts`, nicht
+  über `index.ts` exportiert) läuft in der Transaktion der Freigabe: Sperre der Mitarbeiterzeile zuerst, dann der
+  rennsichere Wechsel `PENDING → APPROVED`, dann die Übernahme mit den vorhandenen Bausteinen (Monatssperre,
+  Überschneidungsprüfung, Fahrzeit-Nachbarn, Tätigkeitsanteile, Audit mit alt/neu). Vier-Augen-Prinzip, Reichweitenprüfung
+  und der Ablehnungsweg sind unverändert. Vom Genehmigenden mitgesendete Zeiten (`startTime`, `endTime`, `breakMinutes`)
+  gelten, sonst die beantragten; sie machen das Audit zu `MANAGER_CORRECTION`.
+- **Drei Ausgänge** (`selectRetroApplyTarget()`, Kandidaten sind erfasste Arbeitszeilen; eine ausstehende Nachtragszeile
+  und eine Fahrzeit sind keine):
+  - genau eine erfasste Zeile am Tag → **korrigiert**: ihre Zeiten werden überschrieben (Quelle `CORRECTION`, ungültig
+    gelöscht, bei ausstehender Urlaubsstornierung `LEAVE_CANCELLATION_PENDING`); der Antrag endet **`USED`** mit
+    `RETRO_ENTRY_APPROVED_USED` — derselbe Endzustand wie eine eingelöste `PUT`-Freigabe. Die Zeile wird bewusst **nicht**
+    gekoppelt: `TimeEntry.retroRequestId` ist `@unique`, die Zeile kann schon an einen früheren Nachtrag gekoppelt sein
+    (Überschreiben machte jenen Antrag einlösbar, eine Umgehung des Vier-Augen-Prinzips), und jede gekoppelte Zeile ändert
+    die Zusammenführung der Stempeluhr (`retro_row`);
+  - keine erfasste Zeile → **angelegt** und an den Antrag gekoppelt (Salon über `resolveEntrySalon()`, bei fehlender
+    Pause die automatische Pause über `writeAutoBreakInTx()`); der Antrag bleibt `APPROVED` — derselbe Endzustand wie ein
+    freigegebener Nachtrag „Eintrag zuerst“;
+  - zwei oder mehr → **409 `RETRO_APPLY_AMBIGUOUS`**, der Antrag bleibt `PENDING`, nichts wird geraten (der Vorschlag
+    erhält keinen Eintragsbezug, kein Schema).
+    Beide Endzustände machen die Wache der Einlösung (`status APPROVED` und `timeEntry` leer) falsch: ein übernommener Antrag
+    ist nie ein zweites Mal einlösbar.
+- **Verweigerungen** (jede lässt den Antrag `PENDING` und schreibt nichts): abgeschlossener Monat 403, gesperrter Eintrag 403,
+  Überschneidung 409 (nach Reichweite formuliert), Fahrzeit-Nachbar 409, Tätigkeitsanteile 409, genehmigter Urlaub am Tag
+  409 (§ 8 BUrlG), laufende Pause 409 `RETRO_APPLY_BREAK_RUNNING`, Antrag ohne Zeiten 409 `RETRO_APPLY_NO_TIMES`, gelöschte
+  gekoppelte Zeile 409 `RETRO_APPLY_ROW_DELETED`, Ende mehr als 30 Minuten in der Zukunft 400, JArbSchG 400.
+- **Pausen:** `breakMinutes` folgt der Freigabe (sonst dem gespeicherten Wert); die Pausenzeilen bleiben, wenn jede im neuen
+  Zeitraum liegt und ihre Summe nicht größer ist, sonst werden sie ersetzt (Lage unbekannt) und `breakStatus` wird
+  `CONFIRMED`. Der Kern liest den ungelegten Rest als Hinweis `BREAK_POSITION_UNKNOWN`, nie als Verstoß: § 4 ArbZG bleibt im
+  Tagespausen-Kern, hier lebt keine Pausenregel. Das Audit der Zeile nennt die ersetzten Zeilen im alten Wert.
+- **Nach dem Commit (nie ein Fehler der Freigabe):** der gespeicherte Saldo wird aufgefrischt, die Antwort trägt die
+  ArbZG-Hinweise nach Reichweite (`warningsVisibleToCaller()`), die antragstellende Person erhält `RETRO_ENTRY_DECIDED`
+  („Zeitnachtrag genehmigt“, wie beim gekoppelten Weg).
+- **Bestand:** `scripts/audit-1021-approved-unapplied-retro.ts` listet nur lesend jede freigegebene, ungekoppelte,
+  ungelöschte Anfrage (Ids, Tage, Anzahlen, der heutige Ausgang). **Nichts wird rückwirkend übernommen** — das ist eine
+  Entscheidung des Inhabers. Solche Zeilen bleiben über die Einlösung als Freigabe nutzbar.
+- **Gemessen:** neue API-Testdatei `retro-apply-approved-1021` (16 Fälle: der prod-Fall, Anlage, mehrdeutig, Monatssperre,
+  Überschneidung, zwei gleichzeitige Freigaben, Sperrenrennen, Korrektur durch den Genehmigenden, Pausenübernahme, laufende
+  Pause, ohne Zeiten, gesperrter Eintrag, Urlaub, Zukunftsende, automatische Pause, Hinweise und Benachrichtigung) und
+  `scripts/__tests__/audit-1021-approved-unapplied-retro` (6). Sechs Fälle in `retro-approval-flow` setzen ihre
+  Freigabe jetzt direkt als `APPROVED`-Zeile (der Zustand vor #1021), ihre Aussagen zur Einlösung sind unverändert.
+  Die Neutralitätsmatrix (1680 Fälle) und die Empfängeraufzeichnung (21) sind unverändert grün, es wurde keine
+  Änderungsverkettung angehängt.
+
 ## AB — Fahrzeit zwischen Salons als eigener Zeiteintrag (Phase 92b, Issue #92)
 
 **Schwere: Neue Abhängigkeit auf den Unterbau (Fremdschlüssel `TimeEntry.travelToSalonId → Salon`), nach ADR 0002,
