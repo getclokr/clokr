@@ -342,7 +342,12 @@ Current: recalculated from hire date on every request (does not scale). Target a
   runs the `/reports/monthly` assembly through the exported helpers of `composition/reports.ts` (population #613,
   Stammsalon reach judged on a calendar day via `reach-day.ts` #679, `computeMonthReportFigures`,
   `computeEmployeeSummary`); a row and the KPIs are sums of those months, the months run strictly one after the
-  other, at most 12, none in the future (400). Opening = the previous month's `closingBalanceMinutes`, closing = the last
+  other, at most 12, none in the future (400). Since #985 an open month contributes the account's to-date figures
+  (`MonthReportFigures.toDate`; the running month through tenant-local yesterday) and the opening is the carry into the
+  first month — a closed first month's `MonthReportFigures.carryInMinutes` (stored `carryOver − balanceMinutes`, absent
+  for a track-only close by `isTrackOnlySchedule()`, which then keeps the previous month's `closingBalanceMinutes`), an
+  open one the previous month's `closingBalanceMinutes` — so Beginn + Σ Saldo Zeitraum = Ende (proof
+  `reports-period-identity-985`); `/reports/monthly` keeps the whole-month Soll. Closing = the last
   month's, which since #681/#682 equals the live saldo at the same Stichtag; the confirmed/open split of the closing is given
   only where it is exact (last month closed, or open right after a closed one), else `null`. Soll and saldo appear only where `overtime:read` covers the person in every shown month
   (`NO_PERMISSION` otherwise, Ist stays). **Under a salon filter the answer has ONE circle (Issue #714, owner decision

@@ -9,11 +9,12 @@
   // Issue #714: under a salon filter the strips show the whole sums of the persons by Stammsalon at
   // the period end, with the owner's hint; the hours worked in the salon are a separate strip with
   // no saldo beside it, so they never meet Soll.
+  // Issue #985 (D-01): a running-month answer names its Stichtag (Soll, Ist and saldo through yesterday).
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import type { PeriodKpis } from "$lib/reports/period-report";
-  import { fmtDateDe, fmtDaysDe, fmtHoursDe } from "$lib/reports/period-format";
+  import { fmtDateDe, fmtDaysDe, fmtHoursDe, runningMonthNote } from "$lib/reports/period-format";
   import {
     HOME_SALON_CHANGE_NOTE,
     PERSON_SALDO_BY_HOME_SALON_LABEL,
@@ -31,15 +32,26 @@
     withoutHomeSalonCount?: number | null;
     /** A request is in flight; without `kpis` this renders the skeleton. */
     loading: boolean;
+    /** The answer's `to` (`YYYY-MM`); names the running month's Stichtag (#985). Null: no note. */
+    periodTo?: string | null;
   }
 
-  let { kpis, filterActive, withoutHomeSalonCount = null, loading }: Props = $props();
+  let {
+    kpis,
+    filterActive,
+    withoutHomeSalonCount = null,
+    loading,
+    periodTo = null,
+  }: Props = $props();
 
   const DASH = "—";
   // A salon filter withholds nothing (#714): the only reason a figure is missing is the permission.
   const WITHHELD_REASON = "Keine Berechtigung";
 
   const showSkeleton = $derived(kpis === null && loading);
+  const runningNote = $derived(
+    kpis !== null && periodTo !== null ? runningMonthNote(periodTo, kpis.closingAsOf) : null,
+  );
 
   function hours(min: number | null, signed: boolean): string {
     return min === null ? DASH : fmtHoursDe(min, { signed });
@@ -144,6 +156,10 @@
     </div>
   {:else if kpis}
     <KpiStrip items={timeItems} ariaLabel="Zeiten und Konten im Zeitraum" />
+
+    {#if runningNote}
+      <p class="period-figure-note" data-testid="period-kpis-running-month">{runningNote}</p>
+    {/if}
 
     <p class="period-figure-note" data-testid="period-kpis-persons">
       {personsNote}{#if saldoNote}<br />{saldoNote}{/if}

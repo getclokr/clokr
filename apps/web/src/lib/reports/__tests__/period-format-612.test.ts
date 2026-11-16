@@ -1,7 +1,14 @@
 // Issue #612 (UI-SPEC "Number format", Pitfall 8) — German hours from minutes and days.
 
 import { describe, it, expect } from "vitest";
-import { fmtDateDe, fmtDateShortDe, fmtDaysDe, fmtHoursDe, monthNameDe } from "../period-format";
+import {
+  fmtDateDe,
+  fmtDateShortDe,
+  fmtDaysDe,
+  fmtHoursDe,
+  monthNameDe,
+  runningMonthNote,
+} from "../period-format";
 
 describe("fmtHoursDe", () => {
   it("formats minutes as H:MM", () => {
@@ -67,5 +74,33 @@ describe("dates and month names", () => {
   it("names a month", () => {
     expect(monthNameDe(2026, 7)).toBe("Juli 2026");
     expect(monthNameDe(2026, 3)).toBe("März 2026");
+  });
+});
+
+// Issue #985 (D-01): the period report counts the running month through yesterday, like the account.
+describe("runningMonthNote", () => {
+  it("names the Stichtag when the answer's last month is still running", () => {
+    expect(runningMonthNote("2026-11", "2026-11-14")).toBe(
+      "Laufender Monat bis gestern (14.11.): Soll, Ist und Saldo zählen bis zu diesem Tag.",
+    );
+  });
+
+  it("says nothing for a past month, which runs through its last day", () => {
+    expect(runningMonthNote("2026-10", "2026-10-31")).toBeNull();
+    expect(runningMonthNote("2026-02", "2026-02-28")).toBeNull();
+  });
+
+  it("on the 1st of the running month names the last day of the month before", () => {
+    expect(runningMonthNote("2026-11", "2026-10-31")).toBe(
+      "Laufender Monat bis gestern (31.10.): Soll, Ist und Saldo zählen bis zu diesem Tag.",
+    );
+  });
+
+  it("returns null for malformed input", () => {
+    expect(runningMonthNote("", "2026-11-14")).toBeNull();
+    expect(runningMonthNote("2026-13", "2026-11-14")).toBeNull();
+    expect(runningMonthNote("x", "2026-11-14")).toBeNull();
+    expect(runningMonthNote("2026-11", "")).toBeNull();
+    expect(runningMonthNote("2026-11", "x")).toBeNull();
   });
 });

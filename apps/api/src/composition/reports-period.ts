@@ -64,11 +64,18 @@ import {
  * those rows, never a second accumulation. A person is listed with the months whose population
  * contains them; the row and the KPIs are sums of those months.
  *
- * Opening saldo (P-01) = the Gesamtsaldo at the end of the month BEFORE `from`, the very figure the
- * Monatsexport of that month prints; closing saldo (P-02) = the Gesamtsaldo of the person's last
- * listed month (a closed month's stored carry-over, an open month's value through yesterday).
- * Issue #681 made an open month's series start at the account chain through the day before the
- * month, so with several unclosed months the closing equals the live saldo at the same Stichtag.
+ * Opening saldo (P-01, Issue #985 D-02) = the carry INTO the period's first month: where that month
+ * is closed under a contract that is not track-only, its stored carry-in (`carryInMinutes` =
+ * carryOver − balanceMinutes, decided by the account); otherwise - an open first month, or a closed
+ * track-only one (D-02b: a track-only close stores carryOver 0 next to the raw balance) - the
+ * Gesamtsaldo at the end of the month BEFORE `from`, the very figure the Monatsexport of that month
+ * prints. A person first listed after `from` keeps that rule too. Closing saldo (P-02) = the
+ * Gesamtsaldo of the person's last listed month (a closed month's stored carry-over, an open month's
+ * value through yesterday). Issue #681 made an open month's series start at the account chain
+ * through the day before the month, so with several unclosed months the closing equals the live
+ * saldo at the same Stichtag. Issue #985 (D-01): an open month contributes the account's to-date
+ * Soll, Ist and saldo (`toDate`, the same Stichtag as its Gesamtsaldo), so Beginn + Σ Saldo Zeitraum =
+ * Ende; `/reports/monthly` keeps the whole-month Soll (P-03 of #451).
  *
  * Soll follows the saldo gate (P-04): Soll and Ist together reveal the month saldo, so where
  * `overtime:read` does not cover a person in every listed month, Soll, saldo, opening and closing
@@ -765,16 +772,32 @@ async function assemblePeriodReport(
     tenantId,
     figureSlots.map((slot) => slot.request),
   );
+  // Issue #985 (D-02): the account's carry INTO the period's first month, per person, where that
+  // month is closed under a contract that is not track-only (`carryInMinutes`; D-02b leaves the key
+  // out for a track-only close). Read from the figures already loaded - no query, no arithmetic on
+  // snapshot fields and no track-only decision in this layer.
+  const firstMonthCarryIn = new Map<string, number>();
   for (const { entry, request } of figureSlots) {
     const figures = monthFigures.get(
       monthReportFiguresKey(request.employeeId, request.year, request.month),
     )!;
-    entry.workedMinutes = figures.workedMinutes;
-    entry.expectedMinutes = figures.expectedMinutes;
-    entry.balanceMinutes = figures.balanceMinutes;
+    // Issue #985 (D-01): the period report is an account view - an open month counts through the
+    // same Stichtag as its Gesamtsaldo (`toDate`, tenant-local yesterday in the running month), so
+    // Beginn + Σ Saldo Zeitraum = Ende. `/reports/monthly` keeps the whole-month Soll (P-03 of #451).
+    const triple = figures.toDate ?? figures;
+    entry.workedMinutes = triple.workedMinutes;
+    entry.expectedMinutes = triple.expectedMinutes;
+    entry.balanceMinutes = triple.balanceMinutes;
     entry.closingBalanceMinutes = figures.closingBalanceMinutes;
     entry.confirmed = figures.confirmed;
     entry.labelled = figures.labelled;
+    if (
+      figures.carryInMinutes !== undefined &&
+      request.year === months[0].year &&
+      request.month === months[0].month
+    ) {
+      firstMonthCarryIn.set(request.employeeId, figures.carryInMinutes);
+    }
   }
 
   // Issue #714 (D-05, G5): the persons of the caller's period population whose Stammsalon at their
@@ -831,15 +854,23 @@ async function assemblePeriodReport(
     tz,
   ).end;
 
-  // P-01 (Issue #688): the month before `from` of every row that shows saldo values, in ONE call; a
-  // closed month answers its stored carry-over.
+  // Issue #985 (D-02): a covered person whose first listed month is the period's first month and
+  // closed (not track-only) opens with the stored carry INTO that month.
+  const storedOpening = (person: PersonAccumulator): number | undefined =>
+    person.covered &&
+    person.months[0]?.year === months[0].year &&
+    person.months[0]?.month === months[0].month
+      ? firstMonthCarryIn.get(person.employeeId)
+      : undefined;
+  // P-01 (Issue #688): the month before `from` of every other row that shows saldo values, in ONE
+  // call; a closed month answers its stored carry-over.
   const openingFor = (person: PersonAccumulator): boolean =>
     person.covered && isEmployedInPeriod(person, beforeRange.start, beforeRange.end);
   const beforeFiguresByKey = await computeMonthReportFiguresForMany(
     app,
     tenantId,
     ordered
-      .filter(openingFor)
+      .filter((p) => openingFor(p) && storedOpening(p) === undefined)
       .map((p) => ({ employeeId: p.employeeId, year: before.year, month: before.month })),
   );
 
@@ -853,7 +884,12 @@ async function assemblePeriodReport(
       : undefined;
     let opening: number | null = null;
     let beforeFigures: MonthReportFigures | null = null;
-    if (openingFor(person)) {
+    const stored = storedOpening(person);
+    if (stored !== undefined) {
+      // Issue #985 (D-02): `beforeFigures` stays null - `closingSplit` reads it only for a single
+      // listed month that is open, while this person's first month is closed.
+      opening = stored;
+    } else if (openingFor(person)) {
       beforeFigures = beforeFiguresByKey.get(
         monthReportFiguresKey(person.employeeId, before.year, before.month),
       )!;

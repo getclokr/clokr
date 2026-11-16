@@ -167,9 +167,11 @@ Ansicht öffnet.
   Monate** auf einmal; der Standard ist der laufende Monat.
 - **Kennzahlen:** Ist, Soll, Saldo im Zeitraum und Gesamtsaldo am Ende, dazu Urlaub genommen, genehmigt und Anspruch
   sowie Krankheitstage. Jede Zahl ist die Summe der Monatszahlen des Arbeitszeitkontos; die Seite rechnet nichts neu.
+  Der laufende Monat zählt Soll, Ist und Saldo bis gestern, wie das Arbeitszeitkonto; die Seite nennt diesen Stichtag.
   Soll und Saldo erscheinen nur für Personen, die die Berechtigung „Salden im zugewiesenen Bereich lesen“ abdeckt;
   sonst steht dort „Keine Berechtigung“ und das Ist bleibt sichtbar.
-- **Zeiten & Konten:** eine Zeile je Person mit Soll, Ist, Saldo Beginn, Saldo im Zeitraum, Saldo Ende und Status. Der
+- **Zeiten & Konten:** eine Zeile je Person mit Soll, Ist, Saldo Beginn, Saldo im Zeitraum, Saldo Ende und Status. Saldo
+  Beginn ist der Übertrag in den ersten Monat des Zeitraums; Saldo Beginn plus Saldo im Zeitraum ergibt Saldo Ende. Der
   Status ist „Bestätigt“, wenn jeder Monat abgeschlossen ist, sonst „Prognose“ mit „k von m Monaten bestätigt“ (der
   bestätigte Nachweis bleibt erkennbar). Die Tabelle lässt sich sortieren und durchsuchen; darunter steht der
   Teammedian der Endsalden, Personen ohne Saldo, nur mit Zeiterfassung oder ohne Erfassung stehen mit Grund daneben.
