@@ -70,6 +70,7 @@
     listOwnMonthCorrections,
     MONTH_CORRECTION_STATUS_LABEL,
     type MonthCorrection,
+    MONTH_CORRECTION_REQUESTS_OPEN,
   } from "$lib/me/month-corrections";
   import PageHeader from "$components/ui/PageHeader.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
@@ -1210,7 +1211,8 @@
     if (!sheetDay || isExempt || sheetDay.isBeforeHire) return { label: null, enabled: false };
     if (sheetLocked)
       // Issue #599: one open request per day; a decided one may be followed by a new request.
-      return sheetRequest?.status === "PENDING"
+      // Issue #1013: no new request until the decision exists in Aufgaben.
+      return !MONTH_CORRECTION_REQUESTS_OPEN || sheetRequest?.status === "PENDING"
         ? { label: null, enabled: false }
         : { label: "Korrektur anfragen", enabled: true };
     if (sheetDay.isFuture) return { label: null, enabled: false };
@@ -2510,7 +2512,12 @@
           {/if}
           {#if sheetLocked}
             <p class="te-dpanel-note">
-              Dieser Monat ist abgeschlossen. Eine Änderung geht nur noch über eine Korrektur.
+              {#if MONTH_CORRECTION_REQUESTS_OPEN}
+                Dieser Monat ist abgeschlossen. Eine Änderung geht nur noch über eine Korrektur.
+              {:else}
+                Dieser Monat ist abgeschlossen. Wenn hier etwas nicht stimmt, sprich deine
+                Salonleitung an.
+              {/if}
             </p>
             {#if sheetRequestStatus}
               <p class="te-dpanel-note">
