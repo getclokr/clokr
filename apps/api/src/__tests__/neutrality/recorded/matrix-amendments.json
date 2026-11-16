@@ -14080,6 +14080,138 @@
           "tenant.shiftTemplate"
         ]
       }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 3
+        }
+      },
+      "issue": 1020,
+      "key": "ADMIN | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 3
+        }
+      }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      },
+      "issue": 1020,
+      "key": "EMPLOYEE | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      },
+      "issue": 1020,
+      "key": "FALLBACK_ADMIN | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      },
+      "issue": 1020,
+      "key": "FALLBACK_EMPLOYEE | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      },
+      "issue": 1020,
+      "key": "FALLBACK_MANAGER | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 0
+        }
+      }
+    },
+    {
+      "date": "2026-11-16",
+      "from": {
+        "status": 200,
+        "ids": [],
+        "projections": {
+          "pendingApprovalsCount": 3
+        }
+      },
+      "issue": 1020,
+      "key": "MANAGER | GET /api/v1/dashboard/open-items | none",
+      "reason": "Issue #1020: GET /dashboard/open-items nennt zusätzlich je eigenem fehlerhaften Eintrag Tag, Eintrags-ID und offen/geschlossen (invalidEntryDays); die Antwort enthält dadurch die ID des eigenen Eintrags.",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.timeEntry.invalid"
+        ],
+        "projections": {
+          "pendingApprovalsCount": 3
+        }
+      }
     }
   ]
 }

@@ -1917,6 +1917,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const missingDaysInMonth: string[] = [];
       let pendingRequestsCount = 0;
       let invalidEntriesCount = 0;
+      // Issue #1020: additive and built from the SAME rows as the count, so its length always
+      // equals `invalidEntries`; the web caps and words the rows.
+      const invalidEntryDays: { date: string; entryId: string; open: boolean }[] = [];
       let unconfirmedBreakDays: string[] = [];
 
       if (employeeId) {
@@ -2056,6 +2059,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
         // 3. Invalidated time entries — leave signal also applies for exempt employees
         const invalidEntries = await getInvalidEntries(app.prisma, employeeId, tenantId);
         invalidEntriesCount = invalidEntries.length;
+        for (const e of invalidEntries) {
+          // `TimeEntry.date` is a @db.Date: its own calendar day is the UTC date part (Issue
+          // #493), the same reading composition/tasks-open.ts uses for the Aufgaben row.
+          invalidEntryDays.push({
+            date: dateStrInTz(e.date, "UTC"),
+            entryId: e.id,
+            open: e.endTime === null,
+          });
+        }
 
         // 3b. Unbestätigte Pflichtpausen (§ 4 ArbZG, BREAK-05) — Phase 126, GitHub issue #126.
         //
@@ -2119,6 +2131,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         missingDaysInMonth,
         pendingRequests: pendingRequestsCount,
         invalidEntries: invalidEntriesCount,
+        invalidEntryDays,
         pendingApprovals: pendingApprovalsCount,
         unconfirmedBreakDays,
         total,
