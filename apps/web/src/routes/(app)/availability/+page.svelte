@@ -86,11 +86,12 @@
 
   // Issue #597 (Phase 851, prototype): „Nächste 14 Tage“ first; the own availability is the second
   // tab, offered only while the tenant uses the availability system.
+  // Issue #1017: the tab appears only once the tenant flag is actually read — the store starts
+  // optimistic (fail-open) and would flash the tab for a tenant that switched availability off.
+  const availabilityOn = $derived($tenantFeatures.loaded && $tenantFeatures.availabilityEnabled);
   const TABS = $derived([
     { value: "plan", label: "Nächste 14 Tage" },
-    ...($tenantFeatures.availabilityEnabled
-      ? [{ value: "verfuegbarkeit", label: "Meine Verfügbarkeit" }]
-      : []),
+    ...(availabilityOn ? [{ value: "verfuegbarkeit", label: "Meine Verfügbarkeit" }] : []),
   ]);
   let availabilityView = $state<"recurring" | "oneoff">("recurring");
 
@@ -181,7 +182,18 @@
     }
   }
 
-  onMount(load);
+  // Issue #1017: the own availability is read only while the tenant uses the system; with it off
+  // the API refuses the read and the page used to show that refusal as an error toast.
+  let availabilityRequested = false;
+  $effect(() => {
+    if (availabilityOn && !availabilityRequested) {
+      availabilityRequested = true;
+      void load();
+    }
+  });
+  $effect(() => {
+    if ($tenantFeatures.loaded && !availabilityOn && view === "verfuegbarkeit") view = "plan";
+  });
 
   // Issue #597 (prototype): „Kalender abonnieren“ in the head. Offered only while the API serves
   // the own feed (null = route absent, no person or no own read right); a failed read hides it.
