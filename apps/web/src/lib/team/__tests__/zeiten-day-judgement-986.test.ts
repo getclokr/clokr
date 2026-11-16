@@ -143,3 +143,21 @@ describe("teamDayRows with the account's Ist (Issue #986)", () => {
     expect(rows[0].diff).toEqual({ label: "±0:00", tone: "neutral" });
   });
 });
+
+// Issue #986 meets #987: „no readable Soll → no Soll status“ must not hide a day the server names
+// missing (`resolveDayStatus`, no Soll judgement). The page lays the server's set over the judged
+// days, so the server mark is applied last.
+describe("server-named missing days survive an unread Soll (Issue #986 + #987)", () => {
+  it("applies the server's missing set after the per-day judgement", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const page = readFileSync(
+      resolve(__dirname, "../../../routes/(app)/team/time-entries/+page.svelte"),
+      "utf8",
+    );
+    expect(page).toMatch(/calendarDays = applyServerMissing\(\s*buildCalendarDays\(/);
+    const fn = page.slice(page.indexOf("function applyServerMissing("));
+    expect(fn.slice(0, 600)).toContain("missing.has(d.dateStr)");
+    expect(fn.slice(0, 600)).toContain('status: "missing"');
+  });
+});
