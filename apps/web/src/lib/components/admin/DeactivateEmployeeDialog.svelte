@@ -168,7 +168,7 @@
   }
 </script>
 
-<Dialog bind:open eyebrow="Mitarbeiter deaktivieren" title="Letzter Arbeitstag festlegen">
+<Dialog bind:open eyebrow="Austritt eintragen" title="Letzter Arbeitstag festlegen">
   <div class="dx-body">
     {#if errorText}
       <div role="alert"><Note tone="bad">{errorText}</Note></div>
@@ -289,7 +289,7 @@
       Abbrechen
     </button>
     <button type="button" class="btn btn-danger" disabled={!canConfirm} onclick={deactivate}>
-      Deaktivieren
+      {loginOnly ? "Zugang sperren" : "Austritt eintragen"}
     </button>
   {/snippet}
 </Dialog>

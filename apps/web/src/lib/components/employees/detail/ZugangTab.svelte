@@ -3,8 +3,13 @@
   „Berechtigungen“ and „Gefahrenzone“ tabs in one place, in three groups.
 
     Rollen                                    the person's role assignments (role-assignment:manage)
-    Anmeldung                                 account facts and the login actions (employee:manage-access)
-    Beschäftigung beenden und Daten löschen   anonymise and hard delete (employee:anonymize)
+    Anmeldung und Austritt                    account facts, exit entry, reactivation (employee:manage-access)
+    Daten anonymisieren und löschen           anonymise and hard delete (employee:anonymize), set apart
+
+  Issue #990: the former „Zugang deaktivieren“ ends the employment (#615), so it is named after
+  its effect („Austritt eintragen“). Hard delete is offered only for a person that is already
+  anonymised (the server's own precondition, `firstName === "Gelöscht"`); every other refusal
+  (retention, § 16 ArbZG floor) stays the server's answer. Anonymising asks for the person's name.
 
   Every action keeps its endpoint and its server text on refusal: roles go through the shared
   PersonRoleAssignments block (Issue #580), resend / deactivate (last working day with a preview,
@@ -29,6 +34,8 @@
   import { toasts } from "$stores/toast";
   import Chip from "$components/ui/Chip.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
+  import Dialog from "$components/ui/Dialog.svelte";
+  import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import DeactivateEmployeeDialog from "$lib/components/admin/DeactivateEmployeeDialog.svelte";
@@ -73,6 +80,8 @@
 
   const uid = $props.id();
   const personName = $derived(`${employee.firstName} ${employee.lastName}`.trim() || "Person");
+  // The server refuses a hard delete unless the person was anonymised first (same marker it checks).
+  const isAnonymized = $derived(employee.firstName === "Gelöscht");
 
   // ── Account facts (refreshed after a role change, a deactivation or a reactivation) ────────
   let account = $state<AccountUser | null>(untrack(() => employee.user ?? null));
@@ -196,11 +205,17 @@
 
   async function onDeactivated() {
     await refreshAccount();
-    toasts.success("Zugang deaktiviert.");
+    toasts.success("Austritt eingetragen.");
   }
 
   // ── Anonymise / hard delete (employee:anonymize) ────────────────────────────────────────────
   let anonymizeOpen = $state(false);
+  let anonymizeConfirmText = $state("");
+  let anonymizing = $state(false);
+  const anonymizeNameMatches = $derived(
+    anonymizeConfirmText.trim().toLowerCase() === personName.trim().toLowerCase() &&
+      anonymizeConfirmText.trim() !== "",
+  );
   let hardDeleteOpen = $state(false);
   let hardDeleteForce = $state(false);
   let hardDeleteRetentionExpiresAt = $state<string | null>(null);
@@ -209,13 +224,23 @@
   // The two handlers run inside ConfirmDialog: a refusal toasts the server's own text and is
   // rethrown, so the dialog swallows it and stays open.
   async function anonymize() {
+    if (!anonymizeNameMatches || anonymizing) return;
+    anonymizing = true;
     try {
       await api.delete(`/employees/${employee.id}`);
     } catch (err) {
       toasts.error(err instanceof Error ? err.message : "Anonymisieren fehlgeschlagen.");
-      throw err;
+      anonymizing = false;
+      return;
     }
+    anonymizing = false;
+    anonymizeOpen = false;
     onRemoved();
+  }
+
+  function openAnonymize() {
+    anonymizeConfirmText = "";
+    anonymizeOpen = true;
   }
 
   async function hardDelete() {
@@ -282,10 +307,11 @@
   </section>
 
   <section class="settings-group" aria-labelledby="{uid}-login">
-    <h2 class="settings-group-title" id="{uid}-login">Anmeldung</h2>
+    <h2 class="settings-group-title" id="{uid}-login">Anmeldung und Austritt</h2>
     <p class="settings-group-desc">
-      Benutzerkonto der Person. Die Anmeldung ist unabhängig vom Austrittsdatum und wird hier
-      gesondert gesperrt.
+      Benutzerkonto der Person. Mit dem Austritt endet die Beschäftigung: Die Anmeldung wird
+      gesperrt, Abwesenheiten nach dem letzten Arbeitstag werden storniert oder gekürzt, die
+      Zeitdaten bleiben erhalten.
     </p>
     {#if account}
       <dl class="zugang-facts">
@@ -324,7 +350,7 @@
               data-testid="zugang-deactivate"
               onclick={() => (deactivateOpen = true)}
             >
-              Zugang deaktivieren
+              Austritt eintragen
             </button>
           {:else}
             <button
@@ -345,16 +371,15 @@
 
   {#if rights.canAnonymize}
     <section class="settings-group zugang-danger" aria-labelledby="{uid}-danger">
-      <h2 class="settings-group-title" id="{uid}-danger">
-        Beschäftigung beenden und Daten löschen
-      </h2>
+      <h2 class="settings-group-title" id="{uid}-danger">Daten anonymisieren und löschen</h2>
       <p class="settings-group-desc">
         Diese Schritte lassen sich nicht rückgängig machen. Zuerst anonymisierst du die Person,
-        endgültig löschen kannst du den Datensatz erst nach Ablauf der Aufbewahrungsfrist.
+        endgültig löschen kannst du den Datensatz erst danach und nach Ablauf der
+        Aufbewahrungsfrist.
       </p>
 
       <div class="zugang-block">
-        <h3 class="zugang-block-title">Anonymisieren (DSGVO Art. 17)</h3>
+        <h3 class="zugang-block-title">Person anonymisieren (DSGVO Art. 17)</h3>
         <p class="zugang-block-text">
           Persönliche Daten werden anonymisiert (Name → „Gelöscht / GELÖSCHT-Personalnummer“, E-Mail
           anonymisiert). Die Personalnummer bleibt für die Lohnunterlagen erhalten (§ 41 EStG, § 147
@@ -368,44 +393,52 @@
             type="button"
             class="btn btn-secondary btn-danger"
             data-testid="zugang-anonymize"
-            onclick={() => (anonymizeOpen = true)}
+            onclick={openAnonymize}
           >
-            Anonymisieren
+            Person anonymisieren
           </button>
         </div>
       </div>
 
       <div class="zugang-block">
         <h3 class="zugang-block-title">Endgültig löschen</h3>
-        <p class="zugang-block-text">
-          Datensatz permanent entfernen. Nur möglich nach Anonymisierung und Ablauf der gesetzlichen
-          Aufbewahrungsfrist (§ 147 AO, 10 Jahre).
-        </p>
-        {#if hardDeleteError}
-          <div role="alert"><Note tone="bad">{hardDeleteError}</Note></div>
+        {#if !isAnonymized}
+          <p class="zugang-block-text" data-testid="zugang-hard-delete-unavailable">
+            Noch nicht möglich: Der Datensatz kann erst endgültig gelöscht werden, nachdem die
+            Person anonymisiert wurde und die gesetzliche Aufbewahrungsfrist (§ 147 AO, 10 Jahre)
+            abgelaufen ist.
+          </p>
+        {:else}
+          <p class="zugang-block-text">
+            Datensatz permanent entfernen. Möglich nach Ablauf der gesetzlichen Aufbewahrungsfrist
+            (§ 147 AO, 10 Jahre).
+          </p>
+          {#if hardDeleteError}
+            <div role="alert"><Note tone="bad">{hardDeleteError}</Note></div>
+          {/if}
+          {#if retentionDay}
+            <Note tone="warn">
+              Aufbewahrungsfrist noch nicht abgelaufen. Die gesetzliche Aufbewahrungsfrist (§ 147
+              AO, 10 Jahre) läuft ab am {retentionDay}.
+            </Note>
+            <ToggleField
+              bind:checked={hardDeleteForce}
+              label="Ich kenne die Aufbewahrungsfrist und will den Datensatz trotzdem unwiderruflich löschen (z. B. Testdaten)."
+              help="Diese Aktion wird im Audit-Log protokolliert."
+            />
+          {/if}
+          <div>
+            <button
+              type="button"
+              class="btn btn-secondary btn-danger"
+              data-testid="zugang-hard-delete"
+              onclick={() => (hardDeleteOpen = true)}
+              disabled={hardDeleteRetentionExpiresAt !== null && !hardDeleteForce}
+            >
+              Endgültig löschen
+            </button>
+          </div>
         {/if}
-        {#if retentionDay}
-          <Note tone="warn">
-            Aufbewahrungsfrist noch nicht abgelaufen. Die gesetzliche Aufbewahrungsfrist (§ 147 AO,
-            10 Jahre) läuft ab am {retentionDay}.
-          </Note>
-          <ToggleField
-            bind:checked={hardDeleteForce}
-            label="Ich kenne die Aufbewahrungsfrist und will den Datensatz trotzdem unwiderruflich löschen (z. B. Testdaten)."
-            help="Diese Aktion wird im Audit-Log protokolliert."
-          />
-        {/if}
-        <div>
-          <button
-            type="button"
-            class="btn btn-secondary btn-danger"
-            data-testid="zugang-hard-delete"
-            onclick={() => (hardDeleteOpen = true)}
-            disabled={hardDeleteRetentionExpiresAt !== null && !hardDeleteForce}
-          >
-            Endgültig löschen
-          </button>
-        </div>
       </div>
     </section>
   {/if}
@@ -424,14 +457,48 @@
 {/if}
 
 {#if rights.canAnonymize}
-  <ConfirmDialog
-    bind:open={anonymizeOpen}
-    title="Mitarbeiter anonymisieren?"
-    description="Möchtest du diese Person wirklich anonymisieren? Persönliche Daten (Name, E-Mail, Notizen) werden gemäß DSGVO gelöscht; die Personalnummer bleibt erhalten. Ein leeres Austrittsdatum wird auf heute gesetzt, Abwesenheiten nach dem Austritt werden storniert. Zeiteinträge, Urlaubsanträge und Salden bleiben erhalten."
-    confirmLabel="Anonymisieren"
-    danger
-    onConfirm={anonymize}
-  />
+  <Dialog bind:open={anonymizeOpen} title="Person anonymisieren?">
+    <div class="zugang-anon">
+      <p class="zugang-anon-text">
+        Persönliche Daten (Name, E-Mail, Notizen) werden gemäß DSGVO unwiderruflich entfernt; die
+        Personalnummer bleibt erhalten. Ein leeres Austrittsdatum wird auf heute gesetzt,
+        Abwesenheiten nach dem Austritt werden storniert. Zeiteinträge, Urlaubsanträge und Salden
+        bleiben erhalten.
+      </p>
+      <FormField label={`Tippe zur Bestätigung den Namen ein: ${personName}`}>
+        {#snippet field({ id, describedBy })}
+          <input
+            {id}
+            class="form-input"
+            type="text"
+            autocomplete="off"
+            aria-describedby={describedBy}
+            data-testid="zugang-anonymize-name"
+            bind:value={anonymizeConfirmText}
+          />
+        {/snippet}
+      </FormField>
+    </div>
+    {#snippet footer()}
+      <button
+        type="button"
+        class="btn btn-ghost"
+        disabled={anonymizing}
+        onclick={() => (anonymizeOpen = false)}
+      >
+        Abbrechen
+      </button>
+      <button
+        type="button"
+        class="btn btn-danger"
+        data-testid="zugang-anonymize-confirm"
+        disabled={!anonymizeNameMatches || anonymizing}
+        onclick={anonymize}
+      >
+        Person anonymisieren
+      </button>
+    {/snippet}
+  </Dialog>
 
   <ConfirmDialog
     bind:open={hardDeleteOpen}
@@ -444,6 +511,26 @@
 {/if}
 
 <style>
+  .zugang-danger {
+    margin-top: var(--s-8, 2.5rem);
+    padding: var(--s-5, 1.25rem);
+    border: 1px solid var(--bad, var(--line));
+    border-radius: var(--r-control);
+  }
+
+  .zugang-anon {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
+  }
+
+  .zugang-anon-text {
+    margin: 0;
+    font-size: var(--fs-sm);
+    line-height: 1.55;
+    color: var(--text);
+  }
+
   .zugang-facts {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
