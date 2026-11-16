@@ -1520,10 +1520,16 @@
       class:sp-staff--closed={closed}
       title={staffingTooltip(c)}
     >
-      <span class="sp-staff-bar" aria-hidden="true">
-        <span class="sp-staff-fill" style:width="{staffFillPct(c)}%"></span>
-      </span>
-      <span class="sp-staff-num" data-testid="staffing-figure">{staffingFigure(c)}</span>
+      <!-- Issue #589 (owner 16.11.2026): a closed day shows no staffing figure at all, so no
+           grey "0 / 2" suggests a shortfall; its cells already read „geschlossen“. -->
+      {#if closed}
+        <span class="sr-only">geschlossen</span>
+      {:else}
+        <span class="sp-staff-bar" aria-hidden="true">
+          <span class="sp-staff-fill" style:width="{staffFillPct(c)}%"></span>
+        </span>
+        <span class="sp-staff-num" data-testid="staffing-figure">{staffingFigure(c)}</span>
+      {/if}
       {#if !closed && c.coverageStatus === "supervision-missing"}
         <span class="sp-coverage-note">{staffingStatusText(c.coverageStatus)}</span>
       {:else if !closed}
@@ -2523,10 +2529,6 @@
     font-size: 0.9375rem;
     color: var(--text-2);
     line-height: 1.5;
-  }
-  .sp-empty-sub a {
-    color: var(--brand);
-    text-decoration: underline;
   }
   /* ── Issue #923: the week grid on v2 ─────────────────────────────────────────── */
   .week-surface {
