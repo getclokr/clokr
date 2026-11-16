@@ -167,8 +167,20 @@ function answer(path: string): Promise<unknown> {
     return Promise.resolve({
       salonId: null,
       workedBasis: "ACCOUNT",
+      // Issue #986: the recorded time and the account's to-date figures of the KPI.
+      recordedBasis: "ALL_ENTRIES",
       sollUnavailableReason: null,
-      months: [{ month: "2026-11", workedMinutes: 296 * 60, shouldMinutes: 312 * 60, sickDays: 0 }],
+      months: [
+        {
+          month: "2026-11",
+          workedMinutes: 296 * 60,
+          shouldMinutes: 312 * 60,
+          recordedMinutes: 296 * 60,
+          toDateWorkedMinutes: 296 * 60,
+          toDateShouldMinutes: 312 * 60,
+          sickDays: 0,
+        },
+      ],
     });
   }
   if (path.startsWith("/dashboard/team-upcoming-leave")) return Promise.resolve({ items: [] });

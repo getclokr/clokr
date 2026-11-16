@@ -93,10 +93,27 @@ function response(overrides: Partial<TeamTrendResponse> = {}): TeamTrendResponse
   return {
     salonId: null,
     workedBasis: "ACCOUNT",
+    recordedBasis: "ALL_ENTRIES",
     sollUnavailableReason: null,
     months: [
-      { month: "2026-05", workedMinutes: 125, shouldMinutes: 180, sickDays: 1 },
-      { month: "2026-06", workedMinutes: 600, shouldMinutes: 600, sickDays: 0.5 },
+      {
+        month: "2026-05",
+        workedMinutes: 125,
+        shouldMinutes: 180,
+        sickDays: 1,
+        recordedMinutes: 0,
+        toDateWorkedMinutes: null,
+        toDateShouldMinutes: null,
+      },
+      {
+        month: "2026-06",
+        workedMinutes: 600,
+        shouldMinutes: 600,
+        sickDays: 0.5,
+        recordedMinutes: 0,
+        toDateWorkedMinutes: null,
+        toDateShouldMinutes: null,
+      },
     ],
     ...overrides,
   };
@@ -122,7 +139,17 @@ describe("teamTrendView — driven by the response codes, never by a display str
         salonId: A.id,
         workedBasis: "SALON_ENTRIES",
         sollUnavailableReason: "SALON_FILTER",
-        months: [{ month: "2026-05", workedMinutes: 90, shouldMinutes: null, sickDays: 2 }],
+        months: [
+          {
+            month: "2026-05",
+            workedMinutes: 90,
+            shouldMinutes: null,
+            sickDays: 2,
+            recordedMinutes: 0,
+            toDateWorkedMinutes: null,
+            toDateShouldMinutes: null,
+          },
+        ],
       }),
     );
     expect(view.shouldHours).toBeNull();
@@ -137,7 +164,17 @@ describe("teamTrendView — driven by the response codes, never by a display str
     const view = teamTrendView(
       response({
         sollUnavailableReason: "NO_PERMISSION",
-        months: [{ month: "2026-05", workedMinutes: 60, shouldMinutes: null, sickDays: 0 }],
+        months: [
+          {
+            month: "2026-05",
+            workedMinutes: 60,
+            shouldMinutes: null,
+            sickDays: 0,
+            recordedMinutes: 0,
+            toDateWorkedMinutes: null,
+            toDateShouldMinutes: null,
+          },
+        ],
       }),
     );
     expect(view.shouldHours).toBeNull();
@@ -150,8 +187,24 @@ describe("teamTrendView — driven by the response codes, never by a display str
     const view = teamTrendView(
       response({
         months: [
-          { month: "2026-05", workedMinutes: 60, shouldMinutes: 60, sickDays: 0 },
-          { month: "2026-06", workedMinutes: 60, shouldMinutes: null, sickDays: 0 },
+          {
+            month: "2026-05",
+            workedMinutes: 60,
+            shouldMinutes: 60,
+            sickDays: 0,
+            recordedMinutes: 0,
+            toDateWorkedMinutes: null,
+            toDateShouldMinutes: null,
+          },
+          {
+            month: "2026-06",
+            workedMinutes: 60,
+            shouldMinutes: null,
+            sickDays: 0,
+            recordedMinutes: 0,
+            toDateWorkedMinutes: null,
+            toDateShouldMinutes: null,
+          },
         ],
       }),
     );
@@ -166,7 +219,17 @@ describe("teamTrendView — SCOPE_ENTRIES (Issue #85 D-06)", () => {
       response({
         workedBasis: "SCOPE_ENTRIES",
         sollUnavailableReason: reason,
-        months: [{ month: "2026-05", workedMinutes: 90, shouldMinutes: null, sickDays: 2 }],
+        months: [
+          {
+            month: "2026-05",
+            workedMinutes: 90,
+            shouldMinutes: null,
+            sickDays: 2,
+            recordedMinutes: 0,
+            toDateWorkedMinutes: null,
+            toDateShouldMinutes: null,
+          },
+        ],
       }),
     );
 

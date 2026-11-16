@@ -21,6 +21,7 @@ import {
   monthRangeUtc,
   monthDayBounds,
   todayInTz,
+  addDaysUtc, // Issue #986 — the status window ends at yesterday
 } from "../timezone"; // Phase 91b Plan 05 (#91), D-10
 import {
   holidaysAtWorkLocation, // Phase 71b (issue #71) — work-location resolution
@@ -123,15 +124,23 @@ const EXCLUDE_EXEMPT_EMPLOYEE_FILTER = { isTimeTrackingExempt: false } as const;
  * Nothing but the parity cases in `month-close-status-population-613.test.ts` binds the two
  * spellings (status `missingDates` equal the writer's `gapDates`), so a change on either side turns
  * that describe red.
+ *
+ * Issue #986: the window never ends after the tenant-local `yesterday`. A day that has not
+ * happened yet (today included, it is still running) can never be a missing record, so in the
+ * running month the gap check stops at yesterday. For a month that has already ended
+ * `yesterday >= monthLastDay`, so the writer parity above is untouched. A window that would end
+ * before it starts (hired after yesterday, or a month that has not begun) is `null`.
  */
 function statusEmploymentWindow(args: {
   hireDate: Date;
   exitDate: Date | null;
   monthFirstDay: Date;
   monthLastDay: Date;
+  /** Tenant-local yesterday as a UTC-midnight date (`addDaysUtc(todayInTz(tz), -1)`). */
+  yesterday: Date;
   tz: string;
 }): { effectiveStart: Date; effectiveEnd: Date } | null {
-  const { hireDate, exitDate, monthFirstDay, monthLastDay, tz } = args;
+  const { hireDate, exitDate, monthFirstDay, monthLastDay, yesterday, tz } = args;
   const hireDateNorm = new Date(dateStrInTz(hireDate, tz) + "T00:00:00Z");
   const effectiveStart = hireDateNorm > monthFirstDay ? hireDateNorm : monthFirstDay;
   let effectiveEnd = monthLastDay;
@@ -140,6 +149,8 @@ function statusEmploymentWindow(args: {
     if (exitDateNorm < monthFirstDay) return null;
     if (exitDateNorm < monthLastDay) effectiveEnd = exitDateNorm;
   }
+  if (yesterday < effectiveEnd) effectiveEnd = yesterday;
+  if (effectiveEnd < effectiveStart) return null;
   return { effectiveStart, effectiveEnd };
 }
 
@@ -870,6 +881,7 @@ export async function overtimeRoutes(app: FastifyInstance) {
           exitDate: emp.exitDate,
           monthFirstDay,
           monthLastDay,
+          yesterday: addDaysUtc(todayInTz(tz), -1),
           tz,
         });
 
@@ -1229,6 +1241,7 @@ export async function overtimeRoutes(app: FastifyInstance) {
             exitDate: emp.exitDate,
             monthFirstDay: ysMonthFirstDay,
             monthLastDay: ysMonthLastDay,
+            yesterday: addDaysUtc(todayInTz(tz), -1),
             tz,
           });
 

@@ -30,6 +30,11 @@ export interface DayRowEntry {
 export interface DayRowDayInfo {
   /** The page's Soll of the day in minutes (0 = none). */
   expectedMin: number;
+  /**
+   * Issue #986: the account's Ist of the day (entries plus credits such as a Berufsschule day),
+   * where the page read the account; the Differenz is then taken against it, like the account does.
+   */
+  creditedMin?: number | null;
   isToday: boolean;
   isFuture: boolean;
 }
@@ -137,6 +142,7 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
       )
       .join(", ");
 
+    const credited = info?.creditedMin ?? null;
     const comparable =
       sollMin !== null &&
       sollMin > 0 &&
@@ -144,8 +150,8 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
       !info.isToday &&
       !info.isFuture &&
       !running &&
-      closedValid.length > 0;
-    const diffMin = comparable ? netMin - (sollMin ?? 0) : null;
+      (closedValid.length > 0 || credited !== null);
+    const diffMin = comparable ? (credited ?? netMin) - (sollMin ?? 0) : null;
 
     rows.push({
       day,

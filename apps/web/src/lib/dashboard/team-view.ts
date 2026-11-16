@@ -30,6 +30,14 @@ export interface TeamTrendMonth {
   workedMinutes: number;
   /** null when the Soll is not available (see `sollUnavailableReason`). */
   shouldMinutes: number | null;
+  /**
+   * Issue #986: closed, valid WORK entries through the tenant-local yesterday (see
+   * `recordedBasis` for whose). Never a credit: a Berufsschule day is not recorded time.
+   */
+  recordedMinutes: number;
+  /** Issue #986: the account's Ist and Soll through yesterday (credits in the Ist); null without Soll. */
+  toDateWorkedMinutes: number | null;
+  toDateShouldMinutes: number | null;
   sickDays: number;
 }
 
@@ -41,6 +49,11 @@ export interface TeamTrendResponse {
    * covers only part of the team's salons never sees the account's Ist).
    */
   workedBasis: "ACCOUNT" | "SALON_ENTRIES" | "SCOPE_ENTRIES";
+  /**
+   * Issue #986: whose entries `recordedMinutes` sums - the filtered salon, the caller's reach, or
+   * every listed person.
+   */
+  recordedBasis: "SALON_ENTRIES" | "SCOPE_ENTRIES" | "ALL_ENTRIES";
   /** SCOPE_ENTRIES: part of the working time lies in salons outside the caller's reach. */
   sollUnavailableReason: "NO_PERMISSION" | "SALON_FILTER" | "SCOPE_ENTRIES" | null;
   months: TeamTrendMonth[];
@@ -237,4 +250,49 @@ export function upcomingFromResponse(items: TeamUpcomingLeaveItem[]): UpcomingLe
     days: item.days,
     type: item.leaveTypeName,
   }));
+}
+
+/** The KPI „Monat bis gestern“ of Heute im Salon (Issue #986). */
+export interface TeamMonthKpi {
+  /** The main figure in minutes. */
+  valueMinutes: number;
+  /** The Soll next to it, only where the account's Soll is shown. */
+  shouldMinutes: number | null;
+  explanation: string;
+}
+
+function hoursLabel(min: number): string {
+  const whole = Math.round(Math.abs(min));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")} h`;
+}
+
+/**
+ * Issue #986: what „Monat bis gestern“ shows. Without the account's Soll it is the recorded time
+ * alone (`recordedMinutes`, the sum the Salonansicht's entries of the same days add up to), named
+ * by whose entries it sums. With the Soll it is the account's Ist and Soll through yesterday, and a
+ * credit inside that Ist (a Berufsschule day) is named apart from the recorded time - a credit is
+ * never called „erfasst“.
+ */
+export function teamMonthKpi(resp: TeamTrendResponse, month: TeamTrendMonth): TeamMonthKpi {
+  if (month.toDateWorkedMinutes !== null && month.toDateShouldMinutes !== null) {
+    const credit = month.toDateWorkedMinutes - month.recordedMinutes;
+    return {
+      valueMinutes: month.toDateWorkedMinutes,
+      shouldMinutes: month.toDateShouldMinutes,
+      explanation:
+        credit > 0
+          ? `Ist / Soll · davon ${hoursLabel(month.recordedMinutes)} erfasst, ${hoursLabel(credit)} Gutschrift`
+          : "Ist / Soll",
+    };
+  }
+  return {
+    valueMinutes: month.recordedMinutes,
+    shouldMinutes: null,
+    explanation:
+      resp.recordedBasis === "SALON_ENTRIES"
+        ? "erfasst in diesem Salon"
+        : resp.recordedBasis === "SCOPE_ENTRIES"
+          ? "erfasst in deiner Reichweite"
+          : "erfasst",
+  };
 }

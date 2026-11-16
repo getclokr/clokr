@@ -2430,12 +2430,33 @@ export async function dashboardRoutes(app: FastifyInstance) {
         month: string;
         workedMinutes: number;
         shouldMinutes: number | null;
+        recordedMinutes: number;
+        toDateWorkedMinutes: number | null;
+        toDateShouldMinutes: number | null;
         sickDays: number;
       }> = [];
       let usedScopeEntries = false;
       for (const { year, month, key, firstDay, lastDay, ids, entryOnlyIds } of window) {
         let worked = 0;
         let should = 0;
+        // Issue #986: the recorded working time alone - closed, valid WORK entries through the
+        // tenant-local yesterday (today never counts, #438), in the filtered salon / in the
+        // caller's scope / of the listed persons. It never holds a credit (Berufsschule) and is
+        // the figure the Salonansicht's entries of the same days add up to.
+        let recorded = 0;
+        // Issue #986: the account's to-date figures (`toDate` of an open month, else the main
+        // triple), shown only where the Soll is shown; a credit lives here, never in `recorded`.
+        let toDateWorked = 0;
+        let toDateShould = 0;
+        const addAccountFigures = (
+          figures: Awaited<ReturnType<typeof computeMonthReportFigures>>,
+        ) => {
+          worked += figures.workedMinutes;
+          should += figures.expectedMinutes;
+          const toDate = figures.toDate ?? figures;
+          toDateWorked += toDate.workedMinutes;
+          toDateShould += toDate.expectedMinutes;
+        };
         if (reach.kind === "scoped") {
           // Issue #85 (D-04/D-06): only visible entries, valid and closed, through tenant-local
           // yesterday (today never counts, #438). The fold step is the #79 kernel's.
@@ -2452,8 +2473,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
               )
               .reduce((sum: number, e) => addWorkingMinutes(sum, e), 0);
 
+          recorded = scopeSum(new Set([...ids, ...entryOnlyIds]));
           if (filterSalonId !== null) {
-            worked = scopeSum(new Set([...ids, ...entryOnlyIds]));
+            worked = recorded;
           } else {
             // The account Ist only for a person whose every entry of the month is in scope.
             const stammRows =
@@ -2474,9 +2496,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
             const sumOver = new Set<string>(entryOnlyIds);
             for (const id of ids) {
               if (covered.has(id)) {
-                const figures = await computeMonthReportFigures(app, id, year, month);
-                worked += figures.workedMinutes;
-                should += figures.expectedMinutes;
+                addAccountFigures(await computeMonthReportFigures(app, id, year, month));
               } else {
                 sumOver.add(id);
               }
@@ -2488,9 +2508,19 @@ export async function dashboardRoutes(app: FastifyInstance) {
           }
         } else if (filterSalonId === null) {
           for (const id of ids) {
-            const figures = await computeMonthReportFigures(app, id, year, month);
-            worked += figures.workedMinutes;
-            should += figures.expectedMinutes;
+            addAccountFigures(await computeMonthReportFigures(app, id, year, month));
+          }
+          const upper = lastDay < yesterday ? lastDay : yesterday;
+          if (ids.length > 0 && upper >= firstDay) {
+            const entries = await getRecordedWorkEntriesInRange(
+              app.prisma,
+              employeeScopeFor(scopedAccess, { employeeIds: ids }),
+              firstDay,
+              upper,
+            );
+            recorded = entries
+              .filter((e) => !e.isInvalid && e.endTime !== null)
+              .reduce((sum: number, e) => addWorkingMinutes(sum, e), 0);
           }
         } else {
           // D-03/D-12: recorded working time in this salon only, through tenant-local yesterday
@@ -2508,6 +2538,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
               .filter((e) => !e.isInvalid && e.endTime !== null && e.salonId === filterSalonId)
               .reduce((sum: number, e) => addWorkingMinutes(sum, e), 0);
           }
+          recorded = worked;
         }
 
         let sickDays = 0;
@@ -2542,6 +2573,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
           month: key,
           workedMinutes: Math.round(worked),
           shouldMinutes: Math.round(should),
+          recordedMinutes: Math.round(recorded),
+          toDateWorkedMinutes: Math.round(toDateWorked),
+          toDateShouldMinutes: Math.round(toDateShould),
           sickDays,
         });
       }
@@ -2559,6 +2593,14 @@ export async function dashboardRoutes(app: FastifyInstance) {
       return {
         salonId: filterSalonId,
         workedBasis,
+        // Issue #986: whose entries `recordedMinutes` sums - the filtered salon, the caller's
+        // scope, or every listed person (whole tenant, unfiltered).
+        recordedBasis:
+          filterSalonId !== null
+            ? ("SALON_ENTRIES" as const)
+            : reach.kind === "scoped"
+              ? ("SCOPE_ENTRIES" as const)
+              : ("ALL_ENTRIES" as const),
         sollUnavailableReason: sollVisible
           ? null
           : !canSeeSoll || !sollCovered
@@ -2566,7 +2608,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
             : filterSalonId !== null
               ? ("SALON_FILTER" as const)
               : ("SCOPE_ENTRIES" as const),
-        months: series.map((m) => ({ ...m, shouldMinutes: sollVisible ? m.shouldMinutes : null })),
+        months: series.map((m) => ({
+          ...m,
+          shouldMinutes: sollVisible ? m.shouldMinutes : null,
+          toDateWorkedMinutes: sollVisible ? m.toDateWorkedMinutes : null,
+          toDateShouldMinutes: sollVisible ? m.toDateShouldMinutes : null,
+        })),
       };
     },
   });

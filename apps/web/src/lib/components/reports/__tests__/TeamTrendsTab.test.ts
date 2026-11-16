@@ -80,12 +80,16 @@ const SALON = "11111111-1111-4111-8111-111111111111";
 const TREND: TeamTrendResponse = {
   salonId: null,
   workedBasis: "ACCOUNT",
+  recordedBasis: "ALL_ENTRIES",
   sollUnavailableReason: null,
   months: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"].map((month, i) => ({
     month,
     workedMinutes: 600 + i * 60,
     shouldMinutes: 720,
     sickDays: i,
+    recordedMinutes: 0,
+    toDateWorkedMinutes: null,
+    toDateShouldMinutes: null,
   })),
 };
 
