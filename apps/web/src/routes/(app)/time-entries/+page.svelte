@@ -95,6 +95,7 @@
   } from "date-fns";
   import { de } from "date-fns/locale";
   import { retroWindowHint } from "$lib/time-entries/retro-window-hint"; // Issue #849 (5)
+  import { proposeBreakSlot } from "$lib/breaks/break-proposal"; // Issue #1020
   import {
     breakWriteFields,
     dialogBreakMinutes,
@@ -3066,7 +3067,16 @@
             <button
               class="btn btn-sm btn-secondary te-breaks-add"
               type="button"
-              onclick={() => (formBreaks = [...formBreaks, { start: "12:00", end: "12:30" }])}
+              onclick={() =>
+                (formBreaks = [
+                  ...formBreaks,
+                  proposeBreakSlot({
+                    defaultBreakStart,
+                    entryStart: formStart,
+                    entryEnd: formHasEnd ? formEnd : null,
+                    minutes: 30,
+                  }),
+                ])}
               data-testid="break-slot-add">+ Pause</button
             >
           </div>
@@ -3079,7 +3089,12 @@
                 data-testid="break-slot-convert-legacy"
                 onclick={() => {
                   formBreaks = [
-                    { start: "12:00", end: addMinutesToTime("12:00", editEntry!.breakMinutes) },
+                    proposeBreakSlot({
+                      defaultBreakStart,
+                      entryStart: formStart,
+                      entryEnd: formHasEnd ? formEnd : null,
+                      minutes: editEntry!.breakMinutes,
+                    }),
                   ];
                 }}>In Pausen umwandeln</button
               >

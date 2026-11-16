@@ -8,6 +8,7 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { teamEntryWriteError } from "$lib/team/entry-write-error"; // Issue #1020
+  import { proposeBreakSlot } from "$lib/breaks/break-proposal"; // Issue #1020
   import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1020
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import PageHead from "$lib/components/layout/PageHead.svelte";
@@ -2567,7 +2568,12 @@
             type="button"
             onclick={() => {
               formBreaks = [
-                { start: "12:00", end: addMinutesToTime("12:00", editEntry!.breakMinutes) },
+                proposeBreakSlot({
+                  defaultBreakStart,
+                  entryStart: formStart,
+                  entryEnd: formHasEnd ? formEnd : null,
+                  minutes: editEntry!.breakMinutes,
+                }),
               ];
             }}>In Pausen umwandeln</button
           >
@@ -2599,8 +2605,16 @@
       <button
         class="btn btn-sm btn-ghost"
         type="button"
-        onclick={() => (formBreaks = [...formBreaks, { start: "12:00", end: "12:30" }])}
-        >+ Pause hinzufügen</button
+        onclick={() =>
+          (formBreaks = [
+            ...formBreaks,
+            proposeBreakSlot({
+              defaultBreakStart,
+              entryStart: formStart,
+              entryEnd: formHasEnd ? formEnd : null,
+              minutes: 30,
+            }),
+          ])}>+ Pause hinzufügen</button
       >
       {#if formBreakTotal > 0}
         <span class="text-muted break-total">Gesamt: {formBreakTotal} Min.</span>
