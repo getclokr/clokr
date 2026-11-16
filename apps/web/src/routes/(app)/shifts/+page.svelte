@@ -2594,6 +2594,9 @@
 
   /* Staffing under the day header: a bar and the figure x / y. */
   .sp-staff {
+    /* Issue #589: the screen-reader text inside is absolutely positioned; without a positioned parent it
+       escaped the week surface's sideways scroll and widened the whole page at 1024 px. */
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
