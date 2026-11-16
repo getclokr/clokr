@@ -505,6 +505,19 @@
       text-align: end;
     }
 
+    /* An expanded row's detail is no labelled cell: full width, left-aligned, no label column —
+       otherwise its content (e.g. the days of a month) was pushed into the right half (#1009). */
+    .dt-table td.dt-detail-cell {
+      display: block;
+      text-align: start;
+      padding: var(--s-3) 0 0;
+      background: transparent;
+    }
+
+    .dt-table td.dt-detail-cell::before {
+      content: none;
+    }
+
     /* A cell without content prints no label line in a card (e.g. a row with no allowed action). */
     .dt-table td:empty {
       display: none;
