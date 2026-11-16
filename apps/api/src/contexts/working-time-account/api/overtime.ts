@@ -869,7 +869,7 @@ export async function overtimeRoutes(app: FastifyInstance) {
           const empShifts = await getShiftsInRange(
             app.prisma,
             employeeScopeFor(access, { employeeId: emp.id }),
-            monthStart,
+            monthFirstDay, // Issue #1022: calendar-day bound on @db.Date Shift.date (the writer's bound, #493)
             monthLastDay,
           );
           statusRosterDates = new Set(empShifts.map((sh) => dateStrInTz(sh.date, tz)));
