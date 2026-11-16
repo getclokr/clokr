@@ -647,6 +647,8 @@ export async function leaveRoutes(app: FastifyInstance) {
       // entirely for the EMPLOYEE (EIGENE) branch: no new query for the common case.
       let scopedEmployeeIds: "all" | string[] = "all";
       let chosenSalonId: string | null = null;
+      let yearReachSalonIds: string[] | null = null;
+      let yearReachEmployeeIds = new Set<string>();
       if (isManager || salonId !== undefined) {
         const access = accessContextFromRequest(req);
         const reach = await resolveAccessReach(app.prisma, access, "leave-request:read:ZUGEWIESEN");
@@ -658,15 +660,41 @@ export async function leaveRoutes(app: FastifyInstance) {
           chosenSalonId = salon.salonId;
         }
         if (isManager && reach.kind !== "wholeTenant") {
-          const stichtag = year
-            ? new Date(`${year}-01-01T00:00:00Z`)
-            : todayInTz(await getTenantTimezone(app.prisma, user.tenantId));
-          scopedEmployeeIds = await resolveStammsalonScopedEmployeeIds(
-            app.prisma,
-            user.tenantId,
-            reach,
-            stichtag,
-          );
+          if (year) {
+            // Issue #988: a year list is judged per request, never at January 1st — a person
+            // homed in the salon from March would otherwise vanish from the list while the
+            // pending queue and the timeline (both per-day) show them. Candidates are everyone
+            // homed in a reach salon on ANY day of the year; the exact per-row decision follows
+            // after the read (`filterLeaveRowsToHomeSalon`, the timeline's own rule).
+            yearReachSalonIds = [...reach.salonIds];
+            yearReachEmployeeIds = new Set(reach.employeeIds);
+            const homed =
+              reach.salonIds.length > 0
+                ? await app.prisma.employeeSalonAssignment.findMany({
+                    where: {
+                      tenantId: user.tenantId,
+                      kind: "HOME",
+                      salonId: { in: [...reach.salonIds] },
+                      validFrom: { lte: new Date(`${year}-12-31T00:00:00Z`) },
+                      OR: [
+                        { validUntil: null },
+                        { validUntil: { gte: new Date(`${year}-01-01T00:00:00Z`) } },
+                      ],
+                    },
+                    select: { employeeId: true },
+                  })
+                : [];
+            scopedEmployeeIds = Array.from(
+              new Set([...homed.map((h) => h.employeeId), ...reach.employeeIds]),
+            );
+          } else {
+            scopedEmployeeIds = await resolveStammsalonScopedEmployeeIds(
+              app.prisma,
+              user.tenantId,
+              reach,
+              todayInTz(await getTenantTimezone(app.prisma, user.tenantId)),
+            );
+          }
         }
       }
 
@@ -717,6 +745,22 @@ export async function leaveRoutes(app: FastifyInstance) {
       // due approval). Runs before the bulk reads below so they only see the kept rows.
       if (chosenSalonId !== null) {
         rows = await filterLeaveRowsToHomeSalon(app.prisma, user.tenantId, rows, chosenSalonId);
+      }
+
+      // Issue #988: a scoped year list keeps a row when its person is in the explicit person
+      // reach, or is homed in one of the reach salons on at least one day of the row.
+      if (yearReachSalonIds !== null) {
+        const keptIds = new Set<string>();
+        for (const reachSalonId of yearReachSalonIds) {
+          const inSalon = await filterLeaveRowsToHomeSalon(
+            app.prisma,
+            user.tenantId,
+            rows,
+            reachSalonId,
+          );
+          for (const r of inSalon) keptIds.add(r.id);
+        }
+        rows = rows.filter((r) => yearReachEmployeeIds.has(r.employeeId) || keptIds.has(r.id));
       }
 
       // Phase 104-10 (D-29): bulk-load § 9 status for the returned requests — ONE query,

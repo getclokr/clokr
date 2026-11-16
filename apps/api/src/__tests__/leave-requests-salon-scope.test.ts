@@ -279,6 +279,29 @@ describe("Issue #91 (Phase 91b Plan 04) — LeaveRequest salon/person scope", ()
     expect(ids2025).not.toContain(request2025.id);
   });
 
+  it("Issue #988: ?year lists a request of a person homed in the salon only from March, judged per request, not at January 1st", async () => {
+    const emp = await createEmployee("year-mid-home-988");
+    await createHome(emp.employee.id, salonA.id, "2027-03-01");
+    const before = await createLeaveRequest(emp.employee.id, "2027-02-01", "2027-02-02");
+    const after = await createLeaveRequest(emp.employee.id, "2027-06-01", "2027-06-02");
+    const manager = await createScopedManager("mgr-leave-988", ["leave-request:read:ZUGEWIESEN"], {
+      scopeType: "SALONS",
+      salonIds: [salonA.id],
+    });
+    const token = await login(manager.user.email);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/leave/requests?year=2027",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const ids = (JSON.parse(res.body) as Array<{ id: string }>).map((r) => r.id);
+    expect(ids).toContain(after.id);
+    // The February request lies before the person was homed in the salon.
+    expect(ids).not.toContain(before.id);
+  });
+
   it("an out-of-scope employeeId query param yields an empty result, not that employee's full history", async () => {
     const outOfScopeEmp = await createEmployee("outscope-explicit-leave-list");
     await createHome(outOfScopeEmp.employee.id, salonB.id, "2020-01-01");
