@@ -14,7 +14,7 @@
  * (the #657 request-overlap rule would interfere). One distinct past weekday per case. No person
  * names in fixtures.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { fromZonedTime } from "date-fns-tz";
 import {
@@ -23,10 +23,12 @@ import {
   seedTestData,
   soleAuditRow,
   soleAuditRowOrNull,
+  soleNotification,
   auditRowsFor,
 } from "./setup";
 import { nextWeekdayStr, pastDateStr, saldoSnapshotPeriodBounds, TEST_TZ } from "./test-dates";
 import { invalidReasonFields } from "../contexts/time-tracking/invalid-reason";
+import { holdEmployeeLockThen } from "./entry-lock-race-helpers";
 
 function at(dayStr: string, hhmm: string): Date {
   return fromZonedTime(`${dayStr}T${hhmm}:00`, TEST_TZ);
@@ -306,5 +308,266 @@ describe("Issue #1021 — an approved correction proposal is applied by its appr
         where: { entity: "TimeEntry", entityId: recorded.id, action: "UPDATE" },
       }),
     ).toBeNull();
+  });
+
+  it("two concurrent approvals of one request: exactly one 200 and one 409, one entry write, one approval audit", async () => {
+    const day = nextWeekdayStr(pastDateStr(220));
+    const entry = await seedEntry(day, "08:00", null, {
+      isInvalid: true,
+      ...invalidReasonFields("MISSING_CLOCK_OUT"),
+    });
+    const request = await seedProposal(day);
+
+    const results = await Promise.all([review(request.id), review(request.id)]);
+    expect(results.map((r) => r.statusCode).sort(), results.map((r) => r.body).join("\n")).toEqual([
+      200, 409,
+    ]);
+
+    expect(await approvalAudits(request.id)).toHaveLength(1);
+    expect(await auditRowsFor(app, "TimeEntry", entry.id, "UPDATE")).toHaveLength(1);
+    expect(
+      await auditRowsFor(app, "RetroEntryRequest", request.id, "RETRO_ENTRY_APPROVED_USED"),
+    ).toHaveLength(1);
+    expect((await requestOf(request.id)).status).toBe("USED");
+  });
+
+  it("lock race: an overlapping row committed while the approval waits on the employee lock is seen by the re-check", async () => {
+    const day = nextWeekdayStr(pastDateStr(250));
+    const recorded = await seedEntry(day, "08:00", "12:00");
+    const otherRequest = await app.prisma.retroEntryRequest.create({
+      data: {
+        employeeId,
+        targetDate: new Date(`${day}T00:00:00Z`),
+        reason: "Other pending Nachtrag fixture (race)",
+        startTime: "13:00",
+        endTime: "15:00",
+        breakMinutes: 0,
+        status: "PENDING",
+      },
+    });
+    const proposal = await seedProposal(day, { startTime: "08:00", endTime: "17:00" });
+
+    const { result, blocked } = await holdEmployeeLockThen(app, {
+      tenantId,
+      employeeId,
+      start: () => review(proposal.id),
+      holderWork: async (tx) => {
+        await tx.timeEntry.create({
+          data: {
+            employeeId,
+            date: new Date(`${day}T00:00:00Z`),
+            startTime: at(day, "13:00"),
+            endTime: at(day, "15:00"),
+            source: "MANUAL",
+            salonId: seed.salonId,
+            isInvalid: true,
+            ...invalidReasonFields("RETRO_APPROVAL_PENDING"),
+            retroRequestId: otherRequest.id,
+          },
+        });
+      },
+    });
+
+    expect(blocked, "the approval must queue on the employee lock").toBe(true);
+    expect(result.statusCode, result.body).toBe(409);
+    expect(JSON.parse(result.body).error).toBe(detailedText(day, "13:00", "15:00"));
+    expect((await requestOf(proposal.id)).status).toBe("PENDING");
+    const row = await app.prisma.timeEntry.findUniqueOrThrow({ where: { id: recorded.id } });
+    expect(row.endTime?.getTime()).toBe(at(day, "12:00").getTime());
+    expect(await approvalAudits(proposal.id)).toHaveLength(0);
+  });
+
+  it("a manager override sent with the approval is applied and audited as MANAGER_CORRECTION", async () => {
+    const day = nextWeekdayStr(pastDateStr(280));
+    const entry = await seedEntry(day, "08:00", null, {
+      isInvalid: true,
+      ...invalidReasonFields("MISSING_CLOCK_OUT"),
+    });
+    const request = await seedProposal(day, { endTime: "17:00" });
+
+    const res = await review(request.id, { endTime: "16:30" });
+    expect(res.statusCode, res.body).toBe(200);
+
+    const row = await app.prisma.timeEntry.findUniqueOrThrow({ where: { id: entry.id } });
+    expect(row.endTime?.getTime()).toBe(at(day, "16:30").getTime());
+    const audit = await soleAuditRow(app.prisma, {
+      where: { entity: "TimeEntry", entityId: entry.id, action: "MANAGER_CORRECTION" },
+    });
+    expect((audit.newValue as Record<string, unknown>).endTime).not.toBeNull();
+    expect(await auditRowsFor(app, "TimeEntry", entry.id, "UPDATE")).toHaveLength(0);
+  });
+
+  it("break rows outside the approved interval are replaced, breakMinutes follow the approval, the audit keeps the old rows", async () => {
+    const day = nextWeekdayStr(pastDateStr(310));
+    const entry = await seedEntry(day, "08:00", "12:00", { breakMinutes: 15 });
+    await app.prisma.break.create({
+      data: { timeEntryId: entry.id, startTime: at(day, "10:00"), endTime: at(day, "10:15") },
+    });
+    const request = await seedProposal(day, {
+      startTime: "11:00",
+      endTime: "17:00",
+      breakMinutes: 30,
+    });
+
+    const res = await review(request.id);
+    expect(res.statusCode, res.body).toBe(200);
+
+    const row = await app.prisma.timeEntry.findUniqueOrThrow({
+      where: { id: entry.id },
+      include: { breaks: true },
+    });
+    expect(row.startTime.getTime()).toBe(at(day, "11:00").getTime());
+    expect(row.breaks).toHaveLength(0);
+    expect(row.breakMinutes).toBe(30);
+    expect(row.breakStatus).toBe("CONFIRMED");
+    const audit = await soleAuditRow(app.prisma, {
+      where: { entity: "TimeEntry", entityId: entry.id, action: "UPDATE" },
+    });
+    expect(((audit.oldValue as Record<string, unknown>).breaks as unknown[]).length).toBe(1);
+  });
+
+  it("an open entry with a running break: 409 RETRO_APPLY_BREAK_RUNNING, the request stays PENDING", async () => {
+    const day = nextWeekdayStr(pastDateStr(340));
+    await seedEntry(day, "08:00", null, { breakStartedAt: at(day, "12:00") });
+    const request = await seedProposal(day);
+
+    const res = await review(request.id);
+    expect(res.statusCode, res.body).toBe(409);
+    expect(JSON.parse(res.body).code).toBe("RETRO_APPLY_BREAK_RUNNING");
+    expect((await requestOf(request.id)).status).toBe("PENDING");
+    expect(await approvalAudits(request.id)).toHaveLength(0);
+  });
+
+  it("a request without times: 409 RETRO_APPLY_NO_TIMES; with times in the approval it is applied", async () => {
+    const day = nextWeekdayStr(pastDateStr(370));
+    const request = await seedProposal(day, { startTime: null, endTime: null, breakMinutes: null });
+
+    const refused = await review(request.id);
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect(JSON.parse(refused.body).code).toBe("RETRO_APPLY_NO_TIMES");
+    expect((await requestOf(request.id)).status).toBe("PENDING");
+
+    const applied = await review(request.id, { startTime: "08:00", endTime: "16:00" });
+    expect(applied.statusCode, applied.body).toBe(200);
+    const entries = await app.prisma.timeEntry.findMany({
+      where: { employeeId, date: new Date(`${day}T00:00:00Z`), deletedAt: null },
+    });
+    expect(entries).toHaveLength(1);
+    expect(entries[0].endTime?.getTime()).toBe(at(day, "16:00").getTime());
+  });
+
+  it("a locked entry: 403 locked text, the request stays PENDING", async () => {
+    const day = nextWeekdayStr(pastDateStr(400));
+    const entry = await seedEntry(day, "08:00", "12:00", { isLocked: true });
+    const request = await seedProposal(day);
+
+    const res = await review(request.id);
+    expect(res.statusCode, res.body).toBe(403);
+    expect(JSON.parse(res.body).error).toBe(
+      "Eintrag ist gesperrt und kann nicht bearbeitet werden",
+    );
+    expect((await requestOf(request.id)).status).toBe("PENDING");
+    const row = await app.prisma.timeEntry.findUniqueOrThrow({ where: { id: entry.id } });
+    expect(row.endTime?.getTime()).toBe(at(day, "12:00").getTime());
+  });
+
+  it("approved vacation on the day: 409 with the § 8 BUrlG text, the request stays PENDING", async () => {
+    const day = nextWeekdayStr(pastDateStr(430));
+    const leave = await app.prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        leaveTypeId: seed.vacationType.id,
+        status: "APPROVED",
+        startDate: new Date(`${day}T00:00:00Z`),
+        endDate: new Date(`${day}T00:00:00Z`),
+        days: 1,
+      },
+    });
+    try {
+      const request = await seedProposal(day);
+      const res = await review(request.id);
+      expect(res.statusCode, res.body).toBe(409);
+      expect(JSON.parse(res.body).error).toMatch(/^§ 8 BUrlG: /);
+      expect((await requestOf(request.id)).status).toBe("PENDING");
+      expect(await approvalAudits(request.id)).toHaveLength(0);
+    } finally {
+      await app.prisma.leaveRequest.delete({ where: { id: leave.id } });
+    }
+  });
+
+  it("an end more than 30 minutes after now: 400, the request stays PENDING", async () => {
+    const day = nextWeekdayStr(pastDateStr(460));
+    const request = await seedProposal(day, { startTime: "08:00", endTime: "18:00" });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(at(day, "10:00"));
+    try {
+      const res = await review(request.id);
+      expect(res.statusCode, res.body).toBe(400);
+      expect(JSON.parse(res.body).error).toBe("Endzeit darf max. 30 Minuten in der Zukunft liegen");
+    } finally {
+      vi.useRealTimers();
+    }
+    expect((await requestOf(request.id)).status).toBe("PENDING");
+  });
+
+  it("a created entry gets the automatic break POST would plan when no break was approved", async () => {
+    const day = nextWeekdayStr(pastDateStr(70));
+    await app.prisma.tenantConfig.update({
+      where: { tenantId },
+      data: { autoBreakEnabled: true, defaultBreakStart: null },
+    });
+    try {
+      const request = await seedProposal(day, {
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 0,
+      });
+      const res = await review(request.id);
+      expect(res.statusCode, res.body).toBe(200);
+
+      const entry = await app.prisma.timeEntry.findFirstOrThrow({
+        where: { retroRequestId: request.id },
+        include: { breaks: true },
+      });
+      expect(entry.breaks.length).toBeGreaterThan(0);
+      // `isAuto` is omitted from default reads (prisma plugin), so it is selected explicitly.
+      const autoFlags = await app.prisma.break.findMany({
+        where: { timeEntryId: entry.id },
+        select: { isAuto: true },
+      });
+      expect(autoFlags.length).toBe(entry.breaks.length);
+      expect(autoFlags.every((b) => b.isAuto)).toBe(true);
+      expect(entry.breakStatus).toBe("AUTO");
+      expect(entry.breakMinutes).toBeGreaterThan(0);
+      const created = await soleAuditRow(app.prisma, {
+        where: { entity: "TimeEntry", entityId: entry.id, action: "CREATE" },
+      });
+      expect(((created.newValue as Record<string, unknown>).breaks as unknown[]).length).toBe(
+        entry.breaks.length,
+      );
+    } finally {
+      await app.prisma.tenantConfig.update({
+        where: { tenantId },
+        data: { autoBreakEnabled: false },
+      });
+    }
+  });
+
+  it("every applied approval answers warnings and notifies the requester once, linking the entry", async () => {
+    const day = nextWeekdayStr(pastDateStr(95));
+    const entry = await seedEntry(day, "08:00", null, {
+      isInvalid: true,
+      ...invalidReasonFields("MISSING_CLOCK_OUT"),
+    });
+    const request = await seedProposal(day);
+
+    const res = await review(request.id);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(Array.isArray(JSON.parse(res.body).warnings)).toBe(true);
+
+    const notice = await soleNotification(app.prisma, {
+      where: { userId: seed.empUser.id, type: "RETRO_ENTRY_DECIDED", relatedId: entry.id },
+    });
+    expect(notice.title).toBe("Zeitnachtrag genehmigt");
   });
 });

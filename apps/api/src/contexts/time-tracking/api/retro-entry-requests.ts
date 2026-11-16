@@ -17,7 +17,12 @@ import { checkArbZG, ArbZGWarning } from "../arbzg";
 import { warningsVisibleToCaller } from "../warning-visibility"; // Issue #85 (D-12) — ArbZG warnings only as far as the caller's reach covers them
 import { checkJArbSchG } from "../../absence"; // Phase 101B (Issue #101, wave 7)
 import { validateActivityState } from "../activity-shares"; // Issue #81
-import { getTenantTimezone, dateStrInTz, todayInTz } from "../../working-time-account"; // Phase 101B
+import {
+  getTenantTimezone,
+  dateStrInTz,
+  todayInTz,
+  updateOvertimeAccount,
+} from "../../working-time-account"; // Phase 101B
 import { computeEntryAgeInDays } from "../retro-config";
 import { CLEARED_INVALID_REASON } from "../invalid-reason"; // Phase 96 (T1)
 import { lockEmployeeForEntryWrite } from "../entry-write-lock"; // Issue #70 (D-10)
@@ -28,7 +33,8 @@ import {
   RETRO_REQUEST_OVERLAP_CODE,
   RETRO_REQUEST_OVERLAP_MESSAGE,
 } from "../retro-request-overlap"; // Issue #657 (D-01/D-02/D-13)
-import { otherWorkingMinutesOfDay } from "../day-entries"; // Issue #70 (D-04)
+import { otherWorkingMinutesOfDay, findEntriesOfDay } from "../day-entries"; // Issue #70 (D-04)
+import { planAutoBreak, autoBreakAppliesOnCreate, type AutoBreakPlan } from "../auto-break-plan"; // Issue #1021 — POST parity for a created entry
 import { recheckOverlapInTx } from "../entry-invariants"; // Issue #70 (D-10)
 import { checkTravelNeighbours, TravelRefusalError } from "../travel-entry"; // Issue #92 (T6)
 import {
@@ -38,6 +44,8 @@ import {
 } from "../entry-overlap-error"; // Issue #70 (D-06/D-13)
 import {
   applyApprovedRetroRequestInTx,
+  selectRetroApplyTarget,
+  retroApplyAmbiguousRefusal,
   RetroApplyRefusal,
   RETRO_APPLY_NO_TIMES_CODE,
   RETRO_APPLY_NO_TIMES_MESSAGE,
@@ -854,6 +862,77 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
           body.endTime !== undefined ||
           body.breakMinutes !== undefined;
 
+        // The same end-time rule as PUT /time-entries: a request has no future check of its own.
+        if (approvedEnd.getTime() > Date.now() + 30 * 60_000) {
+          return reply
+            .code(400)
+            .send({ error: "Endzeit darf max. 30 Minuten in der Zukunft liegen" });
+        }
+
+        // Pre-transaction selection: the cheap early answer and the input of the JArbSchG day sum.
+        // The in-transaction selection (under the Employee row lock) stays authoritative for the
+        // write; like POST, PUT and the coupled approval, the day sum is computed outside the lock.
+        const preDayRows = await findEntriesOfDay(app.prisma, {
+          tenantId: user.tenantId,
+          employeeId: existing.employeeId,
+          date: existing.targetDate,
+        });
+        const preTarget = selectRetroApplyTarget(preDayRows);
+        if (preTarget.kind === "AMBIGUOUS") {
+          const refusal = retroApplyAmbiguousRefusal();
+          return reply.code(refusal.status).send(refusal.body);
+        }
+        const preTargetRow =
+          preTarget.kind === "CORRECT"
+            ? preDayRows.find((r) => r.id === preTarget.entryId)
+            : undefined;
+        const plannedNetMin = Math.max(
+          0,
+          Math.round((approvedEnd.getTime() - approvedStart.getTime()) / 60_000) -
+            (approvedBreakMinutes ?? preTargetRow?.breakMinutes ?? 0),
+        );
+        const jarbSchgApply = await checkJArbSchG(app.prisma, {
+          employeeId: existing.employeeId,
+          date: existing.targetDate,
+          plannedNetWorkMin:
+            plannedNetMin +
+            (await otherWorkingMinutesOfDay(app.prisma, {
+              tenantId: user.tenantId,
+              employeeId: existing.employeeId,
+              date: existing.targetDate,
+              excludeEntryId: preTargetRow?.id,
+            })),
+        });
+        if (jarbSchgApply.blocked) {
+          return reply
+            .code(400)
+            .send({ error: "JARBSCHG_MINOR_LIMIT", message: jarbSchgApply.message });
+        }
+
+        // Automatic break for a CREATED entry (POST parity, Issue #81 D-18): planned once, before
+        // the write; only when no break was approved. A correction never plans one (PUT parity).
+        let autoBreakPlan: AutoBreakPlan | null = null;
+        if (
+          preTarget.kind === "CREATE" &&
+          autoBreakAppliesOnCreate({ slotCount: 0, breakMinutes: approvedBreakMinutes ?? 0 })
+        ) {
+          const [requestEmployee, tenantConfig] = await Promise.all([
+            app.prisma.employee.findFirst({
+              where: { id: existing.employeeId, tenantId: user.tenantId },
+            }),
+            app.prisma.tenantConfig.findUnique({ where: { tenantId: user.tenantId } }),
+          ]);
+          autoBreakPlan = planAutoBreak({
+            employee: requestEmployee,
+            tenantConfig,
+            start: approvedStart,
+            end: approvedEnd,
+            entryDate: existing.targetDate,
+            tz,
+          });
+        }
+
+        let appliedEntryId = "";
         try {
           updated = await app.prisma.$transaction(async (tx) => {
             // Uniform lock order of every interval writer: the Employee row lock comes FIRST.
@@ -885,6 +964,7 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
               end: approvedEnd,
               approvedBreakMinutes,
               hasManagerCorrection,
+              autoBreakPlan,
               actor: {
                 userId: user.sub,
                 employeeId: user.employeeId ?? null,
@@ -893,6 +973,7 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
               },
             });
 
+            appliedEntryId = applied.entryId;
             const reqAfter = await tx.retroEntryRequest.findUniqueOrThrow({ where: { id } });
             await app.audit({
               tx,
@@ -933,6 +1014,48 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
             return reply.code(409).send({ error: OVERLAP_MESSAGE_NEUTRAL });
           }
           throw err;
+        }
+
+        // After the commit (never fails the committed approval): refresh the stored balance, the
+        // same ArbZG feedback a PUT with these times would return, and the requester's notice.
+        try {
+          await updateOvertimeAccount(app, existing.employeeId);
+        } catch (err) {
+          app.log.warn(
+            { err, requestId: id },
+            "Failed to refresh overtime account after retro apply",
+          );
+        }
+        approveWarnings = await warningsVisibleToCaller(app.prisma, {
+          tenantId: user.tenantId,
+          access: accessContextFromRequest(req),
+          callerEmployeeId: user.employeeId ?? null,
+          employeeId: existing.employeeId,
+          date: existing.targetDate,
+          tz,
+          warnings: await checkArbZG(app.prisma, existing.employeeId, existing.targetDate),
+        });
+        if (jarbSchgApply.softWarn) {
+          approveWarnings.push(jarbSchgApply.softWarn);
+        }
+        if (existing.employee.userId) {
+          try {
+            await app.notify({
+              userId: existing.employee.userId,
+              type: "RETRO_ENTRY_DECIDED",
+              title: "Zeitnachtrag genehmigt",
+              message: `Dein Zeitnachtrag für den ${targetDateStr} wurde genehmigt.`,
+              link: `/time-entries?highlight=${appliedEntryId}`,
+              tenantId: user.tenantId,
+              relatedType: "TimeEntry",
+              relatedId: appliedEntryId,
+            });
+          } catch (err) {
+            app.log.warn(
+              { err, requestId: id },
+              "Failed to notify employee of retro-entry approve decision",
+            );
+          }
         }
       } else {
         // Phase 96-review (WR-01) — race-safe status guard for the legacy

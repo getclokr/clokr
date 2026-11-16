@@ -42,6 +42,8 @@ import { checkTravelNeighbours } from "./travel-entry";
 import { resolveEntrySalon } from "./entry-salon";
 import { validateActivityState } from "./activity-shares";
 import { CLEARED_INVALID_REASON, invalidReasonFields } from "./invalid-reason";
+import { writeAutoBreakInTx } from "./auto-break-write";
+import type { AutoBreakPlan } from "./auto-break-plan";
 
 // ── Refusals ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +162,8 @@ export type ApplyRetroRequestInput = {
   approvedBreakMinutes: number | null;
   /** The approver sent corrected times: the TimeEntry audit action is MANAGER_CORRECTION. */
   hasManagerCorrection: boolean;
+  /** The automatic break planned for a created entry (computed before the transaction). */
+  autoBreakPlan?: AutoBreakPlan | null;
   actor: {
     userId: string;
     employeeId: string | null;
@@ -374,6 +378,10 @@ export async function applyApprovedRetroRequestInTx(
       retroRequestId: requestId,
     },
   });
+  // One writer for automatic breaks (POST parity): only when no break was approved.
+  if (input.autoBreakPlan) {
+    await writeAutoBreakInTx(tx, { entryId: created.id, plan: input.autoBreakPlan });
+  }
   const createdFull = await tx.timeEntry.findUniqueOrThrow({
     where: { id: created.id },
     include: ENTRY_INCLUDE,

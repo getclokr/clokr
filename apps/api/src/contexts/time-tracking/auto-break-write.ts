@@ -7,6 +7,7 @@
  * `planAutoBreak`; this module only decides WHEN a stopped entry gets one and writes it.
  */
 import type { FastifyInstance } from "fastify";
+import type { Prisma } from "@clokr/db";
 import { planAutoBreak, type AutoBreakPlan } from "./auto-break-plan";
 
 export type StoredBreak = {
@@ -18,6 +19,32 @@ export type StoredBreak = {
 };
 
 /**
+ * The two writes of an automatic break — the planned Break rows and the entry's summary fields —
+ * on an open transaction handle. Issue #1021: the ONE writer, also called by the Zeitnachtrag
+ * approval, which already runs inside its own transaction.
+ */
+export async function writeAutoBreakInTx(
+  tx: Prisma.TransactionClient,
+  params: { entryId: string; plan: AutoBreakPlan },
+): Promise<{ minutes: number; breaks: StoredBreak[] }> {
+  const { entryId, plan } = params;
+  const breaks = await tx.break.createManyAndReturn({
+    data: plan.segments.map((s) => ({
+      timeEntryId: entryId,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      isAuto: true, // Issue #799: the row-level marker the reopen replacement selects on
+    })),
+  });
+  // Phase 91 (BREAK-02): Pflichtpause auto-inserted → mark AUTO for confirmation
+  await tx.timeEntry.update({
+    where: { id: entryId },
+    data: { breakMinutes: plan.amountMin, breakStatus: "AUTO" },
+  });
+  return { minutes: plan.amountMin, breaks };
+}
+
+/**
  * Writes the planned Break rows and the entry's summary fields together or not at all. Returns the
  * minutes written (shared by the clock STOP step and the manual POST).
  */
@@ -25,23 +52,7 @@ export async function autoInsertBreak(
   app: FastifyInstance,
   params: { entryId: string; plan: AutoBreakPlan },
 ): Promise<{ minutes: number; breaks: StoredBreak[] }> {
-  const { entryId, plan } = params;
-  const [breaks] = await app.prisma.$transaction([
-    app.prisma.break.createManyAndReturn({
-      data: plan.segments.map((s) => ({
-        timeEntryId: entryId,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        isAuto: true, // Issue #799: the row-level marker the reopen replacement selects on
-      })),
-    }),
-    // Phase 91 (BREAK-02): Pflichtpause auto-inserted → mark AUTO for confirmation
-    app.prisma.timeEntry.update({
-      where: { id: entryId },
-      data: { breakMinutes: plan.amountMin, breakStatus: "AUTO" },
-    }),
-  ]);
-  return { minutes: plan.amountMin, breaks };
+  return app.prisma.$transaction((tx) => writeAutoBreakInTx(tx, params));
 }
 
 /**
