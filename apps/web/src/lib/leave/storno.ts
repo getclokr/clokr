@@ -48,10 +48,27 @@ export type LeaveStatus =
 
 /** "withdraw" → API returns 204 (status → CANCELLED).
  *  "request-cancellation" → API returns 200 (status → CANCELLATION_REQUESTED). */
+import { hasPermission, type PermissionHolder } from "$lib/permissions";
+
 export type StornoKind = "withdraw" | "request-cancellation";
 
 /** null = no Storno button for this row. See the module doc comment for the full
  * reasoning behind every branch of this matrix. */
+/**
+ * Does the caller hold the right to cancel this row? Same rule as `DELETE /leave/requests/:id`: the
+ * ZUGEWIESEN reach covers anyone in scope, the EIGENE reach only the caller's own requests.
+ * Presentation only (#989) - the API's 403 stays the authority.
+ */
+export function mayCancelRequest(
+  user: PermissionHolder | null | undefined,
+  isOwn: boolean,
+): boolean {
+  return (
+    hasPermission(user, "leave-request:cancel:ZUGEWIESEN") ||
+    (isOwn && hasPermission(user, "leave-request:cancel:EIGENE"))
+  );
+}
+
 export function resolveStornoAction(status: LeaveStatus, isOwn: boolean): StornoKind | null {
   if (status === "APPROVED") return "request-cancellation";
   if (status === "PENDING" && isOwn) return "withdraw";

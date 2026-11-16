@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveStornoAction,
+  mayCancelRequest,
   stornoDialogCopy,
   stornoSuccessToast,
   type LeaveStatus,
@@ -83,5 +84,24 @@ describe("stornoSuccessToast", () => {
   });
   it("request-cancellation", () => {
     expect(stornoSuccessToast("request-cancellation")).toBe("Stornierung beantragt");
+  });
+});
+
+describe("mayCancelRequest (#989)", () => {
+  const hr = { permissions: ["leave-request:read:ZUGEWIESEN", "month-close:read:ZUGEWIESEN"] };
+  const manager = { permissions: ["leave-request:cancel:ZUGEWIESEN"] };
+  const employee = { permissions: ["leave-request:cancel:EIGENE"] };
+
+  it("offers nothing to a reader without a cancel right", () => {
+    expect(mayCancelRequest(hr, true)).toBe(false);
+    expect(mayCancelRequest(hr, false)).toBe(false);
+    expect(mayCancelRequest(null, true)).toBe(false);
+  });
+  it("offers any request in scope to the ZUGEWIESEN holder", () => {
+    expect(mayCancelRequest(manager, false)).toBe(true);
+  });
+  it("offers only the own request to the EIGENE holder", () => {
+    expect(mayCancelRequest(employee, true)).toBe(true);
+    expect(mayCancelRequest(employee, false)).toBe(false);
   });
 });

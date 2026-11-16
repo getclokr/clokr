@@ -33,6 +33,7 @@
   import AttestFields from "$lib/components/leave/AttestFields.svelte"; // Phase 201
   import {
     resolveStornoAction,
+    mayCancelRequest,
     stornoDialogCopy,
     stornoSuccessToast,
     type StornoKind,
@@ -928,6 +929,22 @@
   const canApproveHint = $derived(
     hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),
   );
+  // Presentation only (#989): each row action is offered only to a caller whose permission the API
+  // checks for it (a reader such as the Personalabteilung holds none of them).
+  const canCorrect = $derived(hasPermission($authStore.user, "leave-request:correct:ZUGEWIESEN"));
+  const canAttest = $derived(hasPermission($authStore.user, "leave-request:attest:ZUGEWIESEN"));
+  // Issue #989: a row whose caller may do nothing renders no action cell at all, so the narrow card
+  // layout prints no empty „Aktionen“ line. Mirrors the conditions of the action cell below.
+  function hasRequestAction(req: LeaveRequest): boolean {
+    if (req.status === "PENDING" || req.status === "CANCELLATION_REQUESTED") return true;
+    if (req.status === "APPROVED") {
+      if (canCorrect) return true;
+      if (canAttest && SICK_CODES.includes(req.typeCode)) return true;
+      if (showsParentalReductionAction(req, $authStore.user)) return true;
+    }
+    const own = req.employeeId === $authStore.user?.employeeId;
+    return mayCancelRequest($authStore.user, own) && resolveStornoAction(req.status, own) !== null;
+  }
 
   // ── Anträge-Filter + Pagination ───────────────────────────────────────────
   // #840 (E-02): the status filter lives in the URL (`status`), so a deep link and the back button
@@ -1065,7 +1082,6 @@
   const canCreateForOthers = $derived(
     hasPermission($authStore.user, "leave-request:create:ZUGEWIESEN"),
   );
-  const canCreateOwn = $derived(hasPermission($authStore.user, "leave-request:create:EIGENE"));
   const createPersonItems = $derived(personOptions(employees));
 
   function openCreate() {
@@ -1101,7 +1117,7 @@
             Planung verwalten
           </button>
         {/if}
-      {:else if canCreateForOthers || canCreateOwn}
+      {:else if canCreateForOthers}
         <button class="btn btn-primary btn-sm" onclick={openCreate}>Abwesenheit eintragen</button>
       {/if}
       <button
@@ -1338,63 +1354,74 @@
                     <span class="req-note" title={req.note ?? undefined}>{req.note ?? "—"}</span>
                   {/if}
                 {:else if column.key === "actions"}
-                  <div class="action-cell__group">
-                    {#if req.status === "PENDING" || req.status === "CANCELLATION_REQUESTED"}
-                      <!-- #840 (E-02): decisions are made in the inbox only; the action is offered
+                  {#if hasRequestAction(req)}
+                    <div class="action-cell__group">
+                      {#if req.status === "PENDING" || req.status === "CANCELLATION_REQUESTED"}
+                        <!-- #840 (E-02): decisions are made in the inbox only; the action is offered
                    to approvers (Pitfall 7: a reader sees the badge without it). -->
-                      {#if canApproveHint}
-                        <a
-                          data-testid={req.status === "CANCELLATION_REQUESTED"
-                            ? `leave-team-row-${req.id}-review-cancel`
-                            : `leave-team-row-${req.id}-review`}
-                          class="btn btn-sm btn-ghost"
-                          href={`/inbox?request=${req.id}&year=${req.startDate.slice(0, 4)}`}
-                        >
-                          Im Posteingang prüfen
-                        </a>
+                        {#if canApproveHint}
+                          <a
+                            data-testid={req.status === "CANCELLATION_REQUESTED"
+                              ? `leave-team-row-${req.id}-review-cancel`
+                              : `leave-team-row-${req.id}-review`}
+                            class="btn btn-sm btn-ghost"
+                            href={`/inbox?request=${req.id}&year=${req.startDate.slice(0, 4)}`}
+                          >
+                            Im Posteingang prüfen
+                          </a>
+                        {:else}
+                          <span
+                            class="req-note"
+                            data-testid={`leave-team-row-${req.id}-decider-hint`}
+                          >
+                            Die Salonleitung oder die Inhaberin entscheidet.
+                          </span>
+                        {/if}
+                      {:else if req.status === "APPROVED"}
+                        {#if canCorrect}
+                          <button
+                            data-testid={`leave-team-row-${req.id}-correct`}
+                            class="btn btn-sm btn-ghost"
+                            onclick={() => openCorrect(req)}
+                          >
+                            Korrigieren
+                          </button>
+                        {/if}
+                        {#if canAttest && SICK_CODES.includes(req.typeCode)}
+                          <button
+                            data-testid={`leave-team-row-${req.id}-attest`}
+                            class="btn btn-sm btn-ghost"
+                            onclick={() => openAttest(req)}
+                          >
+                            {req.attestPresent ? "Attest ändern" : "Attest erfassen"}
+                          </button>
+                        {/if}
+                        {#if showsParentalReductionAction(req, $authStore.user)}
+                          <button
+                            data-testid={`leave-team-row-${req.id}-parental-reduction`}
+                            class="btn btn-sm btn-ghost"
+                            onclick={() => openParentalReduction(req)}
+                          >
+                            Elternzeit-Kürzung erklären
+                          </button>
+                        {/if}
                       {/if}
-                    {:else if req.status === "APPROVED"}
-                      <button
-                        data-testid={`leave-team-row-${req.id}-correct`}
-                        class="btn btn-sm btn-ghost"
-                        onclick={() => openCorrect(req)}
-                      >
-                        Korrigieren
-                      </button>
-                      {#if SICK_CODES.includes(req.typeCode)}
+                      {#if mayCancelRequest($authStore.user, req.employeeId === $authStore.user?.employeeId) && resolveStornoAction(req.status, req.employeeId === $authStore.user?.employeeId)}
+                        {@const kind = resolveStornoAction(
+                          req.status,
+                          req.employeeId === $authStore.user?.employeeId,
+                        )!}
                         <button
-                          data-testid={`leave-team-row-${req.id}-attest`}
-                          class="btn btn-sm btn-ghost"
-                          onclick={() => openAttest(req)}
+                          data-testid={`leave-team-row-${req.id}-storno`}
+                          data-storno-kind={kind}
+                          class="btn btn-sm btn-ghost text-red"
+                          onclick={() => openStorno(req)}
                         >
-                          {req.attestPresent ? "Attest ändern" : "Attest erfassen"}
+                          {stornoDialogCopy(kind).buttonLabel}
                         </button>
                       {/if}
-                      {#if showsParentalReductionAction(req, $authStore.user)}
-                        <button
-                          data-testid={`leave-team-row-${req.id}-parental-reduction`}
-                          class="btn btn-sm btn-ghost"
-                          onclick={() => openParentalReduction(req)}
-                        >
-                          Elternzeit-Kürzung erklären
-                        </button>
-                      {/if}
-                    {/if}
-                    {#if resolveStornoAction(req.status, req.employeeId === $authStore.user?.employeeId)}
-                      {@const kind = resolveStornoAction(
-                        req.status,
-                        req.employeeId === $authStore.user?.employeeId,
-                      )!}
-                      <button
-                        data-testid={`leave-team-row-${req.id}-storno`}
-                        data-storno-kind={kind}
-                        class="btn btn-sm btn-ghost text-red"
-                        onclick={() => openStorno(req)}
-                      >
-                        {stornoDialogCopy(kind).buttonLabel}
-                      </button>
-                    {/if}
-                  </div>
+                    </div>
+                  {/if}
                 {/if}
               {/snippet}
             </DataTable>
@@ -1767,6 +1794,12 @@
     text-overflow: ellipsis;
     vertical-align: bottom;
     color: var(--text-2);
+  }
+  /* Who decides an open request: short, wraps inside the actions cell (#989). */
+  .req-decider {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    white-space: normal;
   }
   .req-note--bad {
     color: var(--bad);

@@ -505,6 +505,11 @@
       text-align: end;
     }
 
+    /* A cell without content prints no label line in a card (e.g. a row with no allowed action). */
+    .dt-table td:empty {
+      display: none;
+    }
+
     .dt-table td::before {
       content: attr(data-label);
       flex-shrink: 0;
