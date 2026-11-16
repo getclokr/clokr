@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.1](https://github.com/getclokr/clokr/compare/v2.0.0...v2.0.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **1017:** Ich › Dienstplan shows no availability tab or hint while the system is off ([#1018](https://github.com/getclokr/clokr/issues/1018)) ([d9a7667](https://github.com/getclokr/clokr/commit/d9a766708d67760c01d48fb2fc55c6b68c7b1447)), closes [#1017](https://github.com/getclokr/clokr/issues/1017)
+* **1020:** own invalid entries lead to their day; Team › Zeiten names the real refusal; breaks start at the tenant's time ([#1024](https://github.com/getclokr/clokr/issues/1024)) ([eac2e6c](https://github.com/getclokr/clokr/commit/eac2e6cd70d8e4597f2258189b0e512cb150f2fb))
+* **1021:** an approved correction proposal applies its times in the approval transaction ([#1025](https://github.com/getclokr/clokr/issues/1025)) ([b99c8f3](https://github.com/getclokr/clokr/commit/b99c8f3bead10a6b7947548c94c46830f207bfd9))
+* **1022:** read the close-month status roster with calendar-day bounds ([#1023](https://github.com/getclokr/clokr/issues/1023)) ([bea106c](https://github.com/getclokr/clokr/commit/bea106c61bf4d8bb9ddb36b4b953cd97e02f78e8))
+
 ## [2.0.0](https://github.com/getclokr/clokr/compare/v1.18.0...v2.0.0) (2026-11-16)
 
 
