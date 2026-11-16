@@ -36,6 +36,14 @@ import {
   isEntryOverlapViolation,
   OVERLAP_MESSAGE_NEUTRAL,
 } from "../entry-overlap-error"; // Issue #70 (D-06/D-13)
+import {
+  applyApprovedRetroRequestInTx,
+  RetroApplyRefusal,
+  RETRO_APPLY_NO_TIMES_CODE,
+  RETRO_APPLY_NO_TIMES_MESSAGE,
+  RETRO_APPLY_ROW_DELETED_CODE,
+  RETRO_APPLY_ROW_DELETED_MESSAGE,
+} from "../retro-correction-apply"; // Issue #1021 — the one place an approved correction proposal is applied
 
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
@@ -83,7 +91,8 @@ const reviewRetroRequestSchema = z
     reviewNote: z.string().optional().nullable(),
     // Phase 96 (RETRO-16/D-10) — manager edit-on-approve: optional corrected times,
     // written onto the coupled entry when supplied on an APPROVED coupled (entry-first)
-    // request. Ignored for REJECTED and for legacy (uncoupled/grant-first) requests.
+    // request. Issue #1021: they also apply to an APPROVED uncoupled correction proposal
+    // (approved times = body value ?? request value). Ignored for REJECTED.
     startTime: z.string().regex(HHMM_REGEX, "Ungültige Uhrzeit (Format HH:MM).").optional(),
     endTime: z.string().regex(HHMM_REGEX, "Ungültige Uhrzeit (Format HH:MM).").optional(),
     breakMinutes: z.number().int().min(0).optional(),
@@ -814,6 +823,117 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
             );
           }
         }
+      } else if (body.status === "APPROVED") {
+        // Issue #1021 — an approved correction proposal (no coupled entry) is APPLIED by its
+        // approval, in the same transaction as the decision, through the building blocks of every
+        // other interval writer (`applyApprovedRetroRequestInTx`). Before #1021 it only flipped the
+        // status and waited for a grant redemption no client ever sends.
+        if (existing.timeEntry) {
+          // Coupled entry exists but is soft-deleted: it can neither be coupled again (unique
+          // column) nor does the USED flip guard hold for it — nothing safe to apply.
+          return reply.code(409).send({
+            error: RETRO_APPLY_ROW_DELETED_MESSAGE,
+            code: RETRO_APPLY_ROW_DELETED_CODE,
+          });
+        }
+        const approvedStartHhmm = body.startTime ?? existing.startTime;
+        const approvedEndHhmm = body.endTime ?? existing.endTime;
+        if (!approvedStartHhmm || !approvedEndHhmm) {
+          return reply
+            .code(409)
+            .send({ error: RETRO_APPLY_NO_TIMES_MESSAGE, code: RETRO_APPLY_NO_TIMES_CODE });
+        }
+        const approvedStart = fromZonedTime(`${targetDateStr}T${approvedStartHhmm}:00`, tz);
+        const approvedEnd = fromZonedTime(`${targetDateStr}T${approvedEndHhmm}:00`, tz);
+        if (approvedEnd <= approvedStart) {
+          return reply.code(400).send({ error: "Endzeit muss nach der Startzeit liegen" });
+        }
+        const approvedBreakMinutes = body.breakMinutes ?? existing.breakMinutes ?? null;
+        const hasManagerCorrection =
+          body.startTime !== undefined ||
+          body.endTime !== undefined ||
+          body.breakMinutes !== undefined;
+
+        try {
+          updated = await app.prisma.$transaction(async (tx) => {
+            // Uniform lock order of every interval writer: the Employee row lock comes FIRST.
+            await lockEmployeeForEntryWrite(tx, user.tenantId, existing.employeeId);
+
+            // Race-safe status guard (same as the other branches): exactly one concurrent
+            // decision — or a race against a withdraw, which sets deletedAt — can flip the row.
+            const decided = await tx.retroEntryRequest.updateMany({
+              where: { id, status: "PENDING", deletedAt: null },
+              data: {
+                status: "APPROVED",
+                reviewedBy: user.sub,
+                reviewedAt: new Date(),
+                reviewNote,
+              },
+            });
+            if (decided.count !== 1) {
+              throw new Error("RETRO_REQUEST_ALREADY_DECIDED");
+            }
+
+            const applied = await applyApprovedRetroRequestInTx(app, tx, {
+              tenantId: user.tenantId,
+              employeeId: existing.employeeId,
+              requestId: id,
+              targetDate: existing.targetDate,
+              targetDateStr,
+              tz,
+              start: approvedStart,
+              end: approvedEnd,
+              approvedBreakMinutes,
+              hasManagerCorrection,
+              actor: {
+                userId: user.sub,
+                employeeId: user.employeeId ?? null,
+                access: accessContextFromRequest(req),
+                request: { ip: req.ip, headers: req.headers as Record<string, string> },
+              },
+            });
+
+            const reqAfter = await tx.retroEntryRequest.findUniqueOrThrow({ where: { id } });
+            await app.audit({
+              tx,
+              userId: user.sub,
+              action: "RETRO_ENTRY_APPROVED",
+              entity: "RetroEntryRequest",
+              entityId: id,
+              oldValue: existing,
+              newValue: {
+                requesterId: existing.employee.userId ?? existing.employeeId,
+                approverId: user.sub,
+                targetDate: targetDateStr,
+                ageInDays,
+                reason: existing.reason,
+                reviewNote,
+                status: "APPROVED",
+                timeEntryId: applied.entryId,
+                outcome: applied.outcome,
+              },
+              request: { ip: req.ip, headers: req.headers as Record<string, string> },
+            });
+            return reqAfter;
+          });
+        } catch (err) {
+          if (err instanceof Error && err.message === "RETRO_REQUEST_ALREADY_DECIDED") {
+            return reply.code(409).send({ error: "Antrag kann nicht mehr geändert werden" });
+          }
+          if (err instanceof RetroApplyRefusal) {
+            return reply.code(err.status).send(err.body);
+          }
+          if (err instanceof EntryConflictError) {
+            return reply.code(409).send({ error: err.userMessage });
+          }
+          if (err instanceof TravelRefusalError) {
+            return reply.code(err.refusal.status).send(err.refusal.body);
+          }
+          if (isEntryOverlapViolation(err)) {
+            return reply.code(409).send({ error: OVERLAP_MESSAGE_NEUTRAL });
+          }
+          throw err;
+        }
       } else {
         // Phase 96-review (WR-01) — race-safe status guard for the legacy
         // (uncoupled/grant-first) review path too: two concurrent reviewers must
@@ -833,7 +953,9 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
         }
         updated = await app.prisma.retroEntryRequest.findUniqueOrThrow({ where: { id } });
 
-        const action = body.status === "APPROVED" ? "RETRO_ENTRY_APPROVED" : "RETRO_ENTRY_REJECTED";
+        // Issue #1021: an APPROVED uncoupled request is applied by the branch above, so only a
+        // rejection reaches this legacy path.
+        const action = "RETRO_ENTRY_REJECTED";
 
         // D-09 / issue #78 (plan 78b-05, P-04): a decision changes an existing row, so both
         // before and after are recorded here too, same as the coupled approve/reject branches
