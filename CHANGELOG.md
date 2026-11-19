@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/getclokr/clokr/compare/v2.0.2...v2.0.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **1037:** keep the planner's Anspruch column level with the person rows ([#1039](https://github.com/getclokr/clokr/issues/1039)) ([cee5ff6](https://github.com/getclokr/clokr/commit/cee5ff6d95e280b2b2406eebafa92ebb9d70569c))
+
 ## [2.0.2](https://github.com/getclokr/clokr/compare/v2.0.1...v2.0.2) (2026-11-19)
 
 
