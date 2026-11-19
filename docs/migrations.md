@@ -1866,6 +1866,83 @@ WHERE "id" IN (
   AND 'leave-plan:manage:ZUGEWIESEN' = ANY("permissions");
 ```
 
+## Phase 1036 — Offene Urlaubsanträge in die Urlaubsplanung übernehmen (Issue #1036)
+
+**Hinweis für die Release Notes.** Es gibt **keine Migration und keinen Schemawechsel.** Owner-Entscheidung vom 19.11.2026:
+offene (PENDING) Urlaubsanträge für ein Jahr, für das es inzwischen eine **offene Urlaubsplanung** (#835) gibt, wandern als
+Wünsche in diese Planung. Einmalig, per Betreiberskript `apps/api/scripts/migrate-1036-pending-leave-to-plan.ts`.
+
+**Was das Skript tut.** Kandidat ist jeder nicht gelöschte Antrag mit Status `PENDING` und Urlaubsart `VACATION` eines aktiven
+Mandanten, dessen Start- oder Endjahr eine offene Planung im Mandanten hat. Die Planung ist die offene Planung dieses Jahres
+des Salons, in dem die Person an mindestens einem Antragstag ihren Stammsalon hat (dieselbe Tagesregel wie beim Eintragen eines
+Wunsches, keine zweite Regel). Je Antrag, in **einer** Transaktion:
+
+1. Der Antrag wird zurückgezogen wie im PENDING-Pfad von `DELETE /leave/requests/:id` (`PENDING` → `CANCELLED`; nur eine noch
+   offene Zeile wird umgestellt).
+2. Ein Wunsch mit demselben Start, Ende und Halbtag-Kennzeichen wird durch den Wunsch-Kern geschrieben (dieselben Prüfungen wie im
+   Planer), als Ersteller gilt die Person, die die Planung eröffnet hat.
+
+Lehnt der Wunsch-Kern ab (z. B. `LEAVE_PLAN_WISH_OVERLAP`, `LEAVE_PLAN_WISH_NOT_EMPLOYED`), wird **alles** zurückgerollt: der
+Antrag bleibt `PENDING`, es entsteht weder Wunsch noch Audit-Zeile, der Code steht in der Ausgabe, der Exit-Code ist `1`.
+Nie angefasst werden: genehmigte Anträge (`APPROVED`), jeder andere Status, jede andere Urlaubsart (z. B. `OVERTIME_COMP`),
+Anträge, die schon mit einem Wunsch verknüpft sind (`LINKED_TO_WISH`: eine Übernahme, deren Genehmigung abgelehnt wurde), Anträge
+über den Jahreswechsel (`SPANS_YEARS`) und Anträge ohne offene Planung im Stammsalon (`NO_PLAN`). Deaktivierte Mandanten werden
+übersprungen. Ein zweiter Lauf ist ungefährlich: ein übernommener Antrag ist `CANCELLED` und kein Kandidat mehr.
+
+**Audit.** Der Antrag erhält eine Zeile `UPDATE LeaveRequest` (ohne Benutzer = System, `oldValue` `{status: PENDING}`, `newValue`
+mit `status` `CANCELLED`, `auditReason` „In Urlaubsplanung übernommen“, `trigger` `LEAVE_PLAN_MIGRATION_1036`, `leavePlanWishId`,
+`leavePlanId`), der Wunsch eine Zeile `CREATE LeavePlanWish` (Benutzer = Person, die die Planung eröffnet hat) mit demselben
+`trigger` und `auditReason`. Nach dem Schreiben werden die offenen Benachrichtigungen der Genehmigenden (`LEAVE_REQUEST` zum
+zurückgezogenen Antrag) erledigt; das geschieht nach dem Commit und ein Fehler dort wird nur protokolliert.
+
+**Ablauf (Owner, auf int UND prod; jeweils nach dem Deploy des Release mit #1036 und vorher `pg_dump`).**
+
+```bash
+# 0. Probelauf (Voreinstellung, schreibt NICHTS) - lesen: jede Ablehnung ist ein fachlich zu klärender Fall, nichts erzwingen
+docker exec clokr-api sh -lc "cd /app && ./node_modules/.bin/tsx apps/api/scripts/migrate-1036-pending-leave-to-plan.ts --year 2027" \
+  | tee "1036-probelauf-<umgebung>-$(date +%Y%m%d).txt"
+
+# 1. Die betroffenen Mitarbeitenden informieren: ihre Anträge werden zu Wünschen in der Urlaubsplanung, die Anträge zurückgezogen.
+
+# 2. Schreiben (optional --tenant <id>)
+docker exec clokr-api sh -lc "cd /app && ./node_modules/.bin/tsx apps/api/scripts/migrate-1036-pending-leave-to-plan.ts --year 2027 --confirm" \
+  | tee "1036-lauf-<umgebung>-$(date +%Y%m%d).txt"
+```
+
+(Das Skript baut die API-Anwendung und braucht deshalb die Umgebung des laufenden API-Containers; der Standard-Einstiegspunkt eines
+frischen Images führt `prisma migrate deploy` aus und wird nicht verwendet. Optional `--tenant <id>`.)
+
+Eine Zeile je Antrag: `tenant=<id> request=<id> employee=<id> plan=<id>|none type=VACATION start=<YYYY-MM-DD> end=<YYYY-MM-DD>
+halfDay=<true|false> wish=<id>|none result=<WOULD_MOVE|MOVED|NO_PLAN|SPANS_YEARS|NOT_PENDING|LINKED_TO_WISH|<Ablehnungscode>|failed:CODE>`,
+dann eine `Totals:`-Zeile. Es erscheinen nur Ids, Daten, Zahlen und Codes - keine Namen, keine Personalnummern. Exit-Code `0`:
+fertig (Überspringen ist kein Fehler); `1`: Aufruffehler, `DATABASE_URL` fehlt oder mindestens ein Antrag wurde abgelehnt oder ist
+fehlgeschlagen.
+
+**Prüfen (lesend).**
+
+```sql
+-- PENDING vacation requests of the tenant inside 2027: refused plus skipped lines of the run.
+SELECT count(*)
+FROM "LeaveRequest" lr
+JOIN "LeaveType" lt ON lt."id" = lr."leaveTypeId"
+JOIN "Employee" e ON e."id" = lr."employeeId"
+WHERE e."tenantId" = '<tenant-id>' AND lt."code" = 'VACATION' AND lr."status" = 'PENDING'
+  AND lr."deletedAt" IS NULL AND lr."startDate" >= '2027-01-01' AND lr."endDate" <= '2027-12-31';
+
+-- Wishes written by the run: must equal the MOVED lines.
+SELECT count(*)
+FROM "AuditLog"
+WHERE "entity" = 'LeavePlanWish' AND "action" = 'CREATE'
+  AND "newValue"->>'trigger' = 'LEAVE_PLAN_MIGRATION_1036';
+```
+
+(Die erste Zahl umfasst die abgelehnten Anträge und die mit Absicht übersprungenen Fälle `NO_PLAN`, `SPANS_YEARS` und
+`LINKED_TO_WISH`.)
+
+**Rollback.** Es gibt keinen Rückbau per SQL: ein übernommener Antrag bleibt `CANCELLED` (Revisionssicherheit, jede Änderung steht
+mit `LEAVE_PLAN_MIGRATION_1036` im AuditLog). Ein falscher Wunsch wird im Planer entfernt, die Person stellt den Antrag neu. Der
+sichere Weg zurück ist die Wiederherstellung des `pg_dump` vor dem Lauf.
+
 ## Phase 842 — Designsystem: Themes und Präferenzen (Issue #842)
 
 **Hinweis für die Release Notes.** Das Oberflächendesign hat jetzt drei Themes (Pflaume, Salz, Petrol), jeweils hell und dunkel.
