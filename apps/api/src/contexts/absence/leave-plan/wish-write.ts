@@ -15,6 +15,10 @@
  * themself (`OWN`, subject to the deadline lock) or a holder of `leave-plan:manage` whose reach
  * covers the person (`MANAGER`, never locked); the route has decided that before the call.
  *
+ * `createWishInTx` is the same write inside a caller-owned transaction (Issue #1036, the operator
+ * script that moves PENDING requests into a plan); it keeps the lock order and returns the same
+ * data outcomes, and the caller maps a thrown overlap exclusion outside its own transaction.
+ *
  * Deliberately NOT re-exported from `contexts/absence/index.ts` (import-cycle cap 22).
  */
 import type { FastifyInstance } from "fastify";
@@ -279,64 +283,87 @@ function wishValues(wish: {
   };
 }
 
-/** Adds a wish to a plan for `employeeId`; the caller has authorised the actor for that person. */
-export async function createWish(
+/** Machine marker and German display reason merged into the CREATE audit of a wish (Issue #1036). */
+export type WishAuditMarker = { trigger: string; auditReason: string };
+
+export type CreateWishInput = {
+  tenantId: string;
+  planId: string;
+  employeeId: string;
+  actor: WishActor;
+  now: Date;
+  startDay: string;
+  endDay: string;
+  halfDay: boolean;
+  /** Absent for a system caller (an operator script); the audit row then carries no ip/agent. */
+  request?: AuditRequestMeta;
+  /** Absent = the audit row is byte-identical to the route's. */
+  auditMarker?: WishAuditMarker;
+};
+
+/**
+ * The body of `createWish`, run inside a CALLER-owned transaction (Issue #1036: the operator script
+ * withdraws a request and writes the wish in ONE transaction). The caller must take
+ * `lockEmployeeForLeavePricing` as the FIRST statement of its transaction (the lock order above;
+ * re-taking it here is a no-op). A thrown overlap exclusion aborts the caller's transaction, so the
+ * caller maps `isWishOverlapExclusion` OUTSIDE its `$transaction` call, like `createWish` does.
+ */
+export async function createWishInTx(
   app: FastifyInstance,
-  input: {
-    tenantId: string;
-    planId: string;
-    employeeId: string;
-    actor: WishActor;
-    now: Date;
-    startDay: string;
-    endDay: string;
-    halfDay: boolean;
-    request: AuditRequestMeta;
-  },
+  tx: Db,
+  input: CreateWishInput,
 ): Promise<WishWriteOutcome> {
   const { tenantId, planId, employeeId, startDay, endDay, halfDay, actor } = input;
 
-  const write = app.prisma.$transaction(async (tx): Promise<WishWriteOutcome> => {
-    await lockEmployeeForLeavePricing(tx, tenantId, employeeId);
-    const plan = await lockPlanShared(tx, tenantId, planId);
-    if (!plan) return PLAN_NOT_FOUND_OUTCOME;
-    if (plan.status !== "OPEN") return refused(409, LEAVE_PLAN_CLOSED);
+  await lockEmployeeForLeavePricing(tx, tenantId, employeeId);
+  const plan = await lockPlanShared(tx, tenantId, planId);
+  if (!plan) return PLAN_NOT_FOUND_OUTCOME;
+  if (plan.status !== "OPEN") return refused(409, LEAVE_PLAN_CLOSED);
 
-    const invalid = await validateWishRules(tx, {
-      tenantId,
-      plan,
-      employeeId,
-      startDay,
-      endDay,
-      halfDay,
-      actor,
-      now: input.now,
-    });
-    if (invalid) return invalid;
-
-    const wish = await tx.leavePlanWish.create({
-      data: {
-        tenantId,
-        planId,
-        employeeId,
-        startDate: dayToDate(startDay),
-        endDate: dayToDate(endDay),
-        halfDay,
-        createdByUserId: actor.userId,
-      },
-    });
-    await app.audit({
-      userId: actor.userId,
-      action: "CREATE",
-      entity: "LeavePlanWish",
-      entityId: wish.id,
-      newValue: wishValues({ planId, employeeId, startDate: startDay, endDate: endDay, halfDay }),
-      request: input.request,
-      tx,
-    });
-    return { ok: true, wish };
+  const invalid = await validateWishRules(tx, {
+    tenantId,
+    plan,
+    employeeId,
+    startDay,
+    endDay,
+    halfDay,
+    actor,
+    now: input.now,
   });
-  return mapOverlapExclusion(write);
+  if (invalid) return invalid;
+
+  const wish = await tx.leavePlanWish.create({
+    data: {
+      tenantId,
+      planId,
+      employeeId,
+      startDate: dayToDate(startDay),
+      endDate: dayToDate(endDay),
+      halfDay,
+      createdByUserId: actor.userId,
+    },
+  });
+  await app.audit({
+    userId: actor.userId,
+    action: "CREATE",
+    entity: "LeavePlanWish",
+    entityId: wish.id,
+    newValue: {
+      ...wishValues({ planId, employeeId, startDate: startDay, endDate: endDay, halfDay }),
+      ...(input.auditMarker ?? {}),
+    },
+    request: input.request,
+    tx,
+  });
+  return { ok: true, wish };
+}
+
+/** Adds a wish to a plan for `employeeId`; the caller has authorised the actor for that person. */
+export async function createWish(
+  app: FastifyInstance,
+  input: CreateWishInput & { request: AuditRequestMeta },
+): Promise<WishWriteOutcome> {
+  return mapOverlapExclusion(app.prisma.$transaction((tx) => createWishInTx(app, tx, input)));
 }
 
 /**
