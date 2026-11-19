@@ -299,6 +299,22 @@ function previousDay(day: string): string {
  * (`GET /overtime/month-saldo` days: cumulative(d) − cumulative(d−1)) and the break finding of the
  * server's day check (`unconfirmedBreakDays`).
  */
+/**
+ * The cumulative saldo series „Letzte Tage“ derives its per-day chip from. For a SHIFT_BASED
+ * contract the open month's series is prorated by roster progress (D-09): while the month is
+ * rostered below the contract, every rostered day carries more Soll than its own shift, so the
+ * day-to-day change reads as a loss on a day the person worked their full shift (prod,
+ * 19.11.2026). The month total is right; the single day is not. Until the server states a per-day
+ * „Ist gegen Schicht“ figure (v2.1.0), the chip is left out for SHIFT_BASED — no number is better
+ * than a misleading one. Every other schedule type keeps the series unchanged.
+ */
+export function recentDaySaldoSeries(
+  scheduleType: string | null | undefined,
+  cumulativeByDate: ReadonlyMap<string, number>,
+): ReadonlyMap<string, number> {
+  return scheduleType === "SHIFT_BASED" ? new Map() : cumulativeByDate;
+}
+
 export function recentDays(
   entries: RecentEntry[],
   cumulativeByDate: ReadonlyMap<string, number>,

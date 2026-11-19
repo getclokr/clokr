@@ -108,6 +108,7 @@
     plannedDaysCount,
     weekStripText,
     recentDays,
+    recentDaySaldoSeries,
     type MyWeekStripDay,
     type OvertimeAnswer,
     type MyShiftWeek,
@@ -1759,8 +1760,14 @@
   }
   let breakDaySet = $derived(new Set(openItems?.unconfirmedBreakDays ?? []));
   let recentDayRows = $derived(
-    recentDays(recentEntries, cumulativeByDate, breakDaySet, (rows) =>
-      dayTotals(rows as ClockDayEntry[], currentTime),
+    recentDays(
+      recentEntries,
+      recentDaySaldoSeries(
+        myWeekScheduleType ?? (stats as DashboardStats | null)?.scheduleType,
+        cumulativeByDate,
+      ),
+      breakDaySet,
+      (rows) => dayTotals(rows as ClockDayEntry[], currentTime),
     ),
   );
 </script>
@@ -2060,7 +2067,7 @@
                     <tr>
                       <th scope="col">Tag</th>
                       <th scope="col">Zeiten</th>
-                      <th scope="col" class="r">Pause</th>
+                      <th scope="col" class="r mt-col-break">Pause</th>
                       <th scope="col" class="r">Netto</th>
                       <th scope="col" class="r"><span class="sr-only">Saldo</span></th>
                     </tr>
@@ -2074,7 +2081,9 @@
                           })}</td
                         >
                         <td>{r.start}–{r.end}</td>
-                        <td class="r">{r.breakMinutes > 0 ? fmtClock(r.breakMinutes) : "—"}</td>
+                        <td class="r mt-col-break"
+                          >{r.breakMinutes > 0 ? fmtClock(r.breakMinutes) : "—"}</td
+                        >
                         <td class="r">{fmtClock(r.workingMinutes)}</td>
                         <td class="r">
                           {#if r.breakMissing}
@@ -2593,6 +2602,18 @@
   }
   .mt-table .r {
     text-align: right;
+  }
+  /* Phone width: the five columns do not fit next to each other, and the scrolled table hid the
+     day (prod, 19.11.2026). Tighter cells and no break column keep the day visible; the break
+     stays in Zeiten. */
+  @media (max-width: 480px) {
+    .mt-table th,
+    .mt-table td {
+      padding: 0 var(--s-2);
+    }
+    .mt-table .mt-col-break {
+      display: none;
+    }
   }
   .mt-history {
     list-style: none;
