@@ -138,6 +138,11 @@ export interface CalendarMaskedEntry {
   endDate: string;
   isOwn: false;
   masked: true;
+  /**
+   * A colleague's pending request under `scope=team` (Issue #1038): drawn as the dashed neutral
+   * „beantragt“ bar. The flag says only "requested", never the type or the raw status.
+   */
+  requested?: true;
   /** Absent on the wire; declared so the union can be narrowed on `isHoliday`. */
   isHoliday?: undefined;
 }
@@ -160,6 +165,18 @@ export interface CalendarHolidayEntry {
 
 export type CalendarEntry = CalendarDetailedEntry | CalendarMaskedEntry | CalendarHolidayEntry;
 
+/**
+ * One member of the team a `scope=team` range answer names (Issue #1038): the server's population
+ * (Stammsalon colleagues employed in the window), so a person without any absence still has a row.
+ * Four keys only — no hire date, exit date or user id.
+ */
+export interface CalendarPerson {
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  isOwn: boolean;
+}
+
 export interface CalendarSalon {
   salonId: string;
   name: string;
@@ -169,6 +186,8 @@ export interface CalendarSalon {
 export interface CalendarRangeAnswer {
   entries: CalendarEntry[];
   salons: CalendarSalon[];
+  /** Present only on the `scope=team` range answer: every listed team member (Issue #1038). */
+  persons?: CalendarPerson[];
 }
 
 // ── Timeline rows ────────────────────────────────────────────────────────────
@@ -214,15 +233,33 @@ function isHolidayEntry(entry: CalendarEntry): entry is CalendarHolidayEntry {
 }
 
 /**
- * Rows (one per absent person, ordered by last name, first name, id) and the holidays of the
- * answer. The decision "detailed or masked" is the server's; it is read from `masked` alone.
+ * Rows (one per listed person and per absent person, ordered by last name, first name, id) and the
+ * holidays of the answer. The decision "detailed or masked" is the server's; it is read from
+ * `masked` alone. `persons` (Issue #1038) seeds a row for every listed team member before the
+ * entries land, so a person without any absence has an empty row.
  */
-export function calendarToTimeline(entries: readonly CalendarEntry[]): {
+export function calendarToTimeline(
+  entries: readonly CalendarEntry[],
+  persons: readonly CalendarPerson[] = [],
+): {
   rows: TimelinePerson[];
   holidays: Array<{ day: string; name: string }>;
 } {
   const holidays: Array<{ day: string; name: string }> = [];
   const byPerson = new Map<string, { person: TimelinePerson; last: string }>();
+
+  for (const listed of persons) {
+    if (byPerson.has(listed.employeeId)) continue;
+    byPerson.set(listed.employeeId, {
+      person: {
+        employeeId: listed.employeeId,
+        name: `${listed.firstName} ${listed.lastName}`.trim(),
+        isOwn: listed.isOwn,
+        bars: [],
+      },
+      last: listed.lastName,
+    });
+  }
 
   const personOf = (entry: CalendarDetailedEntry | CalendarMaskedEntry): TimelinePerson => {
     const known = byPerson.get(entry.employeeId);

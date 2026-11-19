@@ -23,6 +23,7 @@ import {
   type CalendarDetailedEntry,
   type CalendarHolidayEntry,
   type CalendarMaskedEntry,
+  type CalendarPerson,
   type TimelineBar,
   type TimelinePerson,
 } from "../timeline-model";
@@ -223,6 +224,63 @@ describe("calendarToTimeline", () => {
   it("a half day keeps its flag on the bar", () => {
     const { rows } = calendarToTimeline([detailed({ halfDay: true })]);
     expect(rows[0].bars[0].halfDay).toBe(true);
+  });
+});
+
+describe("calendarToTimeline with persons (Issue #1038)", () => {
+  const person = (over: Partial<CalendarPerson>): CalendarPerson => ({
+    employeeId: "emp-c",
+    firstName: "Clara",
+    lastName: "Carlsen",
+    isOwn: false,
+    ...over,
+  });
+
+  it("a listed person without any entry is a row with no bars", () => {
+    const { rows } = calendarToTimeline([], [person({})]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ employeeId: "emp-c", name: "Clara Carlsen", bars: [] });
+  });
+
+  it("a person in both persons and entries is ONE row with its bars", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({ id: "r1", employeeId: "emp-a" })],
+      [person({ employeeId: "emp-a", firstName: "Anna", lastName: "Muster" })],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bars.map((b) => b.key)).toEqual(["r1"]);
+  });
+
+  it("rows stay ordered by last name, first name, id across listed and absent persons", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({}), masked({})],
+      [
+        person({ employeeId: "emp-z", firstName: "Zoe", lastName: "Ahorn" }),
+        person({ employeeId: "emp-y", firstName: "Yara", lastName: "Ahorn" }),
+        person({ employeeId: "emp-c" }),
+      ],
+    );
+    // Ahorn Yara, Ahorn Zoe, Beispiel Bernd, Carlsen Clara, Muster Anna.
+    expect(rows.map((r) => r.employeeId)).toEqual(["emp-y", "emp-z", "emp-b", "emp-c", "emp-a"]);
+  });
+
+  it("isOwn of a row without entries comes from the person", () => {
+    const { rows } = calendarToTimeline([], [person({ isOwn: true }), person({ employeeId: "x" })]);
+    expect(rows.find((r) => r.employeeId === "emp-c")?.isOwn).toBe(true);
+    expect(rows.find((r) => r.employeeId === "x")?.isOwn).toBe(false);
+  });
+
+  it("an own entry sets isOwn on a row that was listed as not own", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({ isOwn: true })],
+      [person({ employeeId: "emp-a", isOwn: false })],
+    );
+    expect(rows[0].isOwn).toBe(true);
+  });
+
+  it("without the second argument the result is exactly the old one", () => {
+    const entries = [detailed({}), masked({}), holiday];
+    expect(calendarToTimeline(entries)).toEqual(calendarToTimeline(entries, []));
   });
 });
 
