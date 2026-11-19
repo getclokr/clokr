@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/getclokr/clokr/compare/v2.0.1...v2.0.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **mein-tag:** no misleading day saldo for SHIFT_BASED; day column fits at phone width ([#1031](https://github.com/getclokr/clokr/issues/1031)) ([a9a544e](https://github.com/getclokr/clokr/commit/a9a544e94c41e7a7b5eaf864fbadd67f646de46f))
+
 ## [2.0.1](https://github.com/getclokr/clokr/compare/v2.0.0...v2.0.1) (2026-11-16)
 
 
