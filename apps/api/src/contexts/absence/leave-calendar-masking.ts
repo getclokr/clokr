@@ -117,7 +117,7 @@ export function maskCalendarRows<T extends MaskableCalendarRow>(
   requestedStatuses: ReadonlySet<string> = new Set(),
 ): { detailed: T[]; masked: MaskedCalendarEntry[] } {
   const keep: T[] = [];
-  const candidates: Array<MaskedCalendarEntry & { requested: boolean }> = [];
+  const candidates: Array<Omit<MaskedCalendarEntry, "requested"> & { requested: boolean }> = [];
 
   for (const row of rows) {
     if (detailed(row)) {
