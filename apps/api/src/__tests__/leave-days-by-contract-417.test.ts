@@ -29,9 +29,13 @@ function addDaysIso(iso: string, days: number): string {
 }
 
 /** Mirrors the identical helper in leave-provisional-approval.test.ts / shift-leave-recalc.test.ts. */
-function nextHolidayFreeMonday(daysOut: number, weekSpan = 1): string {
+function nextHolidayFreeMonday(daysOut: number, weekSpan = 1, notBefore?: string): string {
   const anchor = utcMidnight(todayStr());
   let candidateIso = dbDateStr(new Date(anchor.getTime() + daysOut * DAY_MS));
+  // The three scenarios must never share a week: near the year end the holiday skip can move two
+  // anchors onto the same Monday (19.11.2026: +28 and +42 both landed on 04.01.2027, so case (c)
+  // collided with case (b)'s request). `notBefore` starts the search after the previous span.
+  if (notBefore && candidateIso < notBefore) candidateIso = notBefore;
   const daysUntilMonday = (8 - utcMidnight(candidateIso).getUTCDay()) % 7;
   candidateIso = addDaysIso(candidateIso, daysUntilMonday);
 
@@ -58,8 +62,8 @@ const PAST_ANCHOR = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1));
 
 // One anchor Monday per scenario — widely spaced so no overlap guard fires between cases.
 const CASE_A_MONDAY = nextHolidayFreeMonday(14); // (a) shift deleted, then request created
-const CASE_B_MONDAY = nextHolidayFreeMonday(28); // (b) request created, then week planned around it
-const CASE_C_MONDAY = nextHolidayFreeMonday(42, 1); // (c) whole vacation week on a 5-day contract
+const CASE_B_MONDAY = nextHolidayFreeMonday(28, 1, addDaysIso(CASE_A_MONDAY, 14)); // (b) request created, then week planned around it
+const CASE_C_MONDAY = nextHolidayFreeMonday(42, 1, addDaysIso(CASE_B_MONDAY, 14)); // (c) whole vacation week on a 5-day contract
 
 describe("Issue #417 — SHIFT_BASED leave days counted by contract, not roster", () => {
   let app: FastifyInstance;
