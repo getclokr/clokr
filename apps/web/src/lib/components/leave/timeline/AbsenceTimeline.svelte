@@ -896,8 +896,11 @@
     border-bottom: 1px solid var(--line);
   }
 
-  /* The load line is exactly as high as its forecast cell: no padded name cell stretches it. */
-  .tl-load .tl-name {
+  /* The load and person lines are exactly as high as their forecast cells: no padded name cell
+     stretches them (Issue #1037 - the padded name made every person line ~2 px taller than its
+     forecast cell, so the Anspruch column drifted up row by row). */
+  .tl-load .tl-name,
+  .tl-person .tl-name {
     padding-block: 0;
   }
 
