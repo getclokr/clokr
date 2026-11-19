@@ -283,6 +283,20 @@ export function calendarToTimeline(
       continue;
     }
     if (isMasked(entry)) {
+      // A colleague's pending request (Issue #1038): the same neutral bar, drawn dashed. It names
+      // neither the type nor the raw status; the key keeps it apart from an absent bar.
+      if (entry.requested === true) {
+        personOf(entry).bars.push({
+          key: `masked-requested:${entry.employeeId}:${entry.startDate}`,
+          start: entry.startDate,
+          end: entry.endDate,
+          style: "beantragt",
+          typeCode: null,
+          label: NEUTRAL_CHIP_LABEL,
+          editable: false,
+        });
+        continue;
+      }
       personOf(entry).bars.push({
         key: `masked:${entry.employeeId}:${entry.startDate}`,
         start: entry.startDate,

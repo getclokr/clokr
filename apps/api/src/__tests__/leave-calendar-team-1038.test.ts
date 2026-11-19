@@ -289,4 +289,64 @@ describe("Issue #1038 — Team tab: persons list and requested bars", () => {
       expect(Array.isArray(JSON.parse(res.body))).toBe(true);
     });
   });
+
+  describe("requested bars (OD-1)", () => {
+    it("two touching PENDING requests of a colleague arrive as ONE eight-key requested range", async () => {
+      const body = await range(token.eA, `${RANGE}&scope=team`);
+      const rows = rowsOf(body, "cPend");
+      expect(rows).toHaveLength(1);
+      expect(Object.keys(rows[0]).sort()).toEqual(REQUESTED_KEYS);
+      expect(rows[0]).toMatchObject({
+        startDate: "2026-06-10",
+        endDate: "2026-06-12",
+        masked: true,
+        requested: true,
+        isOwn: false,
+      });
+    });
+
+    it("an absent and a requested range of one person stay two ranges, one per flag", async () => {
+      const body = await range(token.eA, `${RANGE}&scope=team`);
+      const rows = rowsOf(body, "cMix");
+      expect(rows).toHaveLength(2);
+      const [absent, requested] = rows;
+      expect(Object.keys(absent).sort()).toEqual(MASKED_KEYS);
+      expect(absent).toMatchObject({ startDate: "2026-06-01", endDate: "2026-06-03" });
+      expect(Object.keys(requested).sort()).toEqual(REQUESTED_KEYS);
+      expect(requested).toMatchObject({
+        startDate: "2026-06-04",
+        endDate: "2026-06-04",
+        requested: true,
+      });
+      const json = JSON.stringify(rows);
+      for (const forbidden of ["PENDING", "halfDay", "typeCode", "section9", "VACATION"]) {
+        expect(json).not.toContain(forbidden);
+      }
+    });
+
+    it("no pending request id appears anywhere in the body", async () => {
+      const text = (await get(token.eA, `${RANGE}&scope=team`)).body;
+      for (const key of ["cPend1", "cPend2", "cMixPending", "cMixApproved"]) {
+        expect(text).not.toContain(req[key]);
+      }
+    });
+
+    it("the caller's own PENDING row stays detailed", async () => {
+      const body = await range(token.eA, `${RANGE}&scope=team`);
+      const own = leaveRows(body).find((e) => e.id === req.eAPending);
+      expect(own).toBeDefined();
+      expect(own).toMatchObject({ status: "PENDING", isOwn: true });
+      expect(own?.masked).toBeUndefined();
+      expect(own?.requested).toBeUndefined();
+    });
+
+    it("scope=own and a whole-tenant no-scope answer carry no requested key; the admin sees PENDING in detail", async () => {
+      const own = await range(token.eA, `${RANGE}&scope=own`);
+      expect(own.entries.some((e) => "requested" in e)).toBe(false);
+      const admin = await range(data.adminToken, RANGE);
+      expect(admin.entries.some((e) => "requested" in e)).toBe(false);
+      const pending = leaveRows(admin).find((e) => e.id === req.cPend1);
+      expect(pending).toMatchObject({ status: "PENDING" });
+    });
+  });
 });

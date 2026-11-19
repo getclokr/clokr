@@ -158,6 +158,115 @@ describe("maskCalendarRows", () => {
   });
 });
 
+describe("requested ranges (Issue #1038)", () => {
+  const PENDING = new Set(["PENDING"]);
+  const REQUESTED_KEYS = [...MASKED_KEYS, "requested"].sort();
+  const mask = (rows: ReturnType<typeof row>[], window?: { from: string; to: string }) =>
+    maskCalendarRows(rows, () => false, EFFECTIVE, window, PENDING);
+
+  it("a foreign PENDING row becomes the seven masked keys plus requested: true", () => {
+    const { masked } = mask([row("p1", "2026-06-01", "2026-06-03", "PENDING")]);
+    expect(masked).toHaveLength(1);
+    expect(Object.keys(masked[0]).sort()).toEqual(REQUESTED_KEYS);
+    expect(masked[0]).toEqual({
+      employeeId: "p1",
+      firstName: "Vor",
+      lastName: "p1",
+      startDate: "2026-06-01",
+      endDate: "2026-06-03",
+      isOwn: false,
+      masked: true,
+      requested: true,
+    });
+  });
+
+  it("two touching foreign PENDING rows of one person merge into ONE requested range", () => {
+    const { masked } = mask([
+      row("p1", "2026-06-10", "2026-06-11", "PENDING"),
+      row("p1", "2026-06-12", "2026-06-12", "PENDING"),
+    ]);
+    expect(masked).toHaveLength(1);
+    expect(masked[0]).toMatchObject({ startDate: "2026-06-10", endDate: "2026-06-12" });
+    expect(masked[0].requested).toBe(true);
+  });
+
+  it("an APPROVED and a touching PENDING row of one person stay two ranges, one per flag", () => {
+    const { masked } = mask([
+      row("p1", "2026-06-04", "2026-06-04", "PENDING"),
+      row("p1", "2026-06-01", "2026-06-03"),
+    ]);
+    expect(masked.map((m) => [m.startDate, m.endDate, m.requested ?? false])).toEqual([
+      ["2026-06-01", "2026-06-03", false],
+      ["2026-06-04", "2026-06-04", true],
+    ]);
+  });
+
+  it("an absent range is listed before a requested one that starts on the same day", () => {
+    const { masked } = mask([
+      row("p1", "2026-06-05", "2026-06-06", "PENDING"),
+      row("p1", "2026-06-05", "2026-06-05"),
+    ]);
+    expect(masked.map((m) => m.requested ?? false)).toEqual([false, true]);
+  });
+
+  it("an absent range never carries a requested key", () => {
+    const { masked } = mask([row("p1", "2026-06-01", "2026-06-03")]);
+    expect(Object.keys(masked[0]).sort()).toEqual(MASKED_KEYS);
+    expect("requested" in masked[0]).toBe(false);
+  });
+
+  it("a detailed PENDING row stays detailed and unchanged", () => {
+    const pending = row("p1", "2026-06-01", "2026-06-03", "PENDING");
+    const { detailed, masked } = maskCalendarRows(
+      [pending],
+      () => true,
+      EFFECTIVE,
+      undefined,
+      PENDING,
+    );
+    expect(detailed).toEqual([pending]);
+    expect(detailed[0]).toBe(pending);
+    expect(masked).toEqual([]);
+  });
+
+  it("a requested range is clipped to the window before the merge", () => {
+    const { masked } = mask(
+      [
+        row("p1", "2026-05-25", "2026-06-02", "PENDING"),
+        row("p1", "2026-06-29", "2026-07-20", "PENDING"),
+        row("p1", "2026-07-02", "2026-07-03", "PENDING"),
+      ],
+      { from: "2026-06-01", to: "2026-06-30" },
+    );
+    expect(masked.map((m) => [m.startDate, m.endDate])).toEqual([
+      ["2026-06-01", "2026-06-02"],
+      ["2026-06-29", "2026-06-30"],
+    ]);
+  });
+
+  it("without requestedStatuses a foreign PENDING row is still dropped", () => {
+    const { masked } = maskCalendarRows(
+      [row("p1", "2026-06-01", "2026-06-03", "PENDING")],
+      () => false,
+      EFFECTIVE,
+    );
+    expect(masked).toEqual([]);
+  });
+
+  it("still orders the ranges by person id, then by start", () => {
+    const { masked } = mask([
+      row("p2", "2026-06-01", "2026-06-01", "PENDING"),
+      row("p1", "2026-06-09", "2026-06-09", "PENDING"),
+      row("p1", "2026-06-02", "2026-06-02"),
+    ]);
+    expect(masked.map((m) => `${m.employeeId}:${m.startDate}`)).toEqual([
+      "p1:2026-06-02",
+      "p1:2026-06-09",
+      "p2:2026-06-01",
+    ]);
+  });
+});
+
 describe("isPersonVisibleOnSomeDay", () => {
   const S1 = "salon-1";
   const S2 = "salon-2";

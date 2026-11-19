@@ -527,7 +527,12 @@ describe("Issue #840 — AC-4 / AC-5 matrix of the calendar read", () => {
       const foreign = body.entries.filter((e) => e.isHoliday !== true && e.isOwn !== true);
       expect(foreign.length).toBeGreaterThan(0);
       for (const row of foreign) {
-        expect(Object.keys(row).sort()).toEqual(MASKED_KEYS);
+        // Issue #1038 (owner decision 19.11.2026): under scope=team, incl. the WR-04 implicit team
+        // answer, a colleague's PENDING request arrives as a masked range flagged requested: true —
+        // name and period only. Every other foreign row keeps exactly the seven masked keys.
+        const expectedKeys =
+          row.requested === true ? [...MASKED_KEYS, "requested"].sort() : MASKED_KEYS;
+        expect(Object.keys(row).sort()).toEqual(expectedKeys);
         expect(row.masked).toBe(true);
       }
     });
@@ -705,7 +710,15 @@ describe("Issue #840 — AC-4 / AC-5 matrix of the calendar read", () => {
 
     it("the colleagues it still shows are masked, the caller's own rows complete", async () => {
       const body = await range(token.empNone, RANGE);
-      for (const row of rowsOf(body, "pA")) expect(Object.keys(row).sort()).toEqual(MASKED_KEYS);
+      for (const row of rowsOf(body, "pA")) {
+        // Issue #1038 (owner decision 19.11.2026): under scope=team, incl. the WR-04 implicit team
+        // answer, a colleague's PENDING request arrives as a masked range flagged requested: true —
+        // name and period only.
+        const expectedKeys =
+          row.requested === true ? [...MASKED_KEYS, "requested"].sort() : MASKED_KEYS;
+        expect(Object.keys(row).sort()).toEqual(expectedKeys);
+        expect(row.masked).toBe(true);
+      }
       expect(rowsOf(body, "empNone").every((e) => e.masked === undefined)).toBe(true);
     });
 

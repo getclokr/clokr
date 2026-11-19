@@ -2125,6 +2125,12 @@ export async function leaveRoutes(app: FastifyInstance) {
         new Set<string>(EFFECTIVE_LEAVE_STATUSES),
         // A masked range never reaches beyond the window asked for (WR-03).
         { from: windowFromDay, to: windowToDay },
+        // Issue #1038 (OD-1, owner decision 19.11.2026): only under the effective `scope=team`
+        // (the WR-04 implicit team answer included) a colleague's PENDING request arrives as a
+        // masked range flagged `requested: true` — name and period only. The reach-based answer
+        // (no scope, with a reach) keeps dropping a foreign PENDING row (Phase 262 D-05). The
+        // control value is the enum, never a display string.
+        scope === "team" ? new Set<string>([LeaveRequestStatus.PENDING]) : undefined,
       );
       // § 9 markers and days only for detailed rows: whoever may not learn the type must not read
       // the sick-in-vacation marker either (it would reveal the sickness indirectly).

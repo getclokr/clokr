@@ -29,7 +29,7 @@ import {
 } from "../timeline-model";
 import type { PlannerReadDto } from "$lib/leave-plan/types";
 import { LEAVE_TYPES, NEUTRAL_CHIP_LABEL } from "../team-calendar-visibility";
-import { ABSENT, leaveTypeColor } from "../leave-colors";
+import { ABSENT, legendFrom, leaveTypeColor } from "../leave-colors";
 
 describe("periodOf", () => {
   it("the year contains the anchor day: 1 January to 31 December", () => {
@@ -281,6 +281,51 @@ describe("calendarToTimeline with persons (Issue #1038)", () => {
   it("without the second argument the result is exactly the old one", () => {
     const entries = [detailed({}), masked({}), holiday];
     expect(calendarToTimeline(entries)).toEqual(calendarToTimeline(entries, []));
+  });
+});
+
+describe("a requested masked entry (Issue #1038)", () => {
+  const requested = (over: Partial<CalendarMaskedEntry> = {}): CalendarMaskedEntry =>
+    masked({ requested: true, ...over });
+
+  it("is a dashed neutral bar: beantragt, no type, the neutral label, no request id, not editable", () => {
+    const { rows } = calendarToTimeline([requested()]);
+    const bar = rows[0].bars[0];
+    expect(bar).toMatchObject({
+      key: "masked-requested:emp-b:2026-11-09",
+      start: "2026-11-09",
+      end: "2026-11-10",
+      style: "beantragt",
+      typeCode: null,
+      label: NEUTRAL_CHIP_LABEL,
+      editable: false,
+    });
+    expect(bar.requestId).toBeUndefined();
+    expect(bar.halfDay).toBeUndefined();
+  });
+
+  it("its key differs from an absent bar of the same person and start", () => {
+    const { rows } = calendarToTimeline([requested(), masked({})]);
+    const keys = rows[0].bars.map((b) => b.key);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it("an entry without the flag stays the plain abwesend bar", () => {
+    const { rows } = calendarToTimeline([masked({})]);
+    expect(rows[0].bars[0]).toMatchObject({ style: "abwesend", key: "masked:emp-b:2026-11-09" });
+  });
+
+  it("weekCells reads it as the neutral absent fill with the beantragt marker", () => {
+    const { rows } = calendarToTimeline([
+      requested({ startDate: "2026-11-09", endDate: "2026-11-10" }),
+    ]);
+    const cell = cellOf(rows[0], 2026, "2026-11-09");
+    expect(cell).toMatchObject({ fill: "absent", typeCode: null, hasBeantragt: true });
+  });
+
+  it("legendFrom lists the style beantragt and no type code for it", () => {
+    const { rows } = calendarToTimeline([requested()]);
+    expect(legendFrom(rows)).toEqual({ typeCodes: [], styles: ["beantragt"] });
   });
 });
 
