@@ -1050,7 +1050,9 @@ import { readFileSync } from "node:fs";
 // leave-requests-pending-all-years-840 under src/__tests__ and the kernel test contexts/absence/__tests__/leave-calendar-masking),
 // counted from `git diff --diff-filter=A` against the merge base and verified with a full API run (863 files); nothing
 // removed, skipped or loosened; MIN_FILES 856 -> 861
-const MIN_FILES = 861;
+// Issue #1038 (2026-11-19): one new file (src/__tests__/leave-calendar-team-1038.test.ts), source-counted, lower bound; nothing
+// removed, skipped or loosened; MIN_FILES 861 -> 862
+const MIN_FILES = 862;
 // Issue #619 (2026-10-16): `operator-auth-88` gains one case (the explicit TOTP step-boundary case), counted from
 // the source (+1, lower-bound convention as above, no full run): MIN_TESTS 9649 -> 9650, MIN_FILES unchanged.
 // Issue #654: +2 cases in import-reach-654.test.ts (source-counted): MIN_TESTS 9794 -> 9796.
@@ -1211,7 +1213,10 @@ const MIN_FILES = 861;
 // report) and `neutrality-amendments-from-run.test.ts` gains 3 (the `--retired` cases, 18 -> 21); every other API test
 // file the phase touched keeps its case count. The full run measured 12460 tests (12457 passed, 3 skipped), so the floor
 // stays a lower bound; nothing removed, skipped or loosened; MIN_TESTS 12353 -> 12429
-const MIN_TESTS = 12429;
+// Issue #1038 (2026-11-19): `leave-calendar-team-1038` adds 12 cases (7 persons + 5 requested bars) and the kernel test
+// `leave-calendar-masking` gains 9 (the `requested ranges` block), source-counted, lower bound; the three amended #840
+// cases keep their count; nothing removed, skipped or loosened; MIN_TESTS 12429 -> 12450
+const MIN_TESTS = 12450;
 const REPORT = process.argv[2] ?? "apps/api/vitest-report.json";
 
 let raw;
