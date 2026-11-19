@@ -15,10 +15,13 @@ export {
 export { planPopulation, type PlanPerson, type PlanPopulation } from "./population";
 export {
   createWish,
+  createWishInTx,
   employedOnEveryWishDay,
   removeWish,
   updateWish,
+  type CreateWishInput,
   type WishActor,
+  type WishAuditMarker,
   type WishWriteOutcome,
 } from "./wish-write";
 export { takeOverLeavePlan, type TakeoverResult } from "./takeover";
