@@ -9,6 +9,14 @@
  * `now` of the wish core, and the actor is the plan opener (a MANAGER), so no deadline applies.
  *
  *   A  homed in S, two PENDING VACATION requests (full range, single half day)  -> moved
+ *   B  homed in S, PENDING VACATION + an unlinked active wish inside it          -> refused, rolled back
+ *   C  homed in S, PENDING OVERTIME_COMP                                         -> never listed
+ *   D  homed in S, APPROVED VACATION                                             -> never listed
+ *   E  homed in S2 (no plan), PENDING VACATION                                   -> NO_PLAN
+ *   F  homed in S, PENDING VACATION across the turn of the year                  -> SPANS_YEARS
+ *   G  homed in S, PENDING VACATION in 2028 (no OPEN 2028 plan)                  -> never listed
+ *   I  homed in S, PENDING VACATION already linked to a wish                     -> LINKED_TO_WISH
+ *   H  decided (APPROVED) between listing and moving                             -> NOT_PENDING
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomUUID } from "node:crypto";
@@ -19,10 +27,19 @@ import {
   seedTestData,
   cleanupTestData,
   seedEntitlementYears,
+  createTestSalon,
   auditRowsFor,
   soleAuditRow,
 } from "../../src/__tests__/setup";
-import { main, EXIT_OK, MIGRATION_MARKER } from "../migrate-1036-pending-leave-to-plan";
+import { leaveTypeFields } from "../../src/contexts/absence/leave-type";
+import {
+  main,
+  collectCandidates,
+  moveCandidate,
+  EXIT_OK,
+  EXIT_ERROR,
+  MIGRATION_MARKER,
+} from "../migrate-1036-pending-leave-to-plan";
 
 async function capture(fn: () => Promise<number>): Promise<{ code: number; lines: string[] }> {
   const lines: string[] = [];
@@ -47,11 +64,20 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
   let fixture: Awaited<ReturnType<typeof seedTestData>>;
   let planId: string;
   const names: string[] = [];
-  const ids = { a1: "", a2: "" };
+  const ids = { a1: "", a2: "", b: "", c: "", d: "", e: "", f: "", g: "", i: "", h: "" };
   let personA = "";
+  let personB = "";
+  let bWish = "";
+  let iWish = "";
   let dry: { code: number; lines: string[] };
   let confirm: { code: number; lines: string[] };
+  let again: { code: number; lines: string[] };
   let fingerprint: { before: string; after: string };
+  let againFingerprint: { before: string; after: string };
+  let untouchedBefore = "";
+  let hOutcome = "";
+  let hWishes = -1;
+  let hAudits = -1;
   let noticeAfterDry: Date | null;
   const noticeIds = { a1: "", unrelated: "" };
 
@@ -117,6 +143,20 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
     return row.id;
   }
 
+  /** Status and audit rows of every request the run must leave alone (B refused, C, D, E, F, G, I). */
+  async function untouchedState(): Promise<string> {
+    const keep = [ids.b, ids.c, ids.d, ids.e, ids.f, ids.g, ids.i];
+    const rows = await app.prisma.leaveRequest.findMany({
+      where: { id: { in: keep } },
+      select: { id: true, status: true, updatedAt: true },
+      orderBy: { id: "asc" },
+    });
+    const audits = await app.prisma.auditLog.count({
+      where: { entity: "LeaveRequest", entityId: { in: keep } },
+    });
+    return JSON.stringify({ rows, audits });
+  }
+
   /** Requests (id, status, updatedAt), the tenant's wishes and the audit rows of both entities. */
   async function fingerprintOf(): Promise<string> {
     const requests = await app.prisma.leaveRequest.findMany({
@@ -152,9 +192,59 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
       })
     ).id;
 
+    const salon2 = await createTestSalon(app.prisma, fixture.tenant.id, { name: "Salon Zwei" });
+    const overtimeComp = await app.prisma.leaveType.create({
+      data: {
+        tenantId: fixture.tenant.id,
+        ...leaveTypeFields("OVERTIME_COMP"),
+        color: "#8B5CF6",
+      },
+    });
+
     personA = await person("A", fixture.salonId);
     ids.a1 = await request(personA, "2027-03-01", "2027-03-05");
     ids.a2 = await request(personA, "2027-05-14", "2027-05-14", { halfDay: true });
+
+    personB = await person("B", fixture.salonId);
+    ids.b = await request(personB, "2027-04-12", "2027-04-16");
+    bWish = (
+      await app.prisma.leavePlanWish.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          planId,
+          employeeId: personB,
+          startDate: day("2027-04-14"),
+          endDate: day("2027-04-14"),
+          createdByUserId: fixture.adminUser.id,
+        },
+      })
+    ).id;
+
+    ids.c = await request(await person("C", fixture.salonId), "2027-06-07", "2027-06-07", {
+      leaveTypeId: overtimeComp.id,
+    });
+    ids.d = await request(await person("D", fixture.salonId), "2027-07-05", "2027-07-09", {
+      status: "APPROVED",
+    });
+    ids.e = await request(await person("E", salon2.id), "2027-08-02", "2027-08-06");
+    ids.f = await request(await person("F", fixture.salonId), "2026-12-28", "2027-01-04");
+    ids.g = await request(await person("G", fixture.salonId), "2028-02-07", "2028-02-11");
+    const personI = await person("I", fixture.salonId);
+    ids.i = await request(personI, "2027-09-06", "2027-09-10");
+    iWish = (
+      await app.prisma.leavePlanWish.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          planId,
+          employeeId: personI,
+          startDate: day("2027-09-06"),
+          endDate: day("2027-09-10"),
+          createdByUserId: fixture.adminUser.id,
+          leaveRequestId: ids.i,
+          takenOverAt: new Date(),
+        },
+      })
+    ).id;
 
     // The approvers' open notice of request a1, plus one of another type that must stay open.
     noticeIds.a1 = (
@@ -189,7 +279,24 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
       await app.prisma.notification.findUniqueOrThrow({ where: { id: noticeIds.a1 } })
     ).dismissedAt;
 
+    untouchedBefore = await untouchedState();
     confirm = await capture(() => main(["--tenant", fixture.tenant.id, "--confirm"], app));
+
+    const againBefore = await fingerprintOf();
+    again = await capture(() => main(["--tenant", fixture.tenant.id, "--confirm"], app));
+    againFingerprint = { before: againBefore, after: await fingerprintOf() };
+
+    // Race guard: H is listed as PENDING, then decided before it is moved.
+    const personH = await person("H", fixture.salonId);
+    ids.h = await request(personH, "2027-10-04", "2027-10-08");
+    const hCandidate = (await collectCandidates(app, { tenantId: fixture.tenant.id })).find(
+      (c) => c.requestId === ids.h,
+    );
+    if (!hCandidate) throw new Error("H must be a candidate");
+    await app.prisma.leaveRequest.update({ where: { id: ids.h }, data: { status: "APPROVED" } });
+    hOutcome = (await moveCandidate(app, hCandidate, { confirm: true, now: new Date() })).outcome;
+    hWishes = await app.prisma.leavePlanWish.count({ where: { employeeId: personH } });
+    hAudits = (await auditRowsFor(app, "LeaveRequest", ids.h)).length;
   });
 
   afterAll(async () => {
@@ -206,7 +313,7 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
 
   describe("dry run", () => {
     it("lists every candidate as WOULD_MOVE and writes nothing", () => {
-      expect(dry.code).toBe(EXIT_OK);
+      expect(dry.code).toBe(EXIT_ERROR); // B is refused
       for (const id of [ids.a1, ids.a2]) {
         expect(lineOf(dry, id)).toContain("result=WOULD_MOVE");
         expect(lineOf(dry, id)).toContain("type=VACATION");
@@ -220,7 +327,7 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
 
   describe("--confirm", () => {
     it("moves both requests: CANCELLED, one wish each with the same days and half-day flag", async () => {
-      expect(confirm.code).toBe(EXIT_OK);
+      expect(confirm.code).toBe(EXIT_ERROR); // B is refused, the others are still moved
       const wishes = await app.prisma.leavePlanWish.findMany({
         where: { tenantId: fixture.tenant.id, employeeId: personA },
         orderBy: { startDate: "asc" },
@@ -310,8 +417,83 @@ describe("migrate-1036-pending-leave-to-plan (Issue #1036)", () => {
     });
 
     it("prints ids, days and codes only - no name", () => {
-      const text = [...dry.lines, ...confirm.lines].join("\n");
+      const text = [...dry.lines, ...confirm.lines, ...again.lines].join("\n");
+      for (const name of names) expect(name.length).toBeGreaterThan(0);
       for (const name of names) expect(text).not.toContain(name);
+    });
+  });
+
+  describe("every other outcome", () => {
+    it("B: the wish core refuses, the whole transaction rolls back (dry run and confirm)", async () => {
+      for (const run of [dry, confirm]) {
+        expect(lineOf(run, ids.b)).toContain("result=LEAVE_PLAN_WISH_OVERLAP");
+      }
+      const request = await app.prisma.leaveRequest.findUniqueOrThrow({ where: { id: ids.b } });
+      expect(request.status).toBe("PENDING");
+      const wishes = await app.prisma.leavePlanWish.findMany({ where: { employeeId: personB } });
+      expect(wishes.map((w) => w.id)).toEqual([bWish]);
+      expect(await auditRowsFor(app, "LeaveRequest", ids.b)).toHaveLength(0);
+    });
+
+    it("C and D (other type, other status) and G (no OPEN plan of its year) are never listed", () => {
+      for (const id of [ids.c, ids.d, ids.g]) {
+        expect(lineOf(dry, id)).toBeUndefined();
+        expect(lineOf(confirm, id)).toBeUndefined();
+      }
+    });
+
+    it("E, F and I are skipped with their reason and left alone", () => {
+      expect(lineOf(confirm, ids.e)).toContain("plan=none");
+      expect(lineOf(confirm, ids.e)).toContain("result=NO_PLAN");
+      expect(lineOf(confirm, ids.f)).toContain("result=SPANS_YEARS");
+      expect(lineOf(confirm, ids.i)).toContain("result=LINKED_TO_WISH");
+      expect(lineOf(confirm, ids.i)).toContain(`wish=${iWish}`);
+    });
+
+    it("nothing the run must leave alone changed (statuses, audit rows)", async () => {
+      expect(await untouchedState()).toBe(untouchedBefore);
+      const c = await app.prisma.leaveRequest.findUniqueOrThrow({ where: { id: ids.c } });
+      const d = await app.prisma.leaveRequest.findUniqueOrThrow({ where: { id: ids.d } });
+      expect([c.status, d.status]).toEqual(["PENDING", "APPROVED"]);
+    });
+
+    it("totals match the listed outcomes", () => {
+      const totals = confirm.lines.find((l) => l.startsWith("Totals:"));
+      expect(totals).toBe(
+        "Totals: candidates=6 moved=2 wouldMove=0 refused=1 noPlan=1 spansYears=1 notPending=0 linkedToWish=1",
+      );
+      expect(dry.lines.find((l) => l.startsWith("Totals:"))).toBe(
+        "Totals: candidates=6 moved=0 wouldMove=2 refused=1 noPlan=1 spansYears=1 notPending=0 linkedToWish=1",
+      );
+    });
+  });
+
+  describe("idempotency and the race guard", () => {
+    it("a second --confirm moves nothing again and writes nothing new", () => {
+      expect(again.lines.some((l) => /result=(MOVED|WOULD_MOVE)/.test(l))).toBe(false);
+      expect(lineOf(again, ids.a1)).toBeUndefined();
+      expect(lineOf(again, ids.a2)).toBeUndefined();
+      expect(againFingerprint.after).toBe(againFingerprint.before);
+    });
+
+    it("H: a request decided between listing and moving is NOT_PENDING and untouched", () => {
+      expect(hOutcome).toBe("NOT_PENDING");
+      expect(hWishes).toBe(0);
+      expect(hAudits).toBe(0);
+    });
+  });
+
+  describe("CLI", () => {
+    it("--year 2026 lists nothing and succeeds", async () => {
+      const run = await capture(() => main(["--tenant", fixture.tenant.id, "--year", "2026"], app));
+      expect(run.code).toBe(EXIT_OK);
+      expect(run.lines.some((l) => l.includes("request="))).toBe(false);
+    });
+
+    it("--help succeeds, an unknown flag and a malformed --year fail", async () => {
+      expect((await capture(() => main(["--help"], app))).code).toBe(EXIT_OK);
+      expect((await capture(() => main(["--bogus"], app))).code).toBe(EXIT_ERROR);
+      expect((await capture(() => main(["--year", "27"], app))).code).toBe(EXIT_ERROR);
     });
   });
 });
