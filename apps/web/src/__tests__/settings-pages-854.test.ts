@@ -488,9 +488,10 @@ describe("registry helpers", () => {
     expect(pageAlternatives("/nowhere")).toEqual([]);
   });
 
-  it("System › Allgemein lists exactly four sections, in page order (plan 854-15)", () => {
+  it("System › Allgemein lists exactly five sections, in page order (plan 854-15, #976)", () => {
     expect(sectionsOfPage("/verwalten/system/allgemein").map((s) => s.id)).toEqual([
       "allgemein-unternehmen",
+      "allgemein-farbwelt",
       "allgemein-zwei-faktor",
       "allgemein-passwort",
       "allgemein-sitzungen",

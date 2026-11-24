@@ -1,40 +1,107 @@
 import { get } from "svelte/store";
 import { prefsHydrated } from "$stores/prefs-state";
-import { mode, type ModeChoice } from "$stores/mode";
-import { theme, type Theme } from "$stores/theme";
-import { savePreferences } from "$api/preferences";
+import { mode, normalizeModeChoice, type ModeChoice } from "$stores/mode";
+import { theme, themeChoice, tenantDefaultTheme, normalizeTheme, type Theme } from "$stores/theme";
+import { fetchPreferences, savePreferences, type UiPreferences } from "$api/preferences";
 
 /**
- * Apply a multi-key preference selection (mode + theme together) as ONE PUT /me/preferences
- * instead of one PUT per store.
+ * How the web applies the personal appearance (mode + Farbwelt) and the server's answer about it.
  *
- * Why this exists: each of mode.ts / theme.ts subscribes to its own store and fires a
- * partial `savePreferences({key})` whenever `prefsHydrated` is open, so a selection that
- * touches N stores used to fire N concurrent partial PUTs within milliseconds of each other —
- * exactly the trigger of the lost-update race fixed server-side in me.ts (Issue #392, atomic
- * jsonb merge). Routing multi-key selections through here removes the trigger at the source; the
- * server-side fix also makes any remaining concurrent PUT (e.g. from an entirely different tab)
- * safe, but one PUT here is still strictly fewer requests than two.
+ * Applying the server's answer (Issue #976): the Farbwelt that is shown is decided only on the
+ * server (`resolveUiTheme()`: own choice, then the tenant default, then Pflaume). The web applies the
+ * `theme` of GET/PUT /me/preferences as it is and never derives it from `themeChoice` or
+ * `tenantDefaultTheme`, which are kept only to label the controls. `applyServerPreferences()` is the one
+ * place that does it; sign-in hydration (auth.ts), `refreshPreferences()` and the answer of every PUT
+ * go through it.
  *
- * Gate contract: reuses the existing `prefsHydrated` gate exactly as
- * `hydratePreferencesFromServer()` in auth.ts does — no new flag. It reads the gate once, closes
- * it so the per-store subscribers below do not each fire their own PUT, sets the given stores (in
- * mode -> theme order), restores the gate to what it was,
- * and only then — if the gate was open — persists everything in one PUT. localStorage and the DOM
- * attribute are unaffected: the subscribers still run unconditionally, only the auto-PUT is
- * suppressed while the gate is closed.
+ * Saving a choice (Issue #392): each of mode.ts / theme.ts used to fire its own partial `savePreferences`
+ * whenever `prefsHydrated` was open, so a selection that touches several stores fired concurrent PUTs
+ * (the lost-update race fixed server-side in me.ts by an atomic jsonb merge). Now only the mode store
+ * persists on its own (a Topbar toggle, one key); the theme store never persists, because the applied
+ * theme can be the tenant default. `applyPreferences()` sends a multi-key selection as ONE PUT.
+ *
+ * Gate contract: reuses the `prefsHydrated` gate exactly as `hydratePreferencesFromServer()` in auth.ts
+ * does - no new flag. While it is closed (before sign-in hydration, after logout) nothing is PUT and a
+ * selection is applied locally only. The subscribers still write localStorage and the DOM attributes.
  */
-export function applyPreferences(prefs: { mode?: ModeChoice; theme?: Theme }): void {
-  const wasHydrated = get(prefsHydrated);
+
+/** Newest request wins: a slower, older answer must never replace a newer one. */
+let requestSeq = 0;
+
+function closedGate<T>(run: () => T): T {
+  const was = get(prefsHydrated);
   prefsHydrated.set(false);
   try {
-    if (prefs.mode !== undefined) mode.set(prefs.mode);
-    if (prefs.theme !== undefined) theme.set(prefs.theme);
+    return run();
   } finally {
-    prefsHydrated.set(wasHydrated);
+    prefsHydrated.set(was);
+  }
+}
+
+/**
+ * Apply an answer of GET/PUT /me/preferences to the stores. The gate is closed meanwhile, so no
+ * subscriber echoes a server value back, and restored to what it was.
+ *
+ * `skipMode` leaves the mode store alone: the mode is the person's own input and is set at once when
+ * they click, so the answer to a Farbwelt PUT must not overwrite a mode toggled in the meantime.
+ */
+export function applyServerPreferences(
+  prefs: UiPreferences,
+  options: { skipMode?: boolean } = {},
+): void {
+  closedGate(() => {
+    if (!options.skipMode) mode.set(normalizeModeChoice(prefs.mode));
+    // #842 D-842-17: a retired theme id of an older server or a cached answer is mapped before data-theme.
+    theme.set(normalizeTheme(prefs.theme));
+    themeChoice.set(
+      prefs.themeChoice === undefined
+        ? undefined
+        : prefs.themeChoice === null
+          ? null
+          : normalizeTheme(prefs.themeChoice),
+    );
+    tenantDefaultTheme.set(
+      prefs.tenantDefaultTheme === undefined ? undefined : normalizeTheme(prefs.tenantDefaultTheme),
+    );
+  });
+}
+
+/**
+ * Apply a personal selection. `theme: null` goes back to the tenant default.
+ *
+ * Gate open: the mode is applied at once, the update is PUT exactly once, and the Farbwelt that is
+ * shown comes from the server's answer (never set before it arrives). Rejects when the PUT fails, so
+ * the caller can tell the person. Gate closed: applied locally, nothing is PUT.
+ */
+export function applyPreferences(update: {
+  mode?: ModeChoice;
+  theme?: Theme | null;
+}): Promise<void> {
+  if (!get(prefsHydrated)) {
+    closedGate(() => {
+      if (update.mode !== undefined) mode.set(update.mode);
+      if (update.theme === null) {
+        themeChoice.set(null);
+      } else if (update.theme !== undefined) {
+        theme.set(update.theme);
+        themeChoice.set(update.theme);
+      }
+    });
+    return Promise.resolve();
   }
 
-  if (wasHydrated) {
-    savePreferences(prefs).catch(() => {});
-  }
+  const seq = ++requestSeq;
+  closedGate(() => {
+    if (update.mode !== undefined) mode.set(update.mode);
+  });
+  return savePreferences(update).then((answer) => {
+    if (seq === requestSeq) applyServerPreferences(answer, { skipMode: true });
+  });
+}
+
+/** Fetch the account's preferences again and apply them (e.g. after the tenant default changed). */
+export async function refreshPreferences(): Promise<void> {
+  const seq = ++requestSeq;
+  const answer = await fetchPreferences();
+  if (seq === requestSeq) applyServerPreferences(answer);
 }

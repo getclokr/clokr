@@ -72,7 +72,7 @@ const SHIFTS_REQUIRES: PermissionAlternatives = [
   [Z("shift-config:manage"), Z("shift:read"), Z("shift-pattern:read")],
 ];
 
-// Plan 854-15: System › Allgemein, the route file /admin/system rewritten in place; its four sections are
+// Plan 854-15: System › Allgemein, the route file /admin/system rewritten in place; its five sections are
 // components of this directory.
 const ALLGEMEIN_DIR = "lib/components/admin/allgemein";
 
@@ -373,9 +373,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
 
   // ── System › Allgemein (route file /admin/system) ──────────────────────────────────────────────
-  // What D-854-03 leaves on the former System page (plan 854-15): the company and region, and the sign-in
-  // security. The two-factor switch is one atomic value and saves instantly (§3.2.1); the other three sections
-  // are form groups with a SaveBar each.
+  // What D-854-03 leaves on the former System page (plan 854-15): the company and region, the Standard-Farbwelt
+  // (Issue #976) and the sign-in security. The Standard-Farbwelt and the two-factor switch are one atomic value
+  // each and save instantly (§3.2.1); the other three sections are form groups with a SaveBar each.
   {
     ...SYSTEM,
     id: "allgemein-unternehmen",
@@ -383,6 +383,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     endpoint: "/settings/work",
     keys: ["tenantName", "federalState", "timezone"],
     renderedBy: `${ALLGEMEIN_DIR}/CompanySection.svelte`,
+  },
+  {
+    ...SYSTEM,
+    id: "allgemein-farbwelt",
+    title: "Standard-Farbwelt",
+    endpoint: "/settings/work",
+    keys: ["defaultUiTheme"],
+    renderedBy: `${ALLGEMEIN_DIR}/ThemeDefaultSection.svelte`,
   },
   {
     ...SYSTEM,

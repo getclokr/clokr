@@ -19,6 +19,11 @@ export interface CompanyConfig {
   timezone?: string;
 }
 
+/** The part of `GET /settings/work` the Standard-Farbwelt section reads (Issue #976): a web theme id. */
+export interface ThemeDefaultConfig {
+  defaultUiTheme?: string;
+}
+
 export const FEDERAL_STATES: readonly { value: string; label: string }[] = [
   { value: "NIEDERSACHSEN", label: "Niedersachsen" },
   { value: "BADEN_WUERTTEMBERG", label: "Baden-Württemberg" },

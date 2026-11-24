@@ -1,12 +1,19 @@
-import { writable, get } from "svelte/store";
+import { writable } from "svelte/store";
 import { browser } from "$app/env";
-import { prefsHydrated } from "$stores/prefs-state";
-import { savePreferences } from "$api/preferences";
 
 /**
  * Themes (Issue #842) - applied via the `data-theme` attribute on <html>. Every theme exists in a
  * light and a dark mode (`data-mode`, see mode.ts); the token blocks live in tokens.css.
  * Pflaume is the default. The list carries no colour: a preview draws from the real tokens.
+ *
+ * Issue #976: the `theme` store is the APPLIED Farbwelt, never a choice. Which one is shown is
+ * decided only on the server (`resolveUiTheme()`, apps/api/src/contexts/platform/ui-theme.ts: own
+ * choice, then the tenant default, then Pflaume); the web applies the `theme` that GET/PUT
+ * /me/preferences answers and no screen derives it. `themeChoice` (the own choice, null = none,
+ * undefined = not loaded yet) and `tenantDefaultTheme` are display state, set only from server
+ * answers and never persisted. localStorage.theme is the device's last shown Farbwelt: the sign-in
+ * page knows no tenant, so it (and the pre-paint script of app.html) shows exactly that, else
+ * Pflaume. The operator console pins salz in lib/operator/theme-pin.ts.
  */
 export type Theme = "pflaume" | "salz" | "petrol";
 
@@ -65,16 +72,21 @@ function readInitial(): Theme {
   return normalized;
 }
 
+/** The Farbwelt that is applied right now (what `data-theme` shows). */
 export const theme = writable<Theme>(readInitial());
+
+/** The person's own choice: null = none (the tenant default applies), undefined = not loaded yet. */
+export const themeChoice = writable<Theme | null | undefined>(undefined);
+
+/** The tenant's Standard-Farbwelt as the server answered it; undefined = not loaded yet. */
+export const tenantDefaultTheme = writable<Theme | undefined>(undefined);
 
 theme.subscribe((value) => {
   if (!browser) return;
   const safe = normalizeTheme(value);
   localStorage.setItem("theme", safe);
   document.documentElement.setAttribute("data-theme", safe);
-  // After hydration from the server, persist user toggles back to /me/preferences.
-  // Silent fail keeps the UI responsive offline (localStorage already updated above).
-  if (get(prefsHydrated)) {
-    savePreferences({ theme: safe }).catch(() => {});
-  }
+  // Deliberately NO PUT /me/preferences here (Issue #976): the applied theme can be the tenant
+  // default, and writing it back would turn that default into an own choice. An own choice is
+  // saved only through applyPreferences() (apply-preferences.ts).
 });

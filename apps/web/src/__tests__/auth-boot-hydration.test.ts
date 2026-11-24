@@ -232,6 +232,39 @@ describe("#842 D-842-17 — a retired server theme id hydrates as its successor"
   });
 });
 
+describe("#976 — the server's resolved theme is applied, the choice is kept apart", () => {
+  it("a person without an own choice gets the tenant default on <html data-theme> and themeChoice null", async () => {
+    seedSession();
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/me/preferences")) {
+        return jsonResponse({
+          ...VALID_PREFS,
+          theme: "salz",
+          themeChoice: null,
+          tenantDefaultTheme: "salz",
+        });
+      }
+      return errorResponse(404);
+    });
+
+    vi.resetModules();
+    await import("$stores/auth");
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { themeChoice, tenantDefaultTheme } = await import("$stores/theme");
+
+    await vi.waitFor(() => {
+      expect(get(prefsHydrated)).toBe(true);
+    });
+    expect(document.documentElement.getAttribute("data-theme")).toBe("salz");
+    expect(get(themeChoice)).toBeNull();
+    expect(get(tenantDefaultTheme)).toBe("salz");
+    // hydration never PUT the applied default back as an own choice
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "PUT"),
+    ).toBe(false);
+  });
+});
+
 describe("#975 — a server mode of system hydrates the mode store", () => {
   it("a server mode 'system' hydrates the mode store as system and a garbage mode as system", async () => {
     seedSession();
