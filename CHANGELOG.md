@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.3](https://github.com/getclokr/clokr/compare/v2.0.2...v2.0.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **1037:** keep the planner's Anspruch column level with the person rows ([#1039](https://github.com/getclokr/clokr/issues/1039)) ([cee5ff6](https://github.com/getclokr/clokr/commit/cee5ff6d95e280b2b2406eebafa92ebb9d70569c))
+* **1038:** Team tab lists every colleague and shows their requested leave as beantragt ([#1045](https://github.com/getclokr/clokr/issues/1045)) ([0c80d9b](https://github.com/getclokr/clokr/commit/0c80d9bb77308645eebad2683fc68081fc963288))
+* **deps:** override effect to ^3.22.1 (GHSA-7589-6fvf-x4pw) ([#1047](https://github.com/getclokr/clokr/issues/1047)) ([5d45aa9](https://github.com/getclokr/clokr/commit/5d45aa98a3e6fe82536c371848f809a448a2053a))
+
 ## [2.0.2](https://github.com/getclokr/clokr/compare/v2.0.1...v2.0.2) (2026-11-19)
 
 
