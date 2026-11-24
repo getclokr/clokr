@@ -43,6 +43,7 @@ import { cleanup, screen, waitFor } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import { salonContext } from "$stores/salon-context";
 import MyShiftAgenda from "../MyShiftAgenda.svelte";
+import { ApiError } from "$api/client";
 
 const FIXED_MO_FR = {
   type: "FIXED_SCHEDULE",
@@ -115,7 +116,11 @@ describe("Ich › Dienstplan (Issue #589)", () => {
     await salonContext.load("u1", { force: true });
     await screen.findByTestId("agenda-2026-11-12");
 
-    expect(calls("/shifts/range")).toEqual(["/shifts/range?from=2026-11-09&to=2026-11-29"]);
+    // #1011: the own employeeId is sent so a caller with shift:read:ZUGEWIESEN (Salonleitung, Inhaberin)
+    // reads the own shifts instead of 400 'employeeId erforderlich'.
+    expect(calls("/shifts/range")).toEqual([
+      "/shifts/range?from=2026-11-09&to=2026-11-29&employeeId=e1",
+    ]);
     expect(calls("/employees/")).toEqual(["/employees/e1"]);
   });
 
@@ -136,5 +141,21 @@ describe("Ich › Dienstplan (Issue #589)", () => {
     });
     expect(screen.getByTestId("agenda-2026-11-14").textContent).toContain("Frei");
     expect(screen.getByTestId("agenda-2026-11-14").textContent).not.toContain("Noch nicht geplant");
+  });
+});
+
+describe("Ich › Dienstplan — own shift read (Issue #1011)", () => {
+  it("shows the error state, never an empty plan, when the shift read fails", async () => {
+    apiGet.mockImplementation((path: string) =>
+      path.startsWith("/shifts/range")
+        ? Promise.reject(new ApiError(400, "employeeId erforderlich"))
+        : answer(path),
+    );
+    await salonContext.load("u1", { force: true });
+    renderWithTheme(MyShiftAgenda, {});
+    await screen.findByText(/Dein Dienstplan ist gerade nicht erreichbar\./);
+    expect(screen.queryByTestId("my-shift-agenda")).toBeNull();
+    expect(screen.queryByText(/Noch keine Schichten geplant/)).toBeNull();
+    expect(screen.queryByText(/Noch nicht geplant/)).toBeNull();
   });
 });

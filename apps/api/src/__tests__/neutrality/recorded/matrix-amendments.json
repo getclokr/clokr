@@ -14212,6 +14212,105 @@
           "pendingApprovalsCount": 3
         }
       }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "ADMIN | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.shift"
+        ]
+      }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "EMPLOYEE | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.shift"
+        ]
+      }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "FALLBACK_ADMIN | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 403,
+        "error": "Forbidden",
+        "ids": []
+      }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "FALLBACK_EMPLOYEE | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 403,
+        "error": "Forbidden",
+        "ids": []
+      }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "FALLBACK_MANAGER | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 403,
+        "error": "Forbidden",
+        "ids": []
+      }
+    },
+    {
+      "date": "2026-11-24",
+      "from": {
+        "status": 410,
+        "error": "Nicht im Schichtsystem",
+        "ids": []
+      },
+      "issue": 1011,
+      "key": "MANAGER | GET /api/v1/shifts/my-week | none",
+      "reason": "#1011: own shifts readable for every contract model (#589); /my-week checks shift:read",
+      "to": {
+        "status": 200,
+        "ids": [
+          "own.shift"
+        ]
+      }
     }
   ]
 }

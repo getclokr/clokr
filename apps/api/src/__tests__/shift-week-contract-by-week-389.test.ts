@@ -1,13 +1,15 @@
 /**
- * Issue #389: GET /shifts/week and GET /shifts/my-week pick the working-time model by the
- * DISPLAYED week (the contract valid on each day), never by today. Contract changes are
+ * Issue #389: GET /shifts/week picks the working-time model by the DISPLAYED week (the contract
+ * valid on each day), never by today. GET /shifts/my-week did the same until Issue #1011: since
+ * #589 every contract model can receive a shift, so my-week no longer reads the contract and
+ * answers for every model in every displayed week. Contract changes are
  * month-first only, so a week holds at most one change. A person belongs to the SHIFT_BASED grid
  * when the contract is SHIFT_BASED on at least one day of the week.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { getTestApp, seedTestData, cleanupTestData } from "./setup";
-import { addDaysStr, monthFirstAheadStr, mondayOfWeekStr } from "./test-dates";
+import { addDaysStr, dowOf, monthFirstAheadStr, mondayOfWeekStr } from "./test-dates";
 
 type WeekBody = {
   employees: Array<{ id: string; workSchedules: Array<{ type: string }> }>;
@@ -119,7 +121,10 @@ describe("shift plan contract by displayed week (#389)", () => {
     expect(typeOf(b, fromShiftId)).toBe("SHIFT_BASED");
   });
 
-  it("GET /my-week judges the displayed week, not today", async () => {
+  // Before #1011 my-week judged the contract of the displayed week and answered 410 for a non-SHIFT_BASED
+  // week; since #589 every model can receive a shift, so my-week no longer reads the contract - the
+  // displayed-week rule of GET /week stays covered by the other cases of this file.
+  it("GET /my-week answers for every contract model in every displayed week (#589, #1011)", async () => {
     // Re-point the seeded employee at the same pattern: FIXED now, SHIFT_BASED from `change`.
     await app.prisma.workSchedule.updateMany({
       where: { employeeId: data.employee.id },
@@ -147,7 +152,25 @@ describe("shift plan contract by displayed week (#389)", () => {
         url: `/api/v1/shifts/my-week?date=${date}`,
         headers: { authorization: `Bearer ${data.empToken}` },
       });
+    // A shift in the FIXED_SCHEDULE week: it is returned (it was a 410 before #1011).
+    const fixedDay = addDaysStr(change, -14);
+    const fixedDow = dowOf(fixedDay); // 0=Sun..6=Sat
+    const fixedMonday = addDaysStr(fixedDay, fixedDow === 0 ? -6 : 1 - fixedDow);
+    await app.prisma.shift.create({
+      data: {
+        employeeId: data.employee.id,
+        salonId: data.salonId,
+        date: new Date(`${fixedMonday}T00:00:00Z`),
+        startTime: "08:00",
+        endTime: "16:00",
+      },
+    });
     expect((await get(addDaysStr(change, 14))).statusCode).toBe(200);
-    expect((await get(addDaysStr(change, -14))).statusCode).toBe(410);
+    const fixedWeek = await get(addDaysStr(change, -14));
+    expect(fixedWeek.statusCode).toBe(200);
+    const monday = (
+      fixedWeek.json() as { days: Array<{ date: string; ownShifts: unknown[] }> }
+    ).days.find((d) => d.date === fixedMonday);
+    expect(monday?.ownShifts).toHaveLength(1);
   });
 });

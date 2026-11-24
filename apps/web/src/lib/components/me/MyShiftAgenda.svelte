@@ -11,6 +11,10 @@
   // owner saw on 15.11.2026. It also fetches the own contract (GET /employees/:id, `workSchedule`) and
   // full ISO weeks of shifts (Monday of the first week to Sunday of the last), so „Frei“ (no contract
   // work) can be told from „Noch nicht geplant“ and the week rule sees earlier days of the current week.
+  //
+  // Issue #1011: the shift read names the own employeeId (a caller with shift:read:ZUGEWIESEN gets the own
+  // shifts, not 400 „employeeId erforderlich“), and a failed shift read shows the error state instead of
+  // an empty plan.
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
@@ -73,9 +77,14 @@
     const years = [...new Set([start.getFullYear(), end.getFullYear()])];
     try {
       const [shifts, requests, holidays, own] = await Promise.all([
-        api
-          .get<AgendaShift[]>(`/shifts/range?from=${iso(fetchFrom)}&to=${iso(fetchTo)}`)
-          .catch(() => []),
+        // Issue #1011: the own employeeId is sent so a caller with shift:read:ZUGEWIESEN (Salonleitung,
+        // Inhaberin) reads the own shifts instead of 400 „employeeId erforderlich“. A failed read rejects
+        // the outer Promise.all and shows the error state - never an empty plan.
+        api.get<AgendaShift[]>(
+          `/shifts/range?from=${iso(fetchFrom)}&to=${iso(fetchTo)}${
+            employeeId ? `&employeeId=${employeeId}` : ""
+          }`,
+        ),
         Promise.all(
           years.map((y) =>
             api.get<OwnRequest[]>(`/leave/requests?year=${y}&employeeId=${employeeId}`),
