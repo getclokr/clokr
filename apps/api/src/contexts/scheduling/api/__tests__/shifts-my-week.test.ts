@@ -10,12 +10,14 @@ import {
 } from "../../../../__tests__/setup";
 import { futureDateStr, nextWeekdayStr, dowOf } from "../../../../__tests__/test-dates";
 import { TENANT_REQUIRED_ERROR } from "../../../platform/tenant-status";
+import { normalizeRolePermissions, roleNameKey } from "../../../platform";
 import type { FastifyInstance } from "fastify";
 
 /**
  * Phase 49-01 — GET /api/v1/shifts/my-week
  * Employee self-view: own shifts + anonymized colleague list (firstName only).
- * 410 Gone for users without employeeId or non-SHIFT_BASED schedule.
+ * 410 Gone for users without employeeId; 403 without any shift:read reach (Issue #1011). Since
+ * Issue #589 every contract model can receive a shift, so the SHIFT_BASED-only 410 is gone (#1011).
  *
  * Issue #551: a User without an Employee can no longer sign in (403 TENANT_REQUIRED), so the "no
  * employeeId" 410 branch is reached by the only principal that still lacks an employeeId — an API
@@ -33,7 +35,7 @@ describe("GET /api/v1/shifts/my-week (Phase 49-01)", () => {
   let employeeAId: string; // SHIFT_BASED, own shifts
   let tokenA: string;
   let employeeBId: string; // SHIFT_BASED, colleague
-  let employeeCId: string; // FIXED_SCHEDULE, should get 410
+  let employeeCId: string; // FIXED_SCHEDULE, gets the own shifts too (#1011)
   let tokenC: string;
   let userOrphanId: string; // User without employee
   let orphanLoginStatus: number;
@@ -303,14 +305,81 @@ describe("GET /api/v1/shifts/my-week (Phase 49-01)", () => {
     expect(wed.colleagues[0].firstName).toBe("Bea");
   });
 
-  it("returns 410 for FIXED_SCHEDULE employee", async () => {
+  // Before #1011 this test pinned 410 "Nicht im Schichtsystem" for a FIXED_SCHEDULE person. Since #589 every
+  // contract model can receive a shift, so the model-410 was removed deliberately: my-week returns the
+  // own shifts for every contract type.
+  it("returns the own shifts of a FIXED_SCHEDULE employee — every contract model can receive a shift (#589, #1011)", async () => {
+    const THURSDAY_ISO = "2026-07-16"; // used by no other test of this file
+    await app.prisma.shift.create({
+      data: {
+        employeeId: employeeCId,
+        salonId: data.salonId,
+        templateId,
+        date: new Date(THURSDAY_ISO + "T00:00:00Z"),
+        startTime: "09:00",
+        endTime: "17:00",
+      },
+    });
     const res = await app.inject({
       method: "GET",
-      url: "/api/v1/shifts/my-week",
+      url: `/api/v1/shifts/my-week?date=${MONDAY_ISO}`,
       headers: { authorization: `Bearer ${tokenC}` },
     });
-    expect(res.statusCode).toBe(410);
-    expect(res.json().error).toBe("Nicht im Schichtsystem");
+    expect(res.statusCode).toBe(200);
+    const thu = res.json().days.find((d: { date: string }) => d.date === THURSDAY_ISO) as {
+      ownShifts: Array<{ startTime: string }>;
+    };
+    expect(thu.ownShifts).toHaveLength(1);
+    expect(thu.ownShifts[0].startTime).toBe("09:00");
+  });
+
+  // #1011: my-week answers 403 for a caller whose roles hold no shift:read key at all (e.g. a role
+  // that deliberately excludes every shift: key), instead of handing out the colleague roster.
+  it("answers 403 Forbidden for a caller holding no shift:read reach (#1011)", async () => {
+    const prisma = app.prisma;
+    const tenantId = data.tenant.id;
+    const s = "noshift-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const passwordHash = await bcrypt.hash("test1234", 10);
+    const user = await prisma.user.create({
+      data: { email: `${s}@test.de`, passwordHash, isActive: true },
+    });
+    await prisma.employee.create({
+      data: {
+        tenantId,
+        userId: user.id,
+        employeeNumber: s.toUpperCase().slice(0, 20),
+        firstName: "Nora",
+        lastName: "Noshift",
+        hireDate: new Date("2024-01-01"),
+      },
+    });
+    const roleName = `NoShift ${randomBytes(3).toString("hex")}`;
+    const role = await prisma.accessRole.create({
+      data: {
+        tenantId,
+        name: roleName,
+        nameKey: roleNameKey(roleName),
+        permissions: normalizeRolePermissions(["leave-request:read:EIGENE"]),
+      },
+    });
+    await prisma.roleAssignment.create({
+      data: { tenantId, userId: user.id, accessRoleId: role.id, scopeType: "TENANT" },
+    });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: `${s}@test.de`, password: "test1234" },
+    });
+    expect(login.statusCode).toBe(200);
+    const token = JSON.parse(login.body).accessToken as string;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/shifts/my-week?date=${MONDAY_ISO}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: "Forbidden" });
   });
 
   it("refuses the login of a user without an Employee with 403 TENANT_REQUIRED (#551)", () => {

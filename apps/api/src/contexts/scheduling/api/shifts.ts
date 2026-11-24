@@ -2367,10 +2367,20 @@ export async function shiftRoutes(app: FastifyInstance) {
 
   // GET /my-week?date=YYYY-MM-DD — Phase 49 — employee self-view
   // Returns own shifts + anonymized colleague list (firstName only) for the week
-  // containing `date` (default: today). 410 Gone for non-SHIFT_BASED or no-employeeId users.
+  // containing `date` (default: today), for every contract type: since Issue #589 every
+  // Arbeitszeitmodell can receive a shift, and Issue #1011 removed the SHIFT_BASED-only 410.
+  // 403 without any shift:read reach (Issue #1011; the catalog's shift:read:EIGENE row names this
+  // route); 410 only without a linked employee or when the employee is not found.
   app.get("/my-week", {
     schema: { tags: ["Schichtplanung"], security: [{ bearerAuth: [] }] },
     handler: async (req, reply) => {
+      // Same reach gate as GET /range. Checked before the employeeId branch so an API key
+      // (shift:read:ZUGEWIESEN) still reaches the 410 below.
+      const myWeekReadReach = await permissionReach(req, "shift:read");
+      if (myWeekReadReach === null) {
+        return reply.code(403).send({ error: "Forbidden" });
+      }
+
       const employeeId = req.user.employeeId;
       if (!employeeId) {
         return reply.code(410).send({ error: "Kein Mitarbeiter-Profil verknüpft" });
@@ -2380,32 +2390,12 @@ export async function shiftRoutes(app: FastifyInstance) {
       const { date } = req.query as { date?: string };
       const refDate = date ? new Date(date + "T00:00:00Z") : new Date();
 
-      // Verify caller is SHIFT_BASED on at least one day of the DISPLAYED week (Issue #389; the
-      // contract valid on each day decides, validFrom judged by its tenant-local calendar day).
-      const myTz = await getTenantTimezone(app.prisma, req.user.tenantId);
-      const myWeek = weekRangeUtc(refDate, myTz);
       const me = await app.prisma.employee.findFirst({
         where: { id: employeeId, tenantId: req.user.tenantId },
-        select: {
-          id: true,
-          workSchedules: {
-            where: { validFrom: { lte: myWeek.end } },
-            orderBy: { validFrom: "desc" as const },
-            take: 8, // month-first changes: at most one per week, headroom for legacy rows
-            select: { type: true, validFrom: true },
-          },
-        },
+        select: { id: true },
       });
       if (!me) {
         return reply.code(410).send({ error: "Mitarbeiter nicht gefunden" });
-      }
-      const shiftBasedInWeek = myWeek.days.some(
-        (iso) =>
-          me.workSchedules.find((ws) => dateStrInTz(ws.validFrom, myTz) <= iso)?.type ===
-          "SHIFT_BASED",
-      );
-      if (!shiftBasedInWeek) {
-        return reply.code(410).send({ error: "Nicht im Schichtsystem" });
       }
 
       const dow = refDate.getUTCDay();
