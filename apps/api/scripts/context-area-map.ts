@@ -257,6 +257,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/time-tracking/place-auto-break.ts": "zeiterfassung", // Issue #511 (AK-4, D-17/D-19/D-20) — pure placement of the automatic break; no model access
   "src/contexts/time-tracking/auto-break-write.ts": "zeiterfassung", // Issue #799 — the one automatic-break write and the post-STOP step every clock trigger (web, NFC, WIFI) runs
   "src/contexts/time-tracking/auto-break-plan.ts": "zeiterfassung", // Issue #511 (AK-4) — the one automatic-break decision (regime, amount, placement) shared by the save paths and the entry-form preview; pure, no model access
+  "src/contexts/time-tracking/break-amount.ts": "zeiterfassung", // Issue #1011 - the one break-amount rule (setting, raised to the § 11 JArbSchG minimum for a minor) shared by the recording and the roster netto; pure, no model access
   "src/contexts/time-tracking/day-break-store.ts": "zeiterfassung", // Issue #80 (D-03/D-06) — reads DayBreak/DayBreakAck and the day's closed WORK rows
   "src/contexts/time-tracking/api/day-breaks.ts": "zeiterfassung", // Issue #80 — writes DayBreak (and from 80-06 DayBreakAck)
   "src/contexts/time-tracking/day-scope.ts": "zeiterfassung", // Issue #80 — day-wide scope coverage over TimeEntry facts
