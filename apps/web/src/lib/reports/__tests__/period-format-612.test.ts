@@ -8,6 +8,7 @@ import {
   fmtHoursDe,
   monthNameDe,
   runningMonthNote,
+  runningMonthStichtag,
 } from "../period-format";
 
 describe("fmtHoursDe", () => {
@@ -74,6 +75,21 @@ describe("dates and month names", () => {
   it("names a month", () => {
     expect(monthNameDe(2026, 7)).toBe("Juli 2026");
     expect(monthNameDe(2026, 3)).toBe("März 2026");
+  });
+});
+
+// Issue #1011: the one running-month rule.
+describe("runningMonthStichtag", () => {
+  it("is the day itself while it lies before the month's last day", () => {
+    expect(runningMonthStichtag("2026-11", "2026-11-14")).toBe("2026-11-14");
+    expect(runningMonthStichtag("2026-11", "2026-10-31")).toBe("2026-10-31");
+  });
+
+  it("is null for a whole month and for malformed input", () => {
+    expect(runningMonthStichtag("2026-10", "2026-10-31")).toBeNull();
+    expect(runningMonthStichtag("2026-13", "2026-11-14")).toBeNull();
+    expect(runningMonthStichtag("2026-11", "x")).toBeNull();
+    expect(runningMonthStichtag("", "")).toBeNull();
   });
 });
 

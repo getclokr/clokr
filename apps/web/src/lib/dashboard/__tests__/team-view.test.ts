@@ -92,6 +92,7 @@ describe("withSalonId", () => {
 function response(overrides: Partial<TeamTrendResponse> = {}): TeamTrendResponse {
   return {
     salonId: null,
+    asOf: "2026-06-30",
     workedBasis: "ACCOUNT",
     recordedBasis: "ALL_ENTRIES",
     sollUnavailableReason: null,
@@ -118,6 +119,74 @@ function response(overrides: Partial<TeamTrendResponse> = {}): TeamTrendResponse
     ...overrides,
   };
 }
+
+// Issue #1011: the chart draws every month through yesterday and names the Stichtag.
+describe("teamTrendView — the running month through yesterday (Issue #1011)", () => {
+  const running = (over: Partial<TeamTrendResponse["months"][number]> = {}) =>
+    response({
+      asOf: "2026-06-14",
+      months: [
+        {
+          month: "2026-05",
+          workedMinutes: 125,
+          shouldMinutes: 180,
+          sickDays: 1,
+          recordedMinutes: 0,
+          toDateWorkedMinutes: 125,
+          toDateShouldMinutes: 180,
+        },
+        {
+          month: "2026-06",
+          workedMinutes: 1080 * 60 - 60,
+          shouldMinutes: 870 * 60,
+          sickDays: 0,
+          recordedMinutes: 10 * 60,
+          toDateWorkedMinutes: 18 * 60,
+          toDateShouldMinutes: 12 * 60,
+          ...over,
+        },
+      ],
+    });
+
+  it("draws the to-date pair of the running month and the whole-month figures of earlier ones", () => {
+    const view = teamTrendView(running());
+    expect(view.workedHours).toEqual([2.1, 18]);
+    expect(view.shouldHours).toEqual([3, 12]);
+  });
+
+  it("names the Stichtag, the Soll variant, and splits recorded time from credit", () => {
+    expect(teamTrendView(running()).runningNote).toBe(
+      "Laufender Monat bis gestern (14.06.): Soll und Ist zählen bis zu diesem Tag. Im Ist: 10:00 h erfasst, 8:00 h Gutschrift.",
+    );
+  });
+
+  it("without Soll the note speaks of the hours and adds no split when Ist is not above recorded", () => {
+    const base = running({ toDateWorkedMinutes: 10 * 60 });
+    const view = teamTrendView({
+      ...base,
+      sollUnavailableReason: "NO_PERMISSION",
+      months: base.months.map((m) => ({ ...m, shouldMinutes: null, toDateShouldMinutes: null })),
+    });
+    expect(view.shouldHours).toBeNull();
+    expect(view.runningNote).toBe(
+      "Laufender Monat bis gestern (14.06.): Die Stunden zählen bis zu diesem Tag.",
+    );
+  });
+
+  it("falls back to the whole-month figures and adds no split when a month has no to-date pair", () => {
+    const view = teamTrendView(
+      running({ toDateWorkedMinutes: null, toDateShouldMinutes: null, shouldMinutes: 600 }),
+    );
+    expect(view.workedHours[1]).toBe(+((1080 * 60 - 60) / 60).toFixed(1));
+    expect(view.shouldHours?.[1]).toBe(10);
+    expect(view.runningNote).not.toContain("Im Ist");
+  });
+
+  it("has no note when the window's last month is whole", () => {
+    expect(teamTrendView(response({ asOf: "2026-06-30" })).runningNote).toBeNull();
+    expect(teamTrendView(response({ asOf: "2026-07-01" })).runningNote).toBeNull();
+  });
+});
 
 describe("teamTrendView — driven by the response codes, never by a display string", () => {
   it("unfiltered: Ist and Soll in hours, one decimal, German month labels", () => {

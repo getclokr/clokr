@@ -61,6 +61,20 @@ export function monthNameDe(year: number, month: number): string {
 const YEAR_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
 /**
+ * Issue #1011: the ONE running-month rule of the web. `asOf` (`YYYY-MM-DD`, the server's
+ * tenant-local yesterday or a report's `closingAsOf`) is the Stichtag of the month `to`
+ * (`YYYY-MM`) when it lies before that month's last calendar day, else null (a month that is
+ * whole). Pure, no clock read; malformed input returns null.
+ */
+export function runningMonthStichtag(to: string, asOf: string): string | null {
+  const ym = YEAR_MONTH_RE.exec(to);
+  if (!ym || !ISO_DAY_RE.test(asOf)) return null;
+  const lastDay = new Date(Date.UTC(Number(ym[1]), Number(ym[2]), 0)).getUTCDate();
+  const lastIso = `${ym[1]}-${ym[2]}-${String(lastDay).padStart(2, "0")}`;
+  return asOf >= lastIso ? null : asOf;
+}
+
+/**
  * Issue #985 (D-01): the period report counts the running month like the Arbeitszeitkonto - Soll,
  * Ist and saldo through tenant-local yesterday. The page derives no figure; this only names the
  * Stichtag. `to` is the answer's `YYYY-MM`, `closingAsOf` its `kpis.closingAsOf` (`YYYY-MM-DD`): the
@@ -70,12 +84,7 @@ const YEAR_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
  * module already imports from that one - the reverse import would create a cycle.
  */
 export function runningMonthNote(to: string, closingAsOf: string): string | null {
-  const ym = YEAR_MONTH_RE.exec(to);
-  if (!ym || !ISO_DAY_RE.test(closingAsOf)) return null;
-  const year = Number(ym[1]);
-  const month = Number(ym[2]);
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const lastIso = `${ym[1]}-${ym[2]}-${String(lastDay).padStart(2, "0")}`;
-  if (closingAsOf >= lastIso) return null;
-  return `Laufender Monat bis gestern (${fmtDateShortDe(closingAsOf)}): Soll, Ist und Saldo zählen bis zu diesem Tag.`;
+  const stichtag = runningMonthStichtag(to, closingAsOf);
+  if (stichtag === null) return null;
+  return `Laufender Monat bis gestern (${fmtDateShortDe(stichtag)}): Soll, Ist und Saldo zählen bis zu diesem Tag.`;
 }

@@ -79,6 +79,7 @@ const SALON = "11111111-1111-4111-8111-111111111111";
 
 const TREND: TeamTrendResponse = {
   salonId: null,
+  asOf: "2026-10-14",
   workedBasis: "ACCOUNT",
   recordedBasis: "ALL_ENTRIES",
   sollUnavailableReason: null,
@@ -92,6 +93,8 @@ const TREND: TeamTrendResponse = {
     toDateShouldMinutes: null,
   })),
 };
+
+const RUNNING_NOTE = "Laufender Monat bis gestern (14.10.): Soll und Ist zählen bis zu diesem Tag.";
 
 const OVERTIME_TREND = {
   snapshots: [{ month: "2026-05-01", teamCarryOverMinutes: 120 }],
@@ -160,6 +163,11 @@ describe("TeamTrendsTab (Issue #895)", () => {
     const sick = charts.find((c) => c.config.data.datasets[0].label === "Krankheitstage")!;
     sick.config.options.onClick({}, [{ index: 2 }]);
     expect(hoisted.goto).toHaveBeenCalledWith("/reports?from=2026-07&to=2026-07&tab=urlaub");
+  });
+
+  it("names the Stichtag of the running month under the Arbeitsstunden chart (Issue #1011)", async () => {
+    mount();
+    expect(await screen.findByTestId("team-trends-running-note")).toHaveTextContent(RUNNING_NOTE);
   });
 
   it("the saldo trend ends on the live balance and fills a missing month forward", async () => {

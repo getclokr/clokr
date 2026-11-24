@@ -51,6 +51,7 @@ function view(over: Partial<TeamTrendView> = {}): TeamTrendView {
     workedSeriesLabel: "Ist (h)",
     chartSub: "Letzte 6 Monate",
     sollNote: null,
+    runningNote: null,
     trendNote: null,
     ...over,
   };

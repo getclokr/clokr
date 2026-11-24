@@ -27,6 +27,7 @@ function response(
   return {
     resp: {
       salonId: recordedBasis === "SALON_ENTRIES" ? "s-1" : null,
+      asOf: "2026-11-14",
       workedBasis: recordedBasis === "SALON_ENTRIES" ? "SALON_ENTRIES" : "ACCOUNT",
       recordedBasis,
       sollUnavailableReason: "NO_PERMISSION",

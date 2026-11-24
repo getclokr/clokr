@@ -165,6 +165,7 @@ function answer(path: string): Promise<unknown> {
   if (path.startsWith("/dashboard/team-trend")) {
     return Promise.resolve({
       salonId: null,
+      asOf: "2026-11-14",
       workedBasis: "ACCOUNT",
       // Issue #986: the recorded time and the account's to-date figures of the KPI.
       recordedBasis: "ALL_ENTRIES",
