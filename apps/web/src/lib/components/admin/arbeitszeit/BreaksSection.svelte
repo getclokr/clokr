@@ -89,7 +89,7 @@
 <SettingsGroup
   id="pausen"
   title="Pausen"
-  description="Pflichtpausen nach § 4 ArbZG: mehr als 6 Stunden Arbeit brauchen mindestens 30 Minuten Pause, mehr als 9 Stunden mindestens 45 Minuten."
+  hint="Pflichtpausen nach § 4 ArbZG: mehr als 6 Stunden Arbeit brauchen mindestens 30 Minuten Pause, mehr als 9 Stunden mindestens 45 Minuten."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -100,7 +100,7 @@
   <ToggleField
     bind:checked={values.autoBreakEnabled}
     label="Pausen automatisch abziehen"
-    help="Beim Ausstempeln legt Clokr die Pflichtpause automatisch als Pausen-Eintrag an und zieht sie von der gestempelten Zeit ab. Das wirkt auf neue Einträge ab dem Speichern."
+    hint="Beim Ausstempeln legt Clokr die Pflichtpause automatisch als Pausen-Eintrag an und zieht sie von der gestempelten Zeit ab. Das wirkt auf neue Einträge ab dem Speichern."
     disabled={!canEdit || saving}
     testid="arbeitszeit-pausen-autoBreakEnabled"
   />
@@ -108,7 +108,7 @@
   {#if values.autoBreakEnabled}
     <FormField
       label="Standard-Pausenbeginn"
-      help="Ab dieser Uhrzeit legt Clokr die automatische Pause. Liegt sie außerhalb des gestempelten Zeitraums, fällt Clokr auf die Tagesmitte zurück."
+      hint="Ab dieser Uhrzeit legt Clokr die automatische Pause. Liegt sie außerhalb des gestempelten Zeitraums, fällt Clokr auf die Tagesmitte zurück."
       error={messages.defaultBreakStart}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -174,7 +174,7 @@
   <ToggleField
     bind:checked={values.enforceBreakConfirmation}
     label="Pausen-Bestätigung erforderlich"
-    help="Mitarbeitende bestätigen automatisch eingetragene Pflichtpausen, passen sie an oder kennzeichnen den Tag als „durchgearbeitet“. Standard: aus."
+    hint="Mitarbeitende bestätigen automatisch eingetragene Pflichtpausen, passen sie an oder kennzeichnen den Tag als „durchgearbeitet“. Standard: aus."
     disabled={!canEdit || saving}
     testid="arbeitszeit-pausen-enforceBreakConfirmation"
   />

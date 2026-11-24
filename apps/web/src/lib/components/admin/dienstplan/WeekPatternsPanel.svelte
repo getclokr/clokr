@@ -36,6 +36,7 @@
     type PatternRow,
     type ShiftTemplate,
   } from "$lib/shifts/dienstplan-config";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     employees: PatternEmployee[];
@@ -134,11 +135,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="dienstplan-muster-title">
-  <h2 class="settings-group-title" id="dienstplan-muster-title">Wochenmuster</h2>
-  <p class="settings-group-desc">
-    Wiederkehrendes Wochenmuster je Person. Nur Mitarbeitende mit dem Arbeitszeitmodell „Nach
-    Schichtplan“ erscheinen hier. Änderungen gelten erst, wenn du sie speicherst.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="dienstplan-muster-title">Wochenmuster</h2>
+    <InfoHint
+      text="Wiederkehrendes Wochenmuster je Person. Nur Mitarbeitende mit dem Arbeitszeitmodell „Nach Schichtplan“ erscheinen hier. Änderungen gelten erst, wenn du sie speicherst."
+      label={hintLabel("Wochenmuster")}
+    />
+  </div>
 
   {#if employees.length === 0}
     <Note tone="info">

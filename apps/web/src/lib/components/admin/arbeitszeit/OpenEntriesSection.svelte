@@ -79,7 +79,7 @@
 
 <SettingsGroup
   title="Offene Einträge"
-  description="Was mit Zeiteinträgen passiert, bei denen das Ausstempeln fehlt."
+  hint="Was mit Zeiteinträgen passiert, bei denen das Ausstempeln fehlt."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -89,7 +89,7 @@
 >
   <FormField
     label="Offene Einträge ungültig markieren nach (Stunden)"
-    help="Einträge ohne Ausstempeln werden nach dieser Zeit als ungültig markiert und müssen manuell korrigiert werden. 0 schaltet das ab."
+    hint="Einträge ohne Ausstempeln werden nach dieser Zeit als ungültig markiert und müssen manuell korrigiert werden. 0 schaltet das ab."
     error={messages.autoDeleteOpenHours}
   >
     {#snippet field({ id, describedBy, invalid })}

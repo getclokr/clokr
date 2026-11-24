@@ -61,6 +61,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -252,19 +253,21 @@
 </script>
 
 <section class="settings-group" aria-labelledby="abwesenheiten-urlaubsgrenzen-title">
-  <h2 class="settings-group-title" id="abwesenheiten-urlaubsgrenzen-title">
-    Urlaubsgrenzen & Sperren
-  </h2>
-  <p class="settings-group-desc">
-    Lege fest, wie viele Personen gleichzeitig im Urlaub sein dürfen, oder sperre einen Zeitraum.
-    Die strengste Regel eines Tages gilt.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="abwesenheiten-urlaubsgrenzen-title">
+      Urlaubsgrenzen & Sperren
+    </h2>
+    <InfoHint
+      text="Lege fest, wie viele Personen gleichzeitig im Urlaub sein dürfen, oder sperre einen Zeitraum. Die strengste Regel eines Tages gilt."
+      label={hintLabel("Urlaubsgrenzen & Sperren")}
+    />
+  </div>
 
   <div class="ug-bar">
     {#if salonOptionsShown}
       <FormField
         label="Salon"
-        help="Zeigt die Regeln des gewählten Salons und die Regeln für alle Salons."
+        hint="Zeigt die Regeln des gewählten Salons und die Regeln für alle Salons."
       >
         {#snippet field({ id, describedBy })}
           <select
@@ -451,7 +454,7 @@
       <FormField
         label="Höchstens gleichzeitig im Urlaub"
         required
-        help="Mit 0 ist in diesem Zeitraum kein Urlaub möglich."
+        hint="Mit 0 ist in diesem Zeitraum kein Urlaub möglich."
       >
         {#snippet field({ id, describedBy })}
           <input
@@ -475,7 +478,11 @@
     {/if}
 
     <div class="ug-dates">
-      <FormField label={blackoutMode ? "Von" : "Von (optional)"} required={blackoutMode}>
+      <FormField
+        label={blackoutMode ? "Von" : "Von (optional)"}
+        required={blackoutMode}
+        hint={blackoutMode ? undefined : "Ohne Zeitraum gilt die Regel das ganze Jahr."}
+      >
         {#snippet field({ id, describedBy })}
           <input
             {id}
@@ -498,9 +505,6 @@
         {/snippet}
       </FormField>
     </div>
-    {#if !blackoutMode}
-      <p class="ug-hint">Ohne Zeitraum gilt die Regel das ganze Jahr.</p>
-    {/if}
 
     <FormField label="Bezeichnung (optional)">
       {#snippet field({ id, describedBy })}

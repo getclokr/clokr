@@ -64,7 +64,7 @@
 
 <PageHead
   title={pageLabel("/verwalten/regeln/monatsabschluss")}
-  sub="Hier legst du fest, wann ein Monat abgeschlossen werden darf. Den Abschluss selbst machst du unter „Monatsabschluss“ in der Verwaltung."
+  hint="Hier legst du fest, wann ein Monat abgeschlossen werden darf. Den Abschluss selbst machst du unter „Monatsabschluss“ in der Verwaltung."
 />
 
 {#if loading}

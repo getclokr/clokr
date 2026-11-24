@@ -129,7 +129,7 @@
 <SettingsGroup
   id="sitzungen"
   title="Sitzungen"
-  description="Timeouts, Sitzungsdauer und Sperrzeiten bei Fehlversuchen."
+  hint="Timeouts, Sitzungsdauer und Sperrzeiten bei Fehlversuchen."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -143,7 +143,7 @@
   <ToggleField
     bind:checked={values.rememberMeEnabled}
     label="„Angemeldet bleiben“ erlauben"
-    help="Personen können beim Anmelden über mehrere Sitzungen hinweg angemeldet bleiben."
+    hint="Personen können beim Anmelden über mehrere Sitzungen hinweg angemeldet bleiben."
     disabled={!canEdit || saving}
     testid="admin-system-session-rememberMeEnabled"
   />

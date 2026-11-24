@@ -107,7 +107,7 @@
 
 <PageHead
   title={pageLabel("/verwalten/regeln/arbeitszeit")}
-  sub="Diese Vorgaben gelten für alle im Unternehmen. Für einzelne Personen legst du sie im Vertrag der Person fest."
+  hint="Diese Vorgaben gelten für alle im Unternehmen. Für einzelne Personen legst du sie im Vertrag der Person fest."
 />
 
 {#if loading}

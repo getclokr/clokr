@@ -29,6 +29,7 @@
     ruleDaysMessage,
     type SpecialLeaveRule,
   } from "$lib/settings/sonderurlaub";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -154,11 +155,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="abwesenheiten-sonderurlaub-title">
-  <h2 class="settings-group-title" id="abwesenheiten-sonderurlaub-title">Sonderurlaubs-Regeln</h2>
-  <p class="settings-group-desc">
-    Gesetzliche Anlässe (§ 616 BGB) werden automatisch angelegt. Tage und Nachweispflicht kannst du
-    anpassen und zusätzliche betriebliche Anlässe hinzufügen.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="abwesenheiten-sonderurlaub-title">Sonderurlaubs-Regeln</h2>
+    <InfoHint
+      text="Gesetzliche Anlässe (§ 616 BGB) werden automatisch angelegt. Tage und Nachweispflicht kannst du anpassen und zusätzliche betriebliche Anlässe hinzufügen."
+      label={hintLabel("Sonderurlaubs-Regeln")}
+    />
+  </div>
 
   <div class="su-bar">
     <button type="button" class="btn btn-primary" onclick={openCreate}>Regel anlegen</button>
@@ -283,7 +286,7 @@
       <ToggleField
         bind:checked={isActive}
         label="Regel ist aktiv"
-        help="Eine deaktivierte Regel steht bei neuen Anträgen nicht mehr zur Auswahl."
+        hint="Eine deaktivierte Regel steht bei neuen Anträgen nicht mehr zur Auswahl."
         testid="abwesenheiten-sonderurlaub-active"
       />
     {/if}

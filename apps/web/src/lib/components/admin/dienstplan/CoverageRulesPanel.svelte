@@ -42,6 +42,7 @@
     showCoverageSalonColumn,
   } from "$lib/shifts/coverage-rule-salon";
   import { formatStaff } from "$lib/shifts/staffing"; // Issue #850 - "2", never "2.00"
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     rules: CoverageRule[];
@@ -196,11 +197,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="dienstplan-bedarf-title">
-  <h2 class="settings-group-title" id="dienstplan-bedarf-title">Bedarfsregeln</h2>
-  <p class="settings-group-desc">
-    Wie viele Personen je Vorlage und Wochentag mindestens eingeplant sein sollen. Die genaueste
-    Regel gilt; ohne Regel sind es 2.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="dienstplan-bedarf-title">Bedarfsregeln</h2>
+    <InfoHint
+      text="Wie viele Personen je Vorlage und Wochentag mindestens eingeplant sein sollen. Die genaueste Regel gilt; ohne Regel sind es 2."
+      label={hintLabel("Bedarfsregeln")}
+    />
+  </div>
 
   <div class="dp-bar">
     <button type="button" class="btn btn-primary" onclick={openCreate}>Regel anlegen</button>
@@ -263,15 +266,10 @@
       void saveRule();
     }}
   >
-    <Note tone="info">
-      Die genaueste Regel gilt: erst Vorlage und Wochentag, dann alle Vorlagen an diesem Wochentag,
-      dann die Vorlage an allen Tagen, zuletzt alle Vorlagen an allen Tagen. Ohne Regel gelten 2
-      Personen.
-    </Note>
     {#if salonOptionsShown}
       <FormField
         label="Salon"
-        help="Eine Regel für einen Salon geht auf derselben Stufe der Regel für alle Salons vor. Die Regel gilt, wenn die Wochenansicht genau diesen Salon zeigt: bei Wahl in der Kopfleiste, für alle, die nur diesen Salon planen, und in Unternehmen mit nur einem aktiven Salon. Sonst gelten nur die Regeln für alle Salons."
+        hint="Eine Regel für einen Salon geht auf derselben Stufe der Regel für alle Salons vor. Die Regel gilt, wenn die Wochenansicht genau diesen Salon zeigt: bei Wahl in der Kopfleiste, für alle, die nur diesen Salon planen, und in Unternehmen mit nur einem aktiven Salon. Sonst gelten nur die Regeln für alle Salons."
       >
         {#snippet field({ id, describedBy, invalid })}
           <select
@@ -288,7 +286,10 @@
         {/snippet}
       </FormField>
     {/if}
-    <FormField label="Vorlage">
+    <FormField
+      label="Vorlage"
+      hint="Die genaueste Regel gilt: erst Vorlage und Wochentag, dann alle Vorlagen an diesem Wochentag, dann die Vorlage an allen Tagen, zuletzt alle Vorlagen an allen Tagen. Ohne Regel gelten 2 Personen."
+    >
       {#snippet field({ id, describedBy, invalid })}
         <select
           {id}
@@ -323,7 +324,7 @@
     <FormField
       label="Mindestens (Personen)"
       required
-      help="Personen zählen nach ihrem Schicht-Gewicht, z. B. Vollzeit 1 und Azubi 0,5 – zusammen 1,5."
+      hint="Personen zählen nach ihrem Schicht-Gewicht, z. B. Vollzeit 1 und Azubi 0,5 – zusammen 1,5."
     >
       {#snippet field({ id, describedBy, invalid })}
         <input
@@ -342,7 +343,7 @@
     <ToggleField
       bind:checked={requiresNonSupervised}
       label="Aufsicht erforderlich"
-      help="Mindestens 1 nicht-aufsichtspflichtige Person muss eingeplant sein."
+      hint="Mindestens 1 nicht-aufsichtspflichtige Person muss eingeplant sein."
     />
     {#if formError}
       <div role="alert"><Note tone="bad">{formError}</Note></div>

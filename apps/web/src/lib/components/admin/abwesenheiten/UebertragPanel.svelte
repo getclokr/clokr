@@ -151,7 +151,7 @@
 
 <SettingsGroup
   title="Übertrag ins neue Jahr"
-  description="Bis wann Resturlaub genommen werden kann und ob ein Übertrag eine Begründung braucht (§ 7 BUrlG)."
+  hint="Bis wann Resturlaub genommen werden kann und ob ein Übertrag eine Begründung braucht (§ 7 BUrlG)."
   changes={uebertragChanges}
   errors={messageCount(uebertragMsg)}
   saving={uebertragSaving}
@@ -161,7 +161,7 @@
 >
   <FormField
     label="Resturlaub verfällt am"
-    help="Der Tag im Folgejahr, an dem nicht genommener Resturlaub des Vorjahres verfällt."
+    hint="Der Tag im Folgejahr, an dem nicht genommener Resturlaub des Vorjahres verfällt."
     error={uebertragMsg.carryOverDeadlineDay}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -200,7 +200,7 @@
   <ToggleField
     bind:checked={uebertrag.carryOverRequiresReason}
     label="Übertrag ins Folgejahr erfordert eine Begründung"
-    help="Zum Beispiel Krankheit oder betriebliche Gründe."
+    hint="Zum Beispiel Krankheit oder betriebliche Gründe."
     disabled={uebertragSaving}
     testid="abwesenheiten-uebertrag-reason"
   />
@@ -208,7 +208,7 @@
 
 <SettingsGroup
   title="Warnung vor Verfall"
-  description="Hinweispflicht: Mitarbeitende werden rechtzeitig an verfallenden Urlaub erinnert (EuGH C-684/16)."
+  hint="Hinweispflicht: Mitarbeitende werden rechtzeitig an verfallenden Urlaub erinnert (EuGH C-684/16)."
   changes={verfallChanges}
   errors={messageCount(verfallMsg)}
   saving={verfallSaving}
@@ -218,7 +218,7 @@
 >
   <FormField
     label="Erinnerung ab Monat"
-    help="Ab diesem Monat werden Mitarbeitende an verfallenden Urlaub erinnert."
+    hint="Ab diesem Monat werden Mitarbeitende an verfallenden Urlaub erinnert."
   >
     {#snippet field({ id, describedBy })}
       <select
@@ -238,13 +238,13 @@
   <ToggleField
     bind:checked={verfall.carryoverWarningEnabled}
     label="Hinweise automatisch versenden"
-    help="Täglich um 06:00 Uhr."
+    hint="Täglich um 06:00 Uhr."
     disabled={verfallSaving}
     testid="abwesenheiten-verfall-enabled"
   />
   <FormField
     label="Schwellwerte (Tage vor Verfall)"
-    help={`Liste mit Komma getrennt (Tage ${THRESHOLD_MIN} bis ${THRESHOLD_MAX}). Jeder Schwellwert löst genau einen Hinweis aus. Beispiel: 60, 30, 14, 7 warnt 60, 30, 14 und 7 Tage vor Verfall.`}
+    hint={`Liste mit Komma getrennt (Tage ${THRESHOLD_MIN} bis ${THRESHOLD_MAX}). Jeder Schwellwert löst genau einen Hinweis aus. Beispiel: 60, 30, 14, 7 warnt 60, 30, 14 und 7 Tage vor Verfall.`}
     error={verfallMsg.carryoverWarningThresholds}
   >
     {#snippet field({ id, describedBy, invalid })}

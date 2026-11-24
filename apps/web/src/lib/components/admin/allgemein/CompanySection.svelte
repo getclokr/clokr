@@ -84,7 +84,7 @@
 <SettingsGroup
   id="unternehmen"
   title="Unternehmen & Region"
-  description="Name, Bundesland-Vorgabe und Zeitzone des Unternehmens."
+  hint="Name, Bundesland-Vorgabe und Zeitzone des Unternehmens."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -94,7 +94,7 @@
 >
   <FormField
     label="Firmenname"
-    help="Wird in PDF-Exporten als Überschrift verwendet."
+    hint="Wird in PDF-Exporten als Überschrift verwendet."
     error={messages.tenantName}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -135,7 +135,7 @@
     {/snippet}
   </FormField>
 
-  <FormField label="Zeitzone" help="Zuordnung von Zeitstempeln zu Tagen.">
+  <FormField label="Zeitzone" hint="Zuordnung von Zeitstempeln zu Tagen.">
     {#snippet field({ id, describedBy })}
       <select
         {id}

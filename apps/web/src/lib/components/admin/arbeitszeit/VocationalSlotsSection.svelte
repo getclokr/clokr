@@ -84,7 +84,7 @@
 
 <SettingsGroup
   title="Berufsschule"
-  description="Zeitgutschrift für Berufsschultage im ganzen Unternehmen (§ 15 Abs. 2 BBiG). Eingegeben wird in Minuten, darunter siehst du die Stunden. Tageswerte: 4:00 bis 10:00 h (240–600 Minuten), Blockunterricht-Woche: 20:00 bis 50:00 h (1200–3000 Minuten)."
+  hint="Zeitgutschrift für Berufsschultage im ganzen Unternehmen (§ 15 Abs. 2 BBiG). Eingegeben wird in Minuten, darunter siehst du die Stunden. Tageswerte: 4:00 bis 10:00 h (240–600 Minuten), Blockunterricht-Woche: 20:00 bis 50:00 h (1200–3000 Minuten)."
   changes={changeCount}
   errors={errorCount}
   {saving}

@@ -80,7 +80,7 @@
 
 <SettingsGroup
   title="Überstunden"
-  description="Wie weit das Überstundensaldo ins Minus gehen darf."
+  hint="Wie weit das Überstundensaldo ins Minus gehen darf."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -91,7 +91,7 @@
   <ToggleField
     bind:checked={values.enabled}
     label="Limit für negatives Überstundensaldo"
-    help="Ohne Limit gilt beim Überstundenausgleich-Antrag eine Toleranz von 0 Stunden: Der Antrag darf das bestätigte Guthaben nicht ins Minus ziehen."
+    hint="Ohne Limit gilt beim Überstundenausgleich-Antrag eine Toleranz von 0 Stunden: Der Antrag darf das bestätigte Guthaben nicht ins Minus ziehen."
     disabled={!canEdit || saving}
     testid="arbeitszeit-ueberstunden-enabled"
   />

@@ -89,7 +89,7 @@
 
 <SettingsGroup
   title="E-Mail-Benachrichtigungen"
-  description="Welche Ereignisse zusätzlich zur Benachrichtigung in Clokr per E-Mail gemeldet werden."
+  hint="Welche Ereignisse zusätzlich zur Benachrichtigung in Clokr per E-Mail gemeldet werden."
   changes={changeCount}
   errors={0}
   {saving}
@@ -100,7 +100,7 @@
   <ToggleField
     bind:checked={values.emailNotificationsEnabled}
     label="E-Mail-Benachrichtigungen aktivieren"
-    help="Clokr schickt zusätzlich eine E-Mail. Dafür muss der E-Mail-Server eingerichtet sein."
+    hint="Clokr schickt zusätzlich eine E-Mail. Dafür muss der E-Mail-Server eingerichtet sein."
     disabled={!canEdit || saving}
     testid="benachrichtigungen-email-emailNotificationsEnabled"
   />

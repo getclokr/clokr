@@ -86,7 +86,7 @@
 
 <PageHead
   title={pageLabel("/admin/vacation")}
-  sub="Urlaub, Sonderurlaub, Übertrag, Betriebsurlaub und Urlaubsgrenzen für das ganze Unternehmen."
+  hint="Urlaub, Sonderurlaub, Übertrag, Betriebsurlaub und Urlaubsgrenzen für das ganze Unternehmen."
 />
 
 {#if visibleTabs.length === 0}
