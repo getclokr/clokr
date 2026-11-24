@@ -6,7 +6,15 @@ import { contextSalonIds, ownRoleNames } from "../facade/role-assignments";
 import { isMultiSalonTenant, listSalons } from "../facade/salons";
 import { packagesForDisplay } from "../tenant-packages";
 import { PERSONAL_EMAIL_OPT_OUT_FIELDS } from "../notification-email-policy";
-import { LEGACY_UI_THEME_IDS, UI_THEME_IDS, normalizeUiTheme, type UiThemeId } from "../ui-theme";
+import {
+  LEGACY_UI_THEME_IDS,
+  UI_THEME_IDS,
+  normalizeUiTheme,
+  ownUiThemeChoice,
+  resolveUiTheme,
+  uiThemeFromDb,
+  type UiThemeId,
+} from "../ui-theme";
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +33,8 @@ const emailOptOutInput = z
   .max(PERSONAL_EMAIL_OPT_OUT_FIELDS.length);
 
 const updatePreferencesSchema = z.object({
-  theme: themeInput.optional(),
+  // Issue #976: null goes back to the tenant default (stored as JSON null, i.e. no own choice).
+  theme: themeInput.nullable().optional(),
   mode: modeEnum.optional(),
   language: languageEnum.optional(),
   emailOptOut: emailOptOutInput.optional(),
@@ -40,7 +49,12 @@ const updateReleaseNotesSeenSchema = z.object({
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface UiPreferences {
+  // Issue #976: the RESOLVED Farbwelt (own choice, else tenant default, else Pflaume), decided only
+  // by resolveUiTheme(); `themeChoice` is the own choice (null = none), `tenantDefaultTheme` the
+  // tenant default. The web applies `theme` and derives nothing.
   theme: UiThemeId;
+  themeChoice: UiThemeId | null;
+  tenantDefaultTheme: UiThemeId;
   mode: z.infer<typeof modeEnum>;
   language: z.infer<typeof languageEnum>;
   emailOptOut: z.infer<typeof emailOptOutInput>;
@@ -48,6 +62,8 @@ interface UiPreferences {
 
 const DEFAULT_PREFERENCES: UiPreferences = {
   theme: "pflaume",
+  themeChoice: null,
+  tenantDefaultTheme: "pflaume",
   mode: "light",
   language: "de",
   emailOptOut: [],
@@ -57,11 +73,14 @@ const DEFAULT_PREFERENCES: UiPreferences = {
  * Merge stored preferences over defaults. Ignores unknown keys and falls back to
  * defaults when a stored value is invalid (e.g. after a config rollback).
  */
-function mergePreferences(stored: unknown): UiPreferences {
-  if (!stored || typeof stored !== "object") return { ...DEFAULT_PREFERENCES };
-  const partial = stored as Record<string, unknown>;
+function mergePreferences(stored: unknown, tenantDefault: UiThemeId): UiPreferences {
+  const partial: Record<string, unknown> =
+    stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
+  const themeChoice = ownUiThemeChoice(partial.theme);
   return {
-    theme: normalizeUiTheme(partial.theme),
+    theme: resolveUiTheme(themeChoice, tenantDefault),
+    themeChoice,
+    tenantDefaultTheme: tenantDefault,
     mode: modeEnum.safeParse(partial.mode).success
       ? (partial.mode as UiPreferences["mode"])
       : DEFAULT_PREFERENCES.mode,
@@ -79,12 +98,23 @@ function mergePreferences(stored: unknown): UiPreferences {
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export async function meRoutes(app: FastifyInstance) {
+  // Issue #976: the caller's tenant default Farbwelt, read once per request with the tenant of the
+  // token only (a missing config row reads Pflaume).
+  async function tenantDefaultTheme(tenantId: string): Promise<UiThemeId> {
+    const row = await app.prisma.tenantConfig.findUnique({
+      where: { tenantId },
+      select: { defaultUiTheme: true },
+    });
+    return uiThemeFromDb(row?.defaultUiTheme);
+  }
+
   // GET /api/v1/me/preferences
   app.get("/preferences", {
     preHandler: requireAuth,
     schema: {
       tags: ["Mein Bereich"],
-      description: "Get the current user's UI preferences merged with defaults",
+      description:
+        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -100,7 +130,7 @@ export async function meRoutes(app: FastifyInstance) {
       if (!user) {
         return reply.code(404).send({ error: "Benutzer nicht gefunden" });
       }
-      return mergePreferences(user.uiPreferences);
+      return mergePreferences(user.uiPreferences, await tenantDefaultTheme(req.user.tenantId));
     },
   });
 
@@ -109,7 +139,8 @@ export async function meRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
     schema: {
       tags: ["Mein Bereich"],
-      description: "Update the current user's UI preferences (partial update, merge semantics)",
+      description:
+        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. The answer has the same shape as GET",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -147,7 +178,7 @@ export async function meRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Benutzer nicht gefunden" });
       }
 
-      return mergePreferences(rows[0].uiPreferences);
+      return mergePreferences(rows[0].uiPreferences, await tenantDefaultTheme(req.user.tenantId));
     },
   });
 
