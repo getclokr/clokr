@@ -4,12 +4,18 @@
   import { onMount } from "svelte";
 
   interface Props {
-    when: "render" | "mount" | "never";
+    when: "render" | "render-plain" | "mount" | "never";
   }
 
   let { when }: Props = $props();
 
-  if (when === "render") throw new Error("BOOM-127-render");
+  // Read inside a closure: the throw sites run once, while the component renders.
+  function throwWhileRendering() {
+    if (when === "render") throw new Error("BOOM-127-render");
+    // What kit 3's transformError hands every boundary: a plain object, not an Error (#1015).
+    if (when === "render-plain") throw { status: 500, message: "Internal Error" };
+  }
+  throwWhileRendering();
 
   onMount(() => {
     if (when === "mount") throw new Error("BOOM-127-mount");

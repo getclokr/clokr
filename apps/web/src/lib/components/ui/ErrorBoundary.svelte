@@ -54,9 +54,12 @@
     // boundary that hides the stack trades one diagnosis problem for another.
     if (import.meta.env.DEV) console.error("[clokr] svelte:boundary", scope, error);
 
-    const err = error instanceof Error ? error : undefined;
-    clientLogger.error(`Render-Fehler (${scope}): ${err?.message ?? String(error)}`, {
-      stack: err?.stack,
+    // Under kit 3 a boundary only ever receives kit's transformed plain `{ status, message }` object,
+    // and `hooks.client.ts` handleError has already reported the original error once; reporting it
+    // here again would log "[object Object]". Outside kit (component tests) errors arrive raw.
+    if (!(error instanceof Error)) return;
+    clientLogger.error(`Render-Fehler (${scope}): ${error.message}`, {
+      stack: error.stack,
       boundary: scope,
     });
   }

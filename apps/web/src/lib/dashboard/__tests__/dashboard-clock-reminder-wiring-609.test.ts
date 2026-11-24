@@ -61,7 +61,10 @@ describe("dashboard shift reminder arrival (Issue #609)", () => {
   });
 
   it("counts every arrival through afterNavigate (covers an already open dashboard)", () => {
-    expect(reminderBlock()).toMatch(/afterNavigate\(\(\) => \{\s*clockArrival \+= 1;/);
+    // #1015: a shallow update (the page's own clock-parameter strip) is no arrival.
+    expect(reminderBlock()).toMatch(
+      /afterNavigate\(\(navigation\) => \{[^}]*if \(navigation\.shallow\) return;\s*clockArrival \+= 1;/,
+    );
   });
 
   it("decides through clockReminderAction with the live loading, exempt, day and salon state", () => {

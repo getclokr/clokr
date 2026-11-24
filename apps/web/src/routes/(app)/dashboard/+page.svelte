@@ -1162,7 +1162,10 @@
   let clockHandledArrival = $state(-1);
   let clockReminderOpen = $state(false);
   let clockReminderPending = $state<"confirm-in" | "confirm-out" | null>(null);
-  afterNavigate(() => {
+  afterNavigate((navigation) => {
+    // Kit 3 reports shallow updates here too; the page's own clock-parameter strip is one and is
+    // no arrival (it would re-trigger the reminder it just handled).
+    if (navigation.shallow) return;
     clockArrival += 1;
   });
 

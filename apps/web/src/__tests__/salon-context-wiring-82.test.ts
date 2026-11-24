@@ -52,7 +52,10 @@ describe("Issue #82 — salon context wiring", () => {
     const start = LAYOUT.indexOf("afterNavigate((navigation) => {");
     expect(start).toBeGreaterThan(-1);
     const body = LAYOUT.slice(start, LAYOUT.indexOf("});", start));
-    expect(body).toContain("if (navigation.from === null || !$authStore.accessToken) return;");
+    // #1015: a shallow update (kit 3 reports those here too) is no page change either.
+    expect(body).toContain(
+      "if (navigation.shallow || navigation.from === null || !$authStore.accessToken) return;",
+    );
     expect(body).toContain("void salonContext.load($authStore.user?.id ?? null);");
   });
 

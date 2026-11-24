@@ -6,7 +6,7 @@
 
   interface Props {
     scope: "view" | "app";
-    when: "render" | "mount" | "never";
+    when: "render" | "render-plain" | "mount" | "never";
   }
 
   let { scope, when }: Props = $props();

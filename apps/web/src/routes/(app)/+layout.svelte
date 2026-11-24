@@ -57,6 +57,10 @@
   let pendingUrl = $state<string | null>(null);
 
   beforeNavigate((navigation) => {
+    // Kit 3 runs navigation callbacks for shallow updates too (`goto(..., { shallow: true })`; kit 2
+    // never did). A shallow update only rewrites the URL (tab hash, query), leaves the page and its
+    // unsaved form in place, and must neither open this dialog nor be cancelled by it.
+    if (navigation.shallow) return;
     if (!hasUnsaved()) return;
     navigation.cancel();
     if (navigation.willUnload) {
@@ -127,7 +131,8 @@
   // itself forces a reload after every successful write (Issue #563), so it never waits for this
   // throttle. The initial mount is covered by onMount.
   afterNavigate((navigation) => {
-    if (navigation.from === null || !$authStore.accessToken) return;
+    // A shallow update (kit 3 reports those here) is no page change: nothing to re-validate.
+    if (navigation.shallow || navigation.from === null || !$authStore.accessToken) return;
     void salonContext.load($authStore.user?.id ?? null);
   });
 
