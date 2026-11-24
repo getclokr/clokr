@@ -15,3 +15,6 @@ build
 coverage
 **/coverage
 backups
+
+# Issue #1064: the docs site package (VitePress) is built in CI only and belongs to no image.
+apps/docs
