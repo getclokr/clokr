@@ -203,6 +203,61 @@ describe("filterPersonen", () => {
   });
 });
 
+// Issue #1011: a monthly-hours contract stores weeklyHours 0 and must not read „0:00“.
+describe("hoursLabel (Issue #1011)", () => {
+  const label = (workSchedule: PersonenEmployee["workSchedule"]) =>
+    personenRows([employee({ id: "x", workSchedule })], TODAY)[0];
+
+  it("a monthly-hours contract shows its monthly hours and has no weekly figure", () => {
+    expect(
+      label({ type: "MONTHLY_HOURS", weeklyHours: "0.00", monthlyHours: "40.00" }),
+    ).toMatchObject({ hoursLabel: "40 Std./Monat", weeklyHours: null });
+  });
+
+  it("a monthly-hours contract without monthly hours shows a dash", () => {
+    expect(label({ type: "MONTHLY_HOURS", weeklyHours: "0.00", monthlyHours: null })).toMatchObject(
+      { hoursLabel: "–", weeklyHours: null },
+    );
+  });
+
+  it("the type decides: a stale weekly figure on a monthly-hours contract is never shown", () => {
+    const row = label({ type: "MONTHLY_HOURS", weeklyHours: "38.00", monthlyHours: "60" });
+    expect(row.hoursLabel).toBe("60 Std./Monat");
+    expect(row.hoursLabel).not.toContain("38");
+  });
+
+  it("weekly contracts keep H:MM; no contract is a dash", () => {
+    expect(label({ type: "FIXED_SCHEDULE", weeklyHours: "38.5" }).hoursLabel).toBe("38:30");
+    expect(label({ type: "FLEXTIME", weeklyHours: 30 }).hoursLabel).toBe("30:00");
+    expect(label({ type: "SHIFT_BASED", weeklyHours: "40" }).hoursLabel).toBe("40:00");
+    expect(label(null).hoursLabel).toBe("–");
+  });
+
+  it("monthly-hours rows sort after every weekly figure in both directions, ties by name", () => {
+    const people = [
+      employee({
+        id: "m1",
+        lastName: "Zeta",
+        workSchedule: { type: "MONTHLY_HOURS", weeklyHours: "0", monthlyHours: "40" },
+      }),
+      employee({
+        id: "w",
+        lastName: "Mitte",
+        workSchedule: { type: "FIXED_SCHEDULE", weeklyHours: "20" },
+      }),
+      employee({
+        id: "m0",
+        lastName: "Alpha",
+        workSchedule: { type: "MONTHLY_HOURS", weeklyHours: "0", monthlyHours: null },
+      }),
+    ];
+    const order = (dir: "asc" | "desc") =>
+      sortPersonen(personenRows(people, TODAY), { key: "stunden", dir }).map((r) => r.id);
+    expect(order("asc")).toEqual(["w", "m0", "m1"]);
+    expect(order("desc")).toEqual(["w", "m0", "m1"]);
+  });
+});
+
 describe("sortPersonen", () => {
   const sorted = (key: Parameters<typeof sortPersonen>[1]["key"], dir: "asc" | "desc") =>
     ids(sortPersonen(rows(), { key, dir }));

@@ -15,7 +15,6 @@
   import { avatarIndex, initialsOf } from "$components/ui/ListRow.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import { scheduleModelLabel } from "$lib/employees/contract-history";
-  import { fmtMin } from "$lib/utils/format-minutes";
   import type { PersonenRow } from "$lib/team/personen-model";
   import { PERSONEN_VERTRAG_CODES } from "$lib/team/personen-url-state";
 
@@ -190,7 +189,7 @@
       {row.modelLabel}
     {:else if column.key === "stunden"}
       <span class="p-figure">
-        {row.weeklyHours === null ? "–" : fmtMin(Math.round(row.weeklyHours * 60))}
+        {row.hoursLabel}
       </span>
     {:else if column.key === "rollen"}
       <span class="p-roles">{row.roles}</span>
