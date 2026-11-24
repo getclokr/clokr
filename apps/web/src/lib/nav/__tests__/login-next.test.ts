@@ -90,7 +90,7 @@ describe("wiring (source pins)", () => {
 
   it("the (app) guard sends the person to /login with the target", () => {
     const layout = read("routes/(app)/+layout.svelte");
-    expect(layout).toContain("loginPathWithNext($page.url)");
+    expect(layout).toContain("loginPathWithNext(page.url)");
     // The inactivity timeout keeps its own redirect.
     expect(layout).toContain('goto("/login?reason=timeout")');
   });

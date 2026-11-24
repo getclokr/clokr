@@ -66,7 +66,7 @@ describe("ApprovalRow — primaryAction mode", () => {
     expect(links[0]).toHaveAccessibleName("Anna Muster – Personenansicht öffnen");
     expect(links[0]).toHaveAttribute("href", "/reports?person=1");
     expect(links[0].classList.contains("approval-primary")).toBe(true);
-    expect(links[0]).toHaveAttribute("data-sveltekit-noscroll");
+    expect(links[0]).toHaveAttribute("data-sveltekit-reset", "false");
   });
 
   it("falls back to the name as the link's accessible name", () => {

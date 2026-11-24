@@ -3,7 +3,7 @@
 // SvelteKit's built-in registration (`kit.serviceWorker.register`, default true) calls
 // `navigator.serviceWorker.register()` without a `.catch`, so every failed registration (e.g. a
 // dev origin that cannot run a module worker) became an unhandled rejection that the client
-// logger shipped to the API on EVERY page load. svelte.config.js now turns that off and the root
+// logger shipped to the API on EVERY page load. vite.config.ts (the sveltekit() options) now turns that off and the root
 // layout calls this function: a failure is caught and reported at most once per browser session.
 
 export const SW_FAILURE_LOGGED_KEY = "clokr.sw.registrationFailureLogged";
@@ -19,7 +19,9 @@ export async function registerServiceWorker(deps: RegisterServiceWorkerDeps): Pr
   const sw = deps.nav && "serviceWorker" in deps.nav ? deps.nav.serviceWorker : undefined;
   if (!sw) return false;
   try {
-    // Vite serves the worker as an ES module in dev; the built worker is a classic script.
+    // Vite serves the worker as an ES module in dev; the built worker is a classic script. Kit 3 bundles
+    // the worker itself; its output still parses as a classic script (no import/export, checked in
+    // #1015), and classic stays because module service workers are unsupported in some browsers.
     await sw.register("/service-worker.js", { type: deps.dev ? "module" : "classic" });
     return true;
   } catch (err) {

@@ -49,7 +49,7 @@ describe("/admin/employees/[id] - tabs follow permissions (Issue #86, D-04)", ()
     // #854: the hash is read by the one allow-list rule against the VISIBLE ids (aliases map the
     // former ids onto them), and the layout gets exactly the derived list.
     expect(DETAIL).toMatch(
-      /tabFromHash\(\s*\$page\.url\.hash,\s*tabs\.map\(\(t\) => t\.id\),\s*DETAIL_TAB_ALIASES,?\s*\)/,
+      /tabFromHash\(\s*page\.url\.hash,\s*tabs\.map\(\(t\) => t\.id\),\s*DETAIL_TAB_ALIASES,?\s*\)/,
     );
     expect(DETAIL).toMatch(/tabs=\{tabs\.map\(/);
     expect(DETAIL).not.toMatch(/tabs=\{TABS\}/);

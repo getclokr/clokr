@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readable } from "svelte/store";
 
-// `$api/client` imports `$stores/auth` -> `$app/environment`; mocking the store replaces it first (the
+// `$api/client` imports `$stores/auth` -> `$app/env`; mocking the store replaces it first (the
 // same reason and pattern as presence.test.ts).
 vi.mock("$stores/auth", () => ({
   authStore: {

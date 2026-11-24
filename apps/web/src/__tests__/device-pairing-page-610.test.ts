@@ -33,8 +33,10 @@ const COMPONENT = readSource(
 describe("pairing route (source pins)", () => {
   it("reads the code from the page URL search params once, not reactively", () => {
     expect(ROUTE).toContain('searchParams.get("code")');
-    expect(ROUTE).toContain("get(page)");
+    expect(ROUTE).toContain('const code = page.url.searchParams.get("code")');
+    expect(ROUTE).toContain('from "$app/state"');
     expect(ROUTE).not.toContain("$page");
+    expect(ROUTE).not.toMatch(/\$derived\([^)]*page\./);
     expect((ROUTE.match(/searchParams\.get\(/g) ?? []).length).toBe(1);
   });
 

@@ -545,7 +545,7 @@ invalid HTML and breaks keyboard and assistive technology. A row that carries `a
 `primaryHref` instead:
 
 - the root is a `div` (never a button); the name is the only link (`a.approval-name.approval-primary`,
-  `data-sveltekit-noscroll`), stretched over the whole row with `::after`; focus is drawn on the whole row;
+  `data-sveltekit-reset="false"`), stretched over the whole row with `::after`; focus is drawn on the whole row;
 - `actions` render as a SIBLING of the link, above the stretched area (`z-index: 1`), so they stay
   separately clickable, come right after the link in tab order and need no `stopPropagation`;
 - `primaryLabel` is the link's accessible name (e.g. „Anna Muster – Personenansicht öffnen“),

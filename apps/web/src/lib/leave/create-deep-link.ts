@@ -17,7 +17,9 @@ export interface LeaveCreateDeepLink {
  * Reads `?create=1&employeeId=<id>&date=<day>`. Returns `null` unless `create` is exactly `1`;
  * otherwise each unusable value is dropped on its own, never the whole link.
  */
-export function parseLeaveCreateDeepLink(params: URLSearchParams): LeaveCreateDeepLink | null {
+export function parseLeaveCreateDeepLink(
+  params: Pick<URLSearchParams, "get">,
+): LeaveCreateDeepLink | null {
   if (params.get("create") !== "1") return null;
   return {
     employeeId: normalizeEmployeeIdParam(params.get("employeeId")),

@@ -2,7 +2,7 @@
 // personal absence page: „Mein Bereich → Abwesenheiten“ with the tabs Kalender / Meine Anträge / Team /
 // Planung on ONE toolbar, own data first and a neutral, read-only view of the team next to it.
 //
-// Why source-read and not mounted: the page imports `$app/stores` and `$app/navigation`, mounts the
+// Why source-read and not mounted: the page imports `$app/state` and `$app/navigation`, mounts the
 // shared request dialog and fires its requests on mount (the same wall `team-leave-area-840.test.ts`
 // documents). The pure decisions are tested where they live (`lib/leave/__tests__/area-tabs.test.ts`,
 // `timeline-model.test.ts`), the components in their own mounted tests.
@@ -103,13 +103,13 @@ describe("Issue #840 E-01 - one page, one toolbar", () => {
   });
 
   it("[URL state] tab, zoom and anchor come only from parseMyLeaveState; a change writes the URL through goto", () => {
-    expect(PAGE).toContain("parseMyLeaveState($page.url.searchParams, today)");
+    expect(PAGE).toContain("parseMyLeaveState(page.url.searchParams, today)");
     // One read of the URL for the state, one more inside defaultZoomOf (the defaults live in area-tabs).
     expect(count(PAGE, "parseMyLeaveState(")).toBe(2);
     const navigate = functionBody("navigate");
     expect(navigate).toContain("myLeaveSearch(next)");
-    expect(navigate).toContain("keepFocus: true");
-    expect(navigate).toContain("noScroll: true");
+    // `reset: false` keeps scroll position and focus (kit 3; kit 2 spelled it keepFocus + noScroll).
+    expect(navigate).toContain("reset: false");
     // A tab change is a history entry, a zoom / period change replaces it.
     expect(functionBody("selectTab")).toContain("void navigate({ tab, zoom: defaultZoomOf(tab) })");
     expect(PAGE).toContain("void navigate({ zoom }, true)");
@@ -331,7 +331,7 @@ describe("Issue #840 E-03 / D-840-16 / D-840-23 - Planung shows the own wishes",
     const at = PAGE.indexOf("let salonDeepLinkHandled = false;");
     expect(at).toBeGreaterThan(-1);
     const effect = PAGE.slice(at, PAGE.indexOf("\n  });", at));
-    expect(effect).toContain('$page.url.searchParams.get("salonId")');
+    expect(effect).toContain('page.url.searchParams.get("salonId")');
     expect(effect).toContain("deepLinkSalon(param, $salonContext)");
     expect(effect).toContain("salonContext.setSelection(linked)");
     expect(effect).toContain('url.searchParams.delete("salonId")');

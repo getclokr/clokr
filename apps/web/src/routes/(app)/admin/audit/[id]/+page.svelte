@@ -10,7 +10,7 @@
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { format } from "date-fns";
   import { de } from "date-fns/locale";
   import { api, ApiError } from "$api/client";
@@ -47,11 +47,11 @@
   // The entry closes the top bar's path (#854: pages carry no breadcrumb of their own).
   $effect(() => showDetailCrumb(entry ? `Eintrag vom ${fmtDate(entry.createdAt)}` : null));
 
-  const entryId = $derived($page.params.id);
+  const entryId = $derived(page.params.id);
 
   // The list's filters arrive as the query of this URL; only the allow-listed keys are passed back.
   const backHref = $derived.by(() => {
-    const state = parseUrlState(listUrlSchema, $page.url.searchParams);
+    const state = parseUrlState(listUrlSchema, page.url.searchParams);
     const query = serialiseUrlState(listUrlSchema, state);
     return `/verwalten/daten/protokoll${query === "" ? "" : `?${query}`}`;
   });

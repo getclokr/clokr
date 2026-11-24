@@ -5,7 +5,7 @@
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { onMount } from "svelte";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
@@ -38,7 +38,7 @@
   $effect(() => showDetailCrumb(shutdown?.name ?? null));
   let allEmployees = $state<ShutdownEmployee[]>([]);
 
-  const shutdownId = $derived($page.params.id);
+  const shutdownId = $derived(page.params.id);
 
   onMount(async () => {
     loading = true;

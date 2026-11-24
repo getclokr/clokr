@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Handle, HandleServerError } from "@sveltejs/kit";
+import type { Handle, HandleServerError } from "@sveltejs/kit/hooks";
 import { sendsNoReferrer } from "$lib/security/no-referrer-paths";
 
 const API_BACKEND = process.env.API_URL || "http://localhost:4000";

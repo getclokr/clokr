@@ -5,7 +5,7 @@
    * `PARENTAL` leave request.
    *
    * Like `LeaveReviewDialog.svelte` (Phase 255), this component does NOT import the shared auth
-   * store — mounting pulls in `$app/environment` through that store, which
+   * store — mounting pulls in `$app/env` through that store, which
    * `apps/web/vitest.config.ts` registers no alias for outside the auth-store test shim. The
    * caller passes everything this dialog needs as props instead.
    *

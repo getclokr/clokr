@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
@@ -35,7 +35,7 @@
   // answers 403 regardless. Each panel loads its own data the first time its tab is shown.
   onMount(() => {
     activeTab =
-      visibleTabIds.length > 0 ? tabFromHash($page.url.hash, visibleTabIds, TAB_ALIASES) : "";
+      visibleTabIds.length > 0 ? tabFromHash(page.url.hash, visibleTabIds, TAB_ALIASES) : "";
     // Forced, so a freshly booked module shows without waiting for the navigation throttle (Issue #566).
     void salonContext.load($authStore.user?.id ?? null, { force: true });
   });

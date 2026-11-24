@@ -27,13 +27,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/svelte";
 
 // MobileMoreSheet itself has no `$app/*` import, but mounting it pulls in
-// $stores/version -> $api/client -> $stores/auth -> $app/environment transitively, and
+// $stores/version -> $api/client -> $stores/auth -> $app/env transitively, and
 // apps/web/vitest.config.ts declares no `$app` alias (see that file's own comment on
 // why route/`$app/*` resolution is deliberately kept out of the component-test config).
-// Mocking "$app/environment" directly does not help — Vite's import-analysis plugin
+// Mocking "$app/env" directly does not help — Vite's import-analysis plugin
 // fails to resolve the bare specifier before Vitest's mock registry gets a chance to
 // intercept it. Mocking "$stores/auth" instead (a real, alias-resolvable path) replaces
-// the whole module before its own `$app/environment` import is ever transformed, which
+// the whole module before its own `$app/env` import is ever transformed, which
 // unblocks mounting without touching vitest.config.ts or any production file — nothing
 // in this test cares about auth state.
 // Issue #576: the release-notes store derives the reader's view from the auth store, so the mock

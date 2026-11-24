@@ -208,7 +208,7 @@ describe("admin route permissions (Issue #83)", () => {
       join(SRC, "lib", "components", "layout", "RouteGuard.svelte"),
       "utf8",
     );
-    expect(layout).toContain("adminGuardDecision($authStore.user, $page.url.pathname)");
+    expect(layout).toContain("adminGuardDecision($authStore.user, page.url.pathname)");
     const allow = layout.indexOf('{#if decision === "allow"}');
     const wait = layout.indexOf('{:else if decision === "wait"}');
     const render = layout.indexOf("{@render children");

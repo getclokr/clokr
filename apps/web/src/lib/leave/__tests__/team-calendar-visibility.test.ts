@@ -10,7 +10,7 @@
 // by the permission now, not by the role that used to stand in for it.
 //
 // Why this lives in $lib and not next to the page: apps/web/vitest.config.ts registers no
-// `$app/*` alias, and routes/(app)/team/leave/+page.svelte imports `{ page } from "$app/stores"`,
+// `$app/*` alias, and routes/(app)/team/leave/+page.svelte imports `{ page } from "$app/state"`,
 // so that file cannot be mounted here. A predicate left inside the page is untestable. The
 // route file's WIRING to this module is pinned separately by
 // src/__tests__/team-leave-type-visibility.test.ts (Plan 257-02).

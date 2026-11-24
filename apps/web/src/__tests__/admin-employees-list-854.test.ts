@@ -18,16 +18,6 @@ vi.mock("$app/navigation", () => ({
   afterNavigate: vi.fn(),
   replaceState: vi.fn(),
 }));
-vi.mock("$app/stores", async () => {
-  const { readable } = await import("svelte/store");
-  return {
-    page: readable({
-      url: new URL("http://localhost/admin/employees"),
-      params: {},
-      state: {},
-    }),
-  };
-});
 vi.mock("$app/state", () => ({
   page: { url: new URL("http://localhost/admin/employees"), params: {}, state: {} },
 }));

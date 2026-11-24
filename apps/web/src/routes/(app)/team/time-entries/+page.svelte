@@ -3,7 +3,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
   import { onDestroy, onMount, tick, untrack } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
@@ -531,13 +531,13 @@
       return;
     }
     // Read URL params
-    const viewParam = $page.url.searchParams.get("view");
+    const viewParam = page.url.searchParams.get("view");
     if (viewParam === "list") teView = "list";
-    if ($page.url.searchParams.get("mode") === "salon") teamMode = "salon";
+    if (page.url.searchParams.get("mode") === "salon") teamMode = "salon";
     // Issue #80 (D-10): the param is untrusted text — an unreal day keeps the default month
     // instead of reaching date-fns with an Invalid Date. The calendar is anchored on the 1st of
     // the linked month while the linked day stays selectedDate (quick 261009-bsb).
-    const dateParam = normalizeDateParam($page.url.searchParams.get("date"));
+    const dateParam = normalizeDateParam(page.url.searchParams.get("date"));
     if (dateParam) {
       selectedDate = dateParam;
       calMonth = monthAnchorFromDay(dateParam);
@@ -549,7 +549,7 @@
     // employee. Only an id present in the caller's own list counts — an unknown or foreign id
     // selects nobody, and the server scopes every read anyway. The list itself is loaded by the
     // salon effect below (Issue #558); the link waits for its first completed load.
-    const linkedEmployeeId = normalizeEmployeeIdParam($page.url.searchParams.get("employeeId"));
+    const linkedEmployeeId = normalizeEmployeeIdParam(page.url.searchParams.get("employeeId"));
     if (linkedEmployeeId) {
       await firstListLoaded;
       let linked = employees.find((e) => e.id.toLowerCase() === linkedEmployeeId);

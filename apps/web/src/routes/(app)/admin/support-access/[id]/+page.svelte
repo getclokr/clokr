@@ -7,7 +7,7 @@
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { toasts } from "$stores/toast";
@@ -27,7 +27,7 @@
   let loadError = $state("");
   let notFound = $state(false);
 
-  const accessId = $derived($page.params.id);
+  const accessId = $derived(page.params.id);
 
   const windowText = $derived.by(() => {
     if (!detail) return "";

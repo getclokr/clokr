@@ -2,7 +2,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
   import { onDestroy, onMount, tick } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { entryToEndFromParam, END_ENTRY_PARAM } from "$lib/time-entries/open-earlier-entry"; // Issue #942
   import {
     monthAnchorFromDay,
@@ -460,17 +460,17 @@
     // Read URL params. Both are untrusted text: a malformed `date` must NEVER reach `calMonth`,
     // because MonthBar's Intl.DateTimeFormat(...).format() throws RangeError on an invalid Date
     // and apps/web/src has no <svelte:boundary> to surface it (issue #115).
-    const viewParam = $page.url.searchParams.get("view");
+    const viewParam = page.url.searchParams.get("view");
     if (viewParam === "list") teView = "list";
 
-    const highlightParam = $page.url.searchParams.get("highlight");
+    const highlightParam = page.url.searchParams.get("highlight");
     // The BREAK_UNCONFIRMED notification links with `highlight` and no `view`; the calendar
     // cannot point at a single entry, so an entry-targeted arrival opens the list.
     if (highlightParam) teView = "list";
 
     // The calendar is anchored on the 1st of the linked month; the linked day stays selectedDate
     // (quick 261009-bsb, Issue #80).
-    const dayParam = normalizeDateParam($page.url.searchParams.get("date"));
+    const dayParam = normalizeDateParam(page.url.searchParams.get("date"));
     if (dayParam) {
       selectedDate = dayParam;
       calMonth = monthAnchorFromDay(dayParam);
@@ -485,7 +485,7 @@
     // row of the loaded month.
     const endTarget = isExempt
       ? null
-      : entryToEndFromParam(entries, $page.url.searchParams.get(END_ENTRY_PARAM));
+      : entryToEndFromParam(entries, page.url.searchParams.get(END_ENTRY_PARAM));
     if (endTarget) openEdit(endTarget);
 
     if (highlightParam || dayParam) {

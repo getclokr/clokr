@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readable } from "svelte/store";
 
-// `$api/client` pulls in `$stores/auth` and with it `$app/environment`, which the vitest config does
+// `$api/client` pulls in `$stores/auth` and with it `$app/env`, which the vitest config does
 // not alias (same replacement as lib/api/__tests__/presence.test.ts).
 vi.mock("$stores/auth", () => ({
   authStore: {

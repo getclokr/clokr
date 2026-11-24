@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
   import { salonContext } from "$stores/salon-context";
@@ -25,7 +25,7 @@
   let { children }: Props = $props();
 
   // ── Page label: the one table in $lib/nav/page-labels (Issue #574) ──
-  let currentPath = $derived($page.url.pathname);
+  let currentPath = $derived(page.url.pathname);
   let currentPageLabel = $derived(labelForPath(currentPath));
   // #844 (D-844-11/12): the crumb's area and the page width come from the route table only
   let currentAreaLabel = $derived(areaLabelForPath(currentPath));
@@ -90,7 +90,7 @@
   onMount(() => {
     if (!$authStore.accessToken) {
       // Issue #608 (D-20): keep the page the person was heading to through sign-in.
-      goto(loginPathWithNext($page.url));
+      goto(loginPathWithNext(page.url));
       return;
     }
 

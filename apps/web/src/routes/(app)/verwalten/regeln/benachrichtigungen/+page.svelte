@@ -15,7 +15,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { markUnsaved } from "$stores/unsaved";
@@ -89,8 +89,8 @@
   // Issue #951: the mail server moved to System › Integrationen; an old link to its anchor follows it (only for
   // a person who may open it there - everyone else stays on this page).
   onMount(() => {
-    if ($page.url.hash === "#mailserver" && untrack(() => show.smtp)) {
-      void goto("/verwalten/system/integrationen#email", { replaceState: true });
+    if (page.url.hash === "#mailserver" && untrack(() => show.smtp)) {
+      void goto("/verwalten/system/integrationen#email", { replace: true });
     }
   });
   $effect(() => {

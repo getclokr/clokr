@@ -9,7 +9,7 @@
    * opens.
    *
    * It lives in a component rather than inline in `(app)/team/leave/+page.svelte` because the
-   * page cannot be mounted in a test — it imports `$app/stores`, for which
+   * page cannot be mounted in a test — it imports `$app/state`, for which
    * `apps/web/vitest.config.ts` registers no alias. Here the role rule and the plain-text
    * output are provable against a real DOM.
    *

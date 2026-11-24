@@ -6,12 +6,9 @@ const apiGet = vi.fn();
 const apiPost = vi.fn();
 const apiPut = vi.fn();
 
-vi.mock("$app/stores", async () => {
-  const { readable } = await import("svelte/store");
-  return {
-    page: readable({ url: new URL("http://localhost/time-entries?view=list"), params: {} }),
-  };
-});
+vi.mock("$app/state", () => ({
+  page: { url: new URL("http://localhost/time-entries?view=list"), params: {}, state: {} },
+}));
 
 vi.mock("$stores/auth", async () => {
   const { writable } = await import("svelte/store");

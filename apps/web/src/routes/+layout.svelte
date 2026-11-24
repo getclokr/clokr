@@ -17,7 +17,7 @@
   import ErrorBoundary from "$lib/components/ui/ErrorBoundary.svelte";
   import { onMount } from "svelte";
   import { clientLogger } from "$lib/utils/logger";
-  import { dev } from "$app/environment";
+  import { dev } from "$app/env";
   import { registerServiceWorker } from "$lib/push/register-service-worker";
 
   interface Props {

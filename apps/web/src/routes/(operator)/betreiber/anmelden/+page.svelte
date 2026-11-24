@@ -2,7 +2,7 @@
   import BrandLogo from "$lib/components/brand/BrandLogo.svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import SignInSteps from "$lib/components/operator/SignInSteps.svelte";
   import { operatorApi } from "$lib/operator/client";
   import { safeNext } from "$lib/operator/next-path";
@@ -13,9 +13,9 @@
   let phase = $state<Phase>("checking");
 
   // `?next=` goes through the allow-list; anything else lands on the console root.
-  const target = $derived(safeNext($page.url.searchParams.get("next")) ?? "/betreiber");
+  const target = $derived(safeNext(page.url.searchParams.get("next")) ?? "/betreiber");
   const notice = $derived(
-    $page.url.searchParams.get("abgelaufen") === "1" ? "SESSION_EXPIRED" : null,
+    page.url.searchParams.get("abgelaufen") === "1" ? "SESSION_EXPIRED" : null,
   );
 
   onMount(() => {

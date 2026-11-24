@@ -14,6 +14,6 @@
       return;
     }
     await loadPermissionsIfMissing();
-    goto(homeHref(get(authStore).user), { replaceState: true });
+    goto(homeHref(get(authStore).user), { replace: true });
   });
 </script>

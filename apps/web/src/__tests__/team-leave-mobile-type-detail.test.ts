@@ -13,8 +13,8 @@
 //    effect, and an INVENTED class proving an unstyled element reads as the element default — so
 //    a value we assert is really coming from the page's CSS and not from jsdom's defaults.
 // 2. THE TEXT THE TAP REVEALS, AND THE #257 ROLE RULE — a real mount of CalendarDayDetail. The
-//    page itself cannot be mounted (it imports `$app/stores`, for which apps/web/vitest.config.ts
-//    registers no alias — the same wall team-leave-type-visibility.test.ts documents), which is
+//    page itself cannot be mounted (it imports `$app/state`, for which apps/web/vitest.config.ts
+//    registers only a narrow shim, not the router — the same wall team-leave-type-visibility.test.ts documents), which is
 //    exactly why the sheet was extracted into a component.
 // 3. THAT THE PAGE IS WIRED TO BOTH — source-read pins, the established pattern for this page.
 

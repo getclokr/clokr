@@ -18,7 +18,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { downloadFromApi } from "$api/download";
   import { authStore } from "$stores/auth";
@@ -59,7 +59,7 @@
   const lastMonth = addMonths(thisMonth, -1);
 
   // A link may preselect person and month (`?person=&year=&month=`); every malformed value is dropped.
-  const preselection = untrack(() => exportPreselection($page.url));
+  const preselection = untrack(() => exportPreselection(page.url));
   const preselectedMonth: YearMonth | null =
     preselection.year !== null && preselection.month !== null
       ? { year: preselection.year, month: preselection.month }
@@ -257,8 +257,8 @@
 
   onMount(() => {
     // Issue #951: the old anchor of the DATEV setup follows it to System › Integrationen › DATEV.
-    if ($page.url.hash === "#datev-einrichtung") {
-      void goto("/verwalten/system/integrationen#datev", { replaceState: true });
+    if (page.url.hash === "#datev-einrichtung") {
+      void goto("/verwalten/system/integrationen#datev", { replace: true });
       return;
     }
     void loadKanzleiHint();

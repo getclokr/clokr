@@ -5,7 +5,7 @@
   import Spinner from "$lib/components/ui/Spinner.svelte";
   import { preventDefault } from "svelte/legacy";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import PasswordStrength from "$lib/components/ui/PasswordStrength.svelte";
 
@@ -23,7 +23,7 @@
     passwordRequireSpecial: true,
   });
 
-  let token = $derived($page.url.searchParams.get("token") ?? "");
+  let token = $derived(page.url.searchParams.get("token") ?? "");
   let passwordMismatch = $derived(confirmPassword.length > 0 && password !== confirmPassword);
   let canSubmit = $derived(
     password.length >= pwPolicy.passwordMinLength && password === confirmPassword && !loading,

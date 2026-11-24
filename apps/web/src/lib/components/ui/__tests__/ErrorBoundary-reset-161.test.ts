@@ -2,25 +2,21 @@
 //
 // Before the fix the failure view survived every in-app navigation: the layout only swaps the
 // boundary's children, and Svelte keeps a boundary's failed state until the boundary is created
-// anew. The test drives the page store the boundary reads: a failure stays while the path stays
+// anew. The test drives the reactive page the boundary reads: a failure stays while the path stays
 // (even if the child would now render), and goes as soon as the path changes.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/svelte";
 import { flushSync, tick } from "svelte";
-import { writable } from "svelte/store";
 import { renderWithTheme } from "$tests/test-utils";
 import BoundaryHarness from "$tests/fixtures/BoundaryHarness.svelte";
 
-const pageStore = vi.hoisted(() => ({ current: null as null | ReturnType<typeof makePage> }));
-function makePage(path: string) {
-  return writable({ url: new URL(`http://localhost${path}`), state: {} });
-}
-
-vi.mock("$app/stores", () => {
-  pageStore.current = makePage("/time-entries");
-  return { page: pageStore.current };
+// A reactive `page` (runes) is what `$app/state` hands the boundary; the test drives its URL.
+vi.mock("$app/state", async () => {
+  const { reactivePage } = await import("$tests/stubs/reactive-page.svelte");
+  return { page: reactivePage };
 });
+import { navigateReactivePage } from "$tests/stubs/reactive-page.svelte";
 
 const errorMock = vi.fn();
 vi.mock("$lib/utils/logger", () => ({
@@ -32,8 +28,7 @@ vi.mock("$lib/utils/logger", () => ({
 }));
 
 function navigate(path: string) {
-  // the store exists once the boundary imported `$app/stores` (the mock factory ran)
-  pageStore.current?.set({ url: new URL(`http://localhost${path}`), state: {} });
+  navigateReactivePage(path);
   flushSync();
 }
 

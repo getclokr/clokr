@@ -1,8 +1,8 @@
 // Phase 303 (GitHub issue #303), Plan 01 — /leave's own calendar bar, the fourth hand-copy of the
 // team calendar's absence-visibility rule, pinned at source.
 //
-// Why source-read and not mounted: this page imports `{ page } from "$app/stores"`, for which
-// apps/web/vitest.config.ts registers no alias — the same wall
+// Why source-read and not mounted: this page imports `{ page } from "$app/state"`, for which
+// apps/web/vitest.config.ts registers only a narrow shim, not the router — the same wall
 // team-leave-type-visibility.test.ts (Phase 257) documents, so it cannot be mounted here.
 //
 // `lint:ui-classes` does not scan `routes/**`. This file is the only automated net for this page.

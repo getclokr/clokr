@@ -42,7 +42,7 @@ describe("service-worker registration (Issue #849)", () => {
   });
 
   it("SvelteKit's uncaught auto-registration is off; the root layout registers instead", () => {
-    const config = readFileSync(resolve(process.cwd(), "svelte.config.js"), "utf8");
+    const config = readFileSync(resolve(process.cwd(), "vite.config.ts"), "utf8");
     expect(config).toMatch(/serviceWorker:\s*\{\s*register:\s*false/);
     const layout = readFileSync(resolve(process.cwd(), "src/routes/+layout.svelte"), "utf8");
     expect(layout).toContain("registerServiceWorker(");

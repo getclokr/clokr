@@ -8,8 +8,8 @@
  * is the single decision all three now read from.
  *
  * It lives here rather than in the page because it is pure logic AND because it would otherwise
- * be untestable: apps/web/vitest.config.ts registers no `$app/*` alias, so a route file that
- * imports `$app/stores` cannot be mounted in a test.
+ * be untestable: apps/web/vitest.config.ts registers only narrow `$app/*` shims, no router, so a route file that
+ * imports `$app/state` cannot be mounted in a test.
  *
  * The rule (D-01/D-02): MANAGER and ADMIN see the absence type — they approve the requests and
  * the "Anträge" table on the same page already prints it in full. A colleague's type is withheld

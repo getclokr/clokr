@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import PageHead from "$components/layout/PageHead.svelte";
   import Breadcrumb from "$components/ui/Breadcrumb.svelte";
   import Section from "$lib/components/admin/Section.svelte";
@@ -37,11 +37,11 @@
   // Guards against a slow answer for an earlier filter overwriting the one now shown.
   let loadSeq = 0;
 
-  const tenantId = $derived($page.params.id ?? "");
+  const tenantId = $derived(page.params.id ?? "");
   // The filters live in the URL (`von`, `bis`, `person`, `seite`); a missing or invalid day falls
   // back to the default window of the last 30 days.
   const query = $derived.by(() => {
-    const params = $page.url.searchParams;
+    const params = page.url.searchParams;
     const fallback = defaultAuditWindow();
     return {
       from: dayFromQuery(params.get("von")) ?? fallback.from,
@@ -98,7 +98,7 @@
         employeeId: filter.employeeId,
         page: pageNo,
       }),
-      { keepFocus: true },
+      { reset: false },
     );
   }
 

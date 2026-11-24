@@ -72,7 +72,11 @@ export function clockReminderDialog(
 }
 
 /** Path, query and hash of `url` without the `clock` parameter; other parameters are kept. */
-export function stripClockParam(url: URL): string {
+export function stripClockParam(
+  url: Pick<URL, "pathname" | "search" | "hash" | "href"> & {
+    searchParams: Pick<URLSearchParams, "has">;
+  },
+): string {
   if (!url.searchParams.has(CLOCK_REMINDER_PARAM)) return url.pathname + url.search + url.hash;
   const next = new URL(url.href);
   next.searchParams.delete(CLOCK_REMINDER_PARAM);

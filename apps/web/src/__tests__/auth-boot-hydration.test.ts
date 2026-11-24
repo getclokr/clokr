@@ -11,14 +11,14 @@
 // `$stores/auth`, with a token already in localStorage, must result in the `/me/preferences`
 // fetch happening and `prefsHydrated` flipping to `true`.
 //
-// Why this needs the new `$app/environment` vitest alias (apps/web/vitest.config.ts): a real,
-// unmocked import of `$stores/auth` transitively imports `$app/environment`, which
+// Why this needs the new `$app/env` vitest alias (apps/web/vitest.config.ts): a real,
+// unmocked import of `$stores/auth` transitively imports `$app/env`, which
 // vitest.config.ts previously declared no alias for (by design, to avoid pulling in
-// SvelteKit's router pipeline — see that file's own comment). Mocking "$app/environment"
+// SvelteKit's router pipeline — see that file's own comment). Mocking "$app/env"
 // directly does not work either — Vite's import-analysis plugin resolves the bare specifier
 // before Vitest's mock registry can intercept it (measured in version-line.test.ts). The new
-// alias resolves ONLY `$app/environment` to a tiny local stub
-// (src/__tests__/stubs/app-environment.ts), which is what makes this test possible at all.
+// alias resolves ONLY `$app/env` to a tiny local stub
+// (src/__tests__/stubs/app-env.ts), which is what makes this test possible at all.
 //
 // Deliberately NOT mocking `$stores/auth` or `$api/client` — that would defeat the entire
 // point of this test (CONTEXT.md D-07). Only `fetch` and `$lib/utils/logger` are mocked: the

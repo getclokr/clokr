@@ -1,6 +1,6 @@
 // Issue #468 (D-12, A-2) — mounted test suite for the Elternzeit-Kürzung dialog. Same mocking
 // idiom as LeaveReviewDialog.test.ts (Phase 255): `$stores/auth` is mocked (not imported by the
-// component itself, but $api/client transitively pulls in $app/environment through it) and
+// component itself, but $api/client transitively pulls in $app/env through it) and
 // `$api/client` is mocked directly so `api.get`/`api.post` are controllable per test.
 vi.mock("$stores/auth", () => ({ authStore: { subscribe: () => () => {} } }));
 

@@ -18,16 +18,13 @@ vi.mock("$app/navigation", () => ({
   afterNavigate: vi.fn(),
   replaceState: vi.fn(),
 }));
-vi.mock("$app/stores", async () => {
-  const { readable } = await import("svelte/store");
-  return {
-    page: readable({
-      url: new URL("http://localhost/verwalten/regeln/betriebsurlaub/s1"),
-      params: { id: "s1" },
-      state: {},
-    }),
-  };
-});
+vi.mock("$app/state", () => ({
+  page: {
+    url: new URL("http://localhost/verwalten/regeln/betriebsurlaub/s1"),
+    params: { id: "s1" },
+    state: {},
+  },
+}));
 vi.mock("$api/client", () => ({
   api: {
     get: (...a: unknown[]) => get(...a),

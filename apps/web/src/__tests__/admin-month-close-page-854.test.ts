@@ -198,7 +198,7 @@ describe("Monatsabschluss page (#854)", () => {
     expect(screen.queryByTestId("month-close-row-2")).toBeNull();
     expect(goto).toHaveBeenCalledWith(
       expect.stringContaining("status=closed"),
-      expect.objectContaining({ replaceState: true }),
+      expect.objectContaining({ replace: true }),
     );
   });
 

@@ -1,7 +1,7 @@
 // Phase 262 (GitHub issue #262), Plan 03 — the three /leave/overlap consumers, pinned at source.
 //
-// Why source-read and not mounted: apps/web/vitest.config.ts registers no `$app/*` alias, and all
-// three pages import `$app/stores` or `$app/navigation`, so none of them can be mounted here —
+// Why source-read and not mounted: apps/web/vitest.config.ts registers only narrow `$app/*` shims, no router, and all
+// three pages import `$app/state` or `$app/navigation`, so none of them can be mounted here —
 // the same wall team-leave-type-visibility.test.ts (Phase 257) documents.
 //
 // `lint:ui-classes` does not scan `routes/**`. This file is the only automated net for these three

@@ -13,7 +13,7 @@
 // (T-110-28).
 //
 // Mounting WhatsNewPanel transitively imports `$stores/auth` (via `$stores/release-notes` ->
-// `$api/client` -> `$stores/auth` -> `$app/environment`), which `apps/web/vitest.config.ts`
+// `$api/client` -> `$stores/auth` -> `$app/env`), which `apps/web/vitest.config.ts`
 // deliberately does not alias. Mocking `$stores/auth` directly (the nearest real,
 // alias-resolvable module in the chain) unblocks the mount — the same precedent established in
 // `apps/web/src/lib/components/layout/__tests__/version-line.test.ts` (Plan 01).

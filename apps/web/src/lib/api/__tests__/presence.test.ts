@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readable } from "svelte/store";
 
-// `$api/client` imports `$stores/auth`, which imports `$app/environment` — a
+// `$api/client` imports `$stores/auth`, which imports `$app/env` — a
 // specifier apps/web/vitest.config.ts deliberately does not alias. Mocking
 // `$stores/auth` (a real, alias-resolvable path) replaces the module before its
-// own `$app/environment` import is ever transformed. Same pattern and reason as
+// own `$app/env` import is ever transformed. Same pattern and reason as
 // version-line.test.ts; nothing here cares about auth state beyond the header.
 vi.mock("$stores/auth", () => ({
   authStore: {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, untrack } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api, ApiError } from "$api/client";
   import { authStore } from "$stores/auth";
@@ -127,7 +127,7 @@
   // `from`, `to`, `tab`, `person` and `salonId` are read ONLY through `parsePeriodState` and
   // written ONLY through `periodSearch` (replaceState; opening the drill-down is the one push).
   const today: YearMonth = { year: currentYear, month: currentMonth };
-  const urlState = $derived(parsePeriodState($page.url.searchParams, today, rights.periodTabs));
+  const urlState = $derived(parsePeriodState(page.url.searchParams, today, rights.periodTabs));
   const activeTab = $derived(urlState.tab);
   const periodTabActive = $derived(activeTab === "zeiten" || activeTab === "urlaub");
   // A caller who may export but read no report: the bar with the export dialog, no tabs (amendment 5).
@@ -143,10 +143,9 @@
   };
 
   function writeState(next: PeriodState): void {
-    void goto(`${$page.url.pathname}?${periodSearch(next)}`, {
-      replaceState: true,
-      keepFocus: true,
-      noScroll: true,
+    void goto(`${page.url.pathname}?${periodSearch(next)}`, {
+      replace: true,
+      reset: false,
     });
   }
 
@@ -163,7 +162,7 @@
   // The drill-down link of a person: the current URL plus `person=<id>`. It is a real href, so a
   // middle click or a modified click opens it in a new tab.
   function personHref(row: PeriodRow): string {
-    return `${$page.url.pathname}?${periodSearch({ ...urlState, person: row.employeeId })}`;
+    return `${page.url.pathname}?${periodSearch({ ...urlState, person: row.employeeId })}`;
   }
 
   // Opening a person is the ONE history push of the page (Back closes the drill-down). Only a plain
@@ -179,7 +178,7 @@
           ? el
           : (el.querySelector<HTMLElement>("a, button") ?? el);
     drillPushed = true;
-    void goto(personHref(row), { keepFocus: true, noScroll: true });
+    void goto(personHref(row), { reset: false });
   }
 
   // The vacation table names a person by id. The drill-down shows the period series, so only a person

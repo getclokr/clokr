@@ -2,7 +2,7 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import PageHead from "$components/layout/PageHead.svelte";
   import Breadcrumb from "$components/ui/Breadcrumb.svelte";
   import Section from "$lib/components/admin/Section.svelte";
@@ -23,7 +23,7 @@
   let loadState = $state<LoadState>("loading");
   let errorText = $state("");
 
-  const tenantId = $derived($page.params.id ?? "");
+  const tenantId = $derived(page.params.id ?? "");
 
   async function load() {
     loadState = "loading";

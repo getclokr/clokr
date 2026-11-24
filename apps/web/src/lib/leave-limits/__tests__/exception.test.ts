@@ -1,5 +1,5 @@
 // Issue #836 (plan 07) — the exception-step helpers. `$api/client` is mocked with a real-shaped
-// ApiError (it pulls `$stores/auth`, which pulls SvelteKit's `$app/environment`), as in RolesTab.test.ts.
+// ApiError (it pulls `$stores/auth`, which pulls SvelteKit's `$app/env`), as in RolesTab.test.ts.
 vi.mock("$stores/auth", () => ({ authStore: { subscribe: () => () => {} } }));
 vi.mock("$api/client", () => {
   class ApiError extends Error {

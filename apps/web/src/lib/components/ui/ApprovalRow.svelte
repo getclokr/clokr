@@ -83,7 +83,7 @@
       <a
         class="approval-name approval-primary"
         href={primaryHref}
-        data-sveltekit-noscroll
+        data-sveltekit-reset="false"
         aria-label={primaryLabel}
         onclick={onPrimaryClick}>{name}</a
       >

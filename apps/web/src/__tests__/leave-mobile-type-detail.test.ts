@@ -27,7 +27,7 @@
 //    alongside every measurement.
 // 2. THE TEXT THE TAP REVEALS, AND THE #257 ROLE RULE — a real mount of the already-existing,
 //    already-tested `CalendarDayDetail` component. `/leave` itself cannot be mounted (it imports
-//    `{ page } from "$app/stores"`, for which `apps/web/vitest.config.ts` registers no alias),
+//    `{ page } from "$app/state"`, for which `apps/web/vitest.config.ts` registers only a narrow single-purpose shim, not the router),
 //    which is why the sheet lives in its own component and is reused unchanged here.
 // 3. THAT THE PAGE IS WIRED TO BOTH, INCLUDING THE /leave-SPECIFIC PROPAGATION PIN — source-read
 //    assertions. This is a source read: it proves the propagation-stopping CALL is present in the
@@ -344,7 +344,7 @@ describe("#303 (leave) — page wiring (source pins)", () => {
       "trigger, so the cell's drag-select (mousedown → the page-level window mouseup opening " +
       "the new-request modal) and its own onkeydown (Enter/Space → same modal) cannot co-fire. " +
       "This is a source read: it proves the CALL is present in the markup, not that the " +
-      "double-fire is prevented at runtime — the page imports $app/stores and cannot be " +
+      "double-fire is prevented at runtime — the page imports $app/state and cannot be " +
       "mounted here, so a runtime proof is out of reach until it becomes mountable or an e2e " +
       "spec exists (noted as a follow-up, not built here).",
     () => {

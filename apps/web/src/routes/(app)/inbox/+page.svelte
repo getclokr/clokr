@@ -3,7 +3,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick } from "svelte";
   import { goto, replaceState } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
@@ -241,8 +241,8 @@
     }
     // The deep link is read ONCE, here, and applied after the first completed loads (the rows do not
     // exist before). Untrusted values are reduced by the pure parser (T-840-30).
-    const link = parseInboxDeepLink($page.url.searchParams, currentYear);
-    const hadLinkParams = DEEP_LINK_PARAMS.some((name) => $page.url.searchParams.has(name));
+    const link = parseInboxDeepLink(page.url.searchParams, currentYear);
+    const hadLinkParams = DEEP_LINK_PARAMS.some((name) => page.url.searchParams.has(name));
     void (async () => {
       const loads: Promise<unknown>[] = [];
       if (canRetro) loads.push(loadRetroRequests());
@@ -345,7 +345,7 @@
   /** Takes the deep-link parameters out of the address bar; other parameters stay. */
   function stripDeepLinkParams() {
     try {
-      const url = new URL($page.url);
+      const url = new URL(page.url.href);
       for (const name of DEEP_LINK_PARAMS) url.searchParams.delete(name);
       replaceState(url, {});
     } catch {

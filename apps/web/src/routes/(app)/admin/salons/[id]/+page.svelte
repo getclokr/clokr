@@ -2,7 +2,7 @@
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api, ApiError } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
@@ -35,7 +35,7 @@
   ] as const;
   const TAB_IDS = TABS.map((tab) => tab.value);
 
-  const salonId = $derived($page.params.id);
+  const salonId = $derived(page.params.id);
   // Presentation only: the API refuses a write without salon:manage on its own.
   const rights = $derived(salonAdminRights($authStore.user));
   const holidayRights = $derived(salonHolidayRights($authStore.user));
@@ -122,7 +122,7 @@
   }
 
   onMount(async () => {
-    activeTab = tabFromHash($page.url.hash, TAB_IDS);
+    activeTab = tabFromHash(page.url.hash, TAB_IDS);
     if (activeTab === "feiertage") holidaysOpened = true;
     if (salonId === "neu") {
       snapshotsReady = true;
@@ -152,7 +152,7 @@
     adopt(created, { hours: true });
     masterChanges = 0;
     markUnsaved("admin-salon-detail", false);
-    await goto(`/admin/salons/${created.id}`, { replaceState: true });
+    await goto(`/admin/salons/${created.id}`, { replace: true });
   }
 
   async function saveHours() {

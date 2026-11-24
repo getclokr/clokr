@@ -140,13 +140,13 @@ describe("urlState", () => {
     expect(state.read()).toEqual({ q: "Anna", sort: "name", dir: "asc" });
   });
 
-  it("navigates once with replaceState, keepFocus and noScroll", () => {
+  it("navigates once, replacing the history entry and keeping scroll and focus", () => {
     const { state, navigate } = setup("http://localhost/admin/employees?salonId=s1");
     state.write({ sort: "hire" });
     expect(navigate).toHaveBeenCalledTimes(1);
     const [href, options] = navigate.mock.calls[0];
     expect(href).toBe("/admin/employees?salonId=s1&sort=hire");
-    expect(options).toEqual({ replaceState: true, keepFocus: true, noScroll: true });
+    expect(options).toEqual({ replace: true, reset: false });
   });
 
   it("merges a patch into the current state and keeps the hash", () => {

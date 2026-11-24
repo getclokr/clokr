@@ -1,8 +1,8 @@
 // Phase 201 (GitHub issue #201, defects B + C) — source-read pin for the ½-day checkbox guard
 // and the request-dialog eyebrow.
 //
-// Why source-read: `apps/web/vitest.config.ts` deliberately registers no `$app/*` aliases (see
-// its own docblock), so `+page.svelte` files that `import { page } from "$app/stores"` cannot be
+// Why source-read: `apps/web/vitest.config.ts` deliberately registers only narrow `$app/*` shims, no router (see
+// its own docblock), so `+page.svelte` files that `import { page } from "$app/state"` cannot be
 // mounted in a test. The thing under test here is a rendering CONDITION (disabled attribute +
 // German hint text) and a German label derivation, not behaviour — the same technique as
 // `leave-page-vocabulary.test.ts` and `admin-employee-detail-disabled-field-visibility.test.ts`.

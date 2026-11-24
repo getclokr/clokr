@@ -57,7 +57,7 @@ describe("dashboard shift reminder arrival (Issue #609)", () => {
   it("imports afterNavigate and replaceState from $app/navigation and the page store", () => {
     expect(PAGE).toMatch(/import \{[^}]*afterNavigate[^}]*\} from "\$app\/navigation"/);
     expect(PAGE).toMatch(/import \{[^}]*replaceState[^}]*\} from "\$app\/navigation"/);
-    expect(PAGE).toContain('import { page } from "$app/stores"');
+    expect(PAGE).toContain('import { page } from "$app/state"');
   });
 
   it("counts every arrival through afterNavigate (covers an already open dashboard)", () => {

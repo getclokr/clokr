@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { pageLabel } from "$lib/nav/page-labels";
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
   import PageHead from "$lib/components/layout/PageHead.svelte";
@@ -49,7 +49,7 @@
 
   onMount(() => {
     const ids = tabs.map((tab) => tab.value);
-    if (ids.length > 0) requestedTab = tabFromHash($page.url.hash, ids, TAB_ALIASES);
+    if (ids.length > 0) requestedTab = tabFromHash(page.url.hash, ids, TAB_ALIASES);
   });
 
   let draft = $state<RoleDraft | null>(null);

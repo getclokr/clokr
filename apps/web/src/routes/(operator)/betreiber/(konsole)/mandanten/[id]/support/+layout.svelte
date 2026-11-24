@@ -10,7 +10,7 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import PageHead from "$components/layout/PageHead.svelte";
   import SupportBanner from "$lib/components/operator/SupportBanner.svelte";
   import { OperatorApiError, operatorApi } from "$lib/operator/client";
@@ -34,7 +34,7 @@
   let grant = $state<OperatorSupportAccess | null>(null);
   let errorText = $state("");
 
-  const tenantId = $derived($page.params.id ?? "");
+  const tenantId = $derived(page.params.id ?? "");
 
   function leave(code: string) {
     void goto(supportLeavePath(tenantId, code));
