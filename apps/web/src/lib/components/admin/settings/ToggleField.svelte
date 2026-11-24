@@ -4,10 +4,14 @@
   fields (docs/ADMIN_STRUCTURE.md §3.2.1).
 -->
 <script lang="ts">
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
+
   interface Props {
     checked: boolean;
     label: string;
     help?: string;
+    /** Issue #1058: an explanation as an info symbol next to the label; `help` stays visible. */
+    hint?: string;
     disabled?: boolean;
     /** Stable hook for the e2e specs. */
     testid?: string;
@@ -15,11 +19,23 @@
     onchange?: () => void;
   }
 
-  let { checked = $bindable(), label, help, disabled = false, testid, onchange }: Props = $props();
+  let {
+    checked = $bindable(),
+    label,
+    help,
+    hint,
+    disabled = false,
+    testid,
+    onchange,
+  }: Props = $props();
 
   const uid = $props.id();
   const inputId = `${uid}-input`;
   const helpId = `${uid}-help`;
+  const hintId = `${uid}-hint`;
+  const describedBy = $derived(
+    [hint ? hintId : "", help ? helpId : ""].filter(Boolean).join(" ") || undefined,
+  );
 </script>
 
 <div class="toggle-field">
@@ -30,10 +46,17 @@
     {onchange}
     {disabled}
     data-testid={testid}
-    aria-describedby={help ? helpId : undefined}
+    aria-describedby={describedBy}
   />
   <div class="tf-text">
-    <label class="tf-label" for={inputId}>{label}</label>
+    {#if hint}
+      <div class="tf-label-row">
+        <label class="tf-label" for={inputId}>{label}</label>
+        <InfoHint text={hint} label={hintLabel(label)} textId={hintId} />
+      </div>
+    {:else}
+      <label class="tf-label" for={inputId}>{label}</label>
+    {/if}
     {#if help}
       <p class="tf-help" id={helpId}>{help}</p>
     {/if}
@@ -59,6 +82,13 @@
   .tf-text {
     display: flex;
     flex-direction: column;
+    gap: var(--s-1);
+    min-width: 0;
+  }
+
+  .tf-label-row {
+    display: flex;
+    align-items: center;
     gap: var(--s-1);
     min-width: 0;
   }

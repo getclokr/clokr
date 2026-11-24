@@ -7,7 +7,8 @@
 
   Props:
     title    — section heading in sentence case (h2 token; Phase 851, Issue #854)
-    sub      — 13px muted description
+    sub      — 13px muted description (visible text)
+    hint     — explanation as an info symbol next to the title (Issue #1058)
     actions  — right-aligned header actions (snippet)
     footer   — per-card save area stripe (snippet)
     animate  — opt-in card-animate entrance (default: inherited via admin-animate context)
@@ -26,10 +27,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { getContext } from "svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
 
   interface Props {
     title?: string;
     sub?: string;
+    hint?: string;
     actions?: Snippet;
     footer?: Snippet;
     animate?: boolean;
@@ -41,6 +44,7 @@
   let {
     title,
     sub,
+    hint,
     actions,
     footer,
     animate,
@@ -57,7 +61,14 @@
   {#if title}
     <header class="section-hd">
       <div class="section-hd-text">
-        <div class="section-title">{title}</div>
+        {#if hint}
+          <div class="section-title-row">
+            <div class="section-title">{title}</div>
+            <InfoHint text={hint} label={hintLabel(title)} />
+          </div>
+        {:else}
+          <div class="section-title">{title}</div>
+        {/if}
         {#if sub}<div class="section-sub">{sub}</div>{/if}
       </div>
       {#if actions}
@@ -116,6 +127,13 @@
     font-size: var(--fs-h2);
     font-weight: 600;
     color: var(--text);
+  }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    min-width: 0;
   }
 
   section.section--danger .section-title {

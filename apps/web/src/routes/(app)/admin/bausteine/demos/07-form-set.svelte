@@ -26,7 +26,7 @@
 </script>
 
 <div data-block="7" class="form-set-demo">
-  <FormField label="Funktion" help="So steht sie im Vertrag.">
+  <FormField label="Funktion" hint="So steht sie im Vertrag.">
     {#snippet field({ id, describedBy, invalid })}
       <input
         {id}

@@ -80,6 +80,7 @@
     MONTH_CORRECTION_REQUESTS_OPEN,
   } from "$lib/me/month-corrections";
   import PageHeader from "$components/ui/PageHeader.svelte";
+  import InfoHint from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Spinner from "$components/ui/Spinner.svelte";
   import { downloadStundennachweis } from "$lib/me/stundennachweis";
   import KpiStrip from "$components/ui/KpiStrip.svelte";
@@ -2746,14 +2747,12 @@
                 {@const slotArbzg = arbzgDayMap.get(slotDate)}
                 {#if column.key === "date"}
                   <span class="te-date">{shortDayLabel(slotDate)}</span>{#if slotArbzg}
-                    <span class="list-arbzg-hint"
-                      ><span class="te-arbzg-mark" aria-hidden="true">!</span><span
-                        class="arbzg-tooltip"
-                        >{#each slotArbzg as w, i (i)}{w.message}{#if i < slotArbzg.length - 1}<br
-                            />{/if}{/each}</span
-                      ><span class="sr-only"
-                        >ArbZG-Hinweis: {slotArbzg.map((w) => w.message).join("; ")}</span
-                      ></span
+                    <span class="te-arbzg-slot"
+                      ><InfoHint
+                        tone="warn"
+                        label="ArbZG-Hinweis"
+                        text={slotArbzg.map((w) => w.message)}
+                      /></span
                     >
                   {/if}
                 {:else if column.key === "salon"}
@@ -4216,32 +4215,6 @@
     gap: 10px;
     margin-top: 4px;
   }
-  .list-arbzg-hint {
-    margin-left: 0.375rem;
-    cursor: help;
-    font-size: 0.8rem;
-    position: relative;
-  }
-  .arbzg-tooltip {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    background: var(--text);
-    color: var(--card);
-    font-size: 0.75rem;
-    line-height: 1.4;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
-    white-space: nowrap;
-    z-index: 50;
-    pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    margin-bottom: 0.25rem;
-  }
-  .list-arbzg-hint:hover .arbzg-tooltip {
-    display: block;
-  }
   .day-warnings {
     display: flex;
     flex-direction: column;
@@ -4337,18 +4310,12 @@
     justify-content: flex-end;
     gap: 6px;
   }
-  .te-arbzg-mark {
-    display: inline-grid;
-    place-items: center;
-    width: 15px;
-    height: 15px;
+  /* The ArbZG mark of a list row is the shared InfoHint (Issue #1058, tone warn). */
+  .te-arbzg-slot {
+    display: inline-flex;
+    align-items: center;
     margin-left: 6px;
-    border-radius: 50%;
-    background: var(--warn);
-    color: var(--card);
-    font-size: 10px;
-    font-weight: 700;
-    vertical-align: 1px;
+    vertical-align: middle;
   }
 
   /* Phone rows (list, day panel) */

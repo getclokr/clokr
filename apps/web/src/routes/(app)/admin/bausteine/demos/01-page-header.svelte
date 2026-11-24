@@ -28,7 +28,7 @@
   <PageHeader
     headingLevel={2}
     title="Team-Übersicht"
-    subtitle="Alle Personen des Salons Nord auf einen Blick."
+    hint="Alle Personen des Salons Nord auf einen Blick."
   >
     {#snippet actions()}
       <button type="button" class="btn btn-secondary">Exportieren</button>

@@ -661,20 +661,25 @@ describe("PersonDrilldown - the closing saldo (P-13, amendment 7)", () => {
   });
 });
 
-describe("PersonDrilldown - the saldo tooltip stays inside the modal on a phone (e2e matrix finding)", () => {
-  it("the saldo block is the anchor of its tooltip panel", () => {
+// Issue #1058: the saldo explanation is the shared InfoHint. It was a CSS tooltip hung from the saldo
+// block, which a media rule had to widen so a phone modal did not clip it (e2e matrix finding). The
+// panel is portaled to <body> and collision-padded now, so that overflow cannot occur and the override
+// is gone; the pin that asserted the override is replaced by the behaviour that makes it unnecessary.
+describe("PersonDrilldown - the saldo explanation is the shared InfoHint", () => {
+  it("the saldo block carries the trigger; opened by keyboard focus its panel is portaled outside the drilldown", async () => {
     renderWithTheme(PersonDrilldown, props());
     const anzeige = screen.getByTestId("saldo-anzeige");
     expect(anzeige.closest(".drill-saldo")).not.toBeNull();
-  });
-
-  it("below 641 px the panel hangs from the block and spans its width", () => {
-    const media = source.slice(source.indexOf("@media (max-width: 640px) {\n    .drill-saldo"));
-    expect(media.indexOf(".drill-saldo {")).toBeGreaterThan(-1);
-    const block = media.slice(0, media.indexOf("\n  }\n\n") + 4);
-    expect(block).toMatch(/\.drill-saldo\s*\{\s*position:\s*relative/);
-    expect(block).toMatch(/:global\(\.saldo-info-wrap\)\s*\{\s*position:\s*static/);
-    expect(block).toMatch(/:global\(\.saldo-tooltip\)[^}]*left:\s*0[^}]*right:\s*0/);
+    const trigger = within(anzeige).getByTestId("saldo-info-trigger");
+    trigger.focus();
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
+    const pop = document.querySelector(".ih-pop")!;
+    expect(pop).not.toBeNull();
+    expect(pop.closest(".drill-saldo"), "the panel is not clipped by the saldo block").toBeNull();
+    expect(pop.closest("[data-dialog-content], .modal"), "nor by the modal panel").toBeNull();
+    expect(document.body.contains(pop)).toBe(true);
+    // The old override is gone.
+    expect(source).not.toMatch(/saldo-tooltip|saldo-info-wrap/);
   });
 });
 

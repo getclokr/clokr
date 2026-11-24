@@ -486,27 +486,6 @@
     gap: var(--s-2);
   }
 
-  /* The info tooltip of the saldo is positioned from its trigger, which on a phone sits near the
-     right edge of the modal: its 280 px panel then ends beyond the modal, which clips it. Below
-     641 px the panel hangs from this block instead and spans its width (found by the 390/360 px
-     matrix of reports-period.spec.ts). */
-  @media (max-width: 640px) {
-    .drill-saldo {
-      position: relative;
-    }
-
-    .drill-saldo :global(.saldo-info-wrap) {
-      position: static;
-    }
-
-    .drill-saldo :global(.saldo-tooltip) {
-      left: 0;
-      right: 0;
-      width: auto;
-      max-width: none;
-    }
-  }
-
   .drill-sub {
     margin: 0;
     font-size: var(--fs-sm);

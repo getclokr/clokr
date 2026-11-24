@@ -9,6 +9,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import SaveBar from "$components/ui/SaveBar.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
 
   interface Props {
     /** Optional anchor id of the section (`/verwalten/...#pausen`), for links from other pages. */
@@ -17,6 +18,8 @@
     title: string;
     /** One muted line below the heading. */
     description?: string;
+    /** Issue #1058: an explanation as an info symbol next to the heading; `description` stays visible. */
+    hint?: string;
     /** Number of unsaved changes; the SaveBar is hidden at 0. */
     changes: number;
     /** Number of invalid fields; saving is blocked while above 0. */
@@ -33,6 +36,7 @@
     id,
     title,
     description,
+    hint,
     changes,
     errors,
     saving = false,
@@ -44,10 +48,23 @@
 
   const uid = $props.id();
   const titleId = `${uid}-title`;
+  const hintId = `${uid}-hint`;
 </script>
 
-<section class="settings-group" {id} aria-labelledby={titleId}>
-  <h2 class="settings-group-title" id={titleId}>{title}</h2>
+<section
+  class="settings-group"
+  {id}
+  aria-labelledby={titleId}
+  aria-describedby={hint ? hintId : undefined}
+>
+  {#if hint}
+    <div class="hint-row">
+      <h2 class="settings-group-title" id={titleId}>{title}</h2>
+      <InfoHint text={hint} label={hintLabel(title)} textId={hintId} />
+    </div>
+  {:else}
+    <h2 class="settings-group-title" id={titleId}>{title}</h2>
+  {/if}
   {#if description}
     <p class="settings-group-desc">{description}</p>
   {/if}

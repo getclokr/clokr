@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { WEEKDAYS, toggleDay } from "$lib/settings/arbeitszeit";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
 
   interface Props {
     /** Selected weekday indices (bindable). */
@@ -12,6 +13,8 @@
     /** Accessible name of the group. */
     legend: string;
     help?: string;
+    /** Issue #1058: an explanation as an info symbol after the legend; `help` stays visible. */
+    hint?: string;
     error?: string;
     disabled?: boolean;
     /** Prefix of the per-day test ids, e.g. "arbeitstage" -> "arbeitstage-1". */
@@ -22,6 +25,7 @@
     value = $bindable(),
     legend,
     help,
+    hint,
     error,
     disabled = false,
     testidPrefix,
@@ -29,14 +33,24 @@
 
   const uid = $props.id();
   const helpId = `${uid}-help`;
+  const hintId = `${uid}-hint`;
   const errorId = `${uid}-error`;
   const describedBy = $derived(
-    [help ? helpId : "", error ? errorId : ""].filter(Boolean).join(" ") || undefined,
+    [hint ? hintId : "", help ? helpId : "", error ? errorId : ""].filter(Boolean).join(" ") ||
+      undefined,
   );
 </script>
 
-<fieldset class="weekday-picker" aria-describedby={describedBy}>
+<fieldset
+  class="weekday-picker"
+  class:weekday-picker--hinted={Boolean(hint)}
+  aria-describedby={describedBy}
+>
   <legend class="wp-legend">{legend}</legend>
+  {#if hint}
+    <!-- Beside the legend, never inside it, so the group's name stays the legend text. -->
+    <div class="wp-hint"><InfoHint text={hint} label={hintLabel(legend)} textId={hintId} /></div>
+  {/if}
   <div class="wp-days">
     {#each WEEKDAYS as day (day.value)}
       <label class="wp-day" class:wp-day--on={value.includes(day.value)}>
@@ -69,6 +83,33 @@
     margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  /* With a hint the fieldset is plain block flow: the legend floats (so it is an ordinary box, not
+     the rendered legend on the border) and the info symbol floats after it on the same line. */
+  .weekday-picker--hinted {
+    display: block;
+  }
+
+  .weekday-picker--hinted .wp-legend {
+    float: left;
+    margin-right: var(--s-1);
+  }
+
+  .wp-hint {
+    float: left;
+    display: flex;
+    align-items: center;
+  }
+
+  .weekday-picker--hinted .wp-days {
+    clear: both;
+    padding-top: var(--s-1);
+  }
+
+  .weekday-picker--hinted .wp-help,
+  .weekday-picker--hinted .wp-error {
+    margin-top: var(--s-1);
   }
 
   .wp-legend {
