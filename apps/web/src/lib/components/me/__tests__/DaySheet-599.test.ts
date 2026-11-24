@@ -129,6 +129,15 @@ describe("DaySheet - manager additions (#853)", () => {
     expect(sheet.textContent).not.toContain("deine Leitung");
   });
 
+  it("renders the day's break-check panel from the dayCheck snippet (#1029)", async () => {
+    const { createRawSnippet } = await import("svelte");
+    const dayCheck = createRawSnippet(() => ({
+      render: () => `<div data-testid="check-slot">Pausenpanel</div>`,
+    }));
+    renderWithTheme(DaySheet, { ...base, dayCheck });
+    expect(screen.getByTestId("day-sheet").textContent).toContain("Pausenpanel");
+  });
+
   it("without the additions it renders exactly the person's sheet", () => {
     renderWithTheme(DaySheet, base);
     const header = [...document.querySelectorAll("th")].map((th) => th.textContent);

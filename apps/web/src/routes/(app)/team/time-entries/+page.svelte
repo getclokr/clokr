@@ -87,6 +87,8 @@
     salonViewRequestPath,
   } from "$lib/team/salon-time-entries";
   import DayBreakPanel from "$lib/components/breaks/DayBreakPanel.svelte"; // Issue #80
+  import DayCheckLine from "$lib/components/breaks/DayCheckLine.svelte"; // Issue #1029
+  import { dayBreakPanelVisible } from "$lib/breaks/day-check-line";
   import { createLatestRequestGuard } from "$lib/time-entries/latest-request"; // Issue #660
   // Issue #80 (D-09c/D-10/D-20) — the notification deep link and the server-computed day checks;
   // the browser never derives a cross-salon finding itself.
@@ -1944,6 +1946,11 @@
           .sort((x, y) => x.startTime.localeCompare(y.startTime))
       : [],
   );
+  // Issue #1029: the day check of the opened day; its break panel lives in the day view.
+  let daySheetCheck = $derived(
+    daySheetDay ? (dayChecks.find((c) => c.date === daySheetDay) ?? null) : null,
+  );
+  let daySheetPanel = $derived(daySheetCheck !== null && dayBreakPanelVisible(daySheetCheck));
   let daySheetInfo = $derived(daySheetDay ? calendarDayByDate.get(daySheetDay) : undefined);
   let daySheetLocked = $derived(daySheetEntries.some((e) => e.isLocked === true));
   let daySheetRows = $derived<DaySheetEntry[]>(
@@ -2128,21 +2135,10 @@
       {/if}
     </div>
 
-    <!-- Issue #80 — one panel per multi-entry day of the server's day check. The panel renders
-       nothing for a day without a cross-salon finding or a recorded day break, so single-entry
-       days look exactly as before. Acknowledge/revoke are offered only where the server's
-       mayAcknowledge allows (D-08); the page makes no permission decision of its own. -->
-    {#each dayChecks as dayCheck (dayCheck.date)}
-      <DayBreakPanel
-        check={dayCheck}
-        onAddBreak={(slot) => addDayBreak(dayCheck.date, slot)}
-        onDeleteBreak={deleteDayBreak}
-        onAcknowledge={(reason) => acknowledgeDay(dayCheck.date, reason)}
-        onRevoke={revokeDayAck}
-        travelOffers={travelOffersShown(dayCheck, multiEntryUi)}
-        onRecordTravel={(offer) => recordTravelOffer(dayCheck.date, offer)}
-      />
-    {/each}
+    <!-- Issue #1029: ONE slim line names the days with a day-check result (the server's open break
+       findings, and every other day with something to show); the calendar marks them, each day opens
+       its day view, where the details and the acknowledgement live (Issue #80 panel). -->
+    <DayCheckLine checks={dayChecks} onOpenDay={openDaySheet} onMore={() => selectView("list")} />
 
     <!-- ── Kalender ─────────────────────────────────────────────────────────── -->
     {#if teView === "calendar"}
@@ -2388,6 +2384,24 @@
   {/if}
 {/snippet}
 
+<!-- Issue #1029 / #80: the break panel of the opened day (totals, findings, gaps, day breaks,
+     acknowledge and revoke, travel offers) - the texts come only from the server's day check, and
+     acknowledge/revoke are offered only where its mayAcknowledge allows (D-08). -->
+{#snippet daySheetDayCheck()}
+  {#if daySheetCheck}
+    {@const dayCheck = daySheetCheck}
+    <DayBreakPanel
+      check={dayCheck}
+      onAddBreak={(slot) => addDayBreak(dayCheck.date, slot)}
+      onDeleteBreak={deleteDayBreak}
+      onAcknowledge={(reason) => acknowledgeDay(dayCheck.date, reason)}
+      onRevoke={revokeDayAck}
+      travelOffers={travelOffersShown(dayCheck, multiEntryUi)}
+      onRecordTravel={(offer) => recordTravelOffer(dayCheck.date, offer)}
+    />
+  {/if}
+{/snippet}
+
 <!-- ── Day sheet (Issue #853, owner review; the #851 DaySheet) ───────────────────
      Read first: Soll, Ist and Differenz of the day, its entries with source and note, the findings of
      the server's day check. Edit and delete are per entry; the primary action adds (or, without salon
@@ -2406,7 +2420,8 @@
     diffMin={sollVisible ? (daySaldo.get(daySheetDay)?.diffMin ?? null) : null}
     runningSaldoMin={daySaldo.get(daySheetDay)?.runningMin ?? null}
     entries={daySheetRows}
-    findings={(arbzgDayMap.get(daySheetDay) ?? []).map((w) => w.message)}
+    findings={daySheetPanel ? [] : (arbzgDayMap.get(daySheetDay) ?? []).map((w) => w.message)}
+    dayCheck={daySheetPanel ? daySheetDayCheck : undefined}
     locked={daySheetLocked}
     lockedText="Dieser Monat ist abgeschlossen. Die Einträge bleiben, wie sie sind; eine Korrektur wird als neuer Eintrag im laufenden Monat gebucht."
     future={daySheetInfo?.isFuture ?? false}

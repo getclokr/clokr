@@ -59,6 +59,8 @@
     lockedText?: string;
     /** Issue #853 (additive): the 880 px size, for a sheet with source, note and actions. */
     wide?: boolean;
+    /** Issue #1029 (additive): the break-check panel of this day, shown below the entries. */
+    dayCheck?: Snippet;
   }
 
   let {
@@ -82,6 +84,7 @@
     findings = [],
     lockedText,
     wide = false,
+    dayCheck,
   }: Props = $props();
 
   const showSalon = $derived(!!entrySalon || entries.some((e) => e.salon));
@@ -148,6 +151,9 @@
       <p class="day-sub">Für diesen Tag ist nichts erfasst.</p>
     {:else}
       <p class="day-sub">Dieser Tag liegt in der Zukunft. Gestempelt wird am Tag selbst.</p>
+    {/if}
+    {#if dayCheck}
+      {@render dayCheck()}
     {/if}
     {#if requestStatus}
       <div data-testid="day-sheet-request-status">
