@@ -318,3 +318,28 @@ describe("Phase 412 (#412) — structural regression guard (D-08)", () => {
     expect(microtaskCount).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("Issue #976 — the operator console never hydrates a tenant session's preferences", () => {
+  it("a module boot on /betreiber/… with a tenant token sends no /me/preferences request", async () => {
+    // Since #976 the answer carries the tenant default Farbwelt, which would overwrite the
+    // console's salz pin (Phase 89). Control: the first test of this file proves the same boot
+    // on a tenant path does fetch.
+    const before = window.location.pathname;
+    window.history.replaceState(null, "", "/betreiber/anmelden");
+    try {
+      seedSession();
+      fetchMock.mockImplementation(() => jsonResponse(VALID_PREFS));
+
+      vi.resetModules();
+      await import("$stores/auth");
+      const { prefsHydrated } = await import("$stores/prefs-state");
+      await new Promise((r) => setTimeout(r, 50));
+
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.filter((u) => u.includes("/me/preferences"))).toEqual([]);
+      expect(get(prefsHydrated)).toBe(false);
+    } finally {
+      window.history.replaceState(null, "", before);
+    }
+  });
+});

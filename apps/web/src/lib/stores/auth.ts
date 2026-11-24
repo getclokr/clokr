@@ -52,8 +52,19 @@ function loadUser(): AuthUser | null {
  *
  * Failures are silent: localStorage already holds last-used values as offline fallback.
  */
+/**
+ * The operator console (`/betreiber`, Phase 89) pins theme salz and is blind to tenant data
+ * (.claude/rules/operator-and-tenants.md). A tenant session lying in the same browser must not
+ * have its preferences fetched or applied there: since Issue #976 the answer carries the tenant
+ * default Farbwelt, which would overwrite the console's pin.
+ */
+function onOperatorConsole(): boolean {
+  const path = window.location.pathname;
+  return path === "/betreiber" || path.startsWith("/betreiber/");
+}
+
 async function hydratePreferencesFromServer(): Promise<void> {
-  if (!browser) return;
+  if (!browser || onOperatorConsole()) return;
   try {
     const prefs = await fetchPreferences();
     // The one place that applies a server answer (apply-preferences.ts): the resolved `theme`
