@@ -448,12 +448,16 @@
   // ── Team (Issue #840, E-03, E-05, D-840-16): neutral and read-only ────────────────────────────
   // `scope=team` makes the server mask every foreign absence to name and period (the neutral
   // word); the page never sends a salon, the server uses the caller's own Stammsalon. A bar here
-  // opens nothing: the timeline gets no select or drag callback.
+  // opens nothing: the timeline gets no select or drag callback. The server also lists every
+  // Stammsalon colleague employed in the window (`persons`, Issue #1038), so a colleague without
+  // an absence still has a row; the page derives no population of its own.
   let teamRows: TimelinePerson[] = $state([]);
   let teamHolidays: Array<{ day: string; name: string }> = $state([]);
   let teamSalons: CalendarSalon[] = $state([]);
   let teamLoading = $state(false);
   let teamGeneration = 0;
+  // The legend explains bars, so it needs some (Issue #928); a list of empty rows has none.
+  const teamHasBars = $derived(teamRows.some((row) => row.bars.length > 0));
 
   async function loadTeam() {
     const generation = ++teamGeneration;
@@ -463,7 +467,7 @@
         `/leave/calendar?${calendarRangeQuery(activePeriod)}&scope=team`,
       );
       if (generation !== teamGeneration) return;
-      const timeline = calendarToTimeline(answer.entries);
+      const timeline = calendarToTimeline(answer.entries, answer.persons ?? []);
       teamRows = timeline.rows;
       teamHolidays = timeline.holidays;
       teamSalons = answer.salons ?? [];
@@ -1779,7 +1783,7 @@
     <div role="tabpanel" id="leave-panel-team" aria-labelledby="leave-tab-team">
       <div class="card card-animate overview-card" data-testid="leave-team-overview">
         <!-- Issue #928: the legend explains bars, so it shows only when there are some. -->
-        {#if teamRows.length > 0}
+        {#if teamHasBars}
           <LeaveLegend
             typeCodes={teamLegend.typeCodes}
             styles={teamLegend.styles}

@@ -374,6 +374,7 @@ describe("Leave type visibility — /overlap and /calendar answer the same quest
       section9: string | null;
       section9Days: string[];
       masked?: boolean;
+      requested?: boolean;
     };
 
     async function calendar(year: number, month: number, token: string): Promise<CalendarRow[]> {
@@ -392,7 +393,11 @@ describe("Leave type visibility — /overlap and /calendar answer the same quest
       expect(rows.length).toBeGreaterThan(0); // D-25: guard before indexing
       // #840 D-840-19: the sick request (5th-7th) and the overlapping vacation (6th-8th) of the
       // same person are merged into ONE masked range, so the seam reveals no second kind.
-      const foreign = rows.filter((r) => r.employeeId === data.adminEmployee.id);
+      // Issue #1038 (owner decision 19.11.2026): under scope=team, incl. the WR-04 implicit team
+      // answer, a colleague's PENDING request arrives as a masked range flagged requested: true —
+      // name and period only. The absent ranges (no `requested`) keep exactly the seven keys.
+      const foreignAll = rows.filter((r) => r.employeeId === data.adminEmployee.id);
+      const foreign = foreignAll.filter((r) => r.requested === undefined);
       expect(foreign).toHaveLength(1);
       expect(Object.keys(foreign[0]).sort()).toEqual([
         "employeeId",
@@ -409,8 +414,29 @@ describe("Leave type visibility — /overlap and /calendar answer the same quest
         startDate: targetDateStr(5),
         endDate: targetDateStr(8),
       });
-      // The foreign PENDING sick request of the 20th is not an absence yet and is not served.
-      expect(rows.some((r) => r.startDate === targetDateStr(20))).toBe(false);
+      // The foreign PENDING sick request of the 20th arrives ONLY as one requested range of that
+      // day: eight keys, no id, no type, no status.
+      const requested = foreignAll.filter((r) => r.requested !== undefined);
+      expect(requested).toHaveLength(1);
+      expect(Object.keys(requested[0]).sort()).toEqual([
+        "employeeId",
+        "endDate",
+        "firstName",
+        "isOwn",
+        "lastName",
+        "masked",
+        "requested",
+        "startDate",
+      ]);
+      expect(requested[0]).toMatchObject({
+        isOwn: false,
+        masked: true,
+        requested: true,
+        startDate: targetDateStr(20),
+        endDate: targetDateStr(20),
+      });
+      expect(rows.filter((r) => r.startDate === targetDateStr(20))).toHaveLength(1);
+      expect(JSON.stringify(rows)).not.toContain(pendingSickRequestId);
       expect(JSON.stringify(rows)).not.toContain(sickRequestId);
     });
 

@@ -788,7 +788,10 @@ BUrlG §3/§7, EuGH carry-over rules, cross-year splitting, dynamic recalc, FIFO
   person-by-day absence grid (`leave-one-timeline-840.test.ts`) and `apps/web/src/lib/leave/leave-colors.ts` the only
   leave colour source (`leave-colors-one-place-840.test.ts`). `GET /leave/calendar` decides the detail level per person
   through the #836 visibility rule (`maskCalendarRows`): a foreign row outside the reader's reach has no id, status,
-  halfDay, type or § 9, a foreign PENDING row is dropped, adjacent masked ranges of a person are merged (`mergeDayRanges`);
+  halfDay, type or § 9, a foreign PENDING row is dropped except under `scope=team` (Issue #1038, owner decision 19.11.2026),
+  where it arrives as a masked range flagged `requested: true` (name and period only) and the range answer adds `persons`, every
+  person homed in one of the caller's Stammsalons and employed in the window (`homeSalonPersonsDuring`, the #613 rule), so a
+  colleague without an absence still has a row, adjacent masked ranges of a person are merged within the same flag (`mergeDayRanges`);
   `from`/`to` (at most 366 days) answers `{ entries, salons }`, and `scope=own|team` serve Mein Bereich and mask every
   foreign row whatever the caller's reach (`GET /leave/plans/:id?view=own` does the same for the planner read and gives a
   foreign wish the period only). Masked ranges are clipped to the requested window before the merge, and a caller with an

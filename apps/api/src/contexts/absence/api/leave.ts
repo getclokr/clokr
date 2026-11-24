@@ -79,6 +79,7 @@ import {
 import { filterLeaveRowsToHomeSalon } from "../salon-leave-attribution"; // Issue #558 (D-02/D-08)
 import { canSeeLeaveType } from "../leave-calendar-visibility"; // Issue #835 — moved out of this route (second caller)
 import { maskCalendarRows } from "../leave-calendar-masking"; // Issue #840 (D-840-19) — per-person masking of the calendar read
+import { homeSalonPersonsDuring } from "../leave-plan/population"; // Issue #1038 (OD-3) — the one salon-membership rule, shared with the #835 planner
 import { isPersonVisibleOnSomeDay } from "../leave-limits/redact"; // Issue #840 (D-840-19) — the #836 per-person rule, no second one
 import {
   buildLeaveLimitExceptionAudit,
@@ -2124,6 +2125,12 @@ export async function leaveRoutes(app: FastifyInstance) {
         new Set<string>(EFFECTIVE_LEAVE_STATUSES),
         // A masked range never reaches beyond the window asked for (WR-03).
         { from: windowFromDay, to: windowToDay },
+        // Issue #1038 (OD-1, owner decision 19.11.2026): only under the effective `scope=team`
+        // (the WR-04 implicit team answer included) a colleague's PENDING request arrives as a
+        // masked range flagged `requested: true` — name and period only. The reach-based answer
+        // (no scope, with a reach) keeps dropping a foreign PENDING row (Phase 262 D-05). The
+        // control value is the enum, never a display string.
+        scope === "team" ? new Set<string>([LeaveRequestStatus.PENDING]) : undefined,
       );
       // § 9 markers and days only for detailed rows: whoever may not learn the type must not read
       // the sick-in-vacation marker either (it would reveal the sickness indirectly).
@@ -2168,12 +2175,49 @@ export async function leaveRoutes(app: FastifyInstance) {
       ) {
         salon = await findDefaultSalon(app.prisma, tenantId);
       }
+      // Issue #1038 (OD-3): the team range answer also names WHO is in the team, so a colleague
+      // without any absence still has a row. The population is the server's: every person homed in
+      // one of the caller's own Stammsalons on a window day, employed in the window and never
+      // anonymised (the #835/#613 rule, `homeSalonPersonsDuring`); the web never derives one. Only
+      // names a Stammsalon colleague already shows in the planner (`view=own`) are handed out —
+      // four keys, no hire date, no exit date, no user id. A validated `salonId` keeps its row
+      // filter of the chosen salon, so no list of the caller's own salons is added next to it.
+      let persons:
+        | Array<{ employeeId: string; firstName: string; lastName: string; isOwn: boolean }>
+        | undefined;
+      if (scope === "team" && chosenSalonId === null) {
+        const byId = new Map<string, NonNullable<typeof persons>[number]>();
+        for (const ownSalonId of ownHomeSalonIds) {
+          const inSalon = await homeSalonPersonsDuring(
+            app.prisma,
+            tenantId,
+            ownSalonId,
+            windowFromDay,
+            windowToDay,
+          );
+          for (const person of inSalon) {
+            byId.set(person.id, {
+              employeeId: person.id,
+              firstName: person.firstName,
+              lastName: person.lastName,
+              isOwn: person.userId === req.user.sub,
+            });
+          }
+        }
+        persons = Array.from(byId.values()).sort(
+          (a, b) =>
+            byCodeUnit(a.lastName, b.lastName) ||
+            byCodeUnit(a.firstName, b.firstName) ||
+            byCodeUnit(a.employeeId, b.employeeId),
+        );
+      }
       return {
         entries,
         salons:
           salon === null
             ? []
             : [{ salonId: salon.id, name: salon.name, openingHours: salon.openingHours }],
+        ...(persons === undefined ? {} : { persons }),
       };
     },
   });

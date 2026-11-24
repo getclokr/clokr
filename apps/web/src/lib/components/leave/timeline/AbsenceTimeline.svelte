@@ -525,9 +525,16 @@
 >
   <div class="tl-body">
     <div class="tl-viewport">
+      <!-- An overflowing read-only grid (e.g. the Team tab, whose bars open nothing) has no
+           focusable child, so keyboard users could not scroll it (axe scrollable-region-focusable).
+           The scroller itself takes focus only while it overflows. -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div
         class="tl-scroll"
         data-testid="absence-timeline-scroll"
+        role="region"
+        aria-label="Zeitleiste"
+        tabindex={overflowing ? 0 : undefined}
         bind:this={scrollEl}
         onscroll={onScroll}
       >

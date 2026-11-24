@@ -23,12 +23,13 @@ import {
   type CalendarDetailedEntry,
   type CalendarHolidayEntry,
   type CalendarMaskedEntry,
+  type CalendarPerson,
   type TimelineBar,
   type TimelinePerson,
 } from "../timeline-model";
 import type { PlannerReadDto } from "$lib/leave-plan/types";
 import { LEAVE_TYPES, NEUTRAL_CHIP_LABEL } from "../team-calendar-visibility";
-import { ABSENT, leaveTypeColor } from "../leave-colors";
+import { ABSENT, legendFrom, leaveTypeColor } from "../leave-colors";
 
 describe("periodOf", () => {
   it("the year contains the anchor day: 1 January to 31 December", () => {
@@ -223,6 +224,108 @@ describe("calendarToTimeline", () => {
   it("a half day keeps its flag on the bar", () => {
     const { rows } = calendarToTimeline([detailed({ halfDay: true })]);
     expect(rows[0].bars[0].halfDay).toBe(true);
+  });
+});
+
+describe("calendarToTimeline with persons (Issue #1038)", () => {
+  const person = (over: Partial<CalendarPerson>): CalendarPerson => ({
+    employeeId: "emp-c",
+    firstName: "Clara",
+    lastName: "Carlsen",
+    isOwn: false,
+    ...over,
+  });
+
+  it("a listed person without any entry is a row with no bars", () => {
+    const { rows } = calendarToTimeline([], [person({})]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ employeeId: "emp-c", name: "Clara Carlsen", bars: [] });
+  });
+
+  it("a person in both persons and entries is ONE row with its bars", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({ id: "r1", employeeId: "emp-a" })],
+      [person({ employeeId: "emp-a", firstName: "Anna", lastName: "Muster" })],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bars.map((b) => b.key)).toEqual(["r1"]);
+  });
+
+  it("rows stay ordered by last name, first name, id across listed and absent persons", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({}), masked({})],
+      [
+        person({ employeeId: "emp-z", firstName: "Zoe", lastName: "Ahorn" }),
+        person({ employeeId: "emp-y", firstName: "Yara", lastName: "Ahorn" }),
+        person({ employeeId: "emp-c" }),
+      ],
+    );
+    // Ahorn Yara, Ahorn Zoe, Beispiel Bernd, Carlsen Clara, Muster Anna.
+    expect(rows.map((r) => r.employeeId)).toEqual(["emp-y", "emp-z", "emp-b", "emp-c", "emp-a"]);
+  });
+
+  it("isOwn of a row without entries comes from the person", () => {
+    const { rows } = calendarToTimeline([], [person({ isOwn: true }), person({ employeeId: "x" })]);
+    expect(rows.find((r) => r.employeeId === "emp-c")?.isOwn).toBe(true);
+    expect(rows.find((r) => r.employeeId === "x")?.isOwn).toBe(false);
+  });
+
+  it("an own entry sets isOwn on a row that was listed as not own", () => {
+    const { rows } = calendarToTimeline(
+      [detailed({ isOwn: true })],
+      [person({ employeeId: "emp-a", isOwn: false })],
+    );
+    expect(rows[0].isOwn).toBe(true);
+  });
+
+  it("without the second argument the result is exactly the old one", () => {
+    const entries = [detailed({}), masked({}), holiday];
+    expect(calendarToTimeline(entries)).toEqual(calendarToTimeline(entries, []));
+  });
+});
+
+describe("a requested masked entry (Issue #1038)", () => {
+  const requested = (over: Partial<CalendarMaskedEntry> = {}): CalendarMaskedEntry =>
+    masked({ requested: true, ...over });
+
+  it("is a dashed neutral bar: beantragt, no type, the neutral label, no request id, not editable", () => {
+    const { rows } = calendarToTimeline([requested()]);
+    const bar = rows[0].bars[0];
+    expect(bar).toMatchObject({
+      key: "masked-requested:emp-b:2026-11-09",
+      start: "2026-11-09",
+      end: "2026-11-10",
+      style: "beantragt",
+      typeCode: null,
+      label: NEUTRAL_CHIP_LABEL,
+      editable: false,
+    });
+    expect(bar.requestId).toBeUndefined();
+    expect(bar.halfDay).toBeUndefined();
+  });
+
+  it("its key differs from an absent bar of the same person and start", () => {
+    const { rows } = calendarToTimeline([requested(), masked({})]);
+    const keys = rows[0].bars.map((b) => b.key);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it("an entry without the flag stays the plain abwesend bar", () => {
+    const { rows } = calendarToTimeline([masked({})]);
+    expect(rows[0].bars[0]).toMatchObject({ style: "abwesend", key: "masked:emp-b:2026-11-09" });
+  });
+
+  it("weekCells reads it as the neutral absent fill with the beantragt marker", () => {
+    const { rows } = calendarToTimeline([
+      requested({ startDate: "2026-11-09", endDate: "2026-11-10" }),
+    ]);
+    const cell = cellOf(rows[0], 2026, "2026-11-09");
+    expect(cell).toMatchObject({ fill: "absent", typeCode: null, hasBeantragt: true });
+  });
+
+  it("legendFrom lists the style beantragt and no type code for it", () => {
+    const { rows } = calendarToTimeline([requested()]);
+    expect(legendFrom(rows)).toEqual({ typeCodes: [], styles: ["beantragt"] });
   });
 });
 

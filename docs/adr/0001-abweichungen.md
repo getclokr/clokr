@@ -8140,6 +8140,36 @@ Komponententests von `LeaveRequestForm`, `LeaveTypeChip`, `LeaveToolbar`, `Leave
 `LeaveLegend` sowie die angepassten Fixierungen (jede mit `#840 G-n` im Test benannt). Browser:
 `apps/e2e/tests/leave-area-840.spec.ts`, Tests 6 bis 9 (Planung, Zähler/Chips/Inbox-Kopf, Formular, Primärknöpfe).
 
+### Nachtrag Issue #1038 (Owner-Entscheidung 19.11.2026)
+
+**Entscheidung.** „Mein Bereich → Abwesenheiten → Team“ listete nur Kolleginnen und Kollegen mit einer genehmigten
+Abwesenheit im Fenster. Drei Owner-Entscheidungen ändern das, nur für `scope=team`:
+
+- Die Teamliste nennt jede Person, deren Stammsalon am eigenen Salon an mindestens einem Tag des Fensters liegt, die im
+  Fenster beschäftigt und nie anonymisiert ist (`persons` in der Bereichsantwort von `GET /leave/calendar`,
+  `homeSalonPersonsDuring`, dieselbe Regel wie die Population der Urlaubsplanung #835, `reportPopulationWhere` #613). Eine
+  Person ohne Abwesenheit hat damit eine leere Zeile. Vier Schlüssel je Person (`employeeId`, `firstName`, `lastName`,
+  `isOwn`), geordnet nach Nachname, Vorname, Id; kein Eintritts- oder Austrittsdatum, keine Benutzer-Id. Die Namen sind
+  die, die der Planer (`view=own`) derselben Person ohnehin zeigt.
+- Eine fremde beantragte Zeile (`PENDING`) kommt unter `scope=team` — auch in der WR-04-Antwort ohne Scope für einen Aufrufer
+  mit leerer Leseberechtigungsreichweite — als maskierter Zeitraum mit `requested: true`: nur Name und Zeitraum, kein Typ,
+  kein Status, kein halber Tag, kein § 9, keine Id. Der Satz „fremde beantragte Zeilen entfallen ganz“ bleibt als Stand von
+  Phase 840 stehen und ist für `scope=team` durch diesen Nachtrag ersetzt.
+- Maskierte Zeiträume einer Person werden nur innerhalb derselben Kennzeichnung zusammengeführt (abwesend mit abwesend,
+  beantragt mit beantragt); ein abwesender Zeitraum verschluckt keinen beantragten. Die Grenze „beantragt gegenüber
+  abwesend“ ist damit sichtbar — gewollt.
+
+**Unverändert.** Die Antwort mit Leseberechtigungsreichweite (kein Scope), `scope=own`, die Monatsform und der Planer
+(D-840-20) bleiben byteweise gleich; dort entfällt eine fremde beantragte Zeile weiterhin.
+
+**Auswirkung auf die Kontexte.** Abwesenheiten: die Antwort von `GET /leave/calendar` und die Zeitleiste im Web. Unterbau:
+keine Änderung (er wird nur gelesen). Zeiterfassung, Schichtplanung, Arbeitszeitkonto, Kompositionsschicht: keine.
+
+**Nachweise.** `leave-calendar-team-1038` (Personenliste, Ausschlüsse, beantragte Zeiträume, Form der übrigen Antworten),
+`leave-calendar-masking` (Kern), `timeline-model` (Web); angepasst, jeweils mit dem Verweis auf die Owner-Entscheidung im
+Test: `leave-calendar-masking-840` (zwei Fälle) und `leave-type-visibility` (ein Fall) — nur die Aussagen zur fremden
+beantragten Zeile.
+
 ## AJ — Korrektur abgeschlossener Monate als Kontobewegung (Phase 599, Issue #599)
 
 **Entscheidung (Owner 19.10. und 09.11.2026, Grauzonen auf #599 dokumentiert).** Ein Tag eines abgeschlossenen Monats wird nie

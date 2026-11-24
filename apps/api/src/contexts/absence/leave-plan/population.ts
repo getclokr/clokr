@@ -12,6 +12,10 @@
  * `homeSalonsForDays`, so a caller can tell a person who is only homed in S from July from one who
  * is homed there all year.
  *
+ * Issue #1038: the calendar's `scope=team` range answer reads the same membership rule for ITS
+ * window through `homeSalonPersonsDuring`, so the Team tab lists exactly the persons a plan of that
+ * salon would list; there is no second salon-membership rule.
+ *
  * Deliberately NOT re-exported from `contexts/absence/index.ts` (import-cycle cap 22).
  */
 import type { FastifyInstance } from "fastify";
@@ -37,24 +41,28 @@ export type PlanPopulation = {
   homeByPerson: Map<string, Map<string, string | null>>;
 };
 
-/** The persons of the plan of `salonId` / `year`, ordered last name, first name, id. */
-export async function planPopulation(
+/**
+ * The persons homed in `salonId` (Stammsalon, HOME rows only) on at least one calendar day of
+ * `fromDay`..`toDay` who are employed at some point of it and were never anonymised
+ * (`reportPopulationWhere`, #613, with INSTANT bounds from the tenant-local first and last day).
+ * Ordered last name, first name, id. The ONE salon-membership rule of the plan (#835) and of the
+ * calendar's team scope (#1038).
+ */
+export async function homeSalonPersonsDuring(
   db: FastifyInstance["prisma"],
   tenantId: string,
   salonId: string,
-  year: number,
-): Promise<PlanPopulation> {
-  const firstDay = `${year}-01-01`;
-  const lastDay = `${year}-12-31`;
-
-  const ids = await employeeIdsHomedInSalonDuring(db, tenantId, salonId, firstDay, lastDay);
-  if (ids.length === 0) return { persons: [], homeByPerson: new Map() };
+  fromDay: string,
+  toDay: string,
+): Promise<PlanPerson[]> {
+  const ids = await employeeIdsHomedInSalonDuring(db, tenantId, salonId, fromDay, toDay);
+  if (ids.length === 0) return [];
 
   const timezone = await getTenantTimezone(db, tenantId);
-  const start = dayRangeUtc(firstDay, timezone).start;
-  const end = dayRangeUtc(lastDay, timezone).end;
+  const start = dayRangeUtc(fromDay, timezone).start;
+  const end = dayRangeUtc(toDay, timezone).end;
 
-  const persons = await db.employee.findMany({
+  return db.employee.findMany({
     where: {
       tenantId,
       id: { in: ids },
@@ -70,6 +78,20 @@ export async function planPopulation(
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
   });
+}
+
+/** The persons of the plan of `salonId` / `year`, ordered last name, first name, id. */
+export async function planPopulation(
+  db: FastifyInstance["prisma"],
+  tenantId: string,
+  salonId: string,
+  year: number,
+): Promise<PlanPopulation> {
+  const firstDay = `${year}-01-01`;
+  const lastDay = `${year}-12-31`;
+
+  const persons = await homeSalonPersonsDuring(db, tenantId, salonId, firstDay, lastDay);
+  if (persons.length === 0) return { persons: [], homeByPerson: new Map() };
 
   const homeByPerson = await homeSalonsForDays(
     db,

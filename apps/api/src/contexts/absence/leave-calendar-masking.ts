@@ -7,9 +7,14 @@
  * or § 9 marker (Art. 9 DSGVO — the type of an absence can be a health datum).
  *
  *  - Only effective rows are masked. A PENDING request of a person outside the reach is not (yet)
- *    an absence, so it is dropped, not shown (Phase 262 D-05).
+ *    an absence, so it is dropped, not shown (Phase 262 D-05) — unless the caller names the status
+ *    in `requestedStatuses` (the `scope=team` answer only, Issue #1038, owner decision 19.11.2026).
+ *    It then becomes a masked range flagged `requested: true`: still name and period only, the flag
+ *    is the only status information ever handed out, never the raw status.
  *  - Overlapping or adjacent masked ranges of one person are merged, so the seam between two
  *    absences of different kinds (e.g. a sick spell right after a vacation) cannot be read off.
+ *    Absent and requested ranges are merged only within their own flag (Issue #1038): an absent
+ *    range never swallows a requested one, so "requested" stays readable as such.
  *  - A masked range is clipped to the window the reader asked for BEFORE the merge. The stored
  *    length of an absence (14 weeks around a due date, a year of Elternzeit) would otherwise be
  *    readable from the dates alone, and the answer would carry more than the window it answers
@@ -33,7 +38,10 @@ export interface MaskableCalendarRow {
   isOwn: boolean;
 }
 
-/** The ONLY shape a foreign absence has outside the reach — exactly these seven keys. */
+/**
+ * The ONLY shape a foreign absence has outside the reach — exactly these seven keys; a requested
+ * range (Issue #1038, `scope=team` only) adds the single flag `requested: true`.
+ */
 export interface MaskedCalendarEntry {
   employeeId: string;
   firstName: string;
@@ -42,6 +50,7 @@ export interface MaskedCalendarEntry {
   endDate: string;
   isOwn: false;
   masked: true;
+  requested?: true;
 }
 
 /** `YYYY-MM-DD` plus one calendar day, in UTC (string arithmetic, no time zone involved). */
@@ -90,29 +99,33 @@ export function mergeDayRanges<T extends { startDate: string; endDate: string }>
 /**
  * Splits `rows` into the rows the reader may see in detail and the masked ranges of the others.
  * `detailed(row)` is the caller's per-row decision; `effectiveStatuses` are the statuses that
- * count as an absence (a masked candidate with another status is dropped).
+ * count as an absence (a masked candidate with another status is dropped). `requestedStatuses`
+ * (default none, Issue #1038) are the statuses that become a `requested: true` range instead of
+ * being dropped; an effective status always wins over a requested one.
  *
  * `window` (inclusive calendar days) clips every masked range before the merge; detailed rows keep
  * their real range (the reader may read them).
  *
- * Output order of the masked ranges: by `employeeId`, then `startDate`. The detailed rows keep
- * their input order and are returned unchanged.
+ * Output order of the masked ranges: by `employeeId`, then `startDate` (absent before requested on
+ * an equal start). The detailed rows keep their input order and are returned unchanged.
  */
 export function maskCalendarRows<T extends MaskableCalendarRow>(
   rows: readonly T[],
   detailed: (row: T) => boolean,
   effectiveStatuses: ReadonlySet<string>,
   window?: { from: string; to: string },
+  requestedStatuses: ReadonlySet<string> = new Set(),
 ): { detailed: T[]; masked: MaskedCalendarEntry[] } {
   const keep: T[] = [];
-  const candidates: MaskedCalendarEntry[] = [];
+  const candidates: Array<Omit<MaskedCalendarEntry, "requested"> & { requested: boolean }> = [];
 
   for (const row of rows) {
     if (detailed(row)) {
       keep.push(row);
       continue;
     }
-    if (!effectiveStatuses.has(row.status)) continue;
+    const requested = !effectiveStatuses.has(row.status);
+    if (requested && !requestedStatuses.has(row.status)) continue;
     const range = window ? clipDayRange(row, window) : row;
     if (range === null) continue;
     candidates.push({
@@ -123,6 +136,7 @@ export function maskCalendarRows<T extends MaskableCalendarRow>(
       endDate: range.endDate,
       isOwn: false,
       masked: true,
+      requested,
     });
   }
 
@@ -135,9 +149,26 @@ export function maskCalendarRows<T extends MaskableCalendarRow>(
     let j = i;
     while (j < candidates.length && candidates[j].employeeId === candidates[i].employeeId) j++;
     const person = candidates[i];
-    for (const range of mergeDayRanges(candidates.slice(i, j))) {
-      masked.push({ ...person, startDate: range.startDate, endDate: range.endDate });
+    const ofPerson: MaskedCalendarEntry[] = [];
+    // Each flag is merged on its own, so an absent range never swallows a requested one.
+    for (const requested of [false, true]) {
+      const group = candidates.slice(i, j).filter((c) => c.requested === requested);
+      for (const range of mergeDayRanges(group)) {
+        ofPerson.push({
+          employeeId: person.employeeId,
+          firstName: person.firstName,
+          lastName: person.lastName,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          isOwn: false,
+          masked: true,
+          ...(requested ? { requested: true as const } : {}),
+        });
+      }
     }
+    // Stable: absent ranges were pushed first, so they stay first on an equal start.
+    ofPerson.sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0));
+    masked.push(...ofPerson);
     i = j;
   }
 
