@@ -24,7 +24,8 @@
  */
 import { test, expect } from "../fixtures";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 test.describe("tenant fixture", () => {
   // Track tenant ids across tests to prove per-test isolation (D-04).

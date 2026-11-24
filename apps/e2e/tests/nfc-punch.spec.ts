@@ -28,13 +28,10 @@
  * future cross-surface error message.
  */
 import { test, expect } from "../fixtures";
-import {
-  bootstrapTerminal,
-  nfcPunch,
-  deactivateEmployee,
-} from "../helpers/nfc-terminal";
+import { bootstrapTerminal, nfcPunch, deactivateEmployee } from "../helpers/nfc-terminal";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 interface PunchSuccessBody {
   action: "IN" | "OUT";
@@ -54,7 +51,7 @@ test.describe("NFC punch flow", () => {
     const res = await nfcPunch(term.apiKey, term.nfcCardId);
 
     expect(res.status).toBe(200);
-    const body = (asObj(res.body) as unknown as PunchSuccessBody);
+    const body = asObj(res.body) as unknown as PunchSuccessBody;
     expect(body.action).toBe("IN");
     expect(body.employee).toBeDefined();
     expect(body.employee.firstName).toBe("Test");
@@ -63,18 +60,16 @@ test.describe("NFC punch flow", () => {
     expect(typeof body.balanceHours).toBe("number");
   });
 
-  test("clock-out: second punch on same day closes the entry (action=OUT)", async ({
-    tenant,
-  }) => {
+  test("clock-out: second punch on same day closes the entry (action=OUT)", async ({ tenant }) => {
     const term = await bootstrapTerminal(tenant);
 
     const first = await nfcPunch(term.apiKey, term.nfcCardId);
     expect(first.status).toBe(200);
-    expect(((asObj(first.body) as unknown as PunchSuccessBody)).action).toBe("IN");
+    expect((asObj(first.body) as unknown as PunchSuccessBody).action).toBe("IN");
 
     const second = await nfcPunch(term.apiKey, term.nfcCardId);
     expect(second.status).toBe(200);
-    const body = (asObj(second.body) as unknown as PunchSuccessBody);
+    const body = asObj(second.body) as unknown as PunchSuccessBody;
     expect(body.action).toBe("OUT");
     expect(body.employee.firstName).toBe("Test");
     // After clock-out the response carries the balance — checking the
@@ -194,19 +189,16 @@ test.describe("NFC punch flow", () => {
     // current handler (correctly) allows it.
     const punchRes = await nfcPunch(term.apiKey, term.nfcCardId);
     expect(punchRes.status).toBe(200);
-    expect(((asObj(punchRes.body) as unknown as PunchSuccessBody)).action).toBe("IN");
+    expect((asObj(punchRes.body) as unknown as PunchSuccessBody).action).toBe("IN");
   });
 
   // FUTURE: once the cross-surface lock contract is wired into nfc-punch
   // (deferred-items.md owner: Phase 74-06 follow-up), unfixme this test.
   // It asserts the desired behavior: a punch whose date falls inside a
   // locked month is rejected with a consistent German error.
-  test.fixme(
-    "future: punch whose date falls in a locked month is rejected with a consistent error",
-    async () => {
-      // Intentionally empty — see deferred-items.md for the architectural
-      // decision needed before this can be implemented (UX contract for
-      // terminal devices: HTTP code, error shape, Tauri-client render path).
-    },
-  );
+  test.fixme("future: punch whose date falls in a locked month is rejected with a consistent error", async () => {
+    // Intentionally empty — see deferred-items.md for the architectural
+    // decision needed before this can be implemented (UX contract for
+    // terminal devices: HTTP code, error shape, Tauri-client render path).
+  });
 });

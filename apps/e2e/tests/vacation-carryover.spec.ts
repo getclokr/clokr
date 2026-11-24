@@ -32,7 +32,8 @@ import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 import { withTestNow, clearTestNow } from "../helpers/time-travel";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 test.describe("Vacation carry-over", () => {
   test("year-end rollover: untaken 2026 leave carries to 2027 on Jan 1", async ({
@@ -74,10 +75,7 @@ test.describe("Vacation carry-over", () => {
     ).toContainText("40");
   });
 
-  test("mid-year hire: pro-rata annual entitlement (BUrlG § 5)", async ({
-    page,
-    tenant,
-  }) => {
+  test("mid-year hire: pro-rata annual entitlement (BUrlG § 5)", async ({ page, tenant }) => {
     // Per § 5 Abs. 2 BUrlG: hire after Jul 1 → only proportional
     // entitlement for the calendar year. The plan's helper seeds the
     // employee with annualLeaveEntitlement 30 and hireDate Jul 1, 2026,
@@ -218,17 +216,14 @@ async function createEmployee(t: TestTenant, opts: CreateEmployeeOpts): Promise<
   // entitlement endpoint has something to return. PUT via the standard
   // settings endpoint matches the admin UI flow.
   const year = new Date(opts.hireDate).getFullYear();
-  const seedRes = await fetch(
-    `${API_BASE}/api/v1/settings/leave-entitlement/${employee.id}`,
-    {
-      method: "PUT",
-      headers: authHeaders(t),
-      body: JSON.stringify({
-        year,
-        totalDays: opts.annualLeaveEntitlement,
-      }),
-    },
-  );
+  const seedRes = await fetch(`${API_BASE}/api/v1/settings/leave-entitlement/${employee.id}`, {
+    method: "PUT",
+    headers: authHeaders(t),
+    body: JSON.stringify({
+      year,
+      totalDays: opts.annualLeaveEntitlement,
+    }),
+  });
   // The endpoint may not exist yet in Phase 73-02 — surface the gap as a
   // skip rather than a crash so the spec stays readable.
   if (!seedRes.ok && seedRes.status !== 404) {
@@ -253,14 +248,11 @@ async function seedTakenLeave(
   employeeId: string,
   opts: SeedTakenLeaveOpts,
 ): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/api/v1/settings/leave-entitlement/${employeeId}`,
-    {
-      method: "PUT",
-      headers: authHeaders(t),
-      body: JSON.stringify({ year: opts.year, usedDays: opts.daysUsed }),
-    },
-  );
+  const res = await fetch(`${API_BASE}/api/v1/settings/leave-entitlement/${employeeId}`, {
+    method: "PUT",
+    headers: authHeaders(t),
+    body: JSON.stringify({ year: opts.year, usedDays: opts.daysUsed }),
+  });
   if (!res.ok && res.status !== 404) {
     const text = await res.text().catch(() => "<no body>");
     throw new Error(`seedTakenLeave: ${res.status} — ${text}`);
@@ -276,11 +268,7 @@ interface BookLeaveOpts {
  * File + auto-approve a VACATION leave request inside the tenant via
  * admin-on-behalf-of. Used by the FIFO test to consume from carry-over.
  */
-async function bookLeave(
-  t: TestTenant,
-  employeeId: string,
-  opts: BookLeaveOpts,
-): Promise<void> {
+async function bookLeave(t: TestTenant, employeeId: string, opts: BookLeaveOpts): Promise<void> {
   const fileRes = await fetch(`${API_BASE}/api/v1/leave/requests`, {
     method: "POST",
     headers: authHeaders(t),
@@ -298,14 +286,11 @@ async function bookLeave(
   const req = (await fileRes.json()) as { id: string; status: string };
   if (req.status === "APPROVED") return;
 
-  const approveRes = await fetch(
-    `${API_BASE}/api/v1/leave/requests/${req.id}/review`,
-    {
-      method: "PATCH",
-      headers: authHeaders(t),
-      body: JSON.stringify({ status: "APPROVED" }),
-    },
-  );
+  const approveRes = await fetch(`${API_BASE}/api/v1/leave/requests/${req.id}/review`, {
+    method: "PATCH",
+    headers: authHeaders(t),
+    body: JSON.stringify({ status: "APPROVED" }),
+  });
   if (!approveRes.ok) {
     const text = await approveRes.text().catch(() => "<no body>");
     throw new Error(`bookLeave/approve: ${approveRes.status} — ${text}`);

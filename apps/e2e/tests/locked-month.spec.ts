@@ -16,7 +16,8 @@ import { test } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 import { expectLockedMonthError, expectNoLockedMonthError } from "../helpers/locked-month";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 interface LockedMonthSeed {
   employeeId: string;

@@ -24,7 +24,8 @@
 import { test, expect, type TestTenant } from "../fixtures";
 import type { Page } from "@playwright/test";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 // Pick a weekday 60 days in the past — far enough back to avoid colliding
 // with whatever the tenant bootstrap seeds and inside the standard 2-year
