@@ -26,6 +26,13 @@
     withheldGapPersons,
   } from "$lib/month-close/next-step";
   import { exitLabel } from "$lib/month-close/exit-label";
+  import {
+    RUNNING_MONTH_NOTE,
+    RUNNING_MONTH_REASON,
+    RUNNING_READY_LABEL,
+    canOpenMonth,
+    isRunningMonthStatus,
+  } from "$lib/month-close/running-month"; // Issue #1011: the running month opens read-only
   import type { EmployeeStatus, MonthStatus } from "$lib/month-close/types";
   import { localCalendarDay } from "$lib/employees/employment-state";
   import { MONTH_STATUS_LABEL, notEndedMonthLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
@@ -80,8 +87,6 @@
     onUnlockEmployee,
   }: Props = $props();
 
-  const NOT_OPENABLE = ["future", "no_data"];
-
   const STATUS_LABELS: Record<string, string> = {
     closed: MONTH_STATUS_LABEL.CLOSED,
     partial: "Teilweise",
@@ -111,6 +116,7 @@
   }
 
   function reasonText(ms: MonthStatus): string {
+    if (isRunningMonthStatus(ms, year, today)) return RUNNING_MONTH_REASON;
     if (ms.status === "closed" || ms.status === "future") return "–";
     if (ms.status === "no_data") return "Keine Erfassung in diesem Zeitraum";
     if (ms.status === "blocked") {
@@ -154,6 +160,12 @@
   ];
 
   const selected = $derived(months.find((m) => m.month === selectedMonth) ?? null);
+  const selectedRunning = $derived(
+    selected !== null && isRunningMonthStatus(selected, year, today),
+  );
+  // A month that has not ended is never closed or unlocked from here, whichever way it was opened (row or
+  // ?month= deep link); the API refuses it with 400 regardless.
+  const selectedNotEnded = $derived(selected !== null && selected.status === "future");
 
   // The persons list opens below the months: bring it into view (a phone shows the months as cards).
   let detailSection: HTMLElement | undefined = $state();
@@ -163,7 +175,7 @@
   });
 
   function openMonth(ms: MonthStatus) {
-    if (NOT_OPENABLE.includes(ms.status)) return;
+    if (!canOpenMonth(ms, year, today)) return;
     onSelectMonth(ms.month);
   }
 </script>
@@ -185,7 +197,7 @@
       {#if column.key === "name"}
         <span class="mst-month">
           <span class="mst-chevron" aria-hidden="true"
-            >{selectedMonth === ms.month ? "▾" : NOT_OPENABLE.includes(ms.status) ? "" : "▸"}</span
+            >{selectedMonth === ms.month ? "▾" : canOpenMonth(ms, year, today) ? "▸" : ""}</span
           >
           {ms.name}
           {year}
@@ -234,6 +246,11 @@
       {selected.name}
       {year}: Personen
     </h2>
+    {#if selectedRunning}
+      <div data-testid="month-close-running-note">
+        <Note tone="info">{RUNNING_MONTH_NOTE}</Note>
+      </div>
+    {/if}
     {#if selected.status === "ready"}
       <Note tone="warn">
         Endgültiger Abschluss: Mit dem Abschluss werden alle Zeiteinträge dieses Monats gesperrt und
@@ -262,7 +279,9 @@
             {#if emp.status === "closed"}
               <Chip tone="ok">{MONTH_STATUS_LABEL.CLOSED}</Chip>
             {:else if emp.status === "ready"}
-              <Chip tone="brand">Bereit</Chip>
+              <Chip tone={selectedRunning ? "neutral" : "brand"}>
+                {selectedRunning ? RUNNING_READY_LABEL : "Bereit"}
+              </Chip>
             {:else}
               <Chip tone="neutral">Fehlend</Chip>
             {/if}
@@ -294,7 +313,7 @@
           {:else}
             <span class="mst-none">–</span>
           {/if}
-        {:else if canClose && selectedMonth !== null && (emp.status === "ready" || emp.status === "missing")}
+        {:else if canClose && selectedMonth !== null && (emp.status === "ready" || emp.status === "missing") && !selectedNotEnded}
           <button
             type="button"
             class={closesBlind([emp]) ? "btn btn-secondary btn-sm" : "btn btn-primary btn-sm"}
@@ -303,7 +322,7 @@
           >
             {closeLabelFor([emp])}
           </button>
-        {:else if canUnlock && selectedMonth !== null && emp.status === "closed"}
+        {:else if canUnlock && selectedMonth !== null && emp.status === "closed" && !selectedNotEnded}
           <button
             type="button"
             class="btn btn-secondary btn-sm"
