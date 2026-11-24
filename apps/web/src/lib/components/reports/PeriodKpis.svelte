@@ -100,7 +100,7 @@
         value: kpis.vacationTakenDays,
         format: fmtDaysDe,
         unit: "Tage",
-        delta: `bis ${fmtDateDe(kpis.vacationAsOf)}`,
+        delta: `bis ${fmtDateDe(kpis.vacationAsOf)}, Urlaubsjahr ${kpis.vacationYear}`,
       },
       {
         label: "Urlaub genehmigt",

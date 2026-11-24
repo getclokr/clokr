@@ -80,11 +80,27 @@ export function runningMonthStichtag(to: string, asOf: string): string | null {
  * Stichtag. `to` is the answer's `YYYY-MM`, `closingAsOf` its `kpis.closingAsOf` (`YYYY-MM-DD`): the
  * server sets it to yesterday when `to` is the running month and to the last day of `to` otherwise,
  * so the note is due exactly when `closingAsOf` lies before the last calendar day of `to`. Pure, no
- * clock read; malformed input returns null. It lives here and not in `period-state.ts` because this
+ * clock read; malformed input returns null. Since #1011 the absence counts of the running month stop at
+ * the same day, so the note names them too. It lives here and not in `period-state.ts` because this
  * module already imports from that one - the reverse import would create a cycle.
  */
 export function runningMonthNote(to: string, closingAsOf: string): string | null {
   const stichtag = runningMonthStichtag(to, closingAsOf);
   if (stichtag === null) return null;
-  return `Laufender Monat bis gestern (${fmtDateShortDe(stichtag)}): Soll, Ist und Saldo zählen bis zu diesem Tag.`;
+  return `Laufender Monat bis gestern (${fmtDateShortDe(stichtag)}): Soll, Ist, Saldo und Abwesenheiten zählen bis zu diesem Tag.`;
+}
+
+/**
+ * Issue #1011: the label of the two absence tables of the Urlaub tab. When the period ends in the
+ * running month the absence counts stop at the report's Stichtag (`closingAsOf`), so the label names
+ * it: „Januar – November 2026 · bis 14.11.2026“. Otherwise (or for malformed input) the label as is.
+ */
+export function absencePeriodLabel(
+  label: string,
+  to: string | null,
+  closingAsOf: string | null,
+): string {
+  if (to === null || closingAsOf === null) return label;
+  const stichtag = runningMonthStichtag(to, closingAsOf);
+  return stichtag === null ? label : `${label} · bis ${fmtDateDe(stichtag)}`;
 }

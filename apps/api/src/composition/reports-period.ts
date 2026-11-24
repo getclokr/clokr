@@ -77,6 +77,14 @@ import {
  * Soll, Ist and saldo (`toDate`, the same Stichtag as its Gesamtsaldo), so Beginn + Σ Saldo Zeitraum =
  * Ende; `/reports/monthly` keeps the whole-month Soll (P-03 of #451).
  *
+ * Issue #1011: the absence counts of the running month (the rows' `absence`, the months' `sickDays`,
+ * „Abwesenheiten nach Art“, `kpis.sickDays` and the absences CSV) count through the same
+ * tenant-local yesterday as Soll, Ist, Saldo and the vacation Stichtag, via the same kernels with the
+ * clipped range (`computeEmployeeSummary`, `fetchLeaveDaysByCodeForMonthlyReport({ through })`), so
+ * for a period from January „Abwesenheiten nach Art“ equals the tile „Urlaub genommen“. On the 1st of
+ * a month the running month adds no absence day. `/reports/monthly`, the Monatsexport and DATEV keep
+ * counting the whole month.
+ *
  * Soll follows the saldo gate (P-04): Soll and Ist together reveal the month saldo, so where
  * `overtime:read` does not cover a person in every listed month, Soll, saldo, opening and closing
  * are `null` (with `sollUnavailableReason: "NO_PERMISSION"`) and only Ist stays.
@@ -225,9 +233,37 @@ const ABSENCE_KIND_ORDER = [
 ] as const satisfies readonly LeaveTypeCode[];
 type AbsenceKindCode = (typeof ABSENCE_KIND_ORDER)[number];
 
-function absenceKindDays(
-  summary: ReturnType<typeof computeEmployeeSummary>,
-): Record<AbsenceKindCode, number> {
+/**
+ * The part of `computeEmployeeSummary` the period report reads. Issue #1011: a running month with no
+ * counted day yet (the 1st) contributes this all-zero value instead of calling the kernel.
+ */
+type PeriodAbsenceSummary = Pick<
+  ReturnType<typeof computeEmployeeSummary>,
+  | "sickDays"
+  | "sickDaysByCode"
+  | "vocationalSchoolDays"
+  | "vacationDays"
+  | "overtimeCompDays"
+  | "specialLeaveDays"
+  | "educationDays"
+  | "unpaidDays"
+  | "maternityDays"
+  | "parentalDays"
+>;
+const NO_ABSENCE_SUMMARY: PeriodAbsenceSummary = {
+  sickDays: 0,
+  sickDaysByCode: { SICK: 0, SICK_CHILD: 0 },
+  vocationalSchoolDays: 0,
+  vacationDays: 0,
+  overtimeCompDays: 0,
+  specialLeaveDays: 0,
+  educationDays: 0,
+  unpaidDays: 0,
+  maternityDays: 0,
+  parentalDays: 0,
+};
+
+function absenceKindDays(summary: PeriodAbsenceSummary): Record<AbsenceKindCode, number> {
   return {
     VACATION: summary.vacationDays,
     OVERTIME_COMP: summary.overtimeCompDays,
@@ -694,23 +730,30 @@ async function assemblePeriodReport(
       firstDay,
       lastDay,
     );
-    const leaveDaysByEmp = await fetchLeaveDaysByCodeForMonthlyReport(
-      app,
-      tenantId,
-      employees,
-      ym.year,
-      ym.month,
-    );
+    // Issue #1011: the absence counts of the running month end at the report's one Stichtag
+    // (tenant-local yesterday, the day of `closingAsOf` and `vacationStichtag`), through the same
+    // kernels with the clipped range. A past month is whole (its last day is before yesterday);
+    // on the 1st the running month has no counted day yet, so no kernel is called for it.
+    const absenceLastDay = lastDay < yesterdayDate ? lastDay : yesterdayDate;
+    const absenceDaysCounted = absenceLastDay >= firstDay;
+    const leaveDaysByEmp: Awaited<ReturnType<typeof fetchLeaveDaysByCodeForMonthlyReport>> =
+      absenceDaysCounted
+        ? await fetchLeaveDaysByCodeForMonthlyReport(app, tenantId, employees, ym.year, ym.month, {
+            through: absenceLastDay,
+          })
+        : new Map();
 
     for (const emp of employees) {
-      const summary = computeEmployeeSummary(
-        emp,
-        firstDay,
-        lastDay,
-        tz,
-        leaveDaysByEmp.get(emp.id) ?? new Map(),
-        section9ByEmp.get(emp.id) ?? [],
-      );
+      const summary = absenceDaysCounted
+        ? computeEmployeeSummary(
+            emp,
+            firstDay,
+            absenceLastDay,
+            tz,
+            leaveDaysByEmp.get(emp.id) ?? new Map(),
+            section9ByEmp.get(emp.id) ?? [],
+          )
+        : NO_ABSENCE_SUMMARY;
       const monthCovered = overtimeIds === "all" || overtimeIds.has(emp.id);
 
       let person = persons.get(emp.id);

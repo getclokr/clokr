@@ -114,7 +114,7 @@ describe("PeriodKpis - the eight tiles", () => {
     expect(tile("Gesamtsaldo am Ende").delta).toBe("Stand 30.09.2026 · bestätigt");
     expect(tile("Ist").delta).toBeNull();
     expect(tile("Soll").delta).toBeNull();
-    expect(tile("Urlaub genommen").delta).toBe("bis 16.10.2026");
+    expect(tile("Urlaub genommen").delta).toBe("bis 16.10.2026, Urlaubsjahr 2026");
     expect(tile("Urlaub genehmigt").delta).toBe("nach 16.10.2026, Urlaubsjahr 2026");
     expect(tile("Urlaubsanspruch").delta).toBe("Urlaubsjahr 2026");
     expect(tile("Krankheitstage").delta).toBe("Kalendertage");
@@ -358,7 +358,7 @@ describe("PeriodKpis - source", () => {
 // that Stichtag, and only for a running-month answer.
 describe("PeriodKpis - running month note (#985)", () => {
   const NOTE =
-    "Laufender Monat bis gestern (14.11.): Soll, Ist und Saldo zählen bis zu diesem Tag.";
+    "Laufender Monat bis gestern (14.11.): Soll, Ist, Saldo und Abwesenheiten zählen bis zu diesem Tag.";
 
   it("names the Stichtag when the answer ends in the running month", () => {
     renderWithTheme(PeriodKpis, {
