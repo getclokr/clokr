@@ -150,7 +150,7 @@
 
 <PageHead
   title={pageLabel("/admin/salons")}
-  sub="Standorte deines Unternehmens mit Adresse und Öffnungszeiten."
+  hint="Standorte deines Unternehmens mit Adresse und Öffnungszeiten."
 >
   {#snippet actions()}
     {#if rights.canManage}

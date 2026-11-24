@@ -140,7 +140,7 @@
 <SettingsGroup
   id="mailserver"
   title="E-Mail-Server"
-  description="Über diesen Server verschickt Clokr E-Mails, zum Beispiel Einladungen und Benachrichtigungen."
+  hint="Über diesen Server verschickt Clokr E-Mails, zum Beispiel Einladungen und Benachrichtigungen."
   changes={changeCount}
   errors={shownErrorCount}
   {saving}
@@ -195,7 +195,7 @@
   <ToggleField
     bind:checked={values.smtpSecure}
     label="Verschlüsselte Verbindung (TLS/SSL)"
-    help="Schalte das für den Port 465 ein. Für Port 587 bleibt es aus."
+    hint="Schalte das für den Port 465 ein. Für Port 587 bleibt es aus."
     disabled={!canEdit || saving}
     testid="benachrichtigungen-smtp-secure"
   />

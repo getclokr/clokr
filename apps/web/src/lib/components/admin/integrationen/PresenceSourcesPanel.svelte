@@ -49,6 +49,7 @@
   import Note from "$components/ui/Note.svelte";
   import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -344,10 +345,13 @@
 
 <!-- ── Group 1: Präsenz-Quellen ──────────────────────────────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-quellen-title">
-  <h2 class="settings-group-title" id="integrationen-quellen-title">Präsenz-Quellen</h2>
-  <p class="settings-group-desc">
-    Jeder WLAN-Adapter meldet sich mit einem eigenen Schlüssel an. Die Schlüssel verwaltest du hier.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-quellen-title">Präsenz-Quellen</h2>
+    <InfoHint
+      text="Jeder WLAN-Adapter meldet sich mit einem eigenen Schlüssel an. Die Schlüssel verwaltest du hier."
+      label={hintLabel("Präsenz-Quellen")}
+    />
+  </div>
 
   {#if newRawKey}
     <OneTimeKey
@@ -423,15 +427,27 @@
 
 <!-- ── Group 2: Handys per QR-Code koppeln (Issue #610) ──────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-koppeln-title">
-  <h2 class="settings-group-title" id="integrationen-koppeln-title">Handys per QR-Code koppeln</h2>
-  <p class="settings-group-desc">QR-Code für das Salon-WLAN erstellen und aushängen.</p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-koppeln-title">
+      Handys per QR-Code koppeln
+    </h2>
+    <InfoHint
+      text="QR-Code für das Salon-WLAN erstellen und aushängen."
+      label={hintLabel("Handys per QR-Code koppeln")}
+    />
+  </div>
   <PairingGuide />
 </section>
 
 <!-- ── Group 3: WLAN-Geräteliste ─────────────────────────────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-geraete-title">
-  <h2 class="settings-group-title" id="integrationen-geraete-title">WLAN-Geräteliste</h2>
-  <p class="settings-group-desc">Verbundene Geräte und ihre Zuweisungen.</p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-geraete-title">WLAN-Geräteliste</h2>
+    <InfoHint
+      text="Verbundene Geräte und ihre Zuweisungen."
+      label={hintLabel("WLAN-Geräteliste")}
+    />
+  </div>
 
   <div class="ip-device-head">
     {#if activeSources.length > 1}
@@ -530,8 +546,13 @@
 
 <!-- ── Group 4: Opt-in-Übersicht ─────────────────────────────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-optin-title">
-  <h2 class="settings-group-title" id="integrationen-optin-title">Opt-in-Übersicht</h2>
-  <p class="settings-group-desc">Welche Mitarbeiter die WLAN-Präsenzerkennung aktiviert haben.</p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-optin-title">Opt-in-Übersicht</h2>
+    <InfoHint
+      text="Welche Mitarbeiter die WLAN-Präsenzerkennung aktiviert haben."
+      label={hintLabel("Opt-in-Übersicht")}
+    />
+  </div>
 
   {#if optInError}
     <ErrorState message={optInError} onRetry={loadOptedIn} retrying={optInLoading} />
@@ -589,7 +610,7 @@
       void handleCreateSource();
     }}
   >
-    <FormField label="Name" required help="Zum Beispiel „FritzBox Büro“.">
+    <FormField label="Name" required hint="Zum Beispiel „FritzBox Büro“.">
       {#snippet field({ id, describedBy })}
         <input
           {id}
@@ -653,7 +674,7 @@
     </dl>
     <FormField
       label="Mitarbeiter"
-      help="Bei der ersten Zuweisung wird die WLAN-Präsenzerkennung für den Mitarbeiter automatisch aktiviert."
+      hint="Bei der ersten Zuweisung wird die WLAN-Präsenzerkennung für den Mitarbeiter automatisch aktiviert."
     >
       {#snippet field({ id, describedBy })}
         <select

@@ -45,7 +45,7 @@
 <div data-testid="admin-support-access-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/support-access")}
-    sub="Zugriffe des Betreibers auf die Daten deines Unternehmens"
+    hint="Zugriffe des Betreibers auf die Daten deines Unternehmens"
   />
 
   <section class="settings-group" aria-labelledby="support-access-title">

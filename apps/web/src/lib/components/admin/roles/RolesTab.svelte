@@ -33,6 +33,7 @@
     orderedKeys,
     type RoleDraft,
   } from "./role-draft";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     canManage: boolean;
@@ -265,8 +266,13 @@
   <div role="alert"><Note tone="bad">{loadError}</Note></div>
 {:else}
   <section class="settings-group" aria-labelledby="roles-title">
-    <h2 class="settings-group-title" id="roles-title">Rollen</h2>
-    <p class="settings-group-desc">Systemrollen und die eigenen Rollen des Unternehmens.</p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="roles-title">Rollen</h2>
+      <InfoHint
+        text="Systemrollen und die eigenen Rollen des Unternehmens."
+        label={hintLabel("Rollen")}
+      />
+    </div>
 
     <div class="roles-bar">
       {#if createHint}

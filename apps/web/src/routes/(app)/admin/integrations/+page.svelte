@@ -45,7 +45,7 @@
 
 <PageHead
   title={pageLabel("/admin/integrations")}
-  sub="WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV für das ganze Unternehmen."
+  hint="WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV für das ganze Unternehmen."
 />
 
 {#if visibleTabs.length === 0}

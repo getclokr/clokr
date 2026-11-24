@@ -289,7 +289,7 @@
 <div data-testid="admin-audit-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/audit")}
-    sub="Hier siehst du, wer wann was geändert hat, und legst fest, wie lange Daten aufbewahrt werden."
+    hint="Hier siehst du, wer wann was geändert hat, und legst fest, wie lange Daten aufbewahrt werden."
   />
 
   <PageTabs

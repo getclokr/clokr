@@ -34,6 +34,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -201,11 +202,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="integrationen-terminals-title">
-  <h2 class="settings-group-title" id="integrationen-terminals-title">NFC-Terminals</h2>
-  <p class="settings-group-desc">
-    Jedes stationäre Gerät meldet sich mit einem eigenen Schlüssel an. Ein Terminal kann an einen
-    Salon gebunden werden.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-terminals-title">NFC-Terminals</h2>
+    <InfoHint
+      text="Jedes stationäre Gerät meldet sich mit einem eigenen Schlüssel an. Ein Terminal kann an einen Salon gebunden werden."
+      label={hintLabel("NFC-Terminals")}
+    />
+  </div>
 
   {#if newKeyRaw}
     <OneTimeKey
@@ -296,7 +299,7 @@
       void createTerminalKey();
     }}
   >
-    <FormField label="Name" required help="Zum Beispiel „Kasse 1“.">
+    <FormField label="Name" required hint="Zum Beispiel „Kasse 1“.">
       {#snippet field({ id, describedBy })}
         <input
           {id}
@@ -309,7 +312,7 @@
     </FormField>
 
     {#if salonOptionsShown}
-      <FormField label="Salon" help="Ohne Salon gilt der Salon aus dem Wochenmuster.">
+      <FormField label="Salon" hint="Ohne Salon gilt der Salon aus dem Wochenmuster.">
         {#snippet field({ id, describedBy })}
           <select {id} class="form-input" aria-describedby={describedBy} bind:value={newSalonId}>
             <option value="">Kein Salon – Salon aus dem Wochenmuster</option>

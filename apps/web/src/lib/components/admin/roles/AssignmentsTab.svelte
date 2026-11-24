@@ -25,6 +25,7 @@
   import { ROLE_READ_REQUIRED_NOTE, groupAssignmentsByUser } from "$lib/roles/assignment-label";
   import { matchesSearch } from "$lib/table/search";
   import PersonRoleAssignments from "./PersonRoleAssignments.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     canReadRoles: boolean;
@@ -120,8 +121,13 @@
   <div role="alert"><Note tone="bad">{loadError}</Note></div>
 {:else}
   <section class="settings-group" aria-labelledby="assignments-title">
-    <h2 class="settings-group-title" id="assignments-title">Zuweisungen</h2>
-    <p class="settings-group-desc">Welche Person welche Rolle in welchem Bereich hat.</p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="assignments-title">Zuweisungen</h2>
+      <InfoHint
+        text="Welche Person welche Rolle in welchem Bereich hat."
+        label={hintLabel("Zuweisungen")}
+      />
+    </div>
 
     <div class="assignments-notes">
       <Note tone="info">Wer keine Rolle hat, kann sich nicht anmelden.</Note>

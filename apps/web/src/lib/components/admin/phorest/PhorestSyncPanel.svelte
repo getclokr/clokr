@@ -35,6 +35,7 @@
     type PhorestStatus,
     type PhorestSyncRun,
   } from "$lib/settings/phorest";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     status: PhorestStatus;
@@ -154,16 +155,19 @@
 </script>
 
 <section class="settings-group" aria-labelledby="phorest-abgleich-title">
-  <h2 class="settings-group-title" id="phorest-abgleich-title">Schichten abgleichen</h2>
-  <p class="settings-group-desc">
-    Clokr übernimmt die Schichten aus Phorest. Phorest bleibt dabei die Quelle der Schichtplanung.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="phorest-abgleich-title">Schichten abgleichen</h2>
+    <InfoHint
+      text="Clokr übernimmt die Schichten aus Phorest. Phorest bleibt dabei die Quelle der Schichtplanung."
+      label={hintLabel("Schichten abgleichen")}
+    />
+  </div>
 
   {#if !status.configured}
     <Note tone="info">Speichere zuerst die Zugangsdaten unter „Verbindung“.</Note>
   {:else}
     <div class="ps-range">
-      <FormField label="Von" help="Ohne Angabe gilt das Zeitfenster der Verbindung.">
+      <FormField label="Von" hint="Ohne Angabe gilt das Zeitfenster der Verbindung.">
         {#snippet field({ id, describedBy })}
           <input
             {id}
@@ -175,7 +179,10 @@
           />
         {/snippet}
       </FormField>
-      <FormField label="Bis">
+      <FormField
+        label="Bis"
+        hint={`Ohne Von und Bis gleicht Clokr von heute bis heute plus ${status.syncWindowDays} Tage ab.`}
+      >
         {#snippet field({ id, describedBy })}
           <input
             {id}
@@ -188,9 +195,6 @@
         {/snippet}
       </FormField>
     </div>
-    <p class="ps-hint">
-      Ohne Von und Bis gleicht Clokr von heute bis heute plus {status.syncWindowDays} Tage ab.
-    </p>
 
     <div class="ps-actions">
       <button type="button" class="btn btn-primary" onclick={syncNow} disabled={syncing}>

@@ -25,6 +25,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import SaveBar from "$components/ui/SaveBar.svelte";
   import { WEEKDAY_LABELS, type OpeningHoursDay } from "$lib/salons/opening-hours";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     days: OpeningHoursDay[];
@@ -64,11 +65,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="{idPrefix}-title">
-  <h2 class="settings-group-title" id="{idPrefix}-title">Öffnungszeiten</h2>
-  <p class="settings-group-desc">
-    Wochentägliche Öffnungs- und Schließzeiten dieses Salons. Die Schichtplanung prüft Schichten
-    gegen diese Zeiten.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="{idPrefix}-title">Öffnungszeiten</h2>
+    <InfoHint
+      text="Wochentägliche Öffnungs- und Schließzeiten dieses Salons. Die Schichtplanung prüft Schichten gegen diese Zeiten."
+      label={hintLabel("Öffnungszeiten")}
+    />
+  </div>
 
   <div class="ohe" role="group" aria-label="Öffnungszeiten je Wochentag">
     {#each days as entry, idx (entry.day)}
