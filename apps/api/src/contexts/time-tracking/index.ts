@@ -80,6 +80,8 @@ export {
 // module's whole import set.
 export { getEffectiveSchedule, defaultScheduleFromTenantConfig } from "./entry-invariants"; // Issue #696 — the fallback, shared with the bulk chain loader
 export { getEffectiveBreakDuration } from "./break-effective";
+// Issue #1011 — the one break-amount rule, shared by the recording and the roster's planned netto.
+export { breakAmountFor } from "./break-amount";
 export type { BreakEmployeeShape, BreakTenantConfigShape } from "./break-effective";
 // Issue #587 — `resolveDayStatus` is the one day-status function (obligation + timing + presence state).
 export { resolvePresenceState, isObligatedWorkday, isDayDue, resolveDayStatus } from "./presence";

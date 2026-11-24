@@ -171,20 +171,18 @@ export function roundVacationDaysBurlG(raw: number): number {
 
 /**
  * Calculate pro-rata vacation entitlement for an employee HIRED mid-year.
- * Formula (§ 5 Abs. 1 lit. a BUrlG): baseDays × (volleBeschäftigungsmonate / 12), rounded UP to
- * nearest 0.5. Counts full calendar months REMAINING in the year, from `hireDate` (inclusive)
- * through December.
+ * Formula (§ 5 Abs. 1 lit. a BUrlG): baseDays × (volleBeschäftigungsmonate / 12), rounded per
+ * § 5 Abs. 2 BUrlG. Counts the full months of employment from `hireDate` (inclusive) through
+ * December.
  *
- * "Volle Beschäftigungsmonate": a month counts as full here when `hireDate` falls ON OR BEFORE
- * that month's LAST DAY. Concretely this means the HIRE month itself always counts in full, no
- * matter which day within it the hire happened (e.g. hired the 3rd of the month) — BUrlG does
- * not require day-level proration within the first month. A hire on the last day of a month and
- * a hire on the first day of the NEXT month differ by exactly one month's worth, because that is
- * where the calendar-month boundary actually falls. Issue #447 (D-05): the counting itself is
- * delegated to the shared span counter {@link fullEmploymentMonthsInYear} (exitDate `null` →
- * every month passes the exit side), which also drives the EXIT-year decision in
- * {@link employmentYearVacationDays} — one month counter instead of two independent copies of the
- * same loop.
+ * "Volle Beschäftigungsmonate" (Issue #1011): a full month is a month of EMPLOYMENT counted from
+ * the hire day per §§ 187 Abs. 2, 188 Abs. 2/3 BGB, not a calendar month — a started month does not
+ * count (§ 5 Abs. 1 BUrlG: one twelfth for every full month the employment relationship has existed).
+ * Hired 16.11. -> the period 16.11.-15.12. is one full month, 16.12.-31.12. is not -> 1. Hired
+ * 15.07. -> 15.07.-14.12. = 5. A hire on the 1st of a month counts that month in full. Issue #447
+ * (D-05): the counting is delegated to the shared span counter {@link fullEmploymentMonthsInYear}
+ * (exitDate `null`), which also drives the EXIT-year decision in {@link employmentYearVacationDays}
+ * — one month counter instead of two independent copies of the same loop.
  *
  * Owner decision (Issue #416, 29.09.2026): composition order is scale-by-workdays FIRST
  * (`calculatePartTimeVacation`), THEN apply this hire-year pro-rata to the already-scaled result
@@ -235,11 +233,9 @@ export function calculateProRataVacationForHire(
   // Already employed before this year started → full entitlement for this year.
   if (hireYear < year) return baseDays;
 
-  // Count volle Beschäftigungsmonate remaining in the year: month is full when hireDate is
-  // ON OR BEFORE the last day of that month (see this function's own docblock above). Issue #447
-  // (D-05): delegates to the shared span counter with no exit (exitDate null -> every month
-  // passes the exit side) — identical result, now the ONE month counter instead of a second copy
-  // of the same loop.
+  // Count the full months of employment from the hire day (see this function's own docblock
+  // above). Issue #447 (D-05): delegates to the shared span counter with no exit — the ONE month
+  // counter instead of a second copy of the same loop.
   const monthsWorked = fullEmploymentMonthsInYear(year, hireDate, null);
 
   const raw = (baseDays * monthsWorked) / 12;
@@ -687,71 +683,84 @@ export function hireYearVacationDays(fullYearDays: number, year: number, hireDat
 }
 
 /**
- * Issue #447 (D-05) — § 4 BUrlG Wartezeit: the day the 6-month waiting period ends, per
- * §§ 187 Abs. 2, 188 Abs. 2/3 BGB. The Wartezeit runs from `hireDate` (inclusive, § 187 Abs. 2
- * BGB) for six months; it ends on the day BEFORE the numerically matching day six months later
- * (e.g. hire 01.01. -> ends 30.06.), or on the LAST DAY of that sixth month when it has no
- * numerically matching day (e.g. hire 31.08. -> the "31." of February does not exist -> ends on
- * the last real day of that month, § 188 Abs. 3 BGB).
+ * Issue #1011 — the last day of a period of `months` months that begins on `start`, per
+ * §§ 187 Abs. 2, 188 Abs. 2/3 BGB. The period runs from `start` (inclusive, § 187 Abs. 2 BGB); it
+ * ends on the day BEFORE the numerically matching day `months` months later (e.g. start 01.01.,
+ * 6 months -> ends 30.06.), or on the LAST DAY of that month when it has no numerically matching
+ * day (e.g. start 31.08., 6 months -> the "31." of February does not exist -> ends on the last
+ * real day of that month, § 188 Abs. 3 BGB). The ONE place this arithmetic lives:
+ * {@link wartezeitEndDate} (6 months, § 4 BUrlG) and {@link employmentMonthPeriodsInYear}
+ * (k months, § 5 Abs. 1 BUrlG) both call it.
  *
- * Implemented as the earlier of the two candidate dates in the UTC frame of `hireDate`
+ * Implemented as the earlier of the two candidate dates in the UTC frame of `start`
  * (`y`/`m`/`d` via `getUTCFullYear`/`getUTCMonth`/`getUTCDate` — Issue #450, D-10, owner decision
- * P4: since this function no longer depends on the process timezone, the two candidates are
- * built via `Date.UTC` rather than the local constructor): `new Date(Date.UTC(y, m + 6, d - 1))`
- * (the day-before-matching-day candidate, which `Date.UTC` arithmetic naturally clamps into the
- * correct month when `d - 1` or the overflow month spills over) and
- * `new Date(Date.UTC(y, m + 7, 0))` (the last day of the sixth month). Taking the earlier of the
- * two always yields the correct § 188 Abs. 3 BGB result, including across a leap-year February.
- * Proven timezone-independent by `vacation-calc-timezone.test.ts`.
+ * P4: results never depend on the process timezone; the candidates are built via `Date.UTC`):
+ * `new Date(Date.UTC(y, m + months, d - 1))` (the day-before-matching-day candidate, which
+ * `Date.UTC` arithmetic naturally clamps into the correct month when `d - 1` or the overflow
+ * month spills over) and `new Date(Date.UTC(y, m + months + 1, 0))` (the last day of the
+ * `months`-th month). Taking the earlier of the two always yields the correct § 188 Abs. 3 BGB
+ * result, including across a leap-year February. Proven timezone-independent by
+ * `vacation-calc-timezone.test.ts`.
+ *
+ * @param start - the first day of the period
+ * @param months - the period length in whole months (>= 1)
+ * @returns the last day of the period, as a UTC-midnight `Date`
+ */
+export function monthPeriodEndDate(start: Date, months: number): Date {
+  const y = start.getUTCFullYear();
+  const m = start.getUTCMonth();
+  const d = start.getUTCDate();
+  const matchingDayMinusOne = new Date(Date.UTC(y, m + months, d - 1));
+  const lastDayOfLastMonth = new Date(Date.UTC(y, m + months + 1, 0));
+  return matchingDayMinusOne < lastDayOfLastMonth ? matchingDayMinusOne : lastDayOfLastMonth;
+}
+
+/**
+ * Issue #447 (D-05) — § 4 BUrlG Wartezeit: the day the 6-month waiting period ends, per
+ * §§ 187 Abs. 2, 188 Abs. 2/3 BGB — the last day of the six-month period that begins on
+ * `hireDate` ({@link monthPeriodEndDate}), e.g. hire 01.01. -> ends 30.06.; hire 31.08. -> ends on
+ * the last real day of February (§ 188 Abs. 3 BGB).
  *
  * @param hireDate - the employee's hire date
  * @returns the last day of the § 4 BUrlG Wartezeit, as a UTC-midnight `Date`
  */
 export function wartezeitEndDate(hireDate: Date): Date {
-  const y = hireDate.getUTCFullYear();
-  const m = hireDate.getUTCMonth();
-  const d = hireDate.getUTCDate();
-  const matchingDayMinusOne = new Date(Date.UTC(y, m + 6, d - 1));
-  const lastDayOfSixthMonth = new Date(Date.UTC(y, m + 7, 0));
-  return matchingDayMinusOne < lastDayOfSixthMonth ? matchingDayMinusOne : lastDayOfSixthMonth;
+  return monthPeriodEndDate(hireDate, 6);
 }
 
 /**
- * Issue #447 (D-05) — the ONE month counter for an employment span within a calendar year,
- * combining the hire-side convention already used by {@link calculateProRataVacationForHire}
- * (the hire month counts in full whenever `hireDate` is on or before that month's last day) with
- * the exit-side convention the old exit-only twelfthing used (a month counts only when `exitDate`
- * is on or after that month's last day) — counted ONCE over the span
- * `max(hireDate, 1.1.year)…min(exitDate, 31.12.year)`.
+ * Issue #447 (D-05) — the ONE month counter for an employment span within a calendar year:
+ * the number of FULL MONTHS OF EMPLOYMENT within `max(hireDate, 1.1.year)…min(exitDate, 31.12.year)`.
  *
- * `exitDate === null` means "not yet exited" — every month passes the exit-side test. A `hireDate`
- * in a year before `year` means every month passes the hire-side test; a `hireDate` in a year
- * after `year` means no month passes it (comparison against `year`'s own month-end dates already
- * produces this without a separate year check).
+ * Issue #1011 — what a "full month" is: a month of employment counted from the first day of the
+ * span per §§ 187 Abs. 2, 188 Abs. 2/3 BGB, NOT a calendar month. § 5 Abs. 1 BUrlG grants one
+ * twelfth for every full month the employment relationship has existed; a started month does not
+ * count. Hire 16.11. -> 16.11.-15.12. is one full month, 16.12.-31.12. is not -> 1. Hire 15.07. ->
+ * 15.07.-14.12. -> 5. A hire on the 1st of a month counts that month in full, so every span that
+ * begins on a 1st (including a year counted from 1 January for an employee hired in an earlier
+ * year, who exits in `year`) is counted exactly as calendar months — only a mid-month start differs.
+ * The counting itself is {@link employmentMonthPeriodsInYear}.
  *
- * Open assumption (not resolved by this function): this counts whole calendar MONTHS, matching
- * the existing #416/#421 convention. A strict § 188 BGB elapsed-time count from the exact start
- * date can differ by one twelfth from this month-based count when both the hire and the exit fall
- * mid-month in asymmetric ways — out of scope for Issue #447.
+ * `exitDate === null` means "not yet exited". A `hireDate` in a year before `year` anchors the
+ * count at 1 January; a `hireDate` in a year after `year` gives 0.
+ *
+ * Not the statute of the Elternzeit reduction: § 17 Abs. 1 BEEG says "vollen Kalendermonat", a
+ * different wording — `parental-leave-reduction.ts` keeps counting calendar months.
  *
  * @param year - the calendar year being counted
  * @param hireDate - the employee's hire date
  * @param exitDate - the employee's exit date, or `null` if still employed
- * @returns the number of full employment months within `year`, 0-12
+ * @returns the number of full months of employment within `year`, 0-12
  *
- * Issue #450 (D-01): the month loop itself now lives in {@link employmentMonthIndicesInYear} —
- * this function keeps its original signature and docblock, returning that array's length.
- *
- * Issue #450 (D-10, owner decision P4): that month loop builds every month-end date in UTC, so
- * this function's result no longer depends on the process timezone — proven by
- * `vacation-calc-timezone.test.ts`.
+ * Issue #450 (D-10, owner decision P4): every period boundary is built in UTC, so this function's
+ * result no longer depends on the process timezone — proven by `vacation-calc-timezone.test.ts`.
  */
 export function fullEmploymentMonthsInYear(
   year: number,
   hireDate: Date,
   exitDate: Date | null,
 ): number {
-  return Math.min(employmentMonthIndicesInYear(year, hireDate, exitDate).length, 12);
+  return Math.min(employmentMonthPeriodsInYear(year, hireDate, exitDate).length, 12);
 }
 
 /**
@@ -842,31 +851,41 @@ export function isFullEntitlementYear(
 }
 
 /**
- * Issue #450 (D-01) — the month-loop half of {@link fullEmploymentMonthsInYear}, extracted so the
- * segment apportionment below can know WHICH months are owed, not just how many. Moved verbatim
- * from that function's own loop (Issue #447, D-05) — only the return shape changed, from a count
- * to the list of month indices (0-11) themselves.
+ * Issue #1011 — the month-counting half of {@link fullEmploymentMonthsInYear}, which the segment
+ * apportionment below needs in order to know WHEN each full month of employment starts, not just
+ * how many there are (it replaces the calendar-month index list of Issue #450 (D-01)).
  *
- * @returns the month indices (0-11) within `year` that fall inside the employment span
- *   `max(hireDate, 1 Jan year)…min(exitDate, 31 Dec year)`, in ascending order
+ * The count is anchored at the later of `hireDate` and 1 January of `year`; the last day is the
+ * earlier of `exitDate` (when set) and 31 December of `year`. The k-th period (k = 1..12) ends on
+ * `monthPeriodEndDate(anchor, k)` and counts when that end is on or before the last day (§ 5
+ * Abs. 1 BUrlG: only a FULL month counts; §§ 187 Abs. 2, 188 Abs. 2/3 BGB). Period 1 starts at the
+ * anchor, each later period the day after the previous one ends.
  *
- * Issue #450 (D-10): each month's last day is built via `Date.UTC` — since Issue #450 (D-10,
- * owner decision P4) the whole § 5 family reads and builds dates in UTC, so results no longer
- * depend on the process timezone. Proven by `vacation-calc-timezone.test.ts`.
+ * @returns the UTC start dates of the full months of employment within `year`, ascending; empty
+ *   when the employee is not employed in `year` or the span holds no full month
+ *
+ * Issue #450 (D-10): every boundary is built via `Date.UTC` — results never depend on the
+ * process timezone. Proven by `vacation-calc-timezone.test.ts`.
  */
-export function employmentMonthIndicesInYear(
+export function employmentMonthPeriodsInYear(
   year: number,
   hireDate: Date,
   exitDate: Date | null,
-): number[] {
-  const months: number[] = [];
-  for (let month = 0; month < 12; month++) {
-    const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0));
-    const hireSide = hireDate <= lastDayOfMonth;
-    const exitSide = exitDate === null || exitDate >= lastDayOfMonth;
-    if (hireSide && exitSide) months.push(month);
+): Date[] {
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year, 11, 31));
+  const anchor = hireDate > yearStart ? hireDate : yearStart;
+  const lastDay = exitDate !== null && exitDate < yearEnd ? exitDate : yearEnd;
+
+  const periods: Date[] = [];
+  let start = anchor;
+  for (let k = 1; k <= 12; k++) {
+    const end = monthPeriodEndDate(anchor, k);
+    if (end > lastDay) break;
+    periods.push(start);
+    start = new Date(end.getTime() + 24 * 60 * 60 * 1000);
   }
-  return months;
+  return periods;
 }
 
 /**
@@ -879,9 +898,10 @@ export type VacationContractSegment = { from: Date; workDaysPerWeek: number };
 
 /**
  * Issue #450 (D-01/D-03) — apportions a per-contract-segment full-year value across the calendar
- * months `year` owes (per {@link isFullEntitlementYear}/{@link employmentMonthIndicesInYear}),
+ * months `year` owes (per {@link isFullEntitlementYear}/{@link employmentMonthPeriodsInYear}),
  * picking for each owed month the LAST sorted segment whose `from` is on or before that month's
- * reference instant (1st of the month, UTC), falling back to the first segment for any month
+ * reference instant (a full year: the 1st of the calendar month; a Teilurlaub year: the START of
+ * each full month of employment, Issue #1011), falling back to the first segment for any month
  * before every segment starts. D-01: the months' values are summed FIRST and
  * {@link roundVacationDaysBurlG} is applied ONCE to the total — never per segment. D-02: when
  * every owed month resolves to the SAME value (a single-contract year, several segments with
@@ -890,14 +910,14 @@ export type VacationContractSegment = { from: Date; workDaysPerWeek: number };
  * unrounded-here value instead of rounding the (already-equal) sum, so a single-segment year is
  * byte-identical to today's {@link computeRegularVacationDays}.
  *
- * D-03 (boundary months): each owed month's reference instant is clamped into the employment
- * range — never earlier than the hire month, and, when an exit exists, never later than the exit
- * month — BEFORE looking up the active segment. A contract row that starts after the exit or
- * ended before the hire therefore never contributes a month: without the clamp, a full-year exit
- * (§ 5 Abs. 1 c BUrlG second half-year case) could pick up a segment dated AFTER the exit for its
- * last calendar months, and a full-year hire (on/before 1 July) could pick up a segment dated
- * BEFORE the hire for its first calendar months — months before hire and after exit intersect
- * with the employment range at the hire/exit month itself, not at the calendar month's own date.
+ * D-03 (boundary months, full-entitlement years): each owed calendar month's reference instant is
+ * clamped into the employment range — never earlier than the hire month, and, when an exit
+ * exists, never later than the exit month — BEFORE looking up the active segment. A contract row
+ * that starts after the exit or ended before the hire therefore never contributes a month: without
+ * the clamp, a full-year exit (§ 5 Abs. 1 c BUrlG second half-year case) could pick up a segment
+ * dated AFTER the exit for its last calendar months, and a full-year hire (on/before 1 July) could
+ * pick up a segment dated BEFORE the hire for its first calendar months. A Teilurlaub year needs no
+ * clamp: a full month of employment starts inside the employment span by construction.
  *
  * Not exported — every caller goes through {@link computeRegularVacationDaysBySegments}.
  *
@@ -918,22 +938,26 @@ function apportionAcrossContractSegments(input: ApportionAcrossContractSegmentsI
   }
   const sorted = [...segments].sort((a, b) => a.from.getTime() - b.from.getTime());
 
-  const ownedMonths = isFullEntitlementYear(year, hireDate, exitDate)
-    ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    : employmentMonthIndicesInYear(year, hireDate, exitDate);
-  if (ownedMonths.length === 0) return 0;
+  // The reference instants of the owed months: 12 calendar months in a full-entitlement year (with
+  // the D-03 clamp below), else the start of each full month of employment (Issue #1011).
+  let references: number[];
+  if (isFullEntitlementYear(year, hireDate, exitDate)) {
+    // D-03: the employment-range clamp for the active-segment lookup — UTC accessors.
+    const hireClamp = Date.UTC(hireDate.getUTCFullYear(), hireDate.getUTCMonth(), 1);
+    const exitClamp =
+      exitDate !== null ? Date.UTC(exitDate.getUTCFullYear(), exitDate.getUTCMonth(), 1) : null;
+    references = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((month) => {
+      let reference = Date.UTC(year, month, 1);
+      if (reference < hireClamp) reference = hireClamp;
+      if (exitClamp !== null && reference > exitClamp) reference = exitClamp;
+      return reference;
+    });
+  } else {
+    references = employmentMonthPeriodsInYear(year, hireDate, exitDate).map((d) => d.getTime());
+  }
+  if (references.length === 0) return 0;
 
-  // D-03: the employment-range clamp for the active-segment lookup below — UTC accessors, new
-  // code (the moved-verbatim § 5 family above stays local-accessor until Issue #450-02, D-10).
-  const hireClamp = Date.UTC(hireDate.getUTCFullYear(), hireDate.getUTCMonth(), 1);
-  const exitClamp =
-    exitDate !== null ? Date.UTC(exitDate.getUTCFullYear(), exitDate.getUTCMonth(), 1) : null;
-
-  const monthValues = ownedMonths.map((month) => {
-    let reference = Date.UTC(year, month, 1);
-    if (reference < hireClamp) reference = hireClamp;
-    if (exitClamp !== null && reference > exitClamp) reference = exitClamp;
-
+  const monthValues = references.map((reference) => {
     // Issue #481 (R1): the ONE segment-selection rule, reused here instead of a second copy.
     const active = contractSegmentAt(sorted, new Date(reference));
     return fullYearValue(active.workDaysPerWeek);
@@ -943,7 +967,7 @@ function apportionAcrossContractSegments(input: ApportionAcrossContractSegmentsI
   if (distinctValues.size <= 1) {
     // D-02 precedence: every owed month carries the same full-year value — this IS a
     // one-contract year, so it returns today's (unrounded-here) value rather than rounding an
-    // already-uniform sum a second time. `monthValues[0]` is always defined here: `ownedMonths`
+    // already-uniform sum a second time. `monthValues[0]` is always defined here: `references`
     // (and therefore `monthValues`, its 1:1 map) is guaranteed non-empty by the `length === 0`
     // return above (code review finding IN-01 — `noUncheckedIndexedAccess` is not enabled in this
     // project, so no `?? 0` fallback is needed to satisfy the type checker).

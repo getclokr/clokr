@@ -7,8 +7,8 @@
  * of the entry form call it, so a preview can never show a finding for a break the save would have
  * placed (or hide one it would not).
  *
- * The AMOUNT is `getEffectiveBreakDuration` (employee override, tenant default) raised by
- * `autoBreakAmountFor` for a minor; the POSITION is `placeAutoBreak`. The functions it combines are
+ * The AMOUNT is `breakAmountFor` (`break-amount.ts`, Issue #1011: employee override, tenant default,
+ * raised for a minor; the same rule the roster's planned netto uses); the POSITION is `placeAutoBreak`. The functions it combines are
  * unchanged and keep their own tests — this module only owns the combination.
  *
  * It decides nothing about WHEN an automatic break applies at the call site except for the one rule
@@ -16,11 +16,10 @@
  * with existing Break rows, NFC) keep their own, different conditions.
  */
 import { isMinorAtDate } from "../absence";
-import { getEffectiveBreakDuration } from "./break-effective";
+import { breakAmountFor } from "./break-amount";
 import type { BreakEmployeeShape, BreakTenantConfigShape } from "./break-effective";
-import { breakRegimeFor, type BreakRegime } from "./break-regime";
+import type { BreakRegime } from "./break-regime";
 import {
-  autoBreakAmountFor,
   placeAutoBreak,
   resolveDefaultBreakStart,
   type AutoBreakSegment,
@@ -61,11 +60,11 @@ export function planAutoBreak(input: {
   if (!tenantConfig?.autoBreakEnabled || !employee) return null;
 
   const presenceMin = (input.end.getTime() - input.start.getTime()) / 60000;
-  const regime = breakRegimeFor(isMinorAtDate(employee.birthDate, input.entryDate));
-  const amountMin = autoBreakAmountFor({
-    configuredMin: getEffectiveBreakDuration(employee, tenantConfig, presenceMin),
+  const { regime, amountMin } = breakAmountFor({
+    employee,
+    tenantConfig,
     presenceMin,
-    regime,
+    isMinor: isMinorAtDate(employee.birthDate, input.entryDate),
   });
   if (amountMin <= 0) return null;
 

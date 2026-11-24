@@ -184,9 +184,20 @@ Das Austrittsjahr und das Eintrittsjahr sind **eine Zwölftelung über eine Besc
 (Eintritt–Austritt), nicht zwei getrennte Rechnungen — ein Eintritt und ein Austritt im selben
 Jahr werden genau einmal zwölftel, nicht zweimal nacheinander.
 
-- **Teilurlaub:** 1/12 je vollem Beschäftigungsmonat der Spanne Eintritt–Austritt. Ein Monat gilt
-  als voll, wenn der Eintritt an oder vor dessen letztem Tag liegt bzw. der Austritt an oder nach
-  dessen letztem Tag liegt.
+- **Teilurlaub:** 1/12 je vollem Beschäftigungsmonat der Spanne Eintritt–Austritt. Ein voller
+  Monat ist ein **Beschäftigungsmonat, kein Kalendermonat** (Issue #1011): Er wird nach
+  §§ 187 Abs. 2, 188 Abs. 2/3 BGB ab dem Eintrittstag gezählt (Beginn am Eintrittstag, Ende am Tag
+  vor dem entsprechenden Tag des Folgemonats, oder am letzten Tag eines kürzeren Monats). Ein
+  angebrochener Monat zählt nicht (§ 5 Abs. 1 BUrlG: „für jeden vollen Monat des Bestehens des
+  Arbeitsverhältnisses“). Beispiele: Eintritt 16.11. → 16.11.–15.12. ist ein voller Monat,
+  16.12.–31.12. keiner → 1/12 (Anspruch 30 → 2,5 → 3 Tage, Mindesturlaub 20 → 1,67 → 2 Tage);
+  Eintritt 15.07. → 15.07.–14.12. = 5/12 (13 Tage bei 30). Ein Eintritt am Monatsersten zählt
+  diesen Monat voll. Bei einem Austritt im Jahr nach Beschäftigung seit Jahresbeginn beginnt die
+  Zählung am 1. Januar (Kalendermonate); Eintritt und Austritt im selben Jahr werden ab dem
+  Eintrittstag gezählt. Die Elternzeit-Kürzung (§ 17 Abs. 1 BEEG, „vollen Kalendermonat“) bleibt
+  bei Kalendermonaten. Gespeicherte Ansprüche werden dadurch nicht verändert; sie ändern sich nur
+  über die bestehenden, protokollierten Neuberechnungen. Die Abweichungen im Bestand listet
+  `apps/api/scripts/audit-1011-hire-year-entitlements.ts` (nur lesend).
 - **Austritt vor erfüllter Wartezeit (§ 4 BUrlG, 6 Monate):** immer anteilig — auch wenn der
   Austritt in der zweiten Jahreshälfte liegt.
 - **Austritt nach erfüllter Wartezeit:** Austritt in der ersten Jahreshälfte (Januar–Juni) →
@@ -201,7 +212,9 @@ Jahr werden genau einmal zwölftel, nicht zweimal nacheinander.
   System einen neutralen Hinweis nach § 5 Abs. 3 BUrlG — keine Rückforderungs-Formulierung.
 
 Implementiert in der einen Funktion `employmentYearVacationDays()` (`vacation-calc.ts`), auf die
-sowohl `computeRegularVacationDays()` als auch der Mindesturlaubs-Schwellenwert delegieren.
+sowohl `computeRegularVacationDays()` als auch der Mindesturlaubs-Schwellenwert delegieren; die
+Beschäftigungsmonate zählt `employmentMonthPeriodsInYear()` (mit `monthPeriodEndDate()`, derselben
+Rechnung wie die Wartezeit `wartezeitEndDate()`).
 
 ---
 
