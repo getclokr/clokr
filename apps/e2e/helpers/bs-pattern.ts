@@ -12,7 +12,9 @@
  */
 import type { Page } from "@playwright/test";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Same default as fixtures/tenant.ts: the tenant these tests use is bootstrapped on the TEST stack
+// (4001). A 4000 default sends the calls to a developer's dev API, which answers 401 for its token.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 /** Shape of the Phase 73 tenant fixture this module consumes (locally
  * declared rather than imported so the helper stays parallel-worktree safe;
