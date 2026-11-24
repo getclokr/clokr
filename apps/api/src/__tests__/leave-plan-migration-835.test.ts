@@ -791,7 +791,18 @@ describe("Issue #835 — leave plan migrations", () => {
     expect(ownBefore.length, "the tables have columns to compare").toBeGreaterThan(20);
     expect(ownAfter).toEqual(ownBefore);
     expect(othersBefore.length, "other tables were captured").toBeGreaterThan(100);
-    expect(othersAfter).toEqual(othersBefore);
+    // The replay re-adds `TenantConfig.leavePlanDeadlineLocksWishes`, which PostgreSQL appends
+    // after any column added by a later migration (e.g. #976's `defaultUiTheme`), so its
+    // ordinal position necessarily moves. Compare the other tables' columns by (table, column)
+    // name: every type, nullability and default is still compared, only the physical position
+    // of the re-added column is not.
+    const byTableColumn = (rows: Col[]) =>
+      [...rows].sort((a, b) => {
+        const ka = `${String(a.table_name)}\u0000${String(a.column_name)}`;
+        const kb = `${String(b.table_name)}\u0000${String(b.column_name)}`;
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      });
+    expect(byTableColumn(othersAfter)).toEqual(byTableColumn(othersBefore));
     expect(constraintsBefore.length, "constraints were captured").toBeGreaterThanOrEqual(14);
     expect(constraintsAfter).toEqual(constraintsBefore);
 
