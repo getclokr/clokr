@@ -39,7 +39,15 @@ const TEAM_TIME_ENTRIES_PAGE = readRouteFile(
 // even though this plan also makes the month-saldo fetch run for MONTHLY_HOURS. Changing this
 // number is a finding, not something to "fix" by relaxing the assertion (CLAUDE.md
 // feedback_no_test_manipulation).
-const BASE_IS_SHIFT_BASED_AND_MONTH_SALDO_COUNT = 3;
+//
+// Issue #1029 (owner) removed two of the three reads of /team/time-entries on purpose: the
+// SHIFT_BASED list column „Saldo seit Abschluss“ and its cell went when the list got ONE Differenz
+// column holding the server's day step for every contract model. The one read left is the month
+// header's (loadAll). /time-entries keeps all three (its running column is now named „Stand“).
+const BASE_IS_SHIFT_BASED_AND_MONTH_SALDO_COUNT: Record<string, number> = {
+  "/time-entries": 3,
+  "/team/time-entries": 1,
+};
 // Neither page used `{@html}` before this plan; this plan adds no markup, so the count must
 // stay 0 (threat T-433-23).
 const BASE_HTML_COUNT = 0;
@@ -47,7 +55,7 @@ const BASE_HTML_COUNT = 0;
 describe.each([
   ["/time-entries", TIME_ENTRIES_PAGE],
   ["/team/time-entries", TEAM_TIME_ENTRIES_PAGE],
-])("%s — MONTHLY_HOURS calendar source pin (Issue #433, D-11)", (_label, SOURCE) => {
+])("%s — MONTHLY_HOURS calendar source pin (Issue #433, D-11)", (label, SOURCE) => {
   it("the retired per-tenant holiday-deduction switch is gone", () => {
     expect(SOURCE).not.toContain("monthlyHoursHolidayDeduction");
   });
@@ -80,7 +88,7 @@ describe.each([
 
   it("every existing isShiftBased && monthSaldo read survives unchanged in COUNT (base measured on HEAD 2fcadfe4)", () => {
     const matches = SOURCE.match(/isShiftBased && monthSaldo/g) ?? [];
-    expect(matches).toHaveLength(BASE_IS_SHIFT_BASED_AND_MONTH_SALDO_COUNT);
+    expect(matches).toHaveLength(BASE_IS_SHIFT_BASED_AND_MONTH_SALDO_COUNT[label]);
   });
 
   it("no raw HTML was added (threat T-433-23)", () => {

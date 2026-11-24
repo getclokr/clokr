@@ -2,6 +2,13 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
   import { onDestroy, onMount, tick } from "svelte";
+  import {
+    RUNNING_SALDO_LABEL,
+    dayDiffText,
+    daySaldoByDate,
+    daySaldoTitle,
+    type DaySaldo,
+  } from "$lib/time-entries/day-saldo"; // Issue #1029: the one reader of the server's day series
   import { page } from "$app/state";
   import { entryToEndFromParam, END_ENTRY_PARAM } from "$lib/time-entries/open-earlier-entry"; // Issue #942
   import {
@@ -307,6 +314,8 @@
   interface MonthSaldoDay {
     date: string;
     cumulativeSaldoMinutes: number;
+    // Issue #594 (the day step, read by #1029); absent on the single terminal entry of a closed month.
+    balanceMinutes?: number;
   }
   interface MonthSaldo {
     workedMinutes: number;
@@ -325,13 +334,14 @@
     // fabricated 0 — for every other schedule type and for pure tracking.
     monthSollMinutes?: number;
     days: MonthSaldoDay[];
+    // #86 (D-02): true when the caller may not read this person's day lists (days is then empty).
+    dayDetailsWithheld?: boolean;
   }
   let monthSaldo = $state<MonthSaldo | null>(null);
-  // Map from YYYY-MM-DD → cumulativeSaldoMinutes for O(1) cell lookup (per-month day cells).
-  let monthSaldoDayMap: Map<string, number> = $derived(
-    monthSaldo
-      ? new Map(monthSaldo.days.map((d) => [d.date, d.cumulativeSaldoMinutes]))
-      : new Map(),
+  // Issue #1029: YYYY-MM-DD → the server's day step and running saldo for O(1) cell lookup (one
+  // mapping, nothing computed in the page).
+  let daySaldo = $derived(
+    daySaldoByDate(monthSaldo?.days, monthSaldo?.dayDetailsWithheld === true),
   );
 
   // Phase 76.7 (D-16, UI-V19-04) — § 18 ArbZG-exempt: hide the
@@ -1297,19 +1307,32 @@
       return { label: "+ Weitere Zeit an diesem Tag", run: () => openAdd(day.dateStr) };
     return { label: "Bearbeiten", run: () => void runCellAction(day.dateStr) };
   });
-  // The day's own difference, exactly the figure its calendar cell shows (no new arithmetic).
+  // The day's own difference, exactly the figure its calendar cell shows. SHIFT_BASED: the server's
+  // day step (Issue #1029); the other models keep their existing contract-based difference.
   const panelDiff = $derived.by((): number | null => {
     const day = sheetDay;
-    if (!day || isShiftBased || isNoDailyTarget || day.expectedMin <= 0 || day.isFuture)
-      return null;
+    if (isShiftBased) {
+      if (!day || day.isToday || day.isFuture) return null;
+      return daySaldo.get(day.dateStr)?.diffMin ?? null;
+    }
+    if (!day || isNoDailyTarget || day.expectedMin <= 0 || day.isFuture) return null;
     if (day.hasEntries) return day.isToday ? null : day.workedMin - day.expectedMin;
     return -day.expectedMin;
   });
+  // Issue #1029: the running account saldo of the picked day, shown only labelled.
+  const panelRunning = $derived(
+    sheetDay ? (daySaldo.get(sheetDay.dateStr)?.runningMin ?? null) : null,
+  );
 
-  // The tooltip of a calendar cell: its own reason (holiday, absence, ...) plus the entry count.
-  function cellTitle(base: string | undefined, entryCount: number): string | undefined {
+  // The tooltip of a calendar cell: its own reason (holiday, absence, ...) plus the entry count and,
+  // where the account states them, the day step and the labelled running saldo (Issue #1029).
+  function cellTitle(
+    base: string | undefined,
+    entryCount: number,
+    saldo?: DaySaldo,
+  ): string | undefined {
     const count = multiEntryUi ? entryCountTitle(entryCount) : null;
-    return [base, count].filter(Boolean).join(" · ") || undefined;
+    return [base, count, daySaldoTitle(saldo)].filter(Boolean).join(" · ") || undefined;
   }
 
   function openEdit(entry: TimeEntry) {
@@ -2046,13 +2069,15 @@
     { key: "time", label: "Zeit" },
     { key: "break", label: "Pause" },
     { key: "net", label: "Arbeitszeit", align: "end" as const },
+    // Issue #1029: since #681 the running series carries the balance of every previous month, so the
+    // column is named „Stand“ and says so; the day's own step is in the calendar and the day panel.
     ...(isShiftBased && monthSaldo
       ? [
           {
             key: "saldo",
-            label: "Saldo seit Abschluss",
+            label: "Stand",
             title:
-              "Kumulierter Saldo seit dem letzten Monatsabschluss bis zu diesem Tag (§615). Nicht abgeschlossene Vormonate sind darin nicht enthalten — den Gesamt-Saldo zeigt die Kachel „Konto“.",
+              "Gesamtsaldo bis einschließlich dieses Tages, mit dem Übertrag aus allen Vormonaten.",
           },
         ]
       : []),
@@ -2287,6 +2312,7 @@
                         : day.isVocationalSchool
                           ? "Berufsschule"
                           : undefined}
+              {@const ds = isShiftBased ? daySaldo.get(day.dateStr) : undefined}
               <button
                 type="button"
                 data-date={day.dateStr}
@@ -2306,7 +2332,7 @@
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
                 disabled={day.isBeforeHire || !day.isCurrentMonth || isExempt}
-                title={cellTitle(baseTitle, day.entryCount)}
+                title={cellTitle(baseTitle, day.entryCount, ds)}
                 onclick={isExempt ? undefined : () => onCellClick(day.dateStr)}
               >
                 <span class="cal-day-num">{day.dayNum}</span>
@@ -2357,15 +2383,13 @@
                     {/if}
                   {/if}
                   {#if isShiftBased}
-                    <!-- SHIFT_BASED: show the CUMULATIVE §615 running saldo only when the API carried
-                       a cumulative for this day (past days up to windowEnd). For today-not-yet-worked
-                       and future days (no monthSaldoDayMap entry) show ONLY the hours — never fall back
-                       to the per-day delta, which would look like a spurious "today penalty". -->
-                    {#if monthSaldoDayMap.has(day.dateStr)}
-                      {@const cum = monthSaldoDayMap.get(day.dateStr)!}
-                      <span class="day-bal {balClass(cum)}"
-                        >{cum >= 0 ? "+" : "−"}{fmtMin(Math.abs(cum))}</span
-                      >
+                    <!-- Issue #1029, SHIFT_BASED: the day difference is the account's own day step
+                       (`balanceMinutes`), never the running saldo and never a browser subtraction. For
+                       today and future days, a closed month and withheld day details (#86) the server
+                       states none, so only the hours are shown. The running saldo is in the tooltip
+                       and the day panel, labelled. -->
+                    {#if ds && ds.diffMin !== null}
+                      <span class="day-bal {balClass(ds.diffMin)}">{dayDiffText(ds.diffMin)}</span>
                     {/if}
                   {:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}
                     {@const b = day.workedMin - day.expectedMin}
@@ -2395,6 +2419,12 @@
               <b>{format(new Date(selectedDate + "T12:00:00"), "EEEE, d. MMMM", { locale: de })}</b>
               {#if phoneDay.expectedMin > 0 && !isNoDailyTarget}
                 <span>Soll {fmtMin(phoneDay.expectedMin)} h</span>
+              {/if}
+              {#if isShiftBased && panelDiff !== null}
+                <span>Differenz {dayDiffText(panelDiff)}</span>
+              {/if}
+              {#if isShiftBased && panelRunning !== null}
+                <span>{RUNNING_SALDO_LABEL} {dayDiffText(panelRunning)}</span>
               {/if}
             </div>
             {#each rowsOfDay(selectedDate) as e (e.id)}
@@ -2504,7 +2534,17 @@
                 <div>
                   <span>Differenz</span>
                   <b class={balClass(panelDiff)}
-                    >{panelDiff >= 0 ? "+" : "−"}{fmtMin(Math.abs(panelDiff))}</b
+                    >{isShiftBased
+                      ? dayDiffText(panelDiff)
+                      : `${panelDiff >= 0 ? "+" : "−"}${fmtMin(Math.abs(panelDiff))}`}</b
+                  >
+                </div>
+              {/if}
+              {#if isShiftBased && panelRunning !== null}
+                <div>
+                  <span>{RUNNING_SALDO_LABEL}</span>
+                  <b class={balClass(panelRunning)} data-testid="day-panel-running-saldo"
+                    >{dayDiffText(panelRunning)}</b
                   >
                 </div>
               {/if}
@@ -2760,9 +2800,10 @@
                 {:else if column.key === "saldo"}
                   <!-- #291/#433: the SHIFT_BASED day column, gated exactly like its column declaration. -->
                   {#if isShiftBased && monthSaldo}
-                    {@const cum = monthSaldoDayMap.get(slotDate)}
+                    <!-- Issue #1029: the running saldo of the day (column „Stand“). -->
+                    {@const cum = daySaldo.get(slotDate)?.runningMin}
                     <span class={cum != null ? balClass(cum) : ""}>
-                      {cum != null ? (cum >= 0 ? "+" : "−") + fmtMin(Math.abs(cum)) : "—"}
+                      {cum != null ? dayDiffText(cum) : "—"}
                     </span>
                   {/if}
                 {:else if column.key === "source"}
@@ -4365,7 +4406,8 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 8px;
+    flex-wrap: wrap; /* Issue #1029: Differenz and the labelled running saldo wrap below the Soll */
+    gap: 4px 8px;
     padding: 12px 14px 8px;
     font-size: var(--fs-sm);
     color: var(--text-2);

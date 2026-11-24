@@ -28,7 +28,13 @@
   // Issue #853 (owner review): the four Kennzahlen of the prototype's „Zeiten“, worded by the same
   // module Ich › Zeiten uses (#851); one row per day and the day sheet replace the entry table.
   import { standGesternText, zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
-  import { fmtBalance } from "$lib/utils/format-minutes";
+  import {
+    DAY_DIFF_TITLE,
+    dayDiffText,
+    daySaldoByDate,
+    daySaldoTitle,
+    type DaySaldo,
+  } from "$lib/time-entries/day-saldo"; // Issue #1029: the one reader of the server's day series
   import { pauseLabel, teamDayRows, type TeamDayRow } from "$lib/team/zeiten-day-rows";
   import { weekMondaysIn, serverMissingDatesOf } from "$lib/dashboard/heute-im-salon"; // Issue #987
   import DaySheet, { type DaySheetEntry } from "$lib/components/me/DaySheet.svelte";
@@ -310,6 +316,9 @@
   interface MonthSaldoDay {
     date: string;
     cumulativeSaldoMinutes: number;
+    // Issue #594 (the day step, read by #1029): the account's own day difference; exactly
+    // cumulative(D) - cumulative(D-1). Absent on the single terminal entry of a closed month.
+    balanceMinutes?: number;
     // Issue #594: the day's own Soll and Ist (credits included) from the account; absent on the
     // single terminal entry of a closed month.
     expectedMinutes?: number;
@@ -336,15 +345,14 @@
     dayDetailsWithheld?: boolean;
   }
   let monthSaldo = $state<MonthSaldo | null>(null);
-  // Map from YYYY-MM-DD → cumulativeSaldoMinutes for O(1) cell lookup (per-month day cells).
   // Issue #986: the account's day shares (#594) and whether the caller read a Soll at all; both set
   // by loadAll right before the calendar days are built from them.
   let dayShares: Map<string, AccountDayShare> = new Map();
   let daySollReadable = false;
-  let monthSaldoDayMap: Map<string, number> = $derived(
-    monthSaldo
-      ? new Map(monthSaldo.days.map((d) => [d.date, d.cumulativeSaldoMinutes]))
-      : new Map(),
+  // Issue #1029: YYYY-MM-DD → the server's day step and running saldo (one mapping, nothing computed
+  // in the page); empty for a month the server states no days for and under withheld day details (#86).
+  let daySaldo = $derived(
+    daySaldoByDate(monthSaldo?.days, monthSaldo?.dayDetailsWithheld === true),
   );
 
   // Modal
@@ -1289,9 +1297,14 @@
   }
 
   // The tooltip of a calendar cell: its own reason (holiday, absence, ...) plus the entry count.
-  function cellTitle(base: string | undefined, entryCount: number): string | undefined {
+  // Issue #1029: with the server's day step and the labelled running saldo of the account.
+  function cellTitle(
+    base: string | undefined,
+    entryCount: number,
+    saldo?: DaySaldo,
+  ): string | undefined {
     const count = multiEntryUi ? entryCountTitle(entryCount) : null;
-    return [base, count].filter(Boolean).join(" · ") || undefined;
+    return [base, count, daySaldoTitle(saldo)].filter(Boolean).join(" · ") || undefined;
   }
 
   function openEdit(entry: TimeEntry) {
@@ -1877,7 +1890,11 @@
       // itself is shown in the day sheet, inside the #64 gate.
       entries: entries.map((e) => ({ ...e, salonLabel: e.salonName ?? null })),
       vocationalSchoolDays: bsAbsences.map((b) => b.date),
-      dayInfo: (day) => calendarDayByDate.get(day),
+      // Issue #1029: the Differenz of a row is the server's day step, never Ist minus Soll here.
+      dayInfo: (day) => {
+        const info = calendarDayByDate.get(day);
+        return info ? { ...info, diffMin: daySaldo.get(day)?.diffMin ?? null } : undefined;
+      },
       sollVisible,
       findingDays: new Set(arbzgDayMap.keys()),
       missingDays: serverMissing ?? undefined,
@@ -1890,25 +1907,22 @@
     { key: "pause", label: "Pause", align: "end" as const },
     { key: "net", label: "Netto", align: "end" as const },
     ...(sollVisible ? [{ key: "soll", label: "Soll", align: "end" as const }] : []),
-    // SHIFT_BASED (#291, §615): a day's difference against the roster is not the account's figure, so
-    // the column shows the server's cumulative saldo of the day; its name and tooltip say what it holds.
-    ...(isShiftBased && monthSaldo
+    // Issue #1029: ONE Differenz column for every contract model - the server's day step
+    // (`balanceMinutes`), also for SHIFT_BASED; the running saldo is not a column of this list.
+    ...(sollVisible
       ? [
           {
-            key: "saldo",
-            label: "Saldo seit Abschluss",
+            key: "diff",
+            label: "Differenz",
             align: "end" as const,
-            title:
-              "Kumulierter Saldo seit dem letzten Monatsabschluss bis zu diesem Tag (§615). Nicht abgeschlossene Vormonate sind darin nicht enthalten — den Gesamt-Saldo zeigt der Bericht.",
+            title: DAY_DIFF_TITLE,
           },
         ]
-      : sollVisible
-        ? [{ key: "diff", label: "Differenz", align: "end" as const }]
-        : []),
+      : []),
     { key: "open", label: "", align: "end" as const },
   ]);
-  // Without a Differenz or saldo column the day's status chip (running, invalid) sits next to its times.
-  let stateInTimes = $derived(!listColumns.some((c) => c.key === "diff" || c.key === "saldo"));
+  // Without a Differenz column the day's status chip (running, invalid) sits next to its times.
+  let stateInTimes = $derived(!listColumns.some((c) => c.key === "diff"));
   // The day a deep link or a calendar cell pointed at (Issue #70) is highlighted; nothing else is
   // tinted - a running or invalid day says so in its chip, never through a coloured row.
   function dayRowTone(row: TeamDayRow): DataTableRowTone | undefined {
@@ -2159,6 +2173,7 @@
                       : day.isVocationalSchool
                         ? "Berufsschule"
                         : undefined}
+              {@const ds = daySaldo.get(day.dateStr)}
               <button
                 type="button"
                 data-date={day.dateStr}
@@ -2177,7 +2192,7 @@
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
                 disabled={day.isBeforeHire || !day.isCurrentMonth}
-                title={cellTitle(baseTitle, day.entryCount)}
+                title={cellTitle(baseTitle, day.entryCount, ds)}
                 onclick={() => onCellClick(day.dateStr)}
               >
                 <span class="cal-day-num">{day.dayNum}</span>
@@ -2202,30 +2217,20 @@
                   <span class="day-before-hire">—</span>
                 {:else if day.isCurrentMonth && day.hasEntries}
                   <span class="day-worked">{fmtMin(day.workedMin)}&thinsp;h</span>
-                  {#if isShiftBased}
-                    <!-- SHIFT_BASED: show the CUMULATIVE §615 running saldo only when the API carried
-                       a cumulative for this day (past days up to windowEnd). For today-not-yet-worked
-                       and future days (no monthSaldoDayMap entry) show ONLY the hours — never fall back
-                       to the per-day delta, which would look like a spurious "today penalty". -->
-                    {#if monthSaldoDayMap.has(day.dateStr)}
-                      {@const cum = monthSaldoDayMap.get(day.dateStr)!}
-                      <span class="day-bal {balClass(cum)}"
-                        >{cum >= 0 ? "+" : "−"}{fmtMin(Math.abs(cum))}</span
-                      >
-                    {/if}
-                  {:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}
-                    <!-- Issue #986: against the account's Ist of the day (credits included) where
-                       the account was read, else the recorded minutes. -->
-                    {@const b = (day.creditedMin ?? day.workedMin) - day.expectedMin}
-                    <span class="day-bal {balClass(b)}"
-                      >{b >= 0 ? "+" : "−"}{fmtMin(Math.abs(b))}</span
+                  <!-- Issue #1029: the day difference is the server's day step of the account
+                     (`balanceMinutes`), never a browser subtraction. Where the server states none
+                     (today, future, a closed month, withheld day details #86) the cell shows only
+                     the hours. -->
+                  {#if !isNoDailyTarget && !day.isToday && ds && ds.diffMin !== null}
+                    <span class="day-bal {balClass(ds.diffMin)}" data-testid="cal-day-diff"
+                      >{dayDiffText(ds.diffMin)}</span
                     >
                   {/if}
-                {:else if day.isCurrentMonth && day.status === "missing" && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget}
-                  <!-- Issue #986: only a past day the account judges as owed shows a minus; a
-                     Berufsschule day is credited. A day the server names missing without a
-                     readable Soll (#987) falls through to „Fehlt“ below. -->
-                  <span class="day-missing">−{fmtMin(day.expectedMin)}&thinsp;h</span>
+                {:else if day.isCurrentMonth && day.status === "missing" && !isNoDailyTarget && ds && ds.diffMin !== null}
+                  <!-- Issue #986/#1029: only a past day the account judges as owed shows its day
+                     step (the server's figure, a minus); a Berufsschule day is credited. A day the
+                     server states no step for (#987, #86) falls through to „Fehlt“ below. -->
+                  <span class="day-missing">{dayDiffText(ds.diffMin)}&thinsp;h</span>
                 {:else if day.isCurrentMonth && day.status === "missing"}
                   <span class="day-missing">Fehlt</span>
                 {/if}
@@ -2332,19 +2337,6 @@
                 {:else}
                   <span class="text-muted">–</span>
                 {/if}
-              {:else if column.key === "saldo"}
-                {#if isShiftBased && monthSaldo}
-                  {@const cum = monthSaldoDayMap.get(row.day)}
-                  {#if row.state}
-                    <Chip tone={row.state.tone}>{row.state.label}</Chip>
-                  {:else if cum != null}
-                    <Chip tone={cum > 0 ? "ok" : cum < 0 ? "bad" : "neutral"}
-                      >{cum === 0 ? "±0:00" : fmtBalance(cum)}</Chip
-                    >
-                  {:else}
-                    <span class="text-muted">–</span>
-                  {/if}
-                {/if}
               {:else if column.key === "open" && !row.vocationalSchool}
                 <button
                   type="button"
@@ -2411,6 +2403,8 @@
       ? daySheetInfo.expectedMin
       : null}
     istMin={daySheetIst}
+    diffMin={sollVisible ? (daySaldo.get(daySheetDay)?.diffMin ?? null) : null}
+    runningSaldoMin={daySaldo.get(daySheetDay)?.runningMin ?? null}
     entries={daySheetRows}
     findings={(arbzgDayMap.get(daySheetDay) ?? []).map((w) => w.message)}
     locked={daySheetLocked}

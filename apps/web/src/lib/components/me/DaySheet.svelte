@@ -17,13 +17,16 @@
 
 <script lang="ts">
   // Issue #599 (Phase 851, prototype „Tagesdialog“): a day is read first, then edited. The sheet shows
-  // Soll, Ist, Differenz and the day's entries without focusing any field; its one primary action is
+  // Soll, Ist, Differenz and the day's entries without focusing any field; Issue #1029: the Differenz
+  // and the running „Gesamtsaldo bis zu diesem Tag“ are the account's figures handed in by the page
+  // (the sheet subtracts nothing); its one primary action is
   // handed in by the page (edit, add a time, or - in a closed month - ask for a correction). A closed
   // month is explained before anything is filled in, and a request already filed shows its status.
   import type { Snippet } from "svelte";
   import Dialog from "$components/ui/Dialog.svelte";
   import Note from "$components/ui/Note.svelte";
-  import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
+  import { fmtMin } from "$lib/utils/format-minutes";
+  import { DAY_DIFF_TITLE, RUNNING_SALDO_LABEL, dayDiffText } from "$lib/time-entries/day-saldo";
 
   interface Props {
     open: boolean;
@@ -31,6 +34,10 @@
     subtitle?: string;
     sollMin: number | null;
     istMin: number;
+    /** Issue #1029: the server's day step (`balanceMinutes`); null = the server states none. */
+    diffMin?: number | null;
+    /** Issue #1029: the account's running saldo up to and including this day; null = none. */
+    runningSaldoMin?: number | null;
     entries: DaySheetEntry[];
     /** A holiday, an absence or another reason the day carries. */
     reason?: string;
@@ -60,6 +67,8 @@
     subtitle,
     sollMin,
     istMin,
+    diffMin = null,
+    runningSaldoMin = null,
     entries,
     reason,
     locked,
@@ -78,8 +87,6 @@
   const showSalon = $derived(!!entrySalon || entries.some((e) => e.salon));
   const showSource = $derived(entries.some((e) => e.source));
   const showNote = $derived(entries.some((e) => e.note));
-
-  const diff = $derived(sollMin === null ? null : istMin - sollMin);
 </script>
 
 <Dialog bind:open {title} ariaLabel={title} size={wide ? "wide" : "md"}>
@@ -103,8 +110,14 @@
         </div>
         <div>
           <dt>Differenz</dt>
-          <dd>{diff === null ? "–" : diff === 0 ? "±0:00" : fmtBalance(diff)}</dd>
+          <dd title={DAY_DIFF_TITLE}>{diffMin === null ? "–" : dayDiffText(diffMin)}</dd>
         </div>
+        {#if runningSaldoMin !== null}
+          <div>
+            <dt>{RUNNING_SALDO_LABEL}</dt>
+            <dd data-testid="day-sheet-running-saldo">{dayDiffText(runningSaldoMin)}</dd>
+          </div>
+        {/if}
       </dl>
     {/if}
     {#if entries.length > 0}
@@ -184,7 +197,7 @@
   .day-kv {
     margin: 0;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
     gap: var(--s-3);
   }
   .day-kv dt {

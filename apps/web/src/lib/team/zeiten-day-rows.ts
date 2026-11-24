@@ -7,6 +7,8 @@
 // summed exactly as the page sums them for its Ist (closed, valid entries; presence minus the
 // stored `breakMinutes`, #79), so a row never disagrees with the month figure above it. No Soll is
 // computed here, and none is shown where the page has none to show (`sollVisible` false).
+// Issue #1029: the Differenz of a row is the account's own day step the page hands in (`diffMin`,
+// GET /overtime/month-saldo `days[].balanceMinutes`); nothing is subtracted here any more.
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
@@ -31,10 +33,10 @@ export interface DayRowDayInfo {
   /** The page's Soll of the day in minutes (0 = none). */
   expectedMin: number;
   /**
-   * Issue #986: the account's Ist of the day (entries plus credits such as a Berufsschule day),
-   * where the page read the account; the Differenz is then taken against it, like the account does.
+   * Issue #1029: the server's day step (GET /overtime/month-saldo `days[].balanceMinutes`); null or
+   * absent where the server states none (today, future, a closed month, withheld day details #86).
    */
-  creditedMin?: number | null;
+  diffMin?: number | null;
   isToday: boolean;
   isFuture: boolean;
 }
@@ -142,16 +144,16 @@ export function teamDayRows(input: TeamDayRowsInput): TeamDayRow[] {
       )
       .join(", ");
 
-    const credited = info?.creditedMin ?? null;
-    const comparable =
-      sollMin !== null &&
-      sollMin > 0 &&
+    // The server's step, shown only for a settled past day with the Soll column visible.
+    const diffMin =
+      input.sollVisible &&
       info !== undefined &&
       !info.isToday &&
       !info.isFuture &&
       !running &&
-      (closedValid.length > 0 || credited !== null);
-    const diffMin = comparable ? (credited ?? netMin) - (sollMin ?? 0) : null;
+      typeof info.diffMin === "number"
+        ? info.diffMin
+        : null;
 
     rows.push({
       day,
