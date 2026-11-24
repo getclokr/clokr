@@ -2,7 +2,10 @@
 // Pausen, Status. Pure wording over figures the page already holds (its MonthMetrics, the sum of the
 // recorded breaks and the server's day-check map): nothing is computed here, so the figures stay the
 // ones MonatSaldoCard showed (#125 one-source count, #433 MONTHLY_HOURS Soll, #495 no-Soll contract).
+// Issue #1029 adds the Gesamtsaldo of Team › Zeiten: the GET /overtime/:id total the page already
+// loads, only worded here (Stichtag gestern, forecast label from the one helper) - still no sum.
 import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
+import { forecastLabel } from "$lib/saldo/forecast-label"; // Issue #588: one forecast wording
 import { monthStatusLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
 
 /** The fields of KpiStrip's item this module fills (a structural subset; a plain .ts module cannot
@@ -41,6 +44,33 @@ export interface ZeitenKpiInput {
    * (#85). The figures then show the Ist only and say who sees the rest, never a no-Soll wording.
    */
   saldoWithheld?: boolean;
+  /**
+   * Issue #1029 (additive, Team › Zeiten only): the GET /overtime/:id answer the page already holds.
+   * Present (even as null) = the Gesamtsaldo Kennzahl is added after the Monatssaldo; absent = the
+   * three items of before (Ich › Zeiten stays unchanged).
+   */
+  account?: ZeitenAccountFigure | null;
+  /** Issue #1029: the account read was refused (#85) - the Gesamtsaldo shows „—“ like the Monatssaldo. */
+  accountWithheld?: boolean;
+}
+
+/** The fields of GET /overtime/:id the Gesamtsaldo Kennzahl words (Issue #1029). */
+export interface ZeitenAccountFigure {
+  balanceHours: number;
+  unconfirmedMonths?: number | null;
+  hasClosedMonth?: boolean;
+  /** „Stand gestern, DD.MM.“ - see `standGesternText`. */
+  stand: string;
+}
+
+/** One wording for a saldo the viewer may not read (#85), shared by Monatssaldo and Gesamtsaldo. */
+const SALDO_WITHHELD_EXPLANATION = "sehen Inhaber, Personalabteilung und die Person selbst";
+
+/** „Stand gestern, 23.11.“ - the Stichtag wording of Ich › Konto (Issue #1029). */
+export function standGesternText(now: Date): string {
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const label = yesterday.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" });
+  return `Stand gestern, ${label}`;
 }
 
 function daysText(n: number): string {
@@ -49,6 +79,7 @@ function daysText(n: number): string {
 
 export function zeitenKpis(input: ZeitenKpiInput): KpiItem[] {
   const { month, locked, breakMinutes, findingDays, runningCount, saldoWithheld = false } = input;
+  const accountWithheld = input.accountWithheld === true;
   const cutoff = locked ? "ganzer Monat" : "bis gestern";
 
   const workedParts = [
@@ -70,7 +101,7 @@ export function zeitenKpis(input: ZeitenKpiInput): KpiItem[] {
     ? {
         label: "Monatssaldo",
         value: "—",
-        explanation: "sehen Inhaber, Personalabteilung und die Person selbst",
+        explanation: SALDO_WITHHELD_EXPLANATION,
         testId: "zeiten-kpi-saldo",
       }
     : month.noSollTarget
@@ -94,6 +125,34 @@ export function zeitenKpis(input: ZeitenKpiInput): KpiItem[] {
           testId: "zeiten-kpi-saldo",
         };
 
+  // Issue #1029: the account total (GET /overtime/:id) right after the Monatssaldo. The value is the
+  // conversion Ich › Konto uses (Math.round(balanceHours * 60)); nothing is summed here.
+  const withTotal = input.account !== undefined || accountWithheld;
+  const account = input.account ?? null;
+  const total: KpiItem = accountWithheld
+    ? {
+        label: "Gesamtsaldo",
+        value: "—",
+        explanation: SALDO_WITHHELD_EXPLANATION,
+        testId: "zeiten-kpi-total",
+      }
+    : month.noSollTarget
+      ? {
+          label: "Gesamtsaldo",
+          value: "—",
+          explanation: "Zeiterfassung ohne Sollvergleich",
+          testId: "zeiten-kpi-total",
+        }
+      : account === null
+        ? { label: "Gesamtsaldo", value: "—", testId: "zeiten-kpi-total" }
+        : {
+            label: "Gesamtsaldo",
+            value: fmtBalance(Math.round(account.balanceHours * 60)),
+            unit: "h",
+            explanation: `${account.stand} · ${forecastLabel(account.unconfirmedMonths, account.hasClosedMonth)}`,
+            testId: "zeiten-kpi-total",
+          };
+
   const pauses: KpiItem = {
     label: "Pausen",
     value: fmtMin(breakMinutes),
@@ -109,7 +168,7 @@ export function zeitenKpis(input: ZeitenKpiInput): KpiItem[] {
     testId: "zeiten-kpi-breaks",
   };
 
-  return [worked, saldo, pauses];
+  return withTotal ? [worked, saldo, total, pauses] : [worked, saldo, pauses];
 }
 
 /**

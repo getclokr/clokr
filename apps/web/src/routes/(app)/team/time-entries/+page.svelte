@@ -27,7 +27,7 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   // Issue #853 (owner review): the four Kennzahlen of the prototype's „Zeiten“, worded by the same
   // module Ich › Zeiten uses (#851); one row per day and the day sheet replace the entry table.
-  import { zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
+  import { standGesternText, zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
   import { fmtBalance } from "$lib/utils/format-minutes";
   import { pauseLabel, teamDayRows, type TeamDayRow } from "$lib/team/zeiten-day-rows";
   import { weekMondaysIn, serverMissingDatesOf } from "$lib/dashboard/heute-im-salon"; // Issue #987
@@ -289,9 +289,8 @@
   let overtimeTotalHours: number | null = $state(null);
   // Phase 97-05 (SALDO-DISP-01/03/04/07) — additive split fields from GET /overtime/:id,
   // mirroring the employee's own /time-entries (97-01). undefined when the endpoint didn't
-  // return the split (older cached response / fail-safe branch) — the Gesamt-Saldo snippet
-  // falls back to the pre-existing single-value SaldoAnzeige rendering (via overtimeTotalHours)
-  // in that case.
+  // return the split (older cached response / fail-safe branch). The Gesamtsaldo Kennzahl (#1029)
+  // reads only overtimeTotalHours and these two month facts for its forecast wording.
   let overtimeConfirmedMinutes: number | undefined = $state(undefined);
   let overtimeOpenMonthMinutes: number | null | undefined = $state(undefined);
   let overtimeHasClosedMonth: boolean | undefined = $state(undefined);
@@ -749,7 +748,7 @@
       const overtimeValue = valueOr(rawOvertime, null);
       overtimeTotalHours = overtimeValue ? Number(overtimeValue.balanceHours) : null;
       // Phase 97-05 — split fields, undefined when the endpoint didn't return them (older
-      // cached response / fail-safe branch); the Gesamt-Saldo snippet falls back accordingly.
+      // cached response / fail-safe branch).
       overtimeConfirmedMinutes = overtimeValue?.confirmedMinutes;
       overtimeOpenMonthMinutes = overtimeValue?.openMonthMinutes;
       overtimeHasClosedMonth = overtimeValue?.hasClosedMonth;
@@ -773,8 +772,8 @@
       // feeds the month header SOLL(BISHER)/IST/MONAT-SALDO, the MONTHLY_HOURS header's
       // monthSollMinutes, the SHIFT_BASED cumulative cells and the day shares (#594) every day is
       // judged against - a Berufsschule credit is inside those shares, never a minus. GESAMT-SALDO
-      // is NOT sourced from here (it must be month-INDEPENDENT — see the Gesamt-Saldo tile, bound
-      // to the live lifetime GET /overtime/:id). Not read when the contract or the account was
+      // is NOT sourced from here (it must be month-INDEPENDENT — see the Gesamtsaldo Kennzahl,
+      // bound to the live lifetime GET /overtime/:id, Issue #1029). Not read when the contract or the account was
       // already refused: then nothing is judged at all.
       const isMonthlyHoursWithTarget =
         schedule?.type === "MONTHLY_HOURS" && Number(schedule.monthlyHours ?? 0) > 0;
@@ -1789,8 +1788,8 @@
     arbzgEnabled ? dayChecksToArbzgMap(dayChecks) : new Map<string, DayWarning[]>(),
   );
 
-  // Issue #853 (owner review, prototype „Zeiten“): the four Kennzahlen Gearbeitet, Monatssaldo, Pausen
-  // and Status, worded by lib/me/zeiten-kpis.ts from the page's MonthMetrics (#125, #433, #495) - the
+  // Issue #853 (owner review, prototype „Zeiten“): the Kennzahlen Gearbeitet, Monatssaldo, Gesamtsaldo
+  // (Issue #1029, from GET /overtime/:id), Pausen and Status, worded by lib/me/zeiten-kpis.ts from the page's MonthMetrics (#125, #433, #495) - the
   // same module Ich › Zeiten uses, so both pages say the same thing. Breaks are the stored ones of the
   // counted entries (the set of the Ist); findings come from the server's day check (#80/#511).
   // A refused saldo read (#85) shows the Ist only and says who sees the rest.
@@ -1805,6 +1804,18 @@
       findingDays: arbzgEnabled ? arbzgDayMap.size : null,
       runningCount,
       saldoWithheld: saldoDenied,
+      // Issue #1029: the Gesamtsaldo is the GET /overtime/:id total this page already loads, never a
+      // second computation (#681/#682); withheld exactly when that read was refused (#85).
+      account:
+        overtimeTotalHours === null
+          ? null
+          : {
+              balanceHours: overtimeTotalHours,
+              unconfirmedMonths: overtimeUnconfirmedMonths,
+              hasClosedMonth: overtimeHasClosedMonth,
+              stand: standGesternText(today),
+            },
+      accountWithheld: overtimeDenied,
     }),
   );
   let zeitenMonthStatus = $derived(zeitenStatus(monthIsLocked || monthMetrics.closed));
@@ -1982,8 +1993,8 @@
 >
   {#snippet actions()}
     {#if teamMode === "person" && selectedEmployee}
-      <!-- quick 260820-fkz — Gesamt-Saldo lives outside the page head, as the Stundenkonto cell
-           of the figures strip below (Issue #853, D-853-18). -->
+      <!-- quick 260820-fkz — the account total lives outside the page head, as the Gesamtsaldo
+           Kennzahl of the figures strip below (Issue #853, D-853-18; Issue #1029). -->
       <button class="btn btn-primary" onclick={() => openAdd()}>
         <span aria-hidden="true">＋</span> Zeit eintragen
       </button>
@@ -2081,7 +2092,7 @@
     {/if}
 
     <!-- Figures strip (Issue #853, owner review; prototype #p-zeiten stats): Gearbeitet, Monatssaldo,
-       Pausen and Status of the chosen person, worded by lib/me/zeiten-kpis.ts like Ich › Zeiten.
+       Gesamtsaldo (Issue #1029), Pausen and Status of the chosen person, worded by lib/me/zeiten-kpis.ts like Ich › Zeiten.
        Rendered ONLY with an employee selected (D-01). -->
     <div class="te-figures">
       {#if saldoCardState === "loading"}
