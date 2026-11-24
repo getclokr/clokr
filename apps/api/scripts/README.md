@@ -117,6 +117,18 @@ review only — Phase 95b established that "correcting" them would be wrong, not
 audit-unsafe, because `{day}Hours` is a legacy placeholder for every type except
 `FIXED_SCHEDULE`. See CLAUDE.md "Schedule Types".
 
+`audit-1011-hire-year-entitlements.ts` (Issue #1011) lists every VACATION `LeaveEntitlement` row
+of the UTC hire year of a person hired on a day other than the 1st of a month whose stored
+`totalDays` differs (2 decimals) from the legal value `resolveRegularVacationDays()` gives since
+Teilurlaub counts full months of employment per §§ 187, 188 BGB (§ 5 Abs. 1 BUrlG): tenant id,
+employee id, entitlement id, year, stored and legal value, used days, `humanWrite` and
+`usedAboveLegal`, ids and numbers only, then a totals line. READ-ONLY (strict `--help`-only CLI:
+`--confirm` / `--apply` are rejected), exit `0` none / `1` error / `2` findings, sibling of
+`audit-961-entitlements-before-hire.ts`. Run it read-only on the target environment after the
+merge. What the owner decides afterwards: whether and how stored rows are corrected (audited write,
+never below the days already used or approved; a human-written row is only listed) or kept as a
+voluntary grant (§ 13 Abs. 1 BUrlG) — the rule change itself rewrites nothing.
+
 `dry-run-429-leave-contract-days.ts` (Issue #429, D-15) lists, per SHIFT_BASED employee and
 non-superseded MONTHLY `SaldoSnapshot` whose period overlaps at least one `APPROVED`
 `LeaveRequest`, the STORED `expectedMinutes`/`balanceMinutes` next to what `closeEmployeeMonth()`
