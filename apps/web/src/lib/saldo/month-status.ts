@@ -30,8 +30,17 @@ export const NOT_ENDED_MONTH_LABEL = {
   LATER: "Zukunft",
 } as const;
 
-/** `today` is a `YYYY-MM-DD` calendar day; the month counts as running when it is today's month. */
-export function notEndedMonthLabel(year: number, month: number, today: string): string {
+/**
+ * Issue #1011: the ONE rule of „running“. `today` is a `YYYY-MM-DD` calendar day; the month is running
+ * when it is today's year and month.
+ */
+export function isRunningMonth(year: number, month: number, today: string): boolean {
   const [y, m] = today.split("-").map(Number);
-  return year === y && month === m ? NOT_ENDED_MONTH_LABEL.RUNNING : NOT_ENDED_MONTH_LABEL.LATER;
+  return year === y && month === m;
+}
+
+export function notEndedMonthLabel(year: number, month: number, today: string): string {
+  return isRunningMonth(year, month, today)
+    ? NOT_ENDED_MONTH_LABEL.RUNNING
+    : NOT_ENDED_MONTH_LABEL.LATER;
 }

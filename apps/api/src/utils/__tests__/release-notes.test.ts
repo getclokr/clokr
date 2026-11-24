@@ -439,41 +439,95 @@ describe("releaseNotesForApp (Issue #946, owner decision 15.11.2026)", () => {
   });
 });
 
-// Issue #983 — what the What's-New panel shows everyone must read as product news, not as an
-// operator log. The operator marker (#946) only helps where it is used; this sweep over the whole
-// corpus is what keeps an unmarked migration line or a „Mandant“ from reaching an employee.
-describe("served release notes carry no operator wording (Issue #983)", () => {
+// Issues #983 and #1011 — what the What's-New panel shows must read as product news, not as an
+// operator or developer log. The operator marker (#946) only helps where it is used; this sweep over
+// the whole served corpus is what keeps an unmarked migration line, a „Mandant“, a package version or
+// an HTTP status code from reaching a reader. Since #1011 it covers EVERYTHING the panel shows: the
+// title, the intro, every section an employee (`all`) or an admin (`admin`, e.g. „Sicherheit“) sees,
+// and the footnote — the first version skipped titles, footnotes and the admin sections.
+describe("served release notes carry no operator wording (Issues #983, #1011)", () => {
   // „Mandant“ is operator vocabulary (docs/glossar.md: „Unternehmen“); DATEV's own field
-  // „Mandantennummer“ is the one allowed spelling.
+  // „Mandantennummer“ is the one allowed spelling. The #1011 alternatives (second line on) name what the
+  // operator and the developers talk about and a reader never does: version classes, the operator role,
+  // HTTP status codes, advisory ids and version bounds, tool names, API paths, the retired internal
+  // column, and the old area name before a menu separator.
   const OPERATOR_WORDING =
-    /mandant(?!ennummer)|migration|deploy|rollback|backfill|vapid|breaking|\bschema|abbild|\bimage\b|skript|script|prisma|docker|kubectl|argocd|runbook|abhängigkeit|\btenant\b|\.ts\b|\bpnpm\b|-linie\b/i;
+    /mandant(?!ennummer)|migration|deploy|rollback|backfill|vapid|breaking|\bschema|abbild|\bimage\b|skript|script|prisma|docker|kubectl|argocd|runbook|abhängigkeit|\btenant\b|\.ts\b|\bpnpm\b|-linie\b|\b(?:minor|patch|major|feature)-version|betreiber|\binstanz|\(\s*[1-5]\d\d\s*\)|\b(?:antwort\w*|erhält|erhalten|liefert|liefern)\b[^.;]{0,40}\b[1-5]\d\d\b|\b[1-5]\d\d\s+statt\s+[1-5]\d\d\b|\bghsa-|\bcve-\d|≥\s*\d+\.\d+|fastify|trivy|\bhigh\b|\bcritical\b|redos|\b(?:get|post|put|patch|delete)\s+\/|\/api\/|\/health\b|\bapi\b(?!-schlüssel)|rollenspalte|fritz|\badmin(?:istration)?\s*[›→]/i;
 
-  it("no intro or everyone-section of any served release names an operator term", () => {
+  // docs/glossar.md § 3: a menu path is written „Verwalten › Salons“ (area first, „›“ between the
+  // names), never „Admin → Salons“. CASE-SENSITIVE on purpose: a capitalised name, „→“, a capitalised
+  // name — a lowercase „alt → neu“ or a number range „30 → 36 Tage“ is no menu path.
+  const OLD_MENU_PATH = /[A-ZÄÖÜ][A-Za-zÄÖÜäöüß&.-]*_?\s*→\s*[_„"“]?[A-ZÄÖÜ]/;
+
+  const wordingHit = (text: string): boolean =>
+    OPERATOR_WORDING.test(text) || OLD_MENU_PATH.test(text);
+
+  it("the word rules match the issue's examples and none of the allowed spellings (control)", () => {
+    const mustMatch = [
+      "Minor-Version mit drei neuen Funktionen",
+      "ob es auf deiner Instanz verfügbar ist",
+      "entscheidet der Betreiber",
+      "in einem abgeschlossenen Monat (409) abgelehnt",
+      "antwortet 403",
+      "mit 400 statt 500",
+      "(GHSA-qr28-fpjm-wq7f, HIGH)",
+      "decode-uri-component ≥ 0.5.1",
+      "Prisma-, Fastify- und Minor/Patch-Gruppe",
+      "Trivy HIGH",
+      "das lesende Prüfskript",
+      "Die alte Rollenspalte",
+      "(Admin → System → Integration → NFC-Terminals)",
+      "Unter Administration › Salons",
+      "Verwaltung → Export",
+      "GET /leave/requests",
+      "über die FRITZ!Box",
+    ];
+    for (const text of mustMatch) expect(wordingHit(text), `must match: ${text}`).toBe(true);
+    const mustNotMatch = [
+      "API-Schlüssel",
+      "Mandantennummer",
+      "(„Feld: alt → neu“)",
+      "30 → 36 Tage",
+      "unter 480 px",
+      "Verwalten › Salons",
+      "Ich › Profil › Erscheinungsbild",
+      "§ 147 AO",
+    ];
+    for (const text of mustNotMatch)
+      expect(wordingHit(text), `must not match: ${text}`).toBe(false);
+  });
+
+  it("no title, intro, everyone-section, admin-section or footnote of any served release names an operator term", () => {
     const served = releaseNotesForApp(loadReleaseNotes());
     expect(served.length, "the corpus is not empty").toBeGreaterThan(20);
     const hits: string[] = [];
     let checked = 0;
+    let titles = 0;
+    let adminBullets = 0;
+    const check = (version: string, place: string, text: string) => {
+      checked++;
+      if (wordingHit(text)) hits.push(`v${version} ${place}: ${text}`);
+    };
     for (const note of served) {
-      for (const paragraph of note.intro) {
-        checked++;
-        if (OPERATOR_WORDING.test(paragraph)) hits.push(`v${note.version} intro: ${paragraph}`);
-      }
+      titles++;
+      check(note.version, "title", note.title);
+      for (const paragraph of note.intro) check(note.version, "intro", paragraph);
       for (const section of note.sections) {
-        if (section.audience !== "all") continue;
-        if (OPERATOR_WORDING.test(section.heading))
-          hits.push(`v${note.version} heading: ${section.heading}`);
+        if (section.audience === "operator") continue;
+        check(note.version, "heading", section.heading);
         for (const bullet of section.bullets) {
-          checked++;
-          const text = bullet.spans.map((span) => span.text).join("");
-          if (OPERATOR_WORDING.test(text))
-            hits.push(`v${note.version} ${section.heading}: ${text}`);
+          if (section.audience === "admin") adminBullets++;
+          check(note.version, section.heading, bullet.spans.map((span) => span.text).join(""));
         }
       }
+      if (note.footnote !== null) check(note.version, "footnote", note.footnote);
     }
+    expect(titles, "every served title was checked").toBe(served.length);
     expect(checked, "the sweep looked at served text").toBeGreaterThan(200);
+    expect(adminBullets, "the sweep reached the admin sections").toBeGreaterThan(10);
     expect(
       hits,
-      "mark it [Betrieb] or say it for the reader (docs/RELEASE_NOTES_TEMPLATE.md)",
+      "mark it [Betrieb], move it to „Betrieb & Migration“ or say it for the reader (docs/RELEASE_NOTES_TEMPLATE.md)",
     ).toEqual([]);
   });
 });
