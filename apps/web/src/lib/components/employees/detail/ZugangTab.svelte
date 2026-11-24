@@ -50,6 +50,7 @@
     type RoleAssignment,
   } from "$lib/api/roles";
   import { NO_ROLE_HINT, hasNoRole, type FormRole } from "$lib/employees/form-role";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   type InvitationStatus = "ACCEPTED" | "PENDING" | "EXPIRED" | "NONE";
 
@@ -274,8 +275,13 @@
 
 <div class="zugang-tab detail-form">
   <section class="settings-group" aria-labelledby="{uid}-roles">
-    <h2 class="settings-group-title" id="{uid}-roles">Rollen</h2>
-    <p class="settings-group-desc">Welche Rollen diese Person in welchem Bereich hat.</p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="{uid}-roles">Rollen</h2>
+      <InfoHint
+        text="Welche Rollen diese Person in welchem Bereich hat."
+        label={hintLabel("Rollen")}
+      />
+    </div>
     {#if rights.canAssignRoles}
       {#if roleDataState === "error"}
         <div role="alert"><Note tone="bad">{roleDataError}</Note></div>

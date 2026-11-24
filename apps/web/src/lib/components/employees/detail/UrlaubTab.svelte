@@ -179,7 +179,7 @@
 
     <SettingsGroup
       title="Urlaubsanspruch {year}"
-      description="Jahresurlaub, Übertrag und Verfalldatum. Jede Änderung wird protokolliert."
+      hint="Jahresurlaub, Übertrag und Verfalldatum. Jede Änderung wird protokolliert."
       changes={canEdit ? changeCount : 0}
       errors={sectionErrors(shown)}
       {saving}
@@ -235,7 +235,7 @@
       {/if}
 
       <div class="urlaub-pair">
-        <FormField label="Resturlaub verfällt am" help="Leer lassen für die globale Einstellung.">
+        <FormField label="Resturlaub verfällt am" hint="Leer lassen für die globale Einstellung.">
           {#snippet field({ id, describedBy, invalid })}
             <DatePicker
               bind:value={values.carryOverDeadline}

@@ -38,6 +38,7 @@
     type SalonAssignment,
     type SalonRef,
   } from "$lib/employees/salon-assignments";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     employeeId: string;
@@ -194,10 +195,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby={titleId}>
-  <h2 class="settings-group-title" id={titleId}>Salonzuordnungen</h2>
-  <p class="settings-group-desc">
-    Stammsalon und Einsatzsalons; beendete Zuordnungen bleiben sichtbar.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id={titleId}>Salonzuordnungen</h2>
+    <InfoHint
+      text="Stammsalon und Einsatzsalons; beendete Zuordnungen bleiben sichtbar."
+      label={hintLabel("Salonzuordnungen")}
+    />
+  </div>
 
   {#if canEdit && activeSalons.length > 0}
     <div class="sa-actions">
@@ -327,7 +331,7 @@
           <WeekdayPicker
             bind:value={formWeekdays}
             legend="Wochentage (optional)"
-            help="Ohne Auswahl gilt die Zuordnung an allen Tagen."
+            hint="Ohne Auswahl gilt die Zuordnung an allen Tagen."
             testidPrefix="salon-assignment-weekday"
           />
         {/if}

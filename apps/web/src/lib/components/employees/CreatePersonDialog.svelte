@@ -78,6 +78,7 @@
     type CreateStep,
     type StepErrors,
   } from "$lib/employees/create-person";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     open: boolean;
@@ -452,7 +453,7 @@
         </FormField>
         <FormField
           label="Geburtsdatum (optional)"
-          help="Aus dem Alter ergibt sich der gesetzliche Mindesturlaub und der Jugendarbeitsschutz."
+          hint="Aus dem Alter ergibt sich der gesetzliche Mindesturlaub und der Jugendarbeitsschutz."
           error={errors.birthDate}
         >
           {#snippet field({ id, describedBy, invalid })}
@@ -477,7 +478,15 @@
           </Note>
         {/if}
         <section class="cp-section" aria-labelledby="cp-roles-title">
-          <h4 id="cp-roles-title" class="cp-section-title">Rollen</h4>
+          <div class="hint-row">
+            <h4 id="cp-roles-title" class="cp-section-title">Rollen</h4>
+            <InfoHint
+              text={canAssignRoles
+                ? `Jede neue Person erhält die Rolle „${CREATE_DEFAULT_ROLE_NAME}“ für das ganze Unternehmen. Weitere Rollen werden gespeichert, sobald die Person angelegt ist.`
+                : `Jede neue Person erhält die Rolle „${CREATE_DEFAULT_ROLE_NAME}“ für das ganze Unternehmen. Weitere Rollen weist du nach dem Anlegen im Tab „Berechtigungen“ zu, wenn du Rollen vergeben darfst.`}
+              label={hintLabel("Rollen")}
+            />
+          </div>
           {#if canAssignRoles}
             <PersonRoleAssignments
               {personName}
@@ -498,27 +507,17 @@
                 Tab „Berechtigungen“ zuweisen.
               </Note>
             {/if}
-            <Note tone="info">
-              Jede neue Person erhält die Rolle „{CREATE_DEFAULT_ROLE_NAME}“ für das ganze
-              Unternehmen. Weitere Rollen werden gespeichert, sobald die Person angelegt ist.
-            </Note>
-          {:else}
-            <Note tone="info">
-              Jede neue Person erhält die Rolle „{CREATE_DEFAULT_ROLE_NAME}“ für das ganze
-              Unternehmen. Weitere Rollen weist du nach dem Anlegen im Tab „Berechtigungen“ zu, wenn
-              du Rollen vergeben darfst.
-            </Note>
           {/if}
         </section>
       </div>
     {:else if step === "vertrag"}
       <div class="cp-stack">
-        <Note tone="info">
-          Der Vertrag beginnt am Eintrittsdatum. Spätere Änderungen am Vertrag gelten jeweils ab dem
-          Ersten eines Monats.
-        </Note>
         <div class="cp-grid">
-          <FormField label="Arbeitszeitmodell" required>
+          <FormField
+            label="Arbeitszeitmodell"
+            required
+            hint="Der Vertrag beginnt am Eintrittsdatum. Spätere Änderungen am Vertrag gelten jeweils ab dem Ersten eines Monats."
+          >
             {#snippet field({ id, describedBy })}
               <select
                 {id}
@@ -553,7 +552,7 @@
           {:else}
             <FormField
               label="Stunden pro Monat (optional)"
-              help="Leer lassen: die Zeiten werden nur erfasst."
+              hint="Leer lassen: die Zeiten werden nur erfasst."
               error={errors.monthlyHours}
             >
               {#snippet field({ id, describedBy, invalid })}
@@ -574,7 +573,7 @@
           {#if draft.scheduleType === "SHIFT_BASED"}
             <FormField
               label="Arbeitstage pro Woche"
-              help="Vertragliche Anzahl Arbeitstage pro Woche. Welche Wochentage das konkret sind, bestimmt der Schichtplan."
+              hint="Vertragliche Anzahl Arbeitstage pro Woche. Welche Wochentage das konkret sind, bestimmt der Schichtplan."
               error={errors.contractWorkDays}
             >
               {#snippet field({ id, describedBy, invalid })}
@@ -628,7 +627,7 @@
               <WeekdayPicker
                 bind:value={draft.coreDays}
                 legend="Kerntage (optional)"
-                help="Leer lassen für reine Gleitzeit ohne Kernzeit."
+                hint="Leer lassen für reine Gleitzeit ohne Kernzeit."
                 testidPrefix="create-core-day"
               />
             </div>
@@ -707,7 +706,7 @@
             <div class="cp-full">
               <FormField
                 label="Urlaubstage pro Jahr (5-Tage-Woche)"
-                help="Vorschlag aus den Einstellungen des Unternehmens (Azubis: „Urlaubstage Azubis“). Entspricht der Wert dem Standard, wird kein eigener Wert gespeichert – die Person folgt dann auch späteren Änderungen des Standards. Wird auf die vertraglichen Arbeitstage umgerechnet und im Eintrittsjahr anteilig berechnet."
+                hint="Vorschlag aus den Einstellungen des Unternehmens (Azubis: „Urlaubstage Azubis“). Entspricht der Wert dem Standard, wird kein eigener Wert gespeichert – die Person folgt dann auch späteren Änderungen des Standards. Wird auf die vertraglichen Arbeitstage umgerechnet und im Eintrittsjahr anteilig berechnet."
                 error={errors.annualVacationDays}
               >
                 {#snippet field({ id, describedBy, invalid })}
@@ -760,7 +759,7 @@
           <FormField
             label="Passwort"
             required
-            help="Die Person kann sich sofort anmelden. Kein Einladungslink nötig."
+            hint="Die Person kann sich sofort anmelden. Kein Einladungslink nötig."
             error={errors.password}
           >
             {#snippet field({ id, describedBy, invalid })}
