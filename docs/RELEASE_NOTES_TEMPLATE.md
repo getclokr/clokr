@@ -12,8 +12,8 @@ Verbindliche Vorlage für alle GitHub-Releases von Clokr. **Immer** dieses Forma
 - **Migrations-/Deploy-Hinweis** immer angeben: entweder „Keine Schema-Migration." oder die nötigen Schritte.
 - **Audit-Hinweis** bei saldo-/lohn-/abwesenheits-/compliance-relevanten Änderungen (Revisionssicherheit) ans Ende.
 - Ton: knapp, sachlich, fette **Schlüsselbegriffe** für Scanbarkeit. Keine Emojis.
-- **Zielgruppe (#576, #946):** Der „Was ist neu“-Dialog zeigt „Sicherheit“ nur Personen, die Systemeinstellungen ändern dürfen. „Betrieb & Migration“ zeigt er niemandem — die API liefert den Abschnitt gar nicht aus (Owner-Entscheidung 15.11.2026: Mandanten-Admins betreiben den Server nicht); er steht nur in der Datei und auf der GitHub-Release-Seite. Skriptnamen, Deploy-Schritte und Backfills gehören deshalb nach „Betrieb & Migration“, GHSA-IDs nach „Sicherheit“; alle anderen Abschnitte sieht jede Person. Die Überschriften der Struktur nicht umbenennen — der Parser ordnet sie danach ein.
-- **Betreiber-Text getrennt (#946):** Der Dialog zeigt allen nur Nutzer-Text. Alles, was nur den Betrieb betrifft (Migrationen, Image-Rollback, VAPID-/Konfig-Schlüssel, Deploy-Reihenfolge, Skripte), steht entweder in „Betrieb & Migration“ / „Sicherheit“ oder als Einleitungsabsatz bzw. Stichpunkt mit dem Präfix `[Betrieb]` — der Parser verschiebt ihn dann in „Betrieb & Migration“. In „Neue Funktionen“, „Verbesserungen“, „Fehlerbehebungen“ und der Einleitung steht kein Betreiber-Wort (Migration, Rollback, VAPID, Image, Stage, Backfill).
+- **Zielgruppe (#576, #946):** Der „Was ist neu“-Dialog zeigt „Sicherheit“ nur Personen, die Systemeinstellungen ändern dürfen. „Betrieb & Migration“ zeigt er niemandem — die API liefert den Abschnitt gar nicht aus (Owner-Entscheidung 15.11.2026: Mandanten-Admins betreiben den Server nicht); er steht nur in der Datei und auf der GitHub-Release-Seite. Skriptnamen, Deploy-Schritte und Backfills gehören deshalb nach „Betrieb & Migration“. Das gilt auch für Paketnamen, Versionen und GHSA-/CVE-IDs (#1011): „Sicherheit“ sagt in Worten der Leserin, was sicherer geworden ist (Standardsatz „**Sicherheitsupdates.** Bekannte Schwachstellen in mitgelieferten Programmteilen sind behoben.“); die Paketdetails stehen in „Betrieb & Migration“ und damit auf der GitHub-Release-Seite. Jeder „Sicherheit“-Abschnitt behält mindestens einen Stichpunkt. Alle anderen Abschnitte sieht jede Person. Die Überschriften der Struktur nicht umbenennen — der Parser ordnet sie danach ein.
+- **Betreiber-Text getrennt (#946):** Der Dialog zeigt allen nur Nutzer-Text. Alles, was nur den Betrieb betrifft (Migrationen, Image-Rollback, VAPID-/Konfig-Schlüssel, Deploy-Reihenfolge, Skripte), steht entweder in „Betrieb & Migration“ / „Sicherheit“ oder als Einleitungsabsatz bzw. Stichpunkt mit dem Präfix `[Betrieb]` — der Parser verschiebt ihn dann in „Betrieb & Migration“. In allem, was der Dialog zeigt (Titel, Einleitung, jeder Abschnitt außer „Betrieb & Migration“, Fußnote), steht kein Betreiber- oder Entwickler-Wort: Migration, Rollback, VAPID, Image, Stage, Backfill, „Minor-/Patch-/Feature-Version“, Betreiber, Instanz, HTTP-Statuscodes (400, 403, 409 …), API-Pfade (`GET /…`), Paketnamen und Versionen, GHSA-/CVE-IDs, Fastify/Prisma/Trivy/pnpm, Prüfskript/Skript, „Rollenspalte“, FRITZ!Box und alte Menüpfade wie „Admin → …“ oder „Administration › …“ (Menüpfade mit „›“ wie in der Navigation, Bereich zuerst: „Verwalten › Salons“). Das Tor dafür ist `apps/api/src/utils/__tests__/release-notes.test.ts` (Issues #983, #1011); ein Treffer dort heißt: ins Reader-Deutsch umschreiben oder nach „Betrieb & Migration“ verschieben.
 
 ## Struktur
 
@@ -41,11 +41,11 @@ Verbindliche Vorlage für alle GitHub-Releases von Clokr. **Immer** dieses Forma
 
 ### Sicherheit
 
-- <Dependency-/CVE-Updates: Paket + Zielversion + Grund, z. B. "fast-uri ≥ 3.1.3 (Trivy HIGH)">
+- <was für die Leserin sicherer geworden ist, in ihren Worten, z. B. "**Sicherheitsupdates.** Bekannte Schwachstellen in mitgelieferten Programmteilen sind behoben.">
 
 ### Betrieb & Migration
 
-- <Migrationen, Ops-Skripte, Deploy-Reihenfolge, Konfig-Änderungen, Backfills>
+- <Migrationen, Ops-Skripte, Deploy-Reihenfolge, Konfig-Änderungen, Backfills, Paket-/CVE-Updates mit Paket + Zielversion + Grund, z. B. "fast-uri ≥ 3.1.3 (Trivy HIGH)">
 - <Bei Migrationen: dieselben Schritte stehen maschinenlesbar in `docs/release-notes/vX.Y.Z.steps` (Generalprobe, `docs/release-process.md`)>
 
 ### Bitte beachten
