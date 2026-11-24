@@ -32,7 +32,8 @@
   interface Props {
     title?: string;
     sub?: string;
-    hint?: string;
+    /** An array shows one paragraph per entry. */
+    hint?: string | string[];
     actions?: Snippet;
     footer?: Snippet;
     animate?: boolean;

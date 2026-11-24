@@ -56,6 +56,7 @@
   import type { EditableLeaveRequest } from "$lib/leave/leave-request-form";
   import type { LeaveLimitWarning } from "$lib/leave-limits/types";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   // ── Types ────────────────────────────────────────────────────────────────
   interface OverlapEntry {
@@ -847,7 +848,7 @@
               {#if hoursPreviewLoading}
                 <span class="days-info-note">(Feiertage werden geprüft…)</span>
               {:else if serverDays !== null && serverDays !== formDays}
-                <span class="days-info-note">(Feiertage berücksichtigt)</span>
+                <InfoHint text="Feiertage berücksichtigt" label={hintLabel("Anzahl der Tage")} />
               {/if}
             </span>
           </div>

@@ -12,6 +12,7 @@
   import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1020
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import PageHead from "$lib/components/layout/PageHead.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import MonthBar from "$components/ui/MonthBar.svelte";
   import PageTabs from "$components/ui/PageTabs.svelte"; // Issue #853 (D-853-10)
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
@@ -2504,7 +2505,14 @@
     {/if}
     {#if travelActive}
       <div class="form-group">
-        <label class="form-label" for="f-travel-from">{TRAVEL_TEXTS.from}</label>
+        <div class="hint-row">
+          <label class="form-label" for="f-travel-from">{TRAVEL_TEXTS.from}</label>
+          <InfoHint
+            testId="team-time-entry-modal-travel-hint"
+            text={TRAVEL_TEXTS.hint}
+            label={hintLabel(TRAVEL_TEXTS.from)}
+          />
+        </div>
         <select
           id="f-travel-from"
           class="form-input"
@@ -2533,9 +2541,6 @@
           {/each}
         </select>
       </div>
-      <p class="text-muted travel-hint" data-testid="team-time-entry-modal-travel-hint">
-        {TRAVEL_TEXTS.hint}
-      </p>
     {:else}
       <div class="form-group">
         <label class="form-label" for="f-salon">Salon</label>
@@ -2780,11 +2785,6 @@
     gap: 0.5rem;
     min-height: 2.5rem;
     cursor: pointer;
-  }
-  .travel-hint {
-    margin: 0 0 var(--s-3);
-    font-size: 0.875rem;
-    line-height: 1.5;
   }
   .travel-route {
     display: inline-block;

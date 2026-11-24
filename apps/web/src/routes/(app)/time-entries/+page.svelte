@@ -80,7 +80,7 @@
     MONTH_CORRECTION_REQUESTS_OPEN,
   } from "$lib/me/month-corrections";
   import PageHeader from "$components/ui/PageHeader.svelte";
-  import InfoHint from "$components/ui/InfoHint.svelte"; // Issue #1058
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Spinner from "$components/ui/Spinner.svelte";
   import { downloadStundennachweis } from "$lib/me/stundennachweis";
   import KpiStrip from "$components/ui/KpiStrip.svelte";
@@ -2150,10 +2150,7 @@
   }}
 />
 
-<PageHeader
-  title={pageLabel("/time-entries")}
-  subtitle="Deine erfassten Arbeitszeiten, Tag für Tag"
->
+<PageHeader title={pageLabel("/time-entries")} hint="Deine erfassten Arbeitszeiten, Tag für Tag">
   {#snippet actions()}
     <!-- Phase 851 (prototype): the Stundennachweis of the month on screen (#598) and the one way to
          add a time. Phase 76.7 (D-16): § 18 ArbZG-exempt users see no add action at all. -->
@@ -3003,7 +3000,14 @@
         {/if}
         {#if travelActive}
           <div class="form-group">
-            <label class="form-label" for="f-travel-from">{TRAVEL_TEXTS.from}</label>
+            <div class="hint-row">
+              <label class="form-label" for="f-travel-from">{TRAVEL_TEXTS.from}</label>
+              <InfoHint
+                testId="time-entry-modal-travel-hint"
+                text={TRAVEL_TEXTS.hint}
+                label={hintLabel(TRAVEL_TEXTS.from)}
+              />
+            </div>
             <select
               id="f-travel-from"
               class="form-input"
@@ -3032,9 +3036,6 @@
               {/each}
             </select>
           </div>
-          <p class="text-muted travel-hint" data-testid="time-entry-modal-travel-hint">
-            {TRAVEL_TEXTS.hint}
-          </p>
         {:else}
           <div class="form-group">
             <label class="form-label" for="f-salon">Salon</label>
@@ -3638,11 +3639,6 @@
     gap: 0.5rem;
     min-height: 2.5rem;
     cursor: pointer;
-  }
-  .travel-hint {
-    margin: 0 0 var(--s-3);
-    font-size: 0.875rem;
-    line-height: 1.5;
   }
   .travel-route {
     display: inline-block;

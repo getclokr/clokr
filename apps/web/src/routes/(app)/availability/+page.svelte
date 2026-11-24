@@ -22,6 +22,7 @@
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
   import Card from "$components/ui/Card.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import AvailabilityWeekGrid, {
     type RecurringEntry,
   } from "$lib/components/availability/AvailabilityWeekGrid.svelte";
@@ -211,7 +212,7 @@
 
 <PageHeader
   title={pageLabel("/availability")}
-  subtitle="Wann und wo du arbeitest"
+  hint="Wann und wo du arbeitest"
   tabs={TABS}
   bind:tab={view}
 >
@@ -231,11 +232,7 @@
     {:else if loading}
       <Skeleton shape="card" />
     {:else}
-      <p class="availability-hint">
-        Sag deiner Salonleitung, wann du arbeiten kannst, wann nicht und wann du lieber arbeitest.
-        Deine Angaben siehst du hier, die Salonleitung bei der Planung.
-      </p>
-      <div class="availability-switch">
+      <div class="availability-switch hint-row">
         <SegmentedControl
           options={[
             { value: "recurring", label: "Jede Woche" },
@@ -246,6 +243,10 @@
           ariaLabel="Art der Angabe"
           size="sm"
           onchange={(v) => (availabilityView = v === "oneoff" ? "oneoff" : "recurring")}
+        />
+        <InfoHint
+          text="Sag deiner Salonleitung, wann du arbeiten kannst, wann nicht und wann du lieber arbeitest. Deine Angaben siehst du hier, die Salonleitung bei der Planung."
+          label={hintLabel("Verfügbarkeit")}
         />
       </div>
       {#if availabilityView === "recurring"}
@@ -275,10 +276,6 @@
 />
 
 <style>
-  .availability-hint {
-    margin: 0 0 var(--s-3);
-    color: var(--text-2);
-  }
   .availability-switch {
     margin-bottom: var(--s-3);
   }

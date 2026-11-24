@@ -125,7 +125,10 @@
   }
 </script>
 
-<Section title="Stempeln mit dem Handy">
+<Section
+  title="Stempeln mit dem Handy"
+  hint="Am einfachsten koppelst du dein Handy, indem du den QR-Code im Salon scannst, während du mit dem Salon-WLAN verbunden bist."
+>
   <!-- GDPR notice - always visible, not dismissible -->
   <div class="alert alert-info wifi-gdpr-note" role="note">
     <svg
@@ -222,11 +225,6 @@
       {/each}
     {/if}
   </div>
-
-  <p class="form-hint">
-    Am einfachsten koppelst du dein Handy, indem du den QR-Code im Salon scannst, während du mit dem
-    Salon-WLAN verbunden bist.
-  </p>
 
   <!-- Manual entry for phones that cannot scan -->
   <details class="mac-manual">

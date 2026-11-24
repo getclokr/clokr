@@ -80,7 +80,7 @@
   });
 </script>
 
-<Section title="Meine Arbeit" sub="Ändern kann das deine Salonleitung.">
+<Section title="Meine Arbeit" hint="Ändern kann das deine Salonleitung.">
   {#if loading}
     <Skeleton shape="block" height="96px" />
   {:else}

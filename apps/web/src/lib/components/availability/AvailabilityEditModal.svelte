@@ -5,6 +5,7 @@
   // (role="dialog"; alertdialog is reserved for destructive confirms).
 
   import Modal from "$components/ui/Modal.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import SegmentedControl from "$lib/components/ui/SegmentedControl.svelte";
 
   type Status = "AVAILABLE" | "UNAVAILABLE" | "PREFERRED";
@@ -146,10 +147,22 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="av-edit-note">Notiz</label>
-      <textarea id="av-edit-note" class="form-input" maxlength="200" rows="3" bind:value={note}
+      <div class="hint-row">
+        <label class="form-label" for="av-edit-note">Notiz</label>
+        <InfoHint
+          text="Optionale Notiz (max. 200 Zeichen)"
+          label={hintLabel("Notiz")}
+          textId="av-edit-note-hint"
+        />
+      </div>
+      <textarea
+        id="av-edit-note"
+        class="form-input"
+        maxlength="200"
+        rows="3"
+        aria-describedby="av-edit-note-hint"
+        bind:value={note}
       ></textarea>
-      <span class="form-hint">Optionale Notiz (max. 200 Zeichen)</span>
     </div>
 
     <div class="modal-actions">

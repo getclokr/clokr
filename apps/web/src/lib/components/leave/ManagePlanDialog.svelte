@@ -18,6 +18,7 @@
    */
   import { untrack } from "svelte";
   import Modal from "$components/ui/Modal.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { toasts } from "$stores/toast";
   import { openPlan, setDeadline } from "$lib/leave-plan/api";
   import { isPlanAlreadyOpen, planErrorMessage } from "$lib/leave-plan/errors";
@@ -149,11 +150,13 @@
 
     {#if plan === null}
       <section class="manage-section" aria-labelledby="manage-open">
-        <h4 id="manage-open" class="manage-title">Plan eröffnen</h4>
-        <p class="form-hint">
-          Alle Personen des Salons können danach ihre Urlaubswünsche eintragen. Eine Frist ist
-          optional.
-        </p>
+        <div class="hint-row">
+          <h4 id="manage-open" class="manage-title">Plan eröffnen</h4>
+          <InfoHint
+            text="Alle Personen des Salons können danach ihre Urlaubswünsche eintragen. Eine Frist ist optional."
+            label={hintLabel("Plan eröffnen")}
+          />
+        </div>
         <div class="manage-row">
           <label class="form-label" for="plan-open-deadline">Wünsche bis (optional)</label>
           <input

@@ -42,7 +42,11 @@ const base = {
 };
 
 async function fillReason(text: string) {
-  await fireEvent.input(screen.getByLabelText(/Begründung/), { target: { value: text } });
+  // Issue #1058: the field's hint is an info symbol whose accessible name quotes the label
+  // („Erklärung zu „Begründung““), so a bare label regex matches it too; the textbox role does not.
+  await fireEvent.input(screen.getByRole("textbox", { name: /Begründung/ }), {
+    target: { value: text },
+  });
 }
 
 describe("MonthCorrectionDialog", () => {
