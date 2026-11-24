@@ -78,7 +78,7 @@ Sources: `KpiStrip.svelte` (`items`, `band?`, `ariaLabel?`, `extra?` — one mor
 
 ### `<List>`, `<ListRow>`
 
-Sources: `List.svelte` (`ariaLabel`, `children`), `ListRow.svelte` (`title`, `subtitle?`, `avatar?` + `avatarKey?`, `variant` `default | task`, `wrap?` (subtitle wraps instead of ending in an ellipsis), `href?`, `trailing?`, `actions?`). 44 px rows with a stable avatar colour; the `task` variant puts the buttons under the text.
+Sources: `List.svelte` (`ariaLabel`, `children`), `ListRow.svelte` (`title`, `subtitle?`, `avatar?` + `avatarKey?`, `variant` `default | task`, `wrap?` (title and subtitle wrap instead of ending in an ellipsis), `href?`, `trailing?`, `actions?`). 44 px rows with a stable avatar colour; the `task` variant puts the buttons under the text.
 
 Additive props (Issue #853, all optional, output unchanged without them): `List.testId?` (`data-testid` of the `ul`); `ListRow.meta?` (chips under the subtitle, both variants; in the `task` variant between subtitle and actions), `rowId?` (`id` of the `li`, a deep-link target), `testId?`, `kind?` (`data-kind`, a control value never shown), `highlight?` (tints the row with `--brand-tint`), `onPrimary?` (the title becomes the row's one `<button type="button">`, stretched over the row; `actions` and `trailing` stay siblings above it so nothing interactive is nested; same pattern as `ApprovalRow.onPrimary`, ignored when `href` is set).
 

@@ -2124,7 +2124,7 @@
             {:else}
               <List ariaLabel="Für dich">
                 {#each forYou as item (item.key)}
-                  <ListRow title={item.title} subtitle={item.subtitle} avatar={false}>
+                  <ListRow title={item.title} subtitle={item.subtitle} avatar={false} wrap>
                     {#snippet leading()}
                       <Chip tone={item.tone}>{item.chip}</Chip>
                     {/snippet}
