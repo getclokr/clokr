@@ -2474,8 +2474,9 @@ export async function shiftRoutes(app: FastifyInstance) {
   // Phase v1.8.8 — calendar Soll display for SHIFT_BASED employees.
   // Returns one row per Shift (multi-shift days surface as multiple rows — caller sums).
   // Auth: requireAuth applied globally via addHook above. Tenant scope via relation.
-  // EMPLOYEE role: defaults to req.user.employeeId (own shifts only, ignores any passed employeeId).
-  // MANAGER/ADMIN: employeeId param required; must belong to same tenant.
+  // shift:read:EIGENE only: forced onto the own employeeId (any passed employeeId is ignored).
+  // shift:read:ZUGEWIESEN: employeeId param required; must belong to same tenant and is scoped by
+  // Phase 91b D-11, except the caller's own id when the caller also holds shift:read:EIGENE (Issue #1011).
   app.get("/range", {
     schema: { tags: ["Schichtplanung"], security: [{ bearerAuth: [] }] },
     handler: async (req, reply) => {
@@ -2526,6 +2527,19 @@ export async function shiftRoutes(app: FastifyInstance) {
           shiftRangeAccess,
           "shift:read:ZUGEWIESEN",
         );
+        // Issue #1011 — a person's own shifts are always readable with shift:read:EIGENE, also in a salon
+        // outside the scoped ZUGEWIESEN reach (Springer day). The own id comes from the token, never from
+        // the query; every foreign id keeps the Phase 91b D-11 filter. The T-188-02 EIGENE-only branch
+        // above is unchanged. `kind === "scoped"` is checked first so a wholeTenant caller makes no extra
+        // permission call.
+        if (
+          shiftRangeScopeReach.kind === "scoped" &&
+          req.user.employeeId &&
+          queryEmployeeId === req.user.employeeId &&
+          (await hasPermission(req, "shift:read:EIGENE"))
+        ) {
+          shiftRangeScopeReach = undefined;
+        }
       }
 
       const fromDate = new Date(from + "T00:00:00Z");

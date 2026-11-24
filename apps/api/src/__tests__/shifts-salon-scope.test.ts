@@ -117,7 +117,7 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
     permissions: string[],
     scope: { scopeType: "SALONS" | "PERSONS"; salonIds?: string[]; employeeIds?: string[] },
   ) {
-    const { user } = await createManagerEmployee(label);
+    const { user, employee } = await createManagerEmployee(label);
     const name = `ShiftScope ${crypto.randomBytes(3).toString("hex")}`;
     const role = await app.prisma.accessRole.create({
       data: {
@@ -137,7 +137,7 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
         employeeIds: scope.employeeIds ?? [],
       },
     });
-    return { user };
+    return { user, employee };
   }
 
   async function login(email: string): Promise<string> {
@@ -211,6 +211,63 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
       const dates = (JSON.parse(res.body) as Array<{ date: string }>).map((r) => r.date);
       expect(dates).toContain("2026-06-03");
       expect(dates).toContain("2026-06-04");
+    });
+
+    // Issue #1011 — the own-employee rule: shift:read:EIGENE lifts the D-11 narrowing for the caller's
+    // OWN id only (a Springer day in a salon outside the scoped ZUGEWIESEN reach).
+    it("#1011: a SALONS-scoped manager with shift:read:EIGENE reads ALL own shifts across salons; a foreign id stays D-11-scoped", async () => {
+      const manager = await createScopedManager(
+        "mgr-range-own",
+        ["shift:read:ZUGEWIESEN", "shift:read:EIGENE"],
+        { scopeType: "SALONS", salonIds: [salonA.id] },
+      );
+      await createShift(manager.employee.id, salonA.id, "2026-06-08");
+      await createShift(manager.employee.id, salonB.id, "2026-06-09");
+      const foreign = await createEmployee("foreign-range-own");
+      await createShift(foreign.employee.id, salonA.id, "2026-06-10");
+      await createShift(foreign.employee.id, salonB.id, "2026-06-11");
+      const token = await login(manager.user.email);
+
+      const own = await app.inject({
+        method: "GET",
+        url: `/api/v1/shifts/range?from=2026-06-08&to=2026-06-09&employeeId=${manager.employee.id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(own.statusCode).toBe(200);
+      const ownDates = (JSON.parse(own.body) as Array<{ date: string }>).map((r) => r.date);
+      expect(ownDates).toEqual(["2026-06-08", "2026-06-09"]);
+
+      const other = await app.inject({
+        method: "GET",
+        url: `/api/v1/shifts/range?from=2026-06-10&to=2026-06-11&employeeId=${foreign.employee.id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(other.statusCode).toBe(200);
+      const otherDates = (JSON.parse(other.body) as Array<{ date: string }>).map((r) => r.date);
+      expect(otherDates).toEqual(["2026-06-10"]);
+    });
+
+    it("#1011: the own-employee rule needs shift:read:EIGENE - without it the own id stays D-11-scoped", async () => {
+      const manager = await createScopedManager(
+        "mgr-range-own-noeigene",
+        ["shift:read:ZUGEWIESEN"],
+        {
+          scopeType: "SALONS",
+          salonIds: [salonA.id],
+        },
+      );
+      await createShift(manager.employee.id, salonA.id, "2026-06-12");
+      await createShift(manager.employee.id, salonB.id, "2026-06-15");
+      const token = await login(manager.user.email);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/v1/shifts/range?from=2026-06-12&to=2026-06-15&employeeId=${manager.employee.id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const dates = (JSON.parse(res.body) as Array<{ date: string }>).map((r) => r.date);
+      expect(dates).toEqual(["2026-06-12"]);
     });
 
     it("a TENANT-scope (wholeTenant) manager is unaffected", async () => {
