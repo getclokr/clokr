@@ -648,7 +648,10 @@ test.describe("Issue #612 — Berichtsseite: Zeitraum im Browser", () => {
     await expect(monthSelect.locator("option")).toHaveCount(3);
     // Issue #854 (D-854-22): no DATEV download here - the row links to Daten › Export with the
     // chosen month preselected.
-    await expect(dialog.getByRole("button", { name: /DATEV/ })).toHaveCount(0);
+    // Issue #1058: an InfoHint trigger („Erklärung zu „…““) may mention DATEV; it is no download.
+    await expect(
+      dialog.getByRole("button", { name: /DATEV/ }).and(dialog.locator(":not(.ih-trigger)")),
+    ).toHaveCount(0);
     await expect(dialog.getByRole("link", { name: "Zu Daten › Export" })).toHaveAttribute(
       "href",
       `/verwalten/daten/export?year=${now.year}&month=${now.month}`,
