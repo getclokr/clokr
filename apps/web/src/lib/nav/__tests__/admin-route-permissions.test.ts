@@ -199,8 +199,8 @@ describe("admin route permissions (Issue #83)", () => {
   });
 
   it("layout wiring: children only on allow, a wait state, the refresh, a redirect, no role", () => {
-    // #844: the guard is the shared RouteGuard of the admin, Verwalten and Team layouts
-    for (const rel of ["admin", "verwalten", "team"]) {
+    // #844: the guard is the shared RouteGuard of the admin, Verwalten and Team layouts; #1011: and of shifts
+    for (const rel of ["admin", "verwalten", "team", "shifts"]) {
       const host = readFileSync(join(SRC, "routes", "(app)", rel, "+layout.svelte"), "utf8");
       expect(host, rel).toContain("<RouteGuard");
     }
