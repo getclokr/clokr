@@ -176,6 +176,37 @@ describe("Monatsabschluss: the running month (#1011)", () => {
     expect(within(detailEl).queryByRole("button", { name: "Entsperren" })).toBeNull();
   });
 
+  // #1011 owner decision 24.11.: an opened month expands INLINE directly under its own row (accordion),
+  // never as a separate section at the bottom of the page; one month is open at a time.
+  it("renders the persons of an opened month directly after its row, not as a bottom section", async () => {
+    asUser(READER);
+    renderWithTheme(Page, {});
+    const row = await openRow(11, /November/);
+    const detailEl = await screen.findByTestId("month-close-detail");
+    const detailRow = row.nextElementSibling as HTMLElement;
+    expect(detailRow.getAttribute("data-testid")).toBe("month-close-row-11-detail");
+    expect(detailRow.contains(detailEl)).toBe(true);
+    expect(row.closest("table")?.contains(detailEl)).toBe(true);
+    expect(screen.getAllByTestId("month-close-detail")).toHaveLength(1);
+    expect(screen.queryByRole("heading", { level: 2, name: /Personen/ })).toBeNull();
+  });
+
+  it("opens a closed month inline too, keeps one month open at a time and closes it again on a second click", async () => {
+    asUser(CLOSER);
+    renderWithTheme(Page, {});
+    const row10 = await openRow(10, /Monat 10/);
+    await screen.findByTestId("month-close-detail");
+    expect(row10.nextElementSibling?.getAttribute("data-testid")).toBe("month-close-row-10-detail");
+
+    const row11 = await openRow(11, /November/);
+    await waitFor(() => expect(screen.queryByTestId("month-close-row-10-detail")).toBeNull());
+    expect(screen.getAllByTestId("month-close-detail")).toHaveLength(1);
+    expect(row11.nextElementSibling?.getAttribute("data-testid")).toBe("month-close-row-11-detail");
+
+    await fireEvent.click(within(row11).getByRole("button", { name: /November/ }));
+    await waitFor(() => expect(screen.queryByTestId("month-close-detail")).toBeNull());
+  });
+
   it("keeps a later month closed: no chevron, reason „–“, no request, no detail", async () => {
     asUser(READER);
     renderWithTheme(Page, {});

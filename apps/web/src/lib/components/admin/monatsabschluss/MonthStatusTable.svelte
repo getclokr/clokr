@@ -189,6 +189,8 @@
     rowKey={(ms) => ms.month}
     rowTestId={(ms) => `month-close-row-${ms.month}`}
     onRowClick={openMonth}
+    rowDetail={monthDetail}
+    rowDetailOpen={(ms) => selectedMonth === ms.month}
     {filtered}
     {onResetFilters}
     caption={`Monate ${year} mit Status und Grund`}
@@ -235,23 +237,24 @@
   </DataTable>
 </section>
 
-{#if selected}
+{#snippet monthDetail(ms: MonthStatus)}
+  <!-- #1011 (owner decision 24.11.): the persons open INLINE directly under their month row. -->
   <section
-    class="settings-group"
+    class="mst-detail"
     aria-labelledby="mst-persons-title"
     data-testid="month-close-detail"
     bind:this={detailSection}
   >
-    <h2 class="settings-group-title" id="mst-persons-title">
-      {selected.name}
+    <h3 class="mst-detail-title" id="mst-persons-title">
+      {ms.name}
       {year}: Personen
-    </h2>
+    </h3>
     {#if selectedRunning}
       <div data-testid="month-close-running-note">
         <Note tone="info">{RUNNING_MONTH_NOTE}</Note>
       </div>
     {/if}
-    {#if selected.status === "ready"}
+    {#if ms.status === "ready"}
       <Note tone="warn">
         Endgültiger Abschluss: Mit dem Abschluss werden alle Zeiteinträge dieses Monats gesperrt und
         das Audit-Log fortgeschrieben. Änderungen sind danach nur noch durch Storno-Buchungen
@@ -264,7 +267,7 @@
       rowKey={(emp) => emp.employeeId}
       rowTestId={(emp) => `month-close-person-${emp.employeeId}`}
       loading={detailLoading}
-      caption={`Personen im ${selected.name} ${year} mit Status und fehlenden Tagen`}
+      caption={`Personen im ${ms.name} ${year} mit Status und fehlenden Tagen`}
     >
       {#snippet cell(emp, column)}
         {#if column.key === "employeeName"}
@@ -335,7 +338,7 @@
       {/snippet}
     </DataTable>
   </section>
-{/if}
+{/snippet}
 
 <style>
   .mst-month {
@@ -393,5 +396,19 @@
     margin-left: var(--s-1);
     color: var(--text-2);
     font-size: var(--fs-sm);
+  }
+
+  /* The detail of an opened month sits in the month table's own detail cell, which keeps values on one
+     line; the persons list below it wraps normally. */
+  .mst-detail {
+    padding: var(--s-3) var(--s-3) var(--s-4);
+    white-space: normal;
+    text-align: start;
+  }
+
+  .mst-detail-title {
+    margin: 0 0 var(--s-3);
+    font-size: var(--fs-base);
+    font-weight: 600;
   }
 </style>
