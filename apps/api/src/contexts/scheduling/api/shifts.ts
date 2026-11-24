@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
+import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
 import { getEffectiveBreakDuration, getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
 import { classifyLeaveTypeCode, type AvailabilityBucket } from "../shift-availability"; // Phase 98 (T3, plan 03) — the two classifiers' new home
 import {
@@ -1480,6 +1481,9 @@ export async function shiftRoutes(app: FastifyInstance) {
             // v1.7.3: Pausen-Override needed for Soll-Korrelation net hours
             breakOver6hOverride: true,
             breakOver9hOverride: true,
+            // Issue #1011: the age on the shift date decides the § 11 JArbSchG break; read for the
+            // planned netto only and stripped from the response below (a birth date never leaves the API).
+            birthDate: true,
             workSchedules: {
               // Issue #389: the contract is decided by the DISPLAYED week, not by today. Every
               // row that started on or before the week's end is loaded (newest first); the
@@ -1860,13 +1864,15 @@ export async function shiftRoutes(app: FastifyInstance) {
         const [eh, em] = s.endTime.split(":").map(Number);
         const grossMin = eh * 60 + em - (sh * 60 + sm);
         if (grossMin <= 0) continue;
-        const brk = getEffectiveBreakDuration(
+        // Issue #1011: the recording's own break rule (setting, raised to § 11 JArbSchG for a minor).
+        const brk = shiftBreakMinutes(
+          s,
           {
             breakOver6hOverride: emp.breakOver6hOverride ?? null,
             breakOver9hOverride: emp.breakOver9hOverride ?? null,
+            birthDate: emp.birthDate ?? null,
           },
           breakTenantCfg,
-          grossMin,
         );
         shiftBreakMinutesByEmp[s.employeeId] = (shiftBreakMinutesByEmp[s.employeeId] ?? 0) + brk;
       }
@@ -2323,9 +2329,10 @@ export async function shiftRoutes(app: FastifyInstance) {
         // Issue #589 (D-589-04): the employment dates were read for contract presence only; the
         // planner's person shape is unchanged.
         employees: employees.map((e) => {
-          const { hireDate, exitDate, ...person } = e;
+          const { hireDate, exitDate, birthDate, ...person } = e;
           void hireDate;
           void exitDate;
+          void birthDate; // Issue #1011 / T-435-16: read for the planned break only, never returned
           return person;
         }),
         shifts,
@@ -2543,11 +2550,13 @@ export async function shiftRoutes(app: FastifyInstance) {
       });
       const employeeBreakRow = await app.prisma.employee.findUnique({
         where: { id: targetEmployeeId },
-        select: { breakOver6hOverride: true, breakOver9hOverride: true },
+        select: { breakOver6hOverride: true, breakOver9hOverride: true, birthDate: true },
       });
+      // Issue #1011: birthDate decides the § 11 JArbSchG break per shift date; never returned.
       const employeeBreakShape = {
         breakOver6hOverride: employeeBreakRow?.breakOver6hOverride ?? null,
         breakOver9hOverride: employeeBreakRow?.breakOver9hOverride ?? null,
+        birthDate: employeeBreakRow?.birthDate ?? null,
       };
       const tenantConfigShape = {
         defaultBreakOver6h: tenantCfg?.defaultBreakOver6h ?? 30,
@@ -2587,7 +2596,7 @@ export async function shiftRoutes(app: FastifyInstance) {
 
       return shifts.map((s) => {
         const brutto = durationMinutes(s.startTime, s.endTime);
-        const breakMin = getEffectiveBreakDuration(employeeBreakShape, tenantConfigShape, brutto);
+        const breakMin = shiftBreakMinutes(s, employeeBreakShape, tenantConfigShape);
         return {
           date: s.date.toISOString().slice(0, 10),
           startTime: s.startTime,

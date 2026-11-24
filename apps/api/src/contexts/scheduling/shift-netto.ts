@@ -1,15 +1,12 @@
 /**
  * shift-netto.ts
  *
- * Phase 100 (OTC-04) — pure shift netto-minutes arithmetic, extracted from the `sumShiftNetto`
- * closure at `apps/api/src/utils/month-saldo.ts:390-404` (quoted below verbatim as the source of
- * truth this module is meant to agree with byte-for-byte):
+ * Phase 100 (OTC-04) — pure shift netto-minutes arithmetic, originally extracted from the
+ * `sumShiftNetto` closure of `month-saldo.ts`:
  *
  *   let brutto = hmToMin(sh.endTime) - hmToMin(sh.startTime);
  *   if (brutto < 0) brutto += 24 * 60;                    // midnight-crossing shift
  *   if (brutto <= 0) continue;
- *   const breakMin = getEffectiveBreakDuration(employeeBreakShape, tenantBreakShape, brutto);
- *   total += Math.max(0, brutto - breakMin);
  *
  * `Shift.startTime` / `Shift.endTime` are STRINGS ("06:00"), not DateTime columns (see the
  * `Shift` model in the shared database schema). This module therefore lives entirely in
@@ -17,32 +14,42 @@
  * the same convention `time-arithmetic.ts` states and follows for the Phorest
  * Vor-/Nachbereitungszeit padding.
  *
- * `Shift` has NO `breakMinutes` column. The pre-Phase-100 KNOWN GAP docblock on the function now
- * named `scheduledLeaveMinutes()` (`contexts/absence/api/leave.ts`, renamed by Issue #468)
- * prescribed a formula of
- * `(endTime - startTime - breakMinutes)`, naming a field that does not exist on `Shift`. The break
- * here instead comes from the shared `getEffectiveBreakDuration()` helper (`break-effective.ts`),
- * the same auto-break resolution TimeEntry and the month-saldo roster-proration already use.
+ * `Shift` has NO `breakMinutes` column. Since Issue #1011 the planned break comes from the
+ * recording's own function, `breakAmountFor` (`time-tracking/break-amount.ts`): the
+ * employee/tenant setting, raised to the § 11 JArbSchG minimum when the person is under 18 on the
+ * shift date (§ 18 Abs. 2 ArbZG). A planned shift is therefore netted exactly like the recording of
+ * the same times — one rule, no second copy. The thresholds are measured on the gross shift
+ * duration, the same convention the recording uses. Adults and persons without a birth date get
+ * the break the adult rule always gave (byte-identical).
  *
- * NON-GOAL: this module does NOT rewire `month-saldo.ts` onto itself. `month-saldo.ts` sits inside
- * `100-CONTEXT.md`'s scope fence (Saldo-Berechnung), which D-17 leaves standing — D-17 lifts only
- * the forward-going `OvertimeAccount.balanceHours` delta for the OVERTIME_COMP write paths in
- * `leave.ts`, nothing else. The resulting one-phase duplication between this file and the
- * `sumShiftNetto` closure is accepted; a follow-up phase should rewire `month-saldo.ts` onto this
- * module instead of maintaining the arithmetic twice.
+ * NON-GOAL: this module does NOT rewire the Arbeitszeitkonto. Three closures there still net the
+ * SHIFT_BASED roster Soll with the adult-only `getEffectiveBreakDuration` rule:
+ * `close-employee-month.ts`, `month-saldo.ts` and `overtime-balance.ts`. That changes saldi and
+ * touches closed months, so it is a #1011 follow-up with its own Bestand audit; the one-place gate
+ * `break-amount-one-place-1011.test.ts` pins those call sites by count.
  *
- * ONE intentional behavioural difference from the extracted closure: `month-saldo.ts`'s
- * `sumShiftNetto` also skips shifts that fall on a leave/absence-covered date (its `covered` set,
- * built from approved leave + absences) — that is a saldo PRORATION concern ("does this day's
+ * ONE intentional behavioural difference from the `month-saldo.ts` closure: that closure also skips
+ * shifts that fall on a leave/absence-covered date — a saldo PRORATION concern ("does this day's
  * roster count toward the month's expected minutes"), not a "how many hours does this request
  * cost" concern. This module deliberately does NOT filter by covered dates; a caller that needs
  * that exclusion applies it to the input array before calling in.
  */
+import { isMinorAtDate } from "../absence";
 import {
-  getEffectiveBreakDuration,
+  breakAmountFor,
   type BreakEmployeeShape,
   type BreakTenantConfigShape,
-} from "../time-tracking"; // Phase 101B (Issue #101, wave 8)
+} from "../time-tracking";
+
+/** The employee facts the planned break reads; `birthDate` is required so no caller can forget the age. */
+export type ShiftBreakEmployee = BreakEmployeeShape & { birthDate: Date | null | undefined };
+
+/** A shift as the netto arithmetic reads it; `date` is the stored `Shift.date` (UTC midnight of the work day). */
+export interface ShiftNettoInput {
+  date: Date;
+  startTime: string;
+  endTime: string;
+}
 
 /** Parse "HH:mm" into minutes since 00:00 (mirrors month-saldo.ts's hmToMin). */
 function hmToMin(hm: string): number {
@@ -50,27 +57,51 @@ function hmToMin(hm: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-/**
- * Netto minutes of a single shift: brutto (end - start, midnight-crossing corrected) minus the
- * auto-break the tenant/employee break configuration prescribes for that brutto duration. Never
- * negative — a break configured longer than the shift floors at 0, not a negative netto.
- */
-export function shiftNettoMinutes(
-  shift: { startTime: string; endTime: string },
-  employee: BreakEmployeeShape,
-  tenantConfig: BreakTenantConfigShape,
-): number {
+/** Gross minutes of a shift, midnight-crossing corrected. 0 for a zero-length shift. */
+function shiftBruttoMinutes(shift: ShiftNettoInput): number {
   let brutto = hmToMin(shift.endTime) - hmToMin(shift.startTime);
   if (brutto < 0) brutto += 24 * 60; // midnight-crossing shift (e.g. 22:00 -> 06:00)
+  return brutto;
+}
+
+/**
+ * The break the plan deducts from one shift: the recording's break rule (`breakAmountFor`, `time-tracking/break-amount.ts`) over
+ * the gross shift duration on the shift date. 0 for a shift of no length.
+ */
+export function shiftBreakMinutes(
+  shift: ShiftNettoInput,
+  employee: ShiftBreakEmployee,
+  tenantConfig: BreakTenantConfigShape,
+): number {
+  const brutto = shiftBruttoMinutes(shift);
   if (brutto <= 0) return 0;
-  const breakMin = getEffectiveBreakDuration(employee, tenantConfig, brutto);
-  return Math.max(0, brutto - breakMin);
+  return breakAmountFor({
+    employee,
+    tenantConfig,
+    presenceMin: brutto,
+    isMinor: isMinorAtDate(employee.birthDate, shift.date),
+  }).amountMin;
+}
+
+/**
+ * Netto minutes of a single shift: brutto (end - start, midnight-crossing corrected) minus the
+ * break `shiftBreakMinutes` prescribes. Never negative — a break configured longer than the shift
+ * floors at 0, not a negative netto.
+ */
+export function shiftNettoMinutes(
+  shift: ShiftNettoInput,
+  employee: ShiftBreakEmployee,
+  tenantConfig: BreakTenantConfigShape,
+): number {
+  const brutto = shiftBruttoMinutes(shift);
+  if (brutto <= 0) return 0;
+  return Math.max(0, brutto - shiftBreakMinutes(shift, employee, tenantConfig));
 }
 
 /** Sum of shiftNettoMinutes() over a list of shifts. Empty list -> 0. */
 export function sumShiftNettoMinutes(
-  shifts: { startTime: string; endTime: string }[],
-  employee: BreakEmployeeShape,
+  shifts: ShiftNettoInput[],
+  employee: ShiftBreakEmployee,
   tenantConfig: BreakTenantConfigShape,
 ): number {
   return shifts.reduce(
