@@ -91,7 +91,17 @@ describe("live saldo cutoff — today never promotes the client-side to-date win
     const source = readFileSync(page, "utf-8");
     // G4: the non-SHIFT_BASED day-cell badge branch must carry the `!day.isToday` guard (D-03);
     // the old, unguarded branch must be entirely gone (not just shadowed by the new one).
-    expect(source).toContain("{:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}");
+    if (page.includes("/team/")) {
+      // Issue #1029: Team › Zeiten prints the server's day step instead (`ds.diffMin`); the `!day.isToday`
+      // guard stays on that branch, and the old Soll-delta branch is gone entirely.
+      expect(source).toContain(
+        "{#if !isNoDailyTarget && !day.isToday && ds && ds.diffMin !== null}",
+      );
+    } else {
+      expect(source).toContain(
+        "{:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}",
+      );
+    }
     expect(source).not.toContain("{:else if day.expectedMin > 0 && !isNoDailyTarget}");
   });
 

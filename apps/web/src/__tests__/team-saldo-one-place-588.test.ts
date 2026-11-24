@@ -290,8 +290,9 @@ describe("team saldo figures live in one module (Issue #588, D-588-1)", () => {
     }
     expect(offenders).toEqual([]);
     // Non-vacuity, by name: the leave form's box and the person drill-down (split SaldoAnzeige). The
-    // Stundenkonto cell of /team/time-entries went with the owner review of Issue #853 (the page shows
-    // the month only, pinned in personal-saldo-label-588). The dashboard
+    // Stundenkonto cell of /team/time-entries went with the owner review of Issue #853; Issue #1029
+    // brought the Gesamtsaldo back as a zeitenKpis item (not a kontoKpiItem call), pinned in
+    // personal-saldo-label-588. The dashboard
     // tile went with Issue #845 (Mein Tag words it through saldoFigure(), pinned in mein-tag-845), the
     // /leave KPI and the /time-entries card with Issue #851 (the own total is worded on /ich/konto,
     // pinned in personal-saldo-label-588).

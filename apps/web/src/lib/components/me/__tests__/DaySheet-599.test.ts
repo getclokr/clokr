@@ -1,6 +1,9 @@
 // Issue #599 (Phase 851) - a day is read first: no input field, the figures and entries, the closed
 // month explained before anything is filled in, and the status of a correction request (API #902).
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { cleanup, fireEvent, screen } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import DaySheet from "../DaySheet.svelte";
@@ -21,12 +24,42 @@ const base = {
 
 describe("DaySheet", () => {
   it("shows Soll, Ist, Differenz and the entries without any input field", () => {
-    renderWithTheme(DaySheet, base);
+    // Issue #1029: the Differenz is the server's day step handed in, not Ist minus Soll.
+    renderWithTheme(DaySheet, { ...base, diffMin: 115 });
     const sheet = screen.getByTestId("day-sheet");
     expect(sheet.textContent).toContain("8:00 h");
     expect(sheet.textContent).toContain("9:55 h");
     expect(sheet.textContent).toContain("+1:55");
     expect(document.querySelectorAll("input, select, textarea")).toHaveLength(0);
+  });
+
+  it("without diffMin the Differenz is a dash, never Ist minus Soll (#1029)", () => {
+    renderWithTheme(DaySheet, base);
+    const dd = [...document.querySelectorAll("dt")].find(
+      (dt) => dt.textContent === "Differenz",
+    )?.nextElementSibling;
+    expect(dd?.textContent).toBe("–");
+    expect(screen.getByTestId("day-sheet").textContent).not.toContain("+1:55");
+  });
+
+  it("runningSaldoMin renders the labelled Gesamtsaldo bis zu diesem Tag (#1029)", () => {
+    renderWithTheme(DaySheet, { ...base, diffMin: 115, runningSaldoMin: 3594 });
+    const sheet = screen.getByTestId("day-sheet");
+    expect(sheet.textContent).toContain("Gesamtsaldo bis zu diesem Tag");
+    expect(screen.getByTestId("day-sheet-running-saldo").textContent).toBe("+59:54");
+  });
+
+  it("without runningSaldoMin no running figure is rendered (#1029)", () => {
+    renderWithTheme(DaySheet, { ...base, diffMin: 115 });
+    expect(screen.queryByTestId("day-sheet-running-saldo")).toBeNull();
+  });
+
+  it("the sheet holds no subtraction of its own (#1029)", () => {
+    const source = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "../DaySheet.svelte"),
+      "utf-8",
+    );
+    expect(source).not.toContain("istMin - sollMin");
   });
 
   it("runs the page's action from its primary button", async () => {
@@ -94,6 +127,15 @@ describe("DaySheet - manager additions (#853)", () => {
     expect(sheet.textContent).toContain("Pause zu kurz");
     expect(sheet.textContent).toContain("Der Monat ist abgeschlossen.");
     expect(sheet.textContent).not.toContain("deine Leitung");
+  });
+
+  it("renders the day's break-check panel from the dayCheck snippet (#1029)", async () => {
+    const { createRawSnippet } = await import("svelte");
+    const dayCheck = createRawSnippet(() => ({
+      render: () => `<div data-testid="check-slot">Pausenpanel</div>`,
+    }));
+    renderWithTheme(DaySheet, { ...base, dayCheck });
+    expect(screen.getByTestId("day-sheet").textContent).toContain("Pausenpanel");
   });
 
   it("without the additions it renders exactly the person's sheet", () => {

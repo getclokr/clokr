@@ -29,6 +29,7 @@
     type DayCheck,
     type DayCheckTravelOffer,
   } from "$lib/breaks/day-break-violation";
+  import { dayBreakPanelVisible } from "$lib/breaks/day-check-line";
   import { TRAVEL_TEXTS, travelOfferLabel } from "$lib/time-entries/travel-entry-form";
 
   interface Props {
@@ -64,16 +65,12 @@
   const hints = $derived((check.warnings ?? []).filter((w) => w.hint));
   // The server already sent its § 3 sentence; the fixed one below is only the fallback.
   const hasDailyLimitWarning = $derived(warnings.some((w) => w.code === "MAX_DAILY_EXCEEDED"));
-  // A cross-salon day is shown for a finding (open or acknowledged), a cross-salon § 3 breach or
-  // as soon as a day break is recorded on it. A single-entry finding day is shown only when the
-  // caller can act on it (acknowledge, record a break) or an acknowledgement exists.
-  // A withheld day always renders (its hint is the whole point); a full day follows the rules above.
-  const visible = $derived(
-    full === null ||
-      (full.crossSalon && (full.breakFinding || full.maxDailyExceeded)) ||
-      dayBreaks.length > 0 ||
-      (full.breakFinding && (full.mayAcknowledge || full.mayRecordDayBreak || full.acknowledged)),
-  );
+  // Issue #1029: when the panel renders at all is ONE rule (lib/breaks/day-check-line.ts), shared
+  // with the slim line above the calendar so the two never disagree. A cross-salon day is shown for a
+  // finding (open or acknowledged), a cross-salon § 3 breach or as soon as a day break is recorded on
+  // it; a single-entry finding day only when the caller can act on it or an acknowledgement exists;
+  // a withheld day always renders (its hint is the whole point).
+  const visible = $derived(dayBreakPanelVisible(check));
   const dayLabel = $derived(check.date.split("-").reverse().join("."));
   const totalsLine = $derived(
     full === null

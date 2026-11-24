@@ -134,7 +134,8 @@ describe("teamDayRows with the account's Ist (Issue #986)", () => {
     const rows = teamDayRows({
       entries: [],
       vocationalSchoolDays: ["2026-11-03"],
-      dayInfo: () => ({ expectedMin: 480, creditedMin: 480, isToday: false, isFuture: false }),
+      // Issue #1029: the row prints the server's day step; a credited Berufsschule day steps by 0.
+      dayInfo: () => ({ expectedMin: 480, diffMin: 0, isToday: false, isFuture: false }),
       sollVisible: true,
       findingDays: new Set(),
     });

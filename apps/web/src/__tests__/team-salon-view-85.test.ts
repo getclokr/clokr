@@ -181,12 +181,14 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(PAGE).not.toMatch(/\bsettled\(/);
   });
 
-  // Issue #853 (owner review): the person view shows the four figures of the prototype (Gearbeitet,
-  // Monatssaldo, Pausen, Status) and no account figure at all, so no refused account can leak into it.
-  // The overtime read is still classified, because a denial of it withholds Soll and saldo.
-  it("[refused saldo] the person view shows no account figure, and a denied overtime read is classified", () => {
+  // Issue #853 (owner review) kept the account figure off the person view; Issue #1029 (owner)
+  // reverses that: the Gesamtsaldo is a zeitenKpis item (one path, never KontoSaldoCard), and a
+  // denied overtime read withholds it like the Monatssaldo, so no refused account can leak into it.
+  // The overtime read is classified, because a denial of it withholds Soll and saldo.
+  it("[refused saldo] the person view shows the Gesamtsaldo only through zeitenKpis and withholds it on a refused overtime read (#1029)", () => {
     expect(PAGE).not.toContain("kontoKpiItem(");
     expect(PAGE).not.toContain("<KontoSaldoCard");
+    expect(PAGE).toContain("accountWithheld: overtimeDenied,");
     expect(PAGE).toContain("overtimeDenied = isDenied(rawOvertime);");
     expect(PAGE).toContain("saldoDenied = isDenied(rawSchedule, rawOvertime);");
   });

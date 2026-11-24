@@ -27,8 +27,14 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   // Issue #853 (owner review): the four Kennzahlen of the prototype's „Zeiten“, worded by the same
   // module Ich › Zeiten uses (#851); one row per day and the day sheet replace the entry table.
-  import { zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
-  import { fmtBalance } from "$lib/utils/format-minutes";
+  import { standGesternText, zeitenKpis, zeitenStatus } from "$lib/me/zeiten-kpis";
+  import {
+    DAY_DIFF_TITLE,
+    dayDiffText,
+    daySaldoByDate,
+    daySaldoTitle,
+    type DaySaldo,
+  } from "$lib/time-entries/day-saldo"; // Issue #1029: the one reader of the server's day series
   import { pauseLabel, teamDayRows, type TeamDayRow } from "$lib/team/zeiten-day-rows";
   import { weekMondaysIn, serverMissingDatesOf } from "$lib/dashboard/heute-im-salon"; // Issue #987
   import DaySheet, { type DaySheetEntry } from "$lib/components/me/DaySheet.svelte";
@@ -81,6 +87,8 @@
     salonViewRequestPath,
   } from "$lib/team/salon-time-entries";
   import DayBreakPanel from "$lib/components/breaks/DayBreakPanel.svelte"; // Issue #80
+  import DayCheckLine from "$lib/components/breaks/DayCheckLine.svelte"; // Issue #1029
+  import { dayBreakPanelVisible } from "$lib/breaks/day-check-line";
   import { createLatestRequestGuard } from "$lib/time-entries/latest-request"; // Issue #660
   // Issue #80 (D-09c/D-10/D-20) — the notification deep link and the server-computed day checks;
   // the browser never derives a cross-salon finding itself.
@@ -289,9 +297,8 @@
   let overtimeTotalHours: number | null = $state(null);
   // Phase 97-05 (SALDO-DISP-01/03/04/07) — additive split fields from GET /overtime/:id,
   // mirroring the employee's own /time-entries (97-01). undefined when the endpoint didn't
-  // return the split (older cached response / fail-safe branch) — the Gesamt-Saldo snippet
-  // falls back to the pre-existing single-value SaldoAnzeige rendering (via overtimeTotalHours)
-  // in that case.
+  // return the split (older cached response / fail-safe branch). The Gesamtsaldo Kennzahl (#1029)
+  // reads only overtimeTotalHours and these two month facts for its forecast wording.
   let overtimeConfirmedMinutes: number | undefined = $state(undefined);
   let overtimeOpenMonthMinutes: number | null | undefined = $state(undefined);
   let overtimeHasClosedMonth: boolean | undefined = $state(undefined);
@@ -311,6 +318,9 @@
   interface MonthSaldoDay {
     date: string;
     cumulativeSaldoMinutes: number;
+    // Issue #594 (the day step, read by #1029): the account's own day difference; exactly
+    // cumulative(D) - cumulative(D-1). Absent on the single terminal entry of a closed month.
+    balanceMinutes?: number;
     // Issue #594: the day's own Soll and Ist (credits included) from the account; absent on the
     // single terminal entry of a closed month.
     expectedMinutes?: number;
@@ -337,15 +347,14 @@
     dayDetailsWithheld?: boolean;
   }
   let monthSaldo = $state<MonthSaldo | null>(null);
-  // Map from YYYY-MM-DD → cumulativeSaldoMinutes for O(1) cell lookup (per-month day cells).
   // Issue #986: the account's day shares (#594) and whether the caller read a Soll at all; both set
   // by loadAll right before the calendar days are built from them.
   let dayShares: Map<string, AccountDayShare> = new Map();
   let daySollReadable = false;
-  let monthSaldoDayMap: Map<string, number> = $derived(
-    monthSaldo
-      ? new Map(monthSaldo.days.map((d) => [d.date, d.cumulativeSaldoMinutes]))
-      : new Map(),
+  // Issue #1029: YYYY-MM-DD → the server's day step and running saldo (one mapping, nothing computed
+  // in the page); empty for a month the server states no days for and under withheld day details (#86).
+  let daySaldo = $derived(
+    daySaldoByDate(monthSaldo?.days, monthSaldo?.dayDetailsWithheld === true),
   );
 
   // Modal
@@ -749,7 +758,7 @@
       const overtimeValue = valueOr(rawOvertime, null);
       overtimeTotalHours = overtimeValue ? Number(overtimeValue.balanceHours) : null;
       // Phase 97-05 — split fields, undefined when the endpoint didn't return them (older
-      // cached response / fail-safe branch); the Gesamt-Saldo snippet falls back accordingly.
+      // cached response / fail-safe branch).
       overtimeConfirmedMinutes = overtimeValue?.confirmedMinutes;
       overtimeOpenMonthMinutes = overtimeValue?.openMonthMinutes;
       overtimeHasClosedMonth = overtimeValue?.hasClosedMonth;
@@ -773,8 +782,8 @@
       // feeds the month header SOLL(BISHER)/IST/MONAT-SALDO, the MONTHLY_HOURS header's
       // monthSollMinutes, the SHIFT_BASED cumulative cells and the day shares (#594) every day is
       // judged against - a Berufsschule credit is inside those shares, never a minus. GESAMT-SALDO
-      // is NOT sourced from here (it must be month-INDEPENDENT — see the Gesamt-Saldo tile, bound
-      // to the live lifetime GET /overtime/:id). Not read when the contract or the account was
+      // is NOT sourced from here (it must be month-INDEPENDENT — see the Gesamtsaldo Kennzahl,
+      // bound to the live lifetime GET /overtime/:id, Issue #1029). Not read when the contract or the account was
       // already refused: then nothing is judged at all.
       const isMonthlyHoursWithTarget =
         schedule?.type === "MONTHLY_HOURS" && Number(schedule.monthlyHours ?? 0) > 0;
@@ -1290,9 +1299,14 @@
   }
 
   // The tooltip of a calendar cell: its own reason (holiday, absence, ...) plus the entry count.
-  function cellTitle(base: string | undefined, entryCount: number): string | undefined {
+  // Issue #1029: with the server's day step and the labelled running saldo of the account.
+  function cellTitle(
+    base: string | undefined,
+    entryCount: number,
+    saldo?: DaySaldo,
+  ): string | undefined {
     const count = multiEntryUi ? entryCountTitle(entryCount) : null;
-    return [base, count].filter(Boolean).join(" · ") || undefined;
+    return [base, count, daySaldoTitle(saldo)].filter(Boolean).join(" · ") || undefined;
   }
 
   function openEdit(entry: TimeEntry) {
@@ -1789,8 +1803,8 @@
     arbzgEnabled ? dayChecksToArbzgMap(dayChecks) : new Map<string, DayWarning[]>(),
   );
 
-  // Issue #853 (owner review, prototype „Zeiten“): the four Kennzahlen Gearbeitet, Monatssaldo, Pausen
-  // and Status, worded by lib/me/zeiten-kpis.ts from the page's MonthMetrics (#125, #433, #495) - the
+  // Issue #853 (owner review, prototype „Zeiten“): the Kennzahlen Gearbeitet, Monatssaldo, Gesamtsaldo
+  // (Issue #1029, from GET /overtime/:id), Pausen and Status, worded by lib/me/zeiten-kpis.ts from the page's MonthMetrics (#125, #433, #495) - the
   // same module Ich › Zeiten uses, so both pages say the same thing. Breaks are the stored ones of the
   // counted entries (the set of the Ist); findings come from the server's day check (#80/#511).
   // A refused saldo read (#85) shows the Ist only and says who sees the rest.
@@ -1805,6 +1819,18 @@
       findingDays: arbzgEnabled ? arbzgDayMap.size : null,
       runningCount,
       saldoWithheld: saldoDenied,
+      // Issue #1029: the Gesamtsaldo is the GET /overtime/:id total this page already loads, never a
+      // second computation (#681/#682); withheld exactly when that read was refused (#85).
+      account:
+        overtimeTotalHours === null
+          ? null
+          : {
+              balanceHours: overtimeTotalHours,
+              unconfirmedMonths: overtimeUnconfirmedMonths,
+              hasClosedMonth: overtimeHasClosedMonth,
+              stand: standGesternText(today),
+            },
+      accountWithheld: overtimeDenied,
     }),
   );
   let zeitenMonthStatus = $derived(zeitenStatus(monthIsLocked || monthMetrics.closed));
@@ -1866,7 +1892,11 @@
       // itself is shown in the day sheet, inside the #64 gate.
       entries: entries.map((e) => ({ ...e, salonLabel: e.salonName ?? null })),
       vocationalSchoolDays: bsAbsences.map((b) => b.date),
-      dayInfo: (day) => calendarDayByDate.get(day),
+      // Issue #1029: the Differenz of a row is the server's day step, never Ist minus Soll here.
+      dayInfo: (day) => {
+        const info = calendarDayByDate.get(day);
+        return info ? { ...info, diffMin: daySaldo.get(day)?.diffMin ?? null } : undefined;
+      },
       sollVisible,
       findingDays: new Set(arbzgDayMap.keys()),
       missingDays: serverMissing ?? undefined,
@@ -1879,25 +1909,22 @@
     { key: "pause", label: "Pause", align: "end" as const },
     { key: "net", label: "Netto", align: "end" as const },
     ...(sollVisible ? [{ key: "soll", label: "Soll", align: "end" as const }] : []),
-    // SHIFT_BASED (#291, §615): a day's difference against the roster is not the account's figure, so
-    // the column shows the server's cumulative saldo of the day; its name and tooltip say what it holds.
-    ...(isShiftBased && monthSaldo
+    // Issue #1029: ONE Differenz column for every contract model - the server's day step
+    // (`balanceMinutes`), also for SHIFT_BASED; the running saldo is not a column of this list.
+    ...(sollVisible
       ? [
           {
-            key: "saldo",
-            label: "Saldo seit Abschluss",
+            key: "diff",
+            label: "Differenz",
             align: "end" as const,
-            title:
-              "Kumulierter Saldo seit dem letzten Monatsabschluss bis zu diesem Tag (§615). Nicht abgeschlossene Vormonate sind darin nicht enthalten — den Gesamt-Saldo zeigt der Bericht.",
+            title: DAY_DIFF_TITLE,
           },
         ]
-      : sollVisible
-        ? [{ key: "diff", label: "Differenz", align: "end" as const }]
-        : []),
+      : []),
     { key: "open", label: "", align: "end" as const },
   ]);
-  // Without a Differenz or saldo column the day's status chip (running, invalid) sits next to its times.
-  let stateInTimes = $derived(!listColumns.some((c) => c.key === "diff" || c.key === "saldo"));
+  // Without a Differenz column the day's status chip (running, invalid) sits next to its times.
+  let stateInTimes = $derived(!listColumns.some((c) => c.key === "diff"));
   // The day a deep link or a calendar cell pointed at (Issue #70) is highlighted; nothing else is
   // tinted - a running or invalid day says so in its chip, never through a coloured row.
   function dayRowTone(row: TeamDayRow): DataTableRowTone | undefined {
@@ -1919,6 +1946,11 @@
           .sort((x, y) => x.startTime.localeCompare(y.startTime))
       : [],
   );
+  // Issue #1029: the day check of the opened day; its break panel lives in the day view.
+  let daySheetCheck = $derived(
+    daySheetDay ? (dayChecks.find((c) => c.date === daySheetDay) ?? null) : null,
+  );
+  let daySheetPanel = $derived(daySheetCheck !== null && dayBreakPanelVisible(daySheetCheck));
   let daySheetInfo = $derived(daySheetDay ? calendarDayByDate.get(daySheetDay) : undefined);
   let daySheetLocked = $derived(daySheetEntries.some((e) => e.isLocked === true));
   let daySheetRows = $derived<DaySheetEntry[]>(
@@ -1982,8 +2014,8 @@
 >
   {#snippet actions()}
     {#if teamMode === "person" && selectedEmployee}
-      <!-- quick 260820-fkz — Gesamt-Saldo lives outside the page head, as the Stundenkonto cell
-           of the figures strip below (Issue #853, D-853-18). -->
+      <!-- quick 260820-fkz — the account total lives outside the page head, as the Gesamtsaldo
+           Kennzahl of the figures strip below (Issue #853, D-853-18; Issue #1029). -->
       <button class="btn btn-primary" onclick={() => openAdd()}>
         <span aria-hidden="true">＋</span> Zeit eintragen
       </button>
@@ -2081,7 +2113,7 @@
     {/if}
 
     <!-- Figures strip (Issue #853, owner review; prototype #p-zeiten stats): Gearbeitet, Monatssaldo,
-       Pausen and Status of the chosen person, worded by lib/me/zeiten-kpis.ts like Ich › Zeiten.
+       Gesamtsaldo (Issue #1029), Pausen and Status of the chosen person, worded by lib/me/zeiten-kpis.ts like Ich › Zeiten.
        Rendered ONLY with an employee selected (D-01). -->
     <div class="te-figures">
       {#if saldoCardState === "loading"}
@@ -2103,21 +2135,10 @@
       {/if}
     </div>
 
-    <!-- Issue #80 — one panel per multi-entry day of the server's day check. The panel renders
-       nothing for a day without a cross-salon finding or a recorded day break, so single-entry
-       days look exactly as before. Acknowledge/revoke are offered only where the server's
-       mayAcknowledge allows (D-08); the page makes no permission decision of its own. -->
-    {#each dayChecks as dayCheck (dayCheck.date)}
-      <DayBreakPanel
-        check={dayCheck}
-        onAddBreak={(slot) => addDayBreak(dayCheck.date, slot)}
-        onDeleteBreak={deleteDayBreak}
-        onAcknowledge={(reason) => acknowledgeDay(dayCheck.date, reason)}
-        onRevoke={revokeDayAck}
-        travelOffers={travelOffersShown(dayCheck, multiEntryUi)}
-        onRecordTravel={(offer) => recordTravelOffer(dayCheck.date, offer)}
-      />
-    {/each}
+    <!-- Issue #1029: ONE slim line names the days with a day-check result (the server's open break
+       findings, and every other day with something to show); the calendar marks them, each day opens
+       its day view, where the details and the acknowledgement live (Issue #80 panel). -->
+    <DayCheckLine checks={dayChecks} onOpenDay={openDaySheet} onMore={() => selectView("list")} />
 
     <!-- ── Kalender ─────────────────────────────────────────────────────────── -->
     {#if teView === "calendar"}
@@ -2148,6 +2169,7 @@
                       : day.isVocationalSchool
                         ? "Berufsschule"
                         : undefined}
+              {@const ds = daySaldo.get(day.dateStr)}
               <button
                 type="button"
                 data-date={day.dateStr}
@@ -2166,7 +2188,7 @@
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
                 disabled={day.isBeforeHire || !day.isCurrentMonth}
-                title={cellTitle(baseTitle, day.entryCount)}
+                title={cellTitle(baseTitle, day.entryCount, ds)}
                 onclick={() => onCellClick(day.dateStr)}
               >
                 <span class="cal-day-num">{day.dayNum}</span>
@@ -2191,30 +2213,20 @@
                   <span class="day-before-hire">—</span>
                 {:else if day.isCurrentMonth && day.hasEntries}
                   <span class="day-worked">{fmtMin(day.workedMin)}&thinsp;h</span>
-                  {#if isShiftBased}
-                    <!-- SHIFT_BASED: show the CUMULATIVE §615 running saldo only when the API carried
-                       a cumulative for this day (past days up to windowEnd). For today-not-yet-worked
-                       and future days (no monthSaldoDayMap entry) show ONLY the hours — never fall back
-                       to the per-day delta, which would look like a spurious "today penalty". -->
-                    {#if monthSaldoDayMap.has(day.dateStr)}
-                      {@const cum = monthSaldoDayMap.get(day.dateStr)!}
-                      <span class="day-bal {balClass(cum)}"
-                        >{cum >= 0 ? "+" : "−"}{fmtMin(Math.abs(cum))}</span
-                      >
-                    {/if}
-                  {:else if day.expectedMin > 0 && !isNoDailyTarget && !day.isToday}
-                    <!-- Issue #986: against the account's Ist of the day (credits included) where
-                       the account was read, else the recorded minutes. -->
-                    {@const b = (day.creditedMin ?? day.workedMin) - day.expectedMin}
-                    <span class="day-bal {balClass(b)}"
-                      >{b >= 0 ? "+" : "−"}{fmtMin(Math.abs(b))}</span
+                  <!-- Issue #1029: the day difference is the server's day step of the account
+                     (`balanceMinutes`), never a browser subtraction. Where the server states none
+                     (today, future, a closed month, withheld day details #86) the cell shows only
+                     the hours. -->
+                  {#if !isNoDailyTarget && !day.isToday && ds && ds.diffMin !== null}
+                    <span class="day-bal {balClass(ds.diffMin)}" data-testid="cal-day-diff"
+                      >{dayDiffText(ds.diffMin)}</span
                     >
                   {/if}
-                {:else if day.isCurrentMonth && day.status === "missing" && day.expectedMin > 0 && !day.isFuture && !isNoDailyTarget}
-                  <!-- Issue #986: only a past day the account judges as owed shows a minus; a
-                     Berufsschule day is credited. A day the server names missing without a
-                     readable Soll (#987) falls through to „Fehlt“ below. -->
-                  <span class="day-missing">−{fmtMin(day.expectedMin)}&thinsp;h</span>
+                {:else if day.isCurrentMonth && day.status === "missing" && !isNoDailyTarget && ds && ds.diffMin !== null}
+                  <!-- Issue #986/#1029: only a past day the account judges as owed shows its day
+                     step (the server's figure, a minus); a Berufsschule day is credited. A day the
+                     server states no step for (#987, #86) falls through to „Fehlt“ below. -->
+                  <span class="day-missing">{dayDiffText(ds.diffMin)}&thinsp;h</span>
                 {:else if day.isCurrentMonth && day.status === "missing"}
                   <span class="day-missing">Fehlt</span>
                 {/if}
@@ -2321,19 +2333,6 @@
                 {:else}
                   <span class="text-muted">–</span>
                 {/if}
-              {:else if column.key === "saldo"}
-                {#if isShiftBased && monthSaldo}
-                  {@const cum = monthSaldoDayMap.get(row.day)}
-                  {#if row.state}
-                    <Chip tone={row.state.tone}>{row.state.label}</Chip>
-                  {:else if cum != null}
-                    <Chip tone={cum > 0 ? "ok" : cum < 0 ? "bad" : "neutral"}
-                      >{cum === 0 ? "±0:00" : fmtBalance(cum)}</Chip
-                    >
-                  {:else}
-                    <span class="text-muted">–</span>
-                  {/if}
-                {/if}
               {:else if column.key === "open" && !row.vocationalSchool}
                 <button
                   type="button"
@@ -2385,6 +2384,24 @@
   {/if}
 {/snippet}
 
+<!-- Issue #1029 / #80: the break panel of the opened day (totals, findings, gaps, day breaks,
+     acknowledge and revoke, travel offers) - the texts come only from the server's day check, and
+     acknowledge/revoke are offered only where its mayAcknowledge allows (D-08). -->
+{#snippet daySheetDayCheck()}
+  {#if daySheetCheck}
+    {@const dayCheck = daySheetCheck}
+    <DayBreakPanel
+      check={dayCheck}
+      onAddBreak={(slot) => addDayBreak(dayCheck.date, slot)}
+      onDeleteBreak={deleteDayBreak}
+      onAcknowledge={(reason) => acknowledgeDay(dayCheck.date, reason)}
+      onRevoke={revokeDayAck}
+      travelOffers={travelOffersShown(dayCheck, multiEntryUi)}
+      onRecordTravel={(offer) => recordTravelOffer(dayCheck.date, offer)}
+    />
+  {/if}
+{/snippet}
+
 <!-- ── Day sheet (Issue #853, owner review; the #851 DaySheet) ───────────────────
      Read first: Soll, Ist and Differenz of the day, its entries with source and note, the findings of
      the server's day check. Edit and delete are per entry; the primary action adds (or, without salon
@@ -2400,8 +2417,11 @@
       ? daySheetInfo.expectedMin
       : null}
     istMin={daySheetIst}
+    diffMin={sollVisible ? (daySaldo.get(daySheetDay)?.diffMin ?? null) : null}
+    runningSaldoMin={daySaldo.get(daySheetDay)?.runningMin ?? null}
     entries={daySheetRows}
-    findings={(arbzgDayMap.get(daySheetDay) ?? []).map((w) => w.message)}
+    findings={daySheetPanel ? [] : (arbzgDayMap.get(daySheetDay) ?? []).map((w) => w.message)}
+    dayCheck={daySheetPanel ? daySheetDayCheck : undefined}
     locked={daySheetLocked}
     lockedText="Dieser Monat ist abgeschlossen. Die Einträge bleiben, wie sie sind; eine Korrektur wird als neuer Eintrag im laufenden Monat gebucht."
     future={daySheetInfo?.isFuture ?? false}

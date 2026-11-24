@@ -86,13 +86,22 @@ describe("personal saldo views pass the data to the forecast label (Issue #588, 
     expect(compact).toContain("{unconfirmedMonths}");
   });
 
-  // Issue #853 (owner review): Team › Zeiten shows the month only (the four figures of the prototype);
-  // a person's account total is worded on /ich/konto and in the reports, never on this page.
-  it("team/time-entries shows no account total", () => {
+  // Issue #853 (owner review) kept the account total off Team › Zeiten; Issue #1029 (owner) reverses
+  // that decision: the page shows a Gesamtsaldo Kennzahl, worded by zeitenKpis from the fields of the
+  // GET /overtime/:id answer the page already loads - through the one forecast helper, never through
+  // KontoSaldoCard or kontoKpiItem, so the forecast wording follows the data like everywhere else.
+  it("team/time-entries words its Gesamtsaldo through zeitenKpis from the GET /overtime/:id fields (#1029)", () => {
     const text = read(TEAM_TIME_ENTRIES);
+    const start = text.indexOf("zeitenKpis({");
+    expect(start).toBeGreaterThan(-1);
+    const call = text.slice(start, text.indexOf("}),", start));
+    expect(call).toContain("unconfirmedMonths: overtimeUnconfirmedMonths");
+    expect(call).toContain("hasClosedMonth: overtimeHasClosedMonth");
+    expect(read("lib/me/zeiten-kpis.ts")).toContain(
+      "forecastLabel(account.unconfirmedMonths, account.hasClosedMonth)",
+    );
     expect(text).not.toContain("kontoKpiItem(");
     expect(text).not.toContain("<KontoSaldoCard");
-    expect(text).toContain("zeitenKpis({");
   });
 
   // Issue #851: the own account total left /time-entries for /ich/konto, which words its forecast

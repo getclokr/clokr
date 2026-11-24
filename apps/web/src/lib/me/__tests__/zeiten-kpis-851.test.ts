@@ -2,7 +2,17 @@
 // claims no saldo (#495), a closed month reads as confirmed, the day-check findings are counted
 // as the server gave them.
 import { describe, expect, it } from "vitest";
-import { ownZeitenKpis, zeitenKpis, zeitenStatus, type ZeitenMonthFigures } from "../zeiten-kpis";
+import {
+  FORECAST_LABEL_CURRENT_MONTH,
+  FORECAST_LABEL_SINCE_CLOSE,
+} from "$lib/saldo/forecast-label";
+import {
+  ownZeitenKpis,
+  standGesternText,
+  zeitenKpis,
+  zeitenStatus,
+  type ZeitenMonthFigures,
+} from "../zeiten-kpis";
 
 const month: ZeitenMonthFigures = {
   sollToDateMin: 32 * 60,
@@ -62,6 +72,82 @@ describe("zeitenKpis", () => {
 });
 
 // Issue #935: the own page words the same figures as Ist, Soll and Differenz (mockup 14.11.2026).
+describe("zeitenKpis Gesamtsaldo (#1029)", () => {
+  const account = {
+    balanceHours: 59.9,
+    unconfirmedMonths: 2,
+    hasClosedMonth: true,
+    stand: "Stand gestern, 23.11.",
+  };
+
+  it("adds the Gesamtsaldo after the Monatssaldo from the account read", () => {
+    const items = zeitenKpis({ ...base, account });
+    expect(items.map((i) => i.label)).toEqual([
+      "Gearbeitet",
+      "Monatssaldo",
+      "Gesamtsaldo",
+      "Pausen",
+    ]);
+    expect(items[2]).toMatchObject({
+      label: "Gesamtsaldo",
+      value: "+59:54",
+      unit: "h",
+      explanation: `Stand gestern, 23.11. · ${FORECAST_LABEL_SINCE_CLOSE}`,
+      testId: "zeiten-kpi-total",
+    });
+  });
+
+  it("names the running month when exactly one month is unconfirmed", () => {
+    const [, , total] = zeitenKpis({ ...base, account: { ...account, unconfirmedMonths: 1 } });
+    expect(total.explanation).toBe(`Stand gestern, 23.11. · ${FORECAST_LABEL_CURRENT_MONTH}`);
+  });
+
+  it("withholds the figure exactly like the Monatssaldo when the account read was refused", () => {
+    const items = zeitenKpis({
+      ...base,
+      saldoWithheld: true,
+      account: null,
+      accountWithheld: true,
+    });
+    expect(items[2].value).toBe("—");
+    expect(items[2].unit).toBeUndefined();
+    expect(items[2].explanation).toBe(items[1].explanation);
+    expect(items[2].explanation).toBe("sehen Inhaber, Personalabteilung und die Person selbst");
+  });
+
+  it("claims no Gesamtsaldo for a contract without Soll", () => {
+    const [, , total] = zeitenKpis({
+      ...base,
+      month: { ...month, noSollTarget: true, saldoMin: null, sollToDateMin: 0 },
+      account,
+    });
+    expect(total.value).toBe("—");
+    expect(total.explanation).toBe("Zeiterfassung ohne Sollvergleich");
+  });
+
+  it("shows a dash without explanation when there is no account answer", () => {
+    const [, , total] = zeitenKpis({ ...base, account: null });
+    expect(total).toMatchObject({ value: "—" });
+    expect(total.unit).toBeUndefined();
+    expect(total.explanation).toBeUndefined();
+  });
+
+  it("keeps the three items when no account key is passed", () => {
+    expect(zeitenKpis(base)).toHaveLength(3);
+    expect(ownZeitenKpis(base)).toHaveLength(3);
+  });
+
+  it("converts like Ich › Konto: Math.round(balanceHours * 60)", () => {
+    const [, , total] = zeitenKpis({ ...base, account: { ...account, balanceHours: -1.5 } });
+    expect(total.value).toBe("−1:30");
+  });
+
+  it("words the Stichtag as the day before", () => {
+    expect(standGesternText(new Date(2026, 10, 24, 10))).toBe("Stand gestern, 23.11.");
+    expect(standGesternText(new Date(2026, 11, 1, 8))).toBe("Stand gestern, 30.11.");
+  });
+});
+
 describe("ownZeitenKpis", () => {
   it("names Ist, Soll bis gestern and Differenz with the page's own figures", () => {
     const [ist, soll, diff] = ownZeitenKpis({ ...base, runningCount: 1 });

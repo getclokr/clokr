@@ -4,17 +4,24 @@ import { describe, expect, it } from "vitest";
 import { pauseLabel, teamDayRows, weekdayDateLabel, type DayRowEntry } from "../zeiten-day-rows";
 
 const PAST = { expectedMin: 480, isToday: false, isFuture: false };
+// Issue #1029: a row's Differenz is the server's day step handed in as `diffMin`.
+function past(diffMin: number | null) {
+  return { ...PAST, diffMin };
+}
 const TODAY = { expectedMin: 480, isToday: true, isFuture: false };
 
 function entry(p: Partial<DayRowEntry> & { startTime: string }): DayRowEntry {
   return { id: p.startTime, endTime: null, breakMinutes: 0, salonLabel: "Nord", ...p };
 }
 
-function rows(entries: DayRowEntry[], opts: { sollVisible?: boolean; today?: string } = {}) {
+function rows(
+  entries: DayRowEntry[],
+  opts: { sollVisible?: boolean; today?: string; diffMin?: number | null } = {},
+) {
   return teamDayRows({
     entries,
     vocationalSchoolDays: [],
-    dayInfo: (day) => (day === opts.today ? TODAY : PAST),
+    dayInfo: (day) => (day === opts.today ? TODAY : past(opts.diffMin ?? null)),
     sollVisible: opts.sollVisible ?? true,
     findingDays: new Set(),
   });
@@ -22,14 +29,17 @@ function rows(entries: DayRowEntry[], opts: { sollVisible?: boolean; today?: str
 
 describe("teamDayRows", () => {
   it("one row per day with the prototype's columns and a positive difference chip", () => {
-    const [row] = rows([
-      entry({
-        id: "a",
-        startTime: "2026-11-06T09:30:00",
-        endTime: "2026-11-06T20:10:00",
-        breakMinutes: 45,
-      }),
-    ]);
+    const [row] = rows(
+      [
+        entry({
+          id: "a",
+          startTime: "2026-11-06T09:30:00",
+          endTime: "2026-11-06T20:10:00",
+          breakMinutes: 45,
+        }),
+      ],
+      { diffMin: 115 },
+    );
     expect(row).toMatchObject({
       day: "2026-11-06",
       dayLabel: "Fr 6.11.",
@@ -44,15 +54,18 @@ describe("teamDayRows", () => {
   });
 
   it("several entries of a day are one row: times joined, minutes summed, salons once", () => {
-    const [row] = rows([
-      entry({
-        id: "b",
-        startTime: "2026-11-05T13:00:00",
-        endTime: "2026-11-05T17:00:00",
-        salonLabel: "Süd",
-      }),
-      entry({ id: "a", startTime: "2026-11-05T08:00:00", endTime: "2026-11-05T12:00:00" }),
-    ]);
+    const [row] = rows(
+      [
+        entry({
+          id: "b",
+          startTime: "2026-11-05T13:00:00",
+          endTime: "2026-11-05T17:00:00",
+          salonLabel: "Süd",
+        }),
+        entry({ id: "a", startTime: "2026-11-05T08:00:00", endTime: "2026-11-05T12:00:00" }),
+      ],
+      { diffMin: 0 },
+    );
     expect(row.times).toBe("08:00–12:00, 13:00–17:00");
     expect(row.salon).toBe("Nord, Süd");
     expect(row.net).toBe("8:00");
@@ -101,10 +114,37 @@ describe("teamDayRows", () => {
     ).toBe("läuft");
   });
 
+  it("the difference is the server's step even when entries minus Soll would differ (#1029)", () => {
+    // 8:00 net against 8:00 Soll would be ±0:00; the account's day step (D-09 proration) is -42.
+    const [row] = rows(
+      [entry({ startTime: "2026-11-06T09:00:00", endTime: "2026-11-06T17:00:00" })],
+      { diffMin: -42 },
+    );
+    expect(row.diff).toEqual({ label: "−0:42", tone: "bad" });
+  });
+
+  it("no server step means no difference, whatever the entries say (#1029)", () => {
+    const [row] = rows([
+      entry({ startTime: "2026-11-06T09:00:00", endTime: "2026-11-06T18:00:00" }),
+    ]);
+    expect(row.diff).toBeNull();
+  });
+
+  it("a day without Soll shows the server's step too (#1029)", () => {
+    const [row] = teamDayRows({
+      entries: [entry({ startTime: "2026-11-07T09:00:00", endTime: "2026-11-07T13:00:00" })],
+      vocationalSchoolDays: [],
+      dayInfo: () => ({ expectedMin: 0, isToday: false, isFuture: false, diffMin: 240 }),
+      sollVisible: true,
+      findingDays: new Set(),
+    });
+    expect(row.diff).toEqual({ label: "+4:00", tone: "ok" });
+  });
+
   it("without a visible Soll there is no Soll and no difference", () => {
     const [row] = rows(
       [entry({ startTime: "2026-11-06T09:00:00", endTime: "2026-11-06T17:00:00" })],
-      { sollVisible: false },
+      { sollVisible: false, diffMin: 30 },
     );
     expect(row.soll).toBeNull();
     expect(row.diff).toBeNull();
