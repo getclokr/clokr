@@ -79,7 +79,7 @@
 
 <PageHead
   title={pageLabel("/admin/availability")}
-  sub="Wer kann wann arbeiten? Wähle eine Person, um ihre Verfügbarkeit zu bearbeiten."
+  hint="Wer kann wann arbeiten? Wähle eine Person, um ihre Verfügbarkeit zu bearbeiten."
 />
 <PageTabs tabs={rosterTabsList} tab="/team/verfuegbarkeit" tabsLabel="Dienstplan" />
 

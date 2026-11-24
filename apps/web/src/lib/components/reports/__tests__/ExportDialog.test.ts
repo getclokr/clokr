@@ -368,7 +368,12 @@ describe("ExportDialog - salon filter (#542)", () => {
     renderWithTheme(ExportDialog, props({ filterActive: true }));
     const csv = screen.getByTestId("export-csv-salon-note");
     expect(csv.textContent).toBe(SALON_CSV_PERSONS_NOTE);
-    expect(csv.classList.contains("form-hint")).toBe(true);
+    // Issue #1058: the note is an info symbol now (was a `form-hint` line); its trigger names the row.
+    expect(
+      screen
+        .getByRole("button", { name: "Erklärung zu „Tabelle als CSV“" })
+        .getAttribute("aria-describedby"),
+    ).toBe(csv.id);
     expect(csv.closest("[data-export-block]")?.getAttribute("data-export-block")).toBe("csv");
   });
 
@@ -377,7 +382,12 @@ describe("ExportDialog - salon filter (#542)", () => {
     renderWithTheme(ExportDialog, props({ filterActive: true }));
     const note = screen.getByTestId("export-absences-csv-salon-note");
     expect(note.textContent).toBe(SALON_CSV_PERSONS_NOTE);
-    expect(note.classList.contains("form-hint")).toBe(true);
+    // Issue #1058: the note is an info symbol now (was a `form-hint` line); its trigger names the row.
+    expect(
+      screen
+        .getByRole("button", { name: "Erklärung zu „Abwesenheiten als CSV“" })
+        .getAttribute("aria-describedby"),
+    ).toBe(note.id);
     expect(note.closest("[data-export-block]")?.getAttribute("data-export-block")).toBe(
       "absences-csv",
     );

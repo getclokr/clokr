@@ -113,6 +113,7 @@
   import ParentalReductionDialog from "$lib/components/leave/ParentalReductionDialog.svelte";
   import { showsParentalReductionAction } from "$lib/leave/parental-reduction";
   import { halfDayRangeError, endDateForHalfDay } from "$lib/leave/half-day"; // Issue #449 (D-4)
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   // ── Typen ─────────────────────────────────────────────────────────────────
   type Status = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "CANCELLATION_REQUESTED";
@@ -1100,7 +1101,7 @@
 <!-- ── Header (Issue #853, D-853-18/19: no eyebrow, no accent) ─────────────────── -->
 <PageHead
   title={pageLabel("/team/leave")}
-  sub="Sieh, wer wann fehlt, prüfe Anträge und plane den Urlaub deines Teams."
+  hint="Sieh, wer wann fehlt, prüfe Anträge und plane den Urlaub deines Teams."
 >
   {#snippet actions()}
     <!-- The two head actions are wider than a 320 px phone together: this page-local group lets the
@@ -1370,12 +1371,11 @@
                             Im Posteingang prüfen
                           </a>
                         {:else}
-                          <span
-                            class="req-note"
-                            data-testid={`leave-team-row-${req.id}-decider-hint`}
-                          >
-                            Die Salonleitung oder die Inhaberin entscheidet.
-                          </span>
+                          <InfoHint
+                            testId={`leave-team-row-${req.id}-decider-hint`}
+                            text="Die Salonleitung oder die Inhaberin entscheidet."
+                            label={hintLabel("Entscheidung über den Antrag")}
+                          />
                         {/if}
                       {:else if req.status === "APPROVED"}
                         {#if canCorrect}
@@ -1622,22 +1622,24 @@
 {#if attestOpen && attestModal}
   <Modal bind:open={attestOpen} eyebrow={typeName(attestModal.typeCode)} title="Attest erfassen">
     <div data-testid="leave-team-attest-modal">
-      <p class="form-hint attest-period">
-        {attestModal.employee.firstName}
-        {attestModal.employee.lastName} · {fmtDate(attestModal.startDate)} – {fmtDate(
-          attestModal.endDate,
-        )}
-      </p>
+      <div class="hint-row attest-period">
+        <p class="form-hint">
+          {attestModal.employee.firstName}
+          {attestModal.employee.lastName} · {fmtDate(attestModal.startDate)} – {fmtDate(
+            attestModal.endDate,
+          )}
+        </p>
+        <InfoHint
+          text="Ein Attest kann auch nach dem Monatsabschluss erfasst werden — es ändert keine Zeiten und keinen Saldo, sondern hält nur fest, ob eine Bescheinigung vorliegt."
+          label={hintLabel("Attest")}
+        />
+      </div>
       <AttestFields
         bind:present={attestPresent}
         bind:validFrom={attestFrom}
         bind:validTo={attestTo}
         idPrefix="a"
       />
-      <p class="form-hint attest-late-hint">
-        Ein Attest kann auch nach dem Monatsabschluss erfasst werden — es ändert keine Zeiten und
-        keinen Saldo, sondern hält nur fest, ob eine Bescheinigung vorliegt.
-      </p>
       {#if attestError}
         <div class="alert alert-error review-error" role="alert">
           <span>⚠</span><span>{attestError}</span>
@@ -1856,9 +1858,6 @@
   }
   .attest-period {
     margin: 0 0 0.75rem;
-  }
-  .attest-late-hint {
-    margin: 0.75rem 0 0;
   }
 
   /* ── Review Grid ──────────────────────────────────────────────────── */

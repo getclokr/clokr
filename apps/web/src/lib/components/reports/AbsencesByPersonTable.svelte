@@ -13,7 +13,6 @@
     type DataTableSort,
   } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
-  import Note from "$components/ui/Note.svelte";
   import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
@@ -26,6 +25,7 @@
     type AbsenceSortKey,
   } from "$lib/reports/absence-table";
   import { fmtDaysDe } from "$lib/reports/period-format";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import type { PeriodRow } from "$lib/reports/period-report";
   import { filterPeriodRows, type SortDir } from "$lib/reports/period-table";
   import {
@@ -62,6 +62,8 @@
   // Which columns exist is decided over the WHOLE answer - never per page or per search.
   const kinds = $derived(visibleAbsenceColumns(all));
   const hiddenKinds = $derived(hiddenAbsenceColumns(all));
+  // The table is on screen (not loading, empty or without any absence kind): its hints sit beside the label.
+  const tableShown = $derived(rows !== null && rows.length > 0 && kinds.length > 0);
   const visible = $derived(sortAbsenceRows(filterPeriodRows(all, search), sort.key, sort.dir));
   // DataTable's row type is a string-keyed record; the interface of the period row has no index
   // signature, so the shown rows carry the intersection.
@@ -117,15 +119,34 @@
 
 <section class="settings-group" aria-labelledby="absences-by-person-title">
   <div>
-    <h2 class="settings-group-title" id="absences-by-person-title">Abwesenheiten je Person</h2>
-    <p class="settings-group-desc abp-label">{periodLabel}</p>
-  </div>
-
-  {#if filterActive}
-    <div data-testid="absence-salon-note">
-      <Note tone="brand">{SALON_PERIOD_END_PERSONS_NOTE} · {PERSON_VALUES_NOT_SPLIT_LABEL}</Note>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="absences-by-person-title">Abwesenheiten je Person</h2>
+      {#if filterActive}
+        <InfoHint
+          testId="absence-salon-note"
+          text={`${SALON_PERIOD_END_PERSONS_NOTE} · ${PERSON_VALUES_NOT_SPLIT_LABEL}`}
+          label={hintLabel("Abwesenheiten je Person")}
+        />
+      {/if}
     </div>
-  {/if}
+    <div class="hint-row abp-label">
+      <p class="settings-group-desc">{periodLabel}</p>
+      {#if tableShown}
+        <InfoHint
+          testId="absence-unit-hint"
+          text={ABSENCE_UNIT_HINT}
+          label={hintLabel("Einheit der Werte")}
+        />
+        {#if hiddenKinds.length > 0}
+          <InfoHint
+            testId="absence-hidden-hint"
+            text={`Ohne Einträge im Zeitraum: ${hiddenKinds.map((c) => c.label).join(", ")}`}
+            label={hintLabel("Spalten ohne Einträge")}
+          />
+        {/if}
+      {/if}
+    </div>
+  </div>
 
   {#if rows === null}
     {#if loading}
@@ -175,23 +196,12 @@
         labelPlural="Personen"
       />
     {/if}
-
-    <p class="settings-group-desc abp-hint" data-testid="absence-unit-hint">{ABSENCE_UNIT_HINT}</p>
-    {#if hiddenKinds.length > 0}
-      <p class="settings-group-desc abp-hint" data-testid="absence-hidden-hint">
-        Ohne Einträge im Zeitraum: {hiddenKinds.map((c) => c.label).join(", ")}
-      </p>
-    {/if}
   {/if}
 </section>
 
 <style>
   .abp-label {
     margin-top: var(--s-1);
-  }
-
-  .abp-hint {
-    margin-top: 0;
   }
 
   .abp-person {

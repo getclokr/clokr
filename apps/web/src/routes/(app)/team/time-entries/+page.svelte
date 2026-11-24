@@ -2011,7 +2011,7 @@
 
 <PageHead
   title={pageLabel("/team/time-entries")}
-  sub="Arbeitszeiten deines Teams, pro Person oder für einen ganzen Salon."
+  hint="Arbeitszeiten deines Teams, pro Person oder für einen ganzen Salon."
 >
   {#snippet actions()}
     {#if teamMode === "person" && selectedEmployee}

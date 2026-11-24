@@ -14,7 +14,7 @@
     type DataTableSort,
   } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
-  import Note from "$components/ui/Note.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
@@ -195,20 +195,25 @@
 >
   <div class="period-section-head">
     <div>
-      <h2 class="settings-group-title" id="period-times-title">Zeiten &amp; Konten</h2>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="period-times-title">Zeiten &amp; Konten</h2>
+        {#if filterActive}
+          <InfoHint
+            testId="times-salon-note"
+            text={[
+              `${SALON_PERIOD_END_PERSONS_NOTE} · ${PERSON_SALDO_BY_HOME_SALON_LABEL}`,
+              HOME_SALON_CHANGE_NOTE,
+            ]}
+            label={hintLabel("Zeiten & Konten")}
+          />
+        {/if}
+      </div>
       <p class="settings-group-desc period-label">{periodLabel}</p>
     </div>
     {#if rows !== null && rows.length > 0 && showSaldo}
       <p class="period-median" data-testid="period-median">{medianText}</p>
     {/if}
   </div>
-
-  {#if filterActive}
-    <div class="period-notes" data-testid="times-salon-note">
-      <Note tone="brand">{SALON_PERIOD_END_PERSONS_NOTE} · {PERSON_SALDO_BY_HOME_SALON_LABEL}</Note>
-      <Note tone="brand" icon={false}>{HOME_SALON_CHANGE_NOTE}</Note>
-    </div>
-  {/if}
 
   {#if rows === null}
     {#if loading}
@@ -288,12 +293,6 @@
     font-size: var(--fs-base);
     color: var(--text);
     font-variant-numeric: tabular-nums;
-  }
-
-  .period-notes {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-1);
   }
 
   /* The sticky reference is the page, not the table's scroll box: `.dt-scroll` would clip it with

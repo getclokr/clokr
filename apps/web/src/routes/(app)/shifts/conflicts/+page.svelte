@@ -104,7 +104,7 @@
 
 <PageHead
   title={pageLabel("/shifts/conflicts")}
-  sub="Schichten, die automatisch entfernt wurden oder noch einmal geprüft werden sollten."
+  hint="Schichten, die automatisch entfernt wurden oder noch einmal geprüft werden sollten."
 />
 <PageTabs tabs={rosterTabsList} tab="/team/dienstplan/konflikte" tabsLabel="Dienstplan" />
 

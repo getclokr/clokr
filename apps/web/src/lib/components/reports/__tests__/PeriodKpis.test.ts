@@ -216,7 +216,10 @@ describe("PeriodKpis - under a salon filter (#714)", () => {
   it("the callout names the circle, the mover rule and the persons without a Stammsalon", () => {
     filtered();
     const note = screen.getByTestId("period-kpis-salon-note");
-    expect(note.querySelector(".note")).toHaveClass("note-brand");
+    // Issue #1058: the callout became an info symbol (the brand-tone Note is gone); its text element
+    // stays the described target of a trigger named after what it explains.
+    const trigger = screen.getByRole("button", { name: "Erklärung zu „Personen nach Stammsalon“" });
+    expect(trigger.getAttribute("aria-describedby")).toBe(note.id);
     expect(note).toHaveTextContent(PERSON_SALDO_BY_HOME_SALON_LABEL);
     expect(note).toHaveTextContent(HOME_SALON_CHANGE_NOTE);
     expect(note).toHaveTextContent(withoutHomeSalonNote(2));

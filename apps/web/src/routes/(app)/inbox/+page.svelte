@@ -1168,7 +1168,7 @@
 
       {#if section9AttestSource === "PAPIER"}
         <div class="review-section">
-          <FormField label="Papier-AU (optional)" help="PDF, JPG oder PNG, max. 10 MB.">
+          <FormField label="Papier-AU (optional)" hint="PDF, JPG oder PNG, max. 10 MB.">
             {#snippet field({ id, describedBy, invalid })}
               <input
                 {id}

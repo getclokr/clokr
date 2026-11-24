@@ -168,7 +168,7 @@
 
 <PageHead
   title={pageLabel("/shifts/planning")}
-  sub="Wie viele Tage pro Person in dieser Woche noch einzuplanen sind: Vertrag, Urlaub und, sobald Schichten bestehen, der Plan."
+  hint="Wie viele Tage pro Person in dieser Woche noch einzuplanen sind: Vertrag, Urlaub und, sobald Schichten bestehen, der Plan."
 />
 <SalonScopeLabel label={scopeLabel} rejected={salonRejected} />
 <PageTabs tabs={rosterTabsList} tab="/team/dienstplan/planung" tabsLabel="Dienstplan" />

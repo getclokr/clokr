@@ -60,6 +60,7 @@
   import { mayReadTeamSaldo, reportRights } from "$lib/page-rights";
   import type { PeriodTab } from "$lib/reports/period-state";
   import type { TeamSaldoRow } from "$lib/reports/team-saldo";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { chartAriaLabel, getChartTheme } from "$lib/utils/chart-theme";
 
   Chart.register(
@@ -253,11 +254,6 @@
       />
     </div>
   {:else}
-    <Note tone="info">
-      Die Verläufe zeigen immer die letzten sechs Monate, unabhängig vom Zeitraum der anderen Tabs.
-      Ein Klick auf einen Monat öffnet den Bericht dieses Monats.
-    </Note>
-
     {#if canSaldo && saldoError !== ""}
       <Note tone="bad">{saldoError}</Note>
     {:else if canSaldo}
@@ -277,7 +273,14 @@
       <section class="settings-group" aria-labelledby="trend-hours-title">
         <div class="trend-head">
           <div class="trend-title">
-            <h2 class="settings-group-title" id="trend-hours-title">Arbeitsstunden</h2>
+            <div class="hint-row">
+              <h2 class="settings-group-title" id="trend-hours-title">Arbeitsstunden</h2>
+              <!-- Issue #1058: the note about the three charts sits beside the first chart's heading. -->
+              <InfoHint
+                text="Die Verläufe zeigen immer die letzten sechs Monate, unabhängig vom Zeitraum der anderen Tabs. Ein Klick auf einen Monat öffnet den Bericht dieses Monats."
+                label={hintLabel("Arbeitsstunden")}
+              />
+            </div>
             <p class="settings-group-desc">{view?.chartSub ?? "Letzte 6 Monate"}</p>
           </div>
           {@render reportLink(hoursHref, "Arbeitsstunden im Bericht öffnen")}

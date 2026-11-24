@@ -758,7 +758,7 @@
 
 <PageHead
   title={pageLabel("/reports")}
-  sub={showTeamArea
+  hint={showTeamArea
     ? "Zeiten, Konten und Urlaub für einen Zeitraum – bis zu 12 Monate."
     : "Persönliche Monatsabschlüsse — als PDF zum Download."}
   actions={showTeamArea && canReportExport && (periodTabActive || exportOnly)
