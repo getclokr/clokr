@@ -2267,7 +2267,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
         "come from the account only if every entry of the person in that month is in the reach, " +
         "otherwise they are the sum of the visible entries (workedBasis SCOPE_ENTRIES). Target " +
         "minutes only with overtime:read covering every shown person, never together with a salon " +
-        "filter and never when part of the worked minutes came from visible entries.",
+        "filter and never when part of the worked minutes came from visible entries. The to-date " +
+        "worked minutes (the account's Ist through tenant-local yesterday, named by asOf) are sent " +
+        "for every unfiltered answer, the to-date target minutes only together with the target " +
+        "minutes; the whole-month figures stay those of the monthly report.",
     },
     preHandler: requirePermission("team-overview:read:ZUGEWIESEN"),
     handler: async (req, reply) => {
@@ -2458,7 +2461,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         // the figure the Salonansicht's entries of the same days add up to.
         let recorded = 0;
         // Issue #986: the account's to-date figures (`toDate` of an open month, else the main
-        // triple), shown only where the Soll is shown; a credit lives here, never in `recorded`.
+        // triple); a credit lives here, never in `recorded`. Since #1011 the to-date Ist is sent
+        // for every unfiltered answer (the chart draws it), the to-date Soll only with the Soll.
         let toDateWorked = 0;
         let toDateShould = 0;
         const addAccountFigures = (
@@ -2516,7 +2520,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
             }
             if (sumOver.size > 0) {
               usedScopeEntries = true;
-              worked += scopeSum(sumOver);
+              // Issue #1011: the visible entries are already through yesterday, so they belong
+              // to the to-date Ist as they are; the covered persons' account figures carry their
+              // own to-date triple (no future credit).
+              const visibleSum = scopeSum(sumOver);
+              worked += visibleSum;
+              toDateWorked += visibleSum;
             }
           }
         } else if (filterSalonId === null) {
@@ -2605,6 +2614,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         canSeeSoll && sollCovered && filterSalonId === null && workedBasis === "ACCOUNT";
       return {
         salonId: filterSalonId,
+        // Issue #1011: tenant-local yesterday, the Stichtag of every to-date figure.
+        asOf: dayString(yesterday),
         workedBasis,
         // Issue #986: whose entries `recordedMinutes` sums - the filtered salon, the caller's
         // scope, or every listed person (whole tenant, unfiltered).
@@ -2624,7 +2635,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
         months: series.map((m) => ({
           ...m,
           shouldMinutes: sollVisible ? m.shouldMinutes : null,
-          toDateWorkedMinutes: sollVisible ? m.toDateWorkedMinutes : null,
+          // Issue #1011: the time prefix of the whole-month Ist the caller receives anyway - never
+          // a Soll or saldo. Under a salon filter `workedMinutes` already counts through
+          // yesterday, so there is no separate to-date figure.
+          toDateWorkedMinutes: filterSalonId === null ? m.toDateWorkedMinutes : null,
           toDateShouldMinutes: sollVisible ? m.toDateShouldMinutes : null,
         })),
       };

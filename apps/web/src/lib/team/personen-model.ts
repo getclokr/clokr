@@ -4,7 +4,8 @@
 // and renders what comes out. Since the owner review the table shows no saldo (it stays in the person
 // view and the reports); Stammsalon and the names of the stored roles come from the server.
 import { employmentState } from "$lib/employees/employment-state";
-import { scheduleModelLabel } from "$lib/employees/contract-history";
+import { contractExtent, scheduleModelLabel } from "$lib/employees/contract-history";
+import { fmtMin } from "$lib/utils/format-minutes";
 import { matchesSearch } from "$lib/table/search";
 import type { ChipTone } from "$components/ui/chip-tone";
 import {
@@ -24,7 +25,13 @@ export interface PersonenEmployee {
   exitDate?: string | null;
   user: { isActive: boolean };
   invitationStatus?: InvitationStatus;
-  workSchedule?: { type: string; weeklyHours?: number | string | null } | null;
+  workSchedule?: {
+    type: string;
+    weeklyHours?: number | string | null;
+    /** The whole newest WorkSchedule row is part of the answer (Issue #1011 reads two more fields). */
+    monthlyHours?: number | string | null;
+    contractWorkDaysPerWeek?: number | null;
+  } | null;
   /** The Stammsalon of today (#853, additive on `GET /employees`); null without one. */
   homeSalonId?: string | null;
   /** The names of the person's stored roles (#853, additive on `GET /employees`). */
@@ -50,8 +57,13 @@ export type PersonenRow = {
   /** The schedule type code, "" without a contract. */
   model: string;
   modelLabel: string;
-  /** Contractual hours per week; null when the contract carries none (e.g. monthly hours). */
+  /** Contractual hours per week; null when the contract carries none (monthly hours, no contract). */
   weeklyHours: number | null;
+  /**
+   * Issue #1011: the one shown text of the „Std./Woche“ cell and of the CSV export - H:MM for a
+   * weekly figure, the contract-history wording („40 Std./Monat“, „–“) for a monthly-hours contract.
+   */
+  hoursLabel: string;
   /** The Stammsalon's id ("" without one) and its shown name ("–" when unknown). */
   salonId: string;
   salonName: string;
@@ -155,6 +167,19 @@ export function personenRows(
         salonNames,
         options.markHomeSalon === true,
       );
+      // Issue #1011: a monthly-hours contract stores weeklyHours 0 - the type decides, never the 0.
+      const monthly = model === "MONTHLY_HOURS";
+      const weeklyHours = monthly ? null : finiteNumber(person.workSchedule?.weeklyHours);
+      const hoursLabel = monthly
+        ? contractExtent({
+            type: "MONTHLY_HOURS",
+            weeklyHours: person.workSchedule?.weeklyHours,
+            monthlyHours: person.workSchedule?.monthlyHours,
+            contractWorkDaysPerWeek: person.workSchedule?.contractWorkDaysPerWeek,
+          })
+        : weeklyHours === null
+          ? "–"
+          : fmtMin(Math.round(weeklyHours * 60));
       return {
         id: person.id,
         name: `${person.firstName} ${person.lastName}`,
@@ -162,7 +187,8 @@ export function personenRows(
         number: person.employeeNumber,
         model,
         modelLabel: scheduleModelLabel(model),
-        weeklyHours: finiteNumber(person.workSchedule?.weeklyHours),
+        weeklyHours,
+        hoursLabel,
         salonId,
         salonName: salonMark
           ? salonMark.label

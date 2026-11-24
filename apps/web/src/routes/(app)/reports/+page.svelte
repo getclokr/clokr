@@ -45,6 +45,7 @@
     type PeriodState,
     type PeriodTab,
   } from "$lib/reports/period-state"; // Issue #612 (D-612-1)
+  import { absencePeriodLabel } from "$lib/reports/period-format"; // Issue #1011
   import {
     periodAbsencesCsvPath,
     periodCsvPath,
@@ -395,6 +396,14 @@
     periodTabActive && urlState.person !== null
       ? (period?.rows.find((r) => r.employeeId === urlState.person) ?? null)
       : null,
+  );
+  // Issue #1011: the absence tables count the running month through the report's Stichtag.
+  const absenceLabel = $derived(
+    absencePeriodLabel(
+      periodLabel(urlState.from, urlState.to, today),
+      period?.to ?? null,
+      period?.kpis.closingAsOf ?? null,
+    ),
   );
   const drillVacationRow = $derived.by(() => {
     const answer = period;
@@ -959,7 +968,7 @@
             loading={periodLoading}
             today={todayIso}
             canNotify={canReportNotify}
-            periodLabel={periodLabel(urlState.from, urlState.to, today)}
+            periodLabel={absenceLabel}
             personHref={vacationPersonHref}
             onOpenPerson={openVacationPerson}
             onNotify={sendCarryoverNotice}
@@ -967,7 +976,7 @@
           <AbsencesByPersonTable
             rows={period?.rows ?? null}
             loading={periodLoading}
-            periodLabel={periodLabel(urlState.from, urlState.to, today)}
+            periodLabel={absenceLabel}
             filterActive={pageSalonId !== null}
             {personHref}
             onOpenPerson={openPerson}

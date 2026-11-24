@@ -14,6 +14,7 @@
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { ApiError } from "$api/client";
+import { fmtDateShortDe, runningMonthStichtag } from "$lib/reports/period-format";
 import { selectedSalonId, showSalonOptions, type SalonContextState } from "$stores/salon-context";
 
 /**
@@ -35,14 +36,22 @@ export interface TeamTrendMonth {
    * `recordedBasis` for whose). Never a credit: a Berufsschule day is not recorded time.
    */
   recordedMinutes: number;
-  /** Issue #986: the account's Ist and Soll through yesterday (credits in the Ist); null without Soll. */
+  /**
+   * The Ist the chart draws: the account's Ist through yesterday (`asOf`, credits in it); for a
+   * scoped caller (SCOPE_ENTRIES) plus the visible entries. Issue #1011: sent for every
+   * unfiltered answer, also without the Soll; null under a salon filter, where `workedMinutes`
+   * already counts through yesterday.
+   */
   toDateWorkedMinutes: number | null;
+  /** Issue #986: the account's Soll through yesterday; null without Soll. */
   toDateShouldMinutes: number | null;
   sickDays: number;
 }
 
 export interface TeamTrendResponse {
   salonId: string | null;
+  /** Issue #1011: tenant-local yesterday (`YYYY-MM-DD`), the Stichtag of every to-date figure. */
+  asOf: string;
   /**
    * ACCOUNT = the working-time account's Ist; SALON_ENTRIES = closed valid entries of one salon;
    * SCOPE_ENTRIES = closed valid entries inside the caller's reach (Issue #85 D-06: a caller who
@@ -121,6 +130,12 @@ export interface TeamTrendView {
   chartSub: string;
   /** Shown below the Arbeitsstunden chart when the Soll is not attributable to a salon. */
   sollNote: string | null;
+  /**
+   * Issue #1011: names the Stichtag of the running month's column (it counts through yesterday)
+   * and, where the Ist holds a credit, the split „erfasst / Gutschrift“. null when the last month
+   * of the window is whole.
+   */
+  runningNote: string | null;
   /** Shown instead of the Überstunden-Trend chart under a salon filter. */
   trendNote: string | null;
 }
@@ -134,7 +149,46 @@ function toHours(minutes: number): number {
   return +(minutes / 60).toFixed(1);
 }
 
-/** D-05/D-12: which series and notes a team-trend response allows. */
+function hoursLabel(min: number): string {
+  const whole = Math.round(Math.abs(min));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")} h`;
+}
+
+/**
+ * Issue #986/#1011: the one wording of „recorded time vs. credit“ inside an Ist through yesterday
+ * (a Berufsschule day is a credit, never „erfasst“). null when the Ist holds no credit.
+ */
+export function creditSplitText(
+  toDateWorkedMinutes: number,
+  recordedMinutes: number,
+): string | null {
+  const credit = toDateWorkedMinutes - recordedMinutes;
+  if (credit <= 0) return null;
+  return `${hoursLabel(recordedMinutes)} erfasst, ${hoursLabel(credit)} Gutschrift`;
+}
+
+function runningMonthNoteOf(resp: TeamTrendResponse, withSoll: boolean): string | null {
+  const last = resp.months[resp.months.length - 1];
+  if (!last) return null;
+  const stichtag = runningMonthStichtag(last.month, resp.asOf);
+  if (stichtag === null) return null;
+  const day = fmtDateShortDe(stichtag);
+  let note = withSoll
+    ? `Laufender Monat bis gestern (${day}): Soll und Ist zählen bis zu diesem Tag.`
+    : `Laufender Monat bis gestern (${day}): Die Stunden zählen bis zu diesem Tag.`;
+  const split =
+    last.toDateWorkedMinutes === null
+      ? null
+      : creditSplitText(last.toDateWorkedMinutes, last.recordedMinutes);
+  if (split !== null) note += ` Im Ist: ${split}.`;
+  return note;
+}
+
+/**
+ * D-05/D-12: which series and notes a team-trend response allows. Since #1011 a month is drawn
+ * through yesterday (`toDate…` first, the whole-month figure where a month has none), so the
+ * running month never shows the Berufsschule credit or the Soll of days still to come.
+ */
 export function teamTrendView(resp: TeamTrendResponse): TeamTrendView {
   const salonEntries = resp.workedBasis === "SALON_ENTRIES";
   const scopeEntries = resp.workedBasis === "SCOPE_ENTRIES";
@@ -143,8 +197,10 @@ export function teamTrendView(resp: TeamTrendResponse): TeamTrendView {
     resp.sollUnavailableReason === null && shouldMinutes.every((value) => value !== null);
   return {
     months: resp.months.map((m) => ({ month: m.month, label: monthLabel(m.month) })),
-    workedHours: resp.months.map((m) => toHours(m.workedMinutes)),
-    shouldHours: hasSoll ? shouldMinutes.map((value) => toHours(value as number)) : null,
+    workedHours: resp.months.map((m) => toHours(m.toDateWorkedMinutes ?? m.workedMinutes)),
+    shouldHours: hasSoll
+      ? resp.months.map((m) => toHours((m.toDateShouldMinutes ?? m.shouldMinutes) as number))
+      : null,
     sickDays: resp.months.map((m) => m.sickDays),
     workedSeriesLabel: salonEntries
       ? "Erfasste Arbeitszeit im Salon (h)"
@@ -162,6 +218,7 @@ export function teamTrendView(resp: TeamTrendResponse): TeamTrendView {
         : resp.sollUnavailableReason === "SCOPE_ENTRIES"
           ? TEAM_SOLL_PARTIAL_SCOPE_NOTE
           : null,
+    runningNote: runningMonthNoteOf(resp, hasSoll),
     trendNote:
       resp.sollUnavailableReason === "SALON_FILTER" ? TEAM_SALDO_NOT_ATTRIBUTABLE_NOTE : null,
   };
@@ -261,11 +318,6 @@ export interface TeamMonthKpi {
   explanation: string;
 }
 
-function hoursLabel(min: number): string {
-  const whole = Math.round(Math.abs(min));
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")} h`;
-}
-
 /**
  * Issue #986: what „Monat bis gestern“ shows. Without the account's Soll it is the recorded time
  * alone (`recordedMinutes`, the sum the Salonansicht's entries of the same days add up to), named
@@ -275,14 +327,11 @@ function hoursLabel(min: number): string {
  */
 export function teamMonthKpi(resp: TeamTrendResponse, month: TeamTrendMonth): TeamMonthKpi {
   if (month.toDateWorkedMinutes !== null && month.toDateShouldMinutes !== null) {
-    const credit = month.toDateWorkedMinutes - month.recordedMinutes;
+    const split = creditSplitText(month.toDateWorkedMinutes, month.recordedMinutes);
     return {
       valueMinutes: month.toDateWorkedMinutes,
       shouldMinutes: month.toDateShouldMinutes,
-      explanation:
-        credit > 0
-          ? `Ist / Soll · davon ${hoursLabel(month.recordedMinutes)} erfasst, ${hoursLabel(credit)} Gutschrift`
-          : "Ist / Soll",
+      explanation: split !== null ? `Ist / Soll · davon ${split}` : "Ist / Soll",
     };
   }
   return {

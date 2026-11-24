@@ -54,7 +54,6 @@
   import { MISSING_BIRTH_DATE_HINT } from "$lib/statutory-minimum-vacation";
   import type { EmployeeClassification } from "$lib/employee-classification";
   import { localCalendarDay } from "$lib/employees/employment-state";
-  import { fmtMin } from "$lib/utils/format-minutes";
   import {
     activeCount,
     activeCountSentence,
@@ -248,7 +247,7 @@
         number: row.number,
         salon: row.salonName,
         vertrag: row.modelLabel,
-        stunden: row.weeklyHours === null ? "–" : fmtMin(Math.round(row.weeklyHours * 60)),
+        stunden: row.hoursLabel,
         rollen: row.roles,
         status: row.statusLabel,
       }));

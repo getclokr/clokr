@@ -1014,9 +1014,15 @@ export async function fetchLeaveDaysByCodeForMonthlyReport(
   employees: Array<{ id: string; leaveRequests: Array<unknown> }>,
   year: number,
   month: number,
+  // Issue #1011: the period report's running-month Stichtag - a UTC-midnight calendar day. The
+  // count then ends at the earlier of the month's last day and `through`. Absent = the whole
+  // month, which is what `/reports/monthly` (and so the Stundennachweis and the Monatsexport)
+  // always asks for.
+  options: { through?: Date } = {},
 ): Promise<Map<string, Map<LeaveTypeCode, LeaveDaysForCode>>> {
   const from = new Date(Date.UTC(year, month - 1, 1));
-  const to = new Date(Date.UTC(year, month, 0));
+  const monthEnd = new Date(Date.UTC(year, month, 0));
+  const to = options.through && options.through < monthEnd ? options.through : monthEnd;
   const result = new Map<string, Map<LeaveTypeCode, LeaveDaysForCode>>();
   for (const emp of employees) {
     if (emp.leaveRequests.length === 0) continue;

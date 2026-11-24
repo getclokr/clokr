@@ -61,21 +61,46 @@ export function monthNameDe(year: number, month: number): string {
 const YEAR_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
 /**
+ * Issue #1011: the ONE running-month rule of the web. `asOf` (`YYYY-MM-DD`, the server's
+ * tenant-local yesterday or a report's `closingAsOf`) is the Stichtag of the month `to`
+ * (`YYYY-MM`) when it lies before that month's last calendar day, else null (a month that is
+ * whole). Pure, no clock read; malformed input returns null.
+ */
+export function runningMonthStichtag(to: string, asOf: string): string | null {
+  const ym = YEAR_MONTH_RE.exec(to);
+  if (!ym || !ISO_DAY_RE.test(asOf)) return null;
+  const lastDay = new Date(Date.UTC(Number(ym[1]), Number(ym[2]), 0)).getUTCDate();
+  const lastIso = `${ym[1]}-${ym[2]}-${String(lastDay).padStart(2, "0")}`;
+  return asOf >= lastIso ? null : asOf;
+}
+
+/**
  * Issue #985 (D-01): the period report counts the running month like the Arbeitszeitkonto - Soll,
  * Ist and saldo through tenant-local yesterday. The page derives no figure; this only names the
  * Stichtag. `to` is the answer's `YYYY-MM`, `closingAsOf` its `kpis.closingAsOf` (`YYYY-MM-DD`): the
  * server sets it to yesterday when `to` is the running month and to the last day of `to` otherwise,
  * so the note is due exactly when `closingAsOf` lies before the last calendar day of `to`. Pure, no
- * clock read; malformed input returns null. It lives here and not in `period-state.ts` because this
+ * clock read; malformed input returns null. Since #1011 the absence counts of the running month stop at
+ * the same day, so the note names them too. It lives here and not in `period-state.ts` because this
  * module already imports from that one - the reverse import would create a cycle.
  */
 export function runningMonthNote(to: string, closingAsOf: string): string | null {
-  const ym = YEAR_MONTH_RE.exec(to);
-  if (!ym || !ISO_DAY_RE.test(closingAsOf)) return null;
-  const year = Number(ym[1]);
-  const month = Number(ym[2]);
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const lastIso = `${ym[1]}-${ym[2]}-${String(lastDay).padStart(2, "0")}`;
-  if (closingAsOf >= lastIso) return null;
-  return `Laufender Monat bis gestern (${fmtDateShortDe(closingAsOf)}): Soll, Ist und Saldo zählen bis zu diesem Tag.`;
+  const stichtag = runningMonthStichtag(to, closingAsOf);
+  if (stichtag === null) return null;
+  return `Laufender Monat bis gestern (${fmtDateShortDe(stichtag)}): Soll, Ist, Saldo und Abwesenheiten zählen bis zu diesem Tag.`;
+}
+
+/**
+ * Issue #1011: the label of the two absence tables of the Urlaub tab. When the period ends in the
+ * running month the absence counts stop at the report's Stichtag (`closingAsOf`), so the label names
+ * it: „Januar – November 2026 · bis 14.11.2026“. Otherwise (or for malformed input) the label as is.
+ */
+export function absencePeriodLabel(
+  label: string,
+  to: string | null,
+  closingAsOf: string | null,
+): string {
+  if (to === null || closingAsOf === null) return label;
+  const stichtag = runningMonthStichtag(to, closingAsOf);
+  return stichtag === null ? label : `${label} · bis ${fmtDateDe(stichtag)}`;
 }

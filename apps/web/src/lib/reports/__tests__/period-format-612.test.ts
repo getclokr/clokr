@@ -5,9 +5,11 @@ import {
   fmtDateDe,
   fmtDateShortDe,
   fmtDaysDe,
+  absencePeriodLabel,
   fmtHoursDe,
   monthNameDe,
   runningMonthNote,
+  runningMonthStichtag,
 } from "../period-format";
 
 describe("fmtHoursDe", () => {
@@ -77,11 +79,41 @@ describe("dates and month names", () => {
   });
 });
 
+// Issue #1011: the one running-month rule.
+describe("runningMonthStichtag", () => {
+  it("is the day itself while it lies before the month's last day", () => {
+    expect(runningMonthStichtag("2026-11", "2026-11-14")).toBe("2026-11-14");
+    expect(runningMonthStichtag("2026-11", "2026-10-31")).toBe("2026-10-31");
+  });
+
+  it("is null for a whole month and for malformed input", () => {
+    expect(runningMonthStichtag("2026-10", "2026-10-31")).toBeNull();
+    expect(runningMonthStichtag("2026-13", "2026-11-14")).toBeNull();
+    expect(runningMonthStichtag("2026-11", "x")).toBeNull();
+    expect(runningMonthStichtag("", "")).toBeNull();
+  });
+});
+
+// Issue #1011: the two absence tables name the Stichtag of a running-month period.
+describe("absencePeriodLabel", () => {
+  it("appends the Stichtag when the period ends in the running month", () => {
+    expect(absencePeriodLabel("Januar – November 2026", "2026-11", "2026-11-14")).toBe(
+      "Januar – November 2026 · bis 14.11.2026",
+    );
+  });
+
+  it("keeps the label for a past period and for malformed input", () => {
+    expect(absencePeriodLabel("Oktober 2026", "2026-10", "2026-10-31")).toBe("Oktober 2026");
+    expect(absencePeriodLabel("Oktober 2026", "x", "y")).toBe("Oktober 2026");
+    expect(absencePeriodLabel("Oktober 2026", null, null)).toBe("Oktober 2026");
+  });
+});
+
 // Issue #985 (D-01): the period report counts the running month through yesterday, like the account.
 describe("runningMonthNote", () => {
   it("names the Stichtag when the answer's last month is still running", () => {
     expect(runningMonthNote("2026-11", "2026-11-14")).toBe(
-      "Laufender Monat bis gestern (14.11.): Soll, Ist und Saldo zählen bis zu diesem Tag.",
+      "Laufender Monat bis gestern (14.11.): Soll, Ist, Saldo und Abwesenheiten zählen bis zu diesem Tag.",
     );
   });
 
@@ -92,7 +124,7 @@ describe("runningMonthNote", () => {
 
   it("on the 1st of the running month names the last day of the month before", () => {
     expect(runningMonthNote("2026-11", "2026-10-31")).toBe(
-      "Laufender Monat bis gestern (31.10.): Soll, Ist und Saldo zählen bis zu diesem Tag.",
+      "Laufender Monat bis gestern (31.10.): Soll, Ist, Saldo und Abwesenheiten zählen bis zu diesem Tag.",
     );
   });
 

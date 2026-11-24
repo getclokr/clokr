@@ -294,6 +294,11 @@
             ></canvas>
           {/if}
         </div>
+        {#if view?.runningNote}
+          <p class="settings-group-desc" data-testid="team-trends-running-note">
+            {view.runningNote}
+          </p>
+        {/if}
         {#if view?.sollNote}
           <p class="settings-group-desc" data-testid="team-trends-soll-note">{view.sollNote}</p>
         {/if}
