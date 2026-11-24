@@ -42,6 +42,7 @@ const TOAST_ITEM = `${UI}/ToastItem.svelte`;
 const KPI_STRIP = `${UI}/KpiStrip.svelte`;
 const KPI_CELL = `${UI}/KpiCell.svelte`;
 const STAGE = `${UI}/Stage.svelte`;
+const INFO_HINT = `${UI}/InfoHint.svelte`;
 
 interface RuleRef {
   /** Path relative to apps/web/src. */
@@ -216,6 +217,16 @@ const RECIPES: Recipe[] = [
     rules: [{ file: PAGE_HEADER, selector: ".page-head .sub" }],
     surfaces: ["bg", "card"],
   },
+
+  // InfoHint (Issue #1058): the symbol sits on the page, a card or a sunk well; the panel and the warn
+  // mark carry a background of their own.
+  {
+    name: ".ih-trigger",
+    rules: [{ file: INFO_HINT, selector: ".ih-trigger" }],
+    surfaces: ["bg", "card", "sunk"],
+  },
+  { name: ".ih-pop", rules: [{ file: INFO_HINT, selector: ".ih-pop" }] },
+  { name: ".ih-mark", rules: [{ file: INFO_HINT, selector: ".ih-mark" }] },
 
   // Toast item: the inverse surface (text colour as fill, card colour as text).
   { name: ".toast", rules: [{ file: TOAST_ITEM, selector: ".toast" }] },

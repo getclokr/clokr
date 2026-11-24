@@ -16,11 +16,13 @@
     accent?: string;
     /** Optional muted sub-paragraph, max-width 560 px, below the heading. */
     sub?: string;
+    /** Issue #1058: an explanatory text as an info symbol next to the heading; `sub` stays visible. */
+    hint?: string;
     /** Optional right-aligned action cluster (buttons) on the same row as the heading. */
     actions?: Snippet;
   }
 
-  let { title, sub, actions }: Props = $props();
+  let { title, sub, hint, actions }: Props = $props();
 </script>
 
-<PageHeader {title} subtitle={sub} {actions} />
+<PageHeader {title} subtitle={sub} {hint} {actions} />

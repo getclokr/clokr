@@ -921,7 +921,7 @@
   <title>{pageLabel("/inbox")} – Clokr</title>
 </svelte:head>
 
-<PageHead title={pageLabel("/inbox")} sub="Entscheidungen, die auf dich warten" />
+<PageHead title={pageLabel("/inbox")} hint="Entscheidungen, die auf dich warten" />
 
 {#if error}
   <ErrorState message={error} hint="" onRetry={() => void loadRequests()} retrying={loading} />

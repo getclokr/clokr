@@ -9,6 +9,7 @@
   // detail head of the prototype, Issue #854), and `leading` puts an avatar before the title.
   import type { Snippet } from "svelte";
   import PageTabs from "./PageTabs.svelte";
+  import InfoHint, { hintLabel } from "./InfoHint.svelte";
 
   interface PageTab {
     value: string;
@@ -20,6 +21,11 @@
     title: string;
     /** Optional muted sub-paragraph, max-width 560 px, below the heading. */
     subtitle?: string;
+    /**
+     * Issue #1058: an explanatory text as an info symbol next to the heading (never inside it). The
+     * subtitle stays the channel for text that must stay visible (data, a deadline, a warning).
+     */
+    hint?: string;
     /** Inert (D-843-22): accepted so PageHead callers keep compiling, never rendered. */
     eyebrow?: string;
     /** Inert (D-843-22): accepted so PageHead callers keep compiling; the title is plain text. */
@@ -47,6 +53,7 @@
   let {
     title,
     subtitle,
+    hint,
     actions,
     tabs,
     tab = $bindable(),
@@ -66,7 +73,16 @@
     class:page-head--inline={withTabs && tabsLook === "segments"}
   >
     <div class="page-head-text">
-      {#if headingLevel === 2}
+      {#if hint}
+        <div class="page-head-title">
+          {#if headingLevel === 2}
+            <h2 translate="no">{title}</h2>
+          {:else}
+            <h1 translate="no">{title}</h1>
+          {/if}
+          <InfoHint text={hint} label={hintLabel(title)} />
+        </div>
+      {:else if headingLevel === 2}
         <h2 translate="no">{title}</h2>
       {:else}
         <h1 translate="no">{title}</h1>
@@ -150,6 +166,14 @@
     flex: none;
     display: inline-flex;
     align-items: center;
+  }
+
+  /* The heading and its info symbol (Issue #1058) on one row; the symbol never sits inside the heading. */
+  .page-head-title {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    min-width: 0;
   }
 
   .page-head :is(h1, h2) {

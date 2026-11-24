@@ -34,7 +34,7 @@ Every block is a Svelte 5 component built on bits-ui (the only primitive library
 | 5   | Liste             | `List`                                       | `ListRow` (`default` and `task` variant)                                                              | —                                                                      |
 | 6   | Tabelle + Toolbar | `DataTable`                                  | `TableToolbar`, `SortHeader`, `$lib/table/url-state.ts`, `$lib/table/search.ts`                       | —                                                                      |
 | 7   | Formular-Satz     | `FormField`                                  | `SaveBar`, `SegmentedControl` (the Segment), `Combobox`, `DatePicker`, `DayGrid`, `BulkPreviewDialog` | —                                                                      |
-| 8   | Chips & Hinweise  | `Chip`                                       | `Note`                                                                                                | the `.badge-*` recipes in `app.css` stay as written                    |
+| 8   | Chips & Hinweise  | `Chip`                                       | `Note`, `InfoHint` (Issue #1058)                                                                      | the `.badge-*` recipes in `app.css` stay as written                    |
 | 9   | Rückmeldung       | `Toast` (mounted once in the root layout)    | `ToastItem`, the `toasts` store (`success` / `error` / `info`), `$lib/feedback/action-messages.ts`    | —                                                                      |
 | 10  | Zustände          | `Skeleton`                                   | `EmptyState` (`noData` / `noMatches`), `ErrorState`                                                   | —                                                                      |
 | 11  | Dialog / Sheet    | `Dialog`                                     | `DialogPanel` (the bare panel for the example page)                                                   | `Modal`, `ConfirmDialog`, `ReasonDialog` (wrappers, callers untouched) |
@@ -60,7 +60,7 @@ The app layout gives every page one of two widths, chosen per route in `$lib/nav
 
 ### `<PageHeader>` and `<PageTabs>`
 
-Source: `$components/ui/PageHeader.svelte`, `PageTabs.svelte`. Props: `title`, `subtitle?`, `eyebrow?` and `accent?` (both inert since D-843-22: accepted so `PageHead` callers compile, never rendered), `actions?` (one or two buttons, at most one primary), `tabs?` + `tab` (bindable) + `panel?` + `onTabChange?` (bits-ui Tabs, arrow keys loop, every trigger controls a rendered panel), `headingLevel?` (1 or 2). The `<PageHead>` section below documents the legacy props and the look; `layout/PageHead.svelte` has no markup of its own.
+Source: `$components/ui/PageHeader.svelte`, `PageTabs.svelte`. Props: `title`, `subtitle?`, `eyebrow?` and `accent?` (both inert since D-843-22: accepted so `PageHead` callers compile, never rendered), `hint?` (Issue #1058: an explanatory text as an `InfoHint` next to the heading, never inside it; `subtitle` stays the visible line for data, deadlines and warnings), `actions?` (one or two buttons, at most one primary), `tabs?` + `tab` (bindable) + `panel?` + `onTabChange?` (bits-ui Tabs, arrow keys loop, every trigger controls a rendered panel), `headingLevel?` (1 or 2). The `<PageHead>` section below documents the legacy props and the look; `layout/PageHead.svelte` has no markup of its own.
 
 `PageTabs` can also be used on its own (Issue #853, D-853-05, D-853-11): a page places it **directly after its `PageHead`** (PageHead has no tabs prop). Tab items take `value`, `label` and the optional `href`, `testId`, `badge`, `badgeLabel`, `onBadgeSelect`; the component takes `tabsLabel` and the optional `testIdPrefix`.
 
@@ -89,6 +89,18 @@ Sources: `DataTable.svelte` (`columns`, `rows`, `rowKey`, `cell?`, `sort` + `onS
 ### `<Chip>`, `<Note>`
 
 Sources: `Chip.svelte` (`tone` `ok | warn | bad | info | brand | neutral`, `title?`, `children`; 22 px pill with a dot) and `Note.svelte` (`tone` `ok | warn | bad | info | brand`, `icon?`, `children`; soft-colour hint line). The `.badge-*` recipes stay as written in `app.css`; the chip tones declare their own proven pairs.
+
+### `<InfoHint>` (Issue #1058)
+
+Source: `$components/ui/InfoHint.svelte`, a sub-part of block 8 „Chips & Hinweise“ (beside `Note`), not a thirteenth block. Props: `text` (string or string array, plain text), `label` (accessible name of the trigger, `hintLabel(subject)` gives „Erklärung zu „<subject>““), `tone?` (`info` default, `warn` = the solid warn disc with „!“), `textId?`, `testId?` (lands on the always-present text element), `triggerTestId?` (default `<testId>-trigger`), `size?`. The module exports `hintLabel()` and `HINT_HOVER_DELAY_MS`.
+
+**The rule (owner, 24.11.2026).** An explanation that only says what a setting means or how a figure is built becomes an info symbol beside the heading, label or value it explains. These stay visible text: a deadline (Frist), a lock (Sperre), a warning (Warnung), an error (Fehler), a legal consequence (Rechtsfolge), the effect of the button about to be pressed (Folge einer Handlung) and a state the person must act on (Zustand zum Handeln). The page subtitle under the H1 counts as an explanation, unless it carries data (date, count, salon, period). `src/__tests__/info-hint-rule-1058.test.ts` guards the rule.
+
+Behaviour: opens on hover after `HINT_HOVER_DELAY_MS`, on keyboard focus and on a tap (a second tap closes); closes on Escape (inside a `Dialog` only the hint closes, not the dialog), on blur and on an outside press. Why bits-ui `Popover` and not `Tooltip`: the Tooltip trigger ignores touch and closes on every pointerdown, so a tap could never open it; the Popover trigger toggles on click/tap and Enter/Space and has `openOnHover`. Keyboard-focus opening is added in the block (a pointerdown flag separates it from the focus a press causes).
+
+A11y: the trigger is a `type="button"` named by `label`; its `aria-describedby` points at a visually hidden text that is in the DOM from the start, so the explanation is announced when the trigger gets focus. The panel is portaled, `aria-hidden` (it repeats that text) and carries `z-index: 1600` on the content element itself so it stacks above a Dialog (1500/1501; the Combobox lesson of Issue #853).
+
+Placement: beside, never inside, a heading, label, legend, button or link; plain text only, no link or button inside (it would be unreachable). Carriers with a `hint` prop do the placement; see below.
 
 ### `<Toast>`, `<Skeleton>`, `<EmptyState>`, `<ErrorState>`
 
@@ -126,6 +138,8 @@ interface Props {
   accent?: string;
   /** Optional muted sub-paragraph, max-width 560 px, below the H1. */
   sub?: string;
+  /** Issue #1058: an explanatory text as an info symbol next to the H1; `sub` stays visible. */
+  hint?: string;
   /** Optional right-aligned action cluster (buttons) on the same row as the H1. */
   actions?: Snippet;
 }
@@ -712,6 +726,7 @@ import PageHead from "$components/layout/PageHead.svelte";
 import Dialog from "$components/ui/Dialog.svelte";
 import DataTable from "$components/ui/DataTable.svelte";
 import Skeleton from "$components/ui/Skeleton.svelte";
+import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
 ```
 
 ## Lint gates
