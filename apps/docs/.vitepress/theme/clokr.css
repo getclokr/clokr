@@ -1,0 +1,76 @@
+/*
+ * Clokr theme of the docs site (Issue #1064): the "Pflaume" brand colours of the app, light and
+ * dark, and the app's fonts. The values are copied from apps/web/src/tokens.css (the site does not
+ * import that file: its [data-mode] attribute contract and root-absolute font URLs do not fit
+ * VitePress) and pinned to it by scripts/docs-theme-tokens.test.mjs.
+ */
+
+/* Fonts: relative URLs so Vite bundles the files that already live in apps/web/static/fonts. */
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("../../../web/static/fonts/figtree-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("../../../web/static/fonts/figtree-latin-wght-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../../../web/static/fonts/jetbrains-mono-v24-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../../../web/static/fonts/jetbrains-mono-v24-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* tokens.css --font-ui */
+  --vp-font-family-base: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* tokens.css [data-mode="light"] */
+  --vp-c-brand-1: #7a3f6c; /* --brand */
+  --vp-c-brand-2: #672f5a; /* --brand-hover */
+  --vp-c-brand-3: #7a3f6c; /* --brand */
+  --vp-c-brand-soft: #f3e8ef; /* --brand-soft */
+  --vp-button-brand-text: #ffffff; /* --brand-ink */
+  --vp-button-brand-hover-text: #ffffff; /* --brand-ink */
+  --vp-button-brand-active-text: #ffffff; /* --brand-ink */
+}
+
+.dark {
+  /* tokens.css [data-mode="dark"] */
+  --vp-c-brand-1: #cf93c1; /* --brand */
+  --vp-c-brand-2: #e2b0d6; /* --brand-hover */
+  --vp-c-brand-3: #cf93c1; /* --brand */
+  --vp-c-brand-soft: #3a2334; /* --brand-soft */
+  --vp-button-brand-text: #1a1017; /* --brand-ink */
+  --vp-button-brand-hover-text: #1a1017; /* --brand-ink */
+  --vp-button-brand-active-text: #1a1017; /* --brand-ink */
+}

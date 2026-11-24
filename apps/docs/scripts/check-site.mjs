@@ -10,12 +10,14 @@
 //   4. every internal href/src of every page resolves, anchors included
 //   5. three probes prove the redaction, the repo-link rewrite and the pseudo-tag escape ran
 //
-// The completeness checks (every page in a sidebar group, `--complete`) join in the sidebar step.
+//   6. every page except the home page sits in a sidebar group, every sidebar link has a page
+//   7. with `--complete`: every planned Handbuch page and every explicit Entwickler page exists
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ENTWICKLER_GROUPS, HANDBUCH_PAGES, sidebarLinks } from "../navigation.mjs";
 import { DENYLIST, SITE_BASE, isExcluded } from "../publication.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +55,10 @@ const rel = (file, root) => path.relative(root, file).split(path.sep).join("/");
 
 /** The HTML file a published Markdown file becomes (relative to dist). */
 export const htmlFor = (/** @type {string} */ mdPath) => mdPath.replace(/\.md$/, ".html");
+
+/** @param {string} link a sidebar link (`/a/b`, `/a/`) @returns {string} the built page, relative to dist */
+const htmlForLink = (link) =>
+  link.endsWith("/") ? `${link.slice(1)}index.html` : `${link.slice(1)}.html`;
 
 /** @returns {string[]} published Markdown files of docs/, relative to docs/ */
 export function publishedMarkdown() {
@@ -94,8 +100,14 @@ function idsOf(htmlFile) {
  */
 function fileForUrlPath(urlPath) {
   if (urlPath === "" || urlPath.endsWith("/")) return path.join(DIST_DIR, urlPath, "index.html");
-  if (path.extname(urlPath) === "") return path.join(DIST_DIR, `${urlPath}.html`);
-  return path.join(DIST_DIR, urlPath);
+  // cleanUrls: `/page` is served from page.html. A dot in the last segment (a version such as
+  // release-notes/v2.0.3) is not a file extension, so a file of that exact name wins and
+  // `.html` is the fallback.
+  const exact = path.join(DIST_DIR, urlPath);
+  if (path.extname(urlPath) !== "" && fs.existsSync(exact) && fs.statSync(exact).isFile()) {
+    return exact;
+  }
+  return path.join(DIST_DIR, `${urlPath}.html`);
 }
 
 /**
@@ -162,7 +174,6 @@ function checkReferences(htmlFile, findings) {
 export function checkSite(options = {}) {
   /** @type {string[]} */
   const findings = [];
-  void options;
 
   // (1) the build output exists
   if (!fs.existsSync(DIST_DIR)) {
@@ -220,6 +231,33 @@ export function checkSite(options = {}) {
       findings.push(`probe ${page}: page is missing`);
     } else if (!fs.readFileSync(file, "utf8").includes(needle)) {
       findings.push(`probe ${page}: expected "${needle}" is not in the page`);
+    }
+  }
+
+  // (6) completeness: every page sits in a sidebar group, every sidebar link has a page
+  const linked = new Set(sidebarLinks(DOCS_DIR).map(htmlForLink));
+  for (const page of [...built].sort()) {
+    if (page === "index.html") continue; // the home page uses the home layout, no sidebar
+    if (!linked.has(page)) {
+      findings.push(
+        `docs/${page.replace(/\.html$/, ".md")} is published but in no sidebar group — add it to apps/docs/navigation.mjs or to EXCLUDED in apps/docs/publication.mjs`,
+      );
+    }
+  }
+  for (const page of [...linked].sort()) {
+    if (!built.has(page)) findings.push(`sidebar link to ${page} has no built page`);
+  }
+
+  // (7) with --complete: every planned page exists
+  if (options.complete) {
+    const planned = [
+      ...HANDBUCH_PAGES.flatMap((group) => group.files),
+      ...ENTWICKLER_GROUPS.flatMap((group) => group.files),
+    ];
+    for (const file of planned) {
+      if (!fs.existsSync(path.join(DOCS_DIR, file))) {
+        findings.push(`docs/${file} is planned in apps/docs/navigation.mjs but does not exist`);
+      }
     }
   }
 
