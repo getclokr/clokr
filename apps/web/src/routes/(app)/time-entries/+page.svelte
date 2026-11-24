@@ -2142,10 +2142,9 @@
         Stundennachweis (PDF)
       </button>
     {/if}
-    {#if !isExempt}
+    {#if !isExempt && !isPhone}
       <button
         class="btn btn-primary btn-sm"
-        class:te-head-add--phone={isPhone}
         onclick={() => openAdd()}
         data-testid="time-entries-add">Zeit nachtragen</button
       >
@@ -3402,6 +3401,22 @@
 
 <!-- /data-testid="time-entries-page" -->
 
+<!-- Issue #1011: on a phone the add action sits in an opaque dock directly on the tab bar instead of
+     floating over the page, so no row or calendar cell is ever visible under or beside it. The dock
+     is a page-level sibling, never inside a .card-animate ancestor (its transform would become the
+     containing block of the fixed bar, app.css #570). Same condition and same action as the head
+     button above (§ 18 ArbZG-exempt users get no add action at all). -->
+{#if isPhone && !isExempt}
+  <div class="te-add-dock" data-testid="time-entries-add-dock">
+    <button
+      type="button"
+      class="btn btn-primary"
+      onclick={() => openAdd()}
+      data-testid="time-entries-add">Zeit nachtragen</button
+    >
+  </div>
+{/if}
+
 <style>
   .te-status {
     display: flex;
@@ -4366,7 +4381,7 @@
     padding: 8px 14px 14px;
   }
 
-  /* Phone: the calendar is a mini month (number + dot); the primary action sits above the tab bar. */
+  /* Phone: the calendar is a mini month (number + dot); the primary action is docked on the tab bar (Issue #1011). */
   @media (max-width: 760px) {
     .te-cal .cal-cell {
       min-height: 44px;
@@ -4393,17 +4408,29 @@
     .te-cal .cal-legend {
       display: none;
     }
+    /* Reserves the dock (60px) plus a --s-3 gap. */
     .te-page {
       padding-bottom: 72px;
     }
-    .te-head-add--phone {
+    /* Issue #1011: the add action docks on the tab bar (56px tabs, z-index 90) on the SaveBar
+       surface, one layer below it so the tab bar's top hairline draws over the dock's lower edge. */
+    .te-add-dock {
       position: fixed;
-      left: 16px;
-      right: 16px;
-      bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 12px);
+      left: 0;
+      right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       z-index: 85;
+      box-sizing: border-box;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--s-4);
+      background: var(--card);
+      border-top: 1px solid var(--line);
+    }
+    .te-add-dock .btn {
+      flex: 1;
       height: 44px;
-      box-shadow: var(--shadow-pop);
     }
   }
   /* ── Issue #935: the month and the chosen day side by side (owner-approved mockup) ───────── */

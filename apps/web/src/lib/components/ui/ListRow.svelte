@@ -42,7 +42,7 @@
     /** Set false for a row without avatar. */
     avatar?: boolean;
     variant?: "default" | "task";
-    /** Lets the subtitle wrap instead of ending in an ellipsis (text that must be read in full). */
+    /** Lets the title and the subtitle/context lines wrap instead of ending in an ellipsis (text that must be read in full); Issue #1011. */
     wrap?: boolean;
     /** Makes the text block a link. */
     href?: string;
@@ -174,6 +174,7 @@
     font-weight: 600;
     color: var(--text);
   }
+  .list-text--wrap .list-title,
   .list-text--wrap .list-subtitle {
     white-space: normal;
     overflow-wrap: anywhere;
