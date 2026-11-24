@@ -13,6 +13,9 @@ import {
   statutoryMinimumVacationThreshold,
   statutoryMinimumViolationMessage,
   wartezeitEndDate,
+  monthPeriodEndDate,
+  hireYearVacationDays,
+  computeRegularVacationDaysBySegments,
   fullEmploymentMonthsInYear,
   employmentYearVacationDays,
   computeRegularVacationDays,
@@ -412,8 +415,14 @@ describe("calculateProRataVacationForHire (Issue #416)", () => {
     expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 6, 1)))).toBe(15);
   });
 
-  it("§ 5 Abs. 2 BUrlG (BAG): a fraction >= 0.5 day rounds UP to a full day — Dec 31 hire, 1/12 of 30 = 2.5 -> 3", () => {
-    expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 11, 31)))).toBe(3);
+  it("§ 5 Abs. 2 BUrlG (BAG): a fraction >= 0.5 day rounds UP to a full day — hire 16.11., 1/12 of 30 = 2.5 -> 3", () => {
+    // Issue #1011: the one full month of a 16.11. hire is 16.11.-15.12.; 16.12.-31.12. is no full month.
+    expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 10, 16)))).toBe(3);
+  });
+
+  it("a hire on the last day of the year has no full month of employment in that year -> 0 (§ 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011)", () => {
+    // Legal correction (was 3 under the old calendar-month count): 31.12.-30.01. ends in the next year.
+    expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 11, 31)))).toBe(0);
   });
 
   it("§ 5 Abs. 2 BUrlG (BAG): a fraction >= 0.5 day rounds UP — 30 * 3/12 = 7.5 -> 8 (owner worked example, #416)", () => {
@@ -440,18 +449,23 @@ describe("calculateProRataVacationForHire (Issue #416)", () => {
     expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR - 1, 5, 1)))).toBe(30);
   });
 
-  it("a hire on the 3rd of a month still counts that month as full (no day-level proration)", () => {
-    // Hired Jul 3 → same 6/12 result as Jul 1 above — the hire month always counts in full.
-    expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 6, 3)))).toBe(15);
+  it("a hire on the 3rd of a month does not count that started month (§ 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011)", () => {
+    // Legal correction (was 15 under the old calendar-month count): hired Jul 3 -> 03.07.-02.12.
+    // are 5 full months, 03.12.-31.12. is not one -> 5/12 of 30 = 12.5 -> 13 (§ 5 Abs. 2 BUrlG).
+    expect(calculateProRataVacationForHire(30, YEAR, new Date(Date.UTC(YEAR, 6, 3)))).toBe(13);
   });
 
-  it("hire on the last day of a month vs. the first day of the next month differ by exactly one month's worth", () => {
-    // Jan 31 → whole year still counts (Jan itself counts in full) = 12/12.
+  it("a hire on the last day of a month counts 11 full months, like the 1st of the next month; only the 1st of a month counts that month (§ 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011)", () => {
+    // Legal correction (was 24 for Jan 31 under the old calendar-month count, where January always
+    // counted in full): the 1st period 31.01.-28.02. ends on the last day of February (§ 188 Abs. 3
+    // BGB); the 12th would end 30.01.2027, outside the year -> 11 full months. Only a hire on
+    // 01.01. has 12.
+    const jan1 = calculateProRataVacationForHire(24, YEAR, new Date(Date.UTC(YEAR, 0, 1)));
     const lastDayOfJan = calculateProRataVacationForHire(24, YEAR, new Date(Date.UTC(YEAR, 0, 31)));
-    // Feb 1 → January no longer counts = 11/12.
     const firstDayOfFeb = calculateProRataVacationForHire(24, YEAR, new Date(Date.UTC(YEAR, 1, 1)));
-    expect(lastDayOfJan).toBe(24); // 24 * 12/12 = 24
-    expect(firstDayOfFeb).toBe(22); // 24 * 11/12 = 22
+    expect(jan1).toBe(24); // 24 * 12/12
+    expect(lastDayOfJan).toBe(22); // 24 * 11/12
+    expect(firstDayOfFeb).toBe(22); // 24 * 11/12
   });
 
   it("returns 0 for baseDays 0", () => {
@@ -522,8 +536,24 @@ describe("fullEmploymentMonthsInYear (Issue #447 D-05) — one span twelfthing, 
       ),
     ).toBe(5);
   });
-  it("(2027, 02.07.2027, null) -> 6", () => {
-    expect(fullEmploymentMonthsInYear(2027, new Date(Date.UTC(2027, 6, 2)), null)).toBe(6);
+  it("(2027, 02.07.2027, null) -> 5", () => {
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 02.07.-01.12. are 5 full months; the started 02.12.-31.12. does not count (was 6).
+    expect(fullEmploymentMonthsInYear(2027, new Date(Date.UTC(2027, 6, 2)), null)).toBe(5);
+  });
+  it("(2026, 16.11.2026, null) -> 1 (16.11.-15.12. is one full month, 16.12.-31.12. is none)", () => {
+    expect(fullEmploymentMonthsInYear(2026, new Date(Date.UTC(2026, 10, 16)), null)).toBe(1);
+  });
+  it("(2027, 31.08.2027, null) -> 4 (the 4th period ends 30.12., the 5th would end 30.01.2028)", () => {
+    expect(fullEmploymentMonthsInYear(2027, new Date(Date.UTC(2027, 7, 31)), null)).toBe(4);
+  });
+  it("(2027, 01.08.2027, null) -> 5 (a hire on the 1st counts that month in full, unchanged)", () => {
+    expect(fullEmploymentMonthsInYear(2027, new Date(Date.UTC(2027, 7, 1)), null)).toBe(5);
+  });
+  it("hire and exit in the same year are counted from the hire day (lit. b): exit 31.03. -> 0, 10.05. -> 1, 14.05. -> 2", () => {
+    const hire = new Date(Date.UTC(2027, 2, 15));
+    expect(fullEmploymentMonthsInYear(2027, hire, new Date(Date.UTC(2027, 2, 31)))).toBe(0);
+    expect(fullEmploymentMonthsInYear(2027, hire, new Date(Date.UTC(2027, 4, 10)))).toBe(1);
+    expect(fullEmploymentMonthsInYear(2027, hire, new Date(Date.UTC(2027, 4, 14)))).toBe(2);
   });
   it("(2027, 2024-01-01, null) -> 12", () => {
     expect(fullEmploymentMonthsInYear(2027, new Date(Date.UTC(2024, 0, 1)), null)).toBe(12);
@@ -633,7 +663,8 @@ describe("employmentYearVacationDays — exit year (Issue #447, D-05)", () => {
       ),
     ).toBe(30);
   });
-  it("base 30, year 2027, hire 02.07.2027, exit 31.03.2028 (later year) -> 15 (identical to hireYearVacationDays)", () => {
+  it("base 30, year 2027, hire 02.07.2027, exit 31.03.2028 (later year) -> 13 (identical to hireYearVacationDays)", () => {
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 5 full months (was 6 -> 15), 5/12 of 30 = 12.5 -> 13.
     expect(
       employmentYearVacationDays(
         30,
@@ -641,7 +672,7 @@ describe("employmentYearVacationDays — exit year (Issue #447, D-05)", () => {
         new Date(Date.UTC(2027, 6, 2)),
         new Date(Date.UTC(2028, 2, 31)),
       ),
-    ).toBe(15);
+    ).toBe(13);
   });
   it("base 30, year 2027, exit 31.12.2026 (earlier year) -> 0", () => {
     expect(
@@ -658,10 +689,11 @@ describe("employmentYearVacationDays — exit year (Issue #447, D-05)", () => {
     [new Date(Date.UTC(2027, 0, 1)), 20],
     [new Date(Date.UTC(2027, 5, 1)), 20],
     [new Date(Date.UTC(2027, 6, 1)), 20],
-    [new Date(Date.UTC(2027, 6, 2)), 10],
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 02.07. counts 5 full months (was 6 -> 10), 20 * 5/12 = 8.33.
+    [new Date(Date.UTC(2027, 6, 2)), 8.33],
     [new Date(Date.UTC(2027, 9, 1)), 5],
   ])(
-    "exitDate null, base 20, hire %s -> %i (identical to hireYearVacationDays — the #435 table)",
+    "exitDate null, base 20, hire %s -> %s (identical to hireYearVacationDays — the #435 table)",
     (hireDate, expected) => {
       expect(employmentYearVacationDays(20, 2027, hireDate, null)).toBe(expected);
     },
@@ -1562,5 +1594,98 @@ describe("marginalShiftBasedLeaveDays (Issue #436, D-04)", () => {
       [],
     ).days;
     expect(marginalShiftBasedLeaveDays(request, [], 4, NO_HOLIDAYS, [])).toBe(direct);
+  });
+});
+
+// ── Issue #1011 — Teilurlaub counts FULL MONTHS OF EMPLOYMENT per §§ 187 Abs. 2, 188 Abs. 2/3 BGB ──
+// § 5 Abs. 1 BUrlG: one twelfth for every full month the employment relationship has existed;
+// a started month does not count, so a mid-month hire after 1 July owes one twelfth less than the
+// old calendar-month count gave.
+describe("hire-year Teilurlaub by months of employment (Issue #1011)", () => {
+  it("hire 16.11.2026: 1/12 -> base 30 gives 3 days (2.5 rounded up, § 5 Abs. 2 BUrlG)", () => {
+    expect(hireYearVacationDays(30, 2026, new Date(Date.UTC(2026, 10, 16)))).toBe(3);
+  });
+
+  it("hire 16.11.2026: the statutory minimum (20 days, 5-day week) is 2 (1.67 rounded up)", () => {
+    expect(
+      statutoryMinimumVacationThreshold({
+        birthDate: null,
+        year: 2026,
+        workDaysPerWeek: 5,
+        hireDate: new Date(Date.UTC(2026, 10, 16)),
+        exitDate: null,
+      }),
+    ).toBe(2);
+  });
+
+  it("hire 15.07.2026: 15.07.-14.12. = 5/12 -> base 30 gives 13 (the hand-written #416 row)", () => {
+    expect(hireYearVacationDays(30, 2026, new Date(Date.UTC(2026, 6, 15)))).toBe(13);
+  });
+
+  it("unchanged: a hire on the 1st of a month, on/before 1 July, and every later year", () => {
+    expect(hireYearVacationDays(30, 2026, new Date(Date.UTC(2026, 9, 1)))).toBe(8); // 3/12 = 7.5
+    expect(hireYearVacationDays(25, 2026, new Date(Date.UTC(2026, 9, 1)))).toBe(6.25); // Azubi 3/12
+    expect(hireYearVacationDays(30, 2026, new Date(Date.UTC(2026, 6, 1)))).toBe(30);
+    expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2026, 10, 16)))).toBe(30);
+  });
+
+  it("exit years counted from 1 January stay calendar months: (2027, 2024-01-01, 15.06.) = 5, (…, 31.03.) = 3", () => {
+    expect(
+      fullEmploymentMonthsInYear(
+        2027,
+        new Date(Date.UTC(2024, 0, 1)),
+        new Date(Date.UTC(2027, 5, 15)),
+      ),
+    ).toBe(5);
+    expect(
+      fullEmploymentMonthsInYear(
+        2027,
+        new Date(Date.UTC(2024, 0, 1)),
+        new Date(Date.UTC(2027, 2, 31)),
+      ),
+    ).toBe(3);
+  });
+});
+
+describe("monthPeriodEndDate (Issue #1011, §§ 187 Abs. 2, 188 Abs. 2/3 BGB)", () => {
+  it("ends on the day before the matching day, or on the last day of a shorter month", () => {
+    expect(monthPeriodEndDate(new Date(Date.UTC(2026, 10, 16)), 1)).toEqual(
+      new Date(Date.UTC(2026, 11, 15)),
+    );
+    expect(monthPeriodEndDate(new Date(Date.UTC(2026, 0, 31)), 1)).toEqual(
+      new Date(Date.UTC(2026, 1, 28)),
+    );
+    expect(monthPeriodEndDate(new Date(Date.UTC(2028, 0, 31)), 1)).toEqual(
+      new Date(Date.UTC(2028, 1, 29)),
+    );
+    expect(monthPeriodEndDate(new Date(Date.UTC(2027, 0, 1)), 6)).toEqual(
+      new Date(Date.UTC(2027, 5, 30)),
+    );
+  });
+
+  it("wartezeitEndDate stays the six-month case, byte-identical", () => {
+    expect(wartezeitEndDate(new Date(Date.UTC(2026, 7, 31)))).toEqual(
+      monthPeriodEndDate(new Date(Date.UTC(2026, 7, 31)), 6),
+    );
+  });
+});
+
+describe("Teilurlaub across contract segments by months of employment (Issue #1011)", () => {
+  it("hire 16.08.2027, 3-day contract from the hire, 5-day from 01.10.2027, base 30 -> (18+18+30+30)/12 = 8", () => {
+    // Periods start 16.08., 16.09., 16.10., 16.11.; the segment valid at each start decides its value
+    // (the old calendar count looked up Aug..Dec and gave 11).
+    expect(
+      computeRegularVacationDaysBySegments({
+        year: 2027,
+        hireDate: new Date(Date.UTC(2027, 7, 16)),
+        birthDate: null,
+        exitDate: null,
+        baseDays: 30,
+        segments: [
+          { from: new Date(Date.UTC(2027, 7, 16)), workDaysPerWeek: 3 },
+          { from: new Date(Date.UTC(2027, 9, 1)), workDaysPerWeek: 5 },
+        ],
+      }),
+    ).toBe(8);
   });
 });

@@ -195,19 +195,21 @@ describe("computeRegularVacationDays (Issue #445, D-01)", () => {
 });
 
 describe("hireYearVacationDays — Wartezeit im Eintrittsjahr (Issue #435, G9)", () => {
-  it("base 20, 5-day week: hire 01.01./01.06./01.07. -> full year 20; 02.07. -> 10; 01.10. -> 5", () => {
+  it("base 20, 5-day week: hire 01.01./01.06./01.07. -> full year 20; 02.07. -> 8.33; 01.10. -> 5", () => {
     expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 0, 1)))).toBe(20);
     expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 5, 1)))).toBe(20);
     expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 6, 1)))).toBe(20);
-    expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 6, 2)))).toBe(10);
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 02.07. counts 5 full months (the started 02.12.-31.12. does not), 20 * 5/12 = 8.33 (was 10).
+    expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 6, 2)))).toBe(8.33);
     expect(hireYearVacationDays(20, 2027, new Date(Date.UTC(2027, 9, 1)))).toBe(5);
   });
 
-  it("base 30, 5-day week: hire 01.01./01.06./01.07. -> full year 30; 02.07. -> 15; 01.10. -> 8 (§ 5 Abs. 2 rounding, #421)", () => {
+  it("base 30, 5-day week: hire 01.01./01.06./01.07. -> full year 30; 02.07. -> 13; 01.10. -> 8 (§ 5 Abs. 2 rounding, #421)", () => {
     expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 0, 1)))).toBe(30);
     expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 5, 1)))).toBe(30);
     expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 6, 1)))).toBe(30);
-    expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 6, 2)))).toBe(15);
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 5 full months, 30 * 5/12 = 12.5 -> 13 (was 15).
+    expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 6, 2)))).toBe(13);
     expect(hireYearVacationDays(30, 2027, new Date(Date.UTC(2027, 9, 1)))).toBe(8);
   });
 

@@ -16,7 +16,7 @@ import {
   calculateProRataVacationForHire,
   wartezeitEndDate,
   fullEmploymentMonthsInYear,
-  employmentMonthIndicesInYear,
+  employmentMonthPeriodsInYear,
   isFullEntitlementYear,
   hireYearVacationDays,
   employmentYearVacationDays,
@@ -68,8 +68,9 @@ describe("§ 5 BUrlG family under a non-UTC process timezone (Issue #450, D-10)"
         fullEmploymentMonthsInYear(2027, utcMidnight("2027-02-01"), utcMidnight("2027-06-30")),
       ).toBe(5);
     });
-    it("(2027, 02.07.2027, null) -> 6", () => {
-      expect(fullEmploymentMonthsInYear(2027, utcMidnight("2027-07-02"), null)).toBe(6);
+    it("(2027, 02.07.2027, null) -> 5", () => {
+      // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: the started month 02.12.-31.12. does not count (was 6).
+      expect(fullEmploymentMonthsInYear(2027, utcMidnight("2027-07-02"), null)).toBe(5);
     });
     it("(2027, 2024-01-01, 01.01.2027) -> 0 (exit exactly on 1 Jan)", () => {
       expect(
@@ -78,9 +79,19 @@ describe("§ 5 BUrlG family under a non-UTC process timezone (Issue #450, D-10)"
     });
   });
 
-  it("employmentMonthIndicesInYear(2027, 01.08.2027, null) -> [7, 8, 9, 10, 11]", () => {
-    expect(employmentMonthIndicesInYear(2027, utcMidnight("2027-08-01"), null)).toEqual([
-      7, 8, 9, 10, 11,
+  it("employmentMonthPeriodsInYear(2027, 01.08.2027, null) -> the five period starts 01.08., 01.09., 01.10., 01.11., 01.12.", () => {
+    // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: the list is now the period START dates (it was calendar month indices).
+    expect(employmentMonthPeriodsInYear(2027, utcMidnight("2027-08-01"), null)).toEqual([
+      utcMidnight("2027-08-01"),
+      utcMidnight("2027-09-01"),
+      utcMidnight("2027-10-01"),
+      utcMidnight("2027-11-01"),
+      utcMidnight("2027-12-01"),
+    ]);
+  });
+  it("employmentMonthPeriodsInYear(2026, 16.11.2026, null) -> one period starting 16.11.", () => {
+    expect(employmentMonthPeriodsInYear(2026, utcMidnight("2026-11-16"), null)).toEqual([
+      utcMidnight("2026-11-16"),
     ]);
   });
 
@@ -107,17 +118,21 @@ describe("§ 5 BUrlG family under a non-UTC process timezone (Issue #450, D-10)"
     it("base 20, hire 01.07.2027 -> 20 (on/before the G9 cutoff)", () => {
       expect(hireYearVacationDays(20, 2027, utcMidnight("2027-07-01"))).toBe(20);
     });
-    it("base 20, hire 02.07.2027 -> 10", () => {
-      expect(hireYearVacationDays(20, 2027, utcMidnight("2027-07-02"))).toBe(10);
+    it("base 20, hire 02.07.2027 -> 8.33", () => {
+      // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: 5 full months, 20 * 5/12 = 8.33 (was 10).
+      expect(hireYearVacationDays(20, 2027, utcMidnight("2027-07-02"))).toBe(8.33);
     });
   });
 
   describe("calculateProRataVacationForHire", () => {
-    it("base 30, year 2026, hire 31.12.2026 -> 3 (1/12, 2.5 rounds UP)", () => {
-      expect(calculateProRataVacationForHire(30, 2026, utcMidnight("2026-12-31"))).toBe(3);
+    it("base 30, year 2026, hire 16.11.2026 -> 3 (1/12, 2.5 rounds UP)", () => {
+      // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: was pinned on a 31.12. hire (3); a 31.12. hire has no full month in the year -> 0.
+      expect(calculateProRataVacationForHire(30, 2026, utcMidnight("2026-11-16"))).toBe(3);
+      expect(calculateProRataVacationForHire(30, 2026, utcMidnight("2026-12-31"))).toBe(0);
     });
-    it("base 24, year 2026, hire 31.01.2026 -> 24 (January counts in full)", () => {
-      expect(calculateProRataVacationForHire(24, 2026, utcMidnight("2026-01-31"))).toBe(24);
+    it("base 24, year 2026, hire 31.01.2026 -> 22 (11 full months; January no longer counts in full)", () => {
+      // § 5 Abs. 1 BUrlG / §§ 187 Abs. 2, 188 Abs. 2/3 BGB, Issue #1011: the started month does not count (was 24).
+      expect(calculateProRataVacationForHire(24, 2026, utcMidnight("2026-01-31"))).toBe(22);
     });
     it("base 24, year 2026, hire 01.02.2026 -> 22 (January no longer counts)", () => {
       expect(calculateProRataVacationForHire(24, 2026, utcMidnight("2026-02-01"))).toBe(22);
