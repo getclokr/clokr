@@ -18,6 +18,10 @@ charts/**/templates/*.tpl
 # re-wrap it on commit and make the next RECORD run differ from the committed bytes.
 apps/api/src/__tests__/neutrality/recorded/
 
+# The rule files hold text moved verbatim from CLAUDE.md. Prettier 3 never formats CLAUDE.md
+# because it is gitignored; formatting the rule files would rewrite moved tables and lines.
+.claude/rules/
+
 # Issue #1064: verbatim archive of the former GitHub wiki (archive/wiki-2026-10-03). It must stay
 # byte-identical to the wiki at the archived commit; lint-staged would rewrite it.
 archive/

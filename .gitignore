@@ -44,7 +44,9 @@ docs/design/
 /design/
 
 # Claude Code / AI tooling (internal)
-.claude/
+# Path-scoped Claude Code rules (.claude/rules/) are project memory and are tracked.
+.claude/*
+!.claude/rules/
 .playwright-mcp/
 AGENTS.md
 CLAUDE.md
