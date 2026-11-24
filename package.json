@@ -16,6 +16,7 @@
     "test:coverage": "turbo run test:coverage",
     "test:scripts": "vitest run --config vitest.config.mjs",
     "lint:comment-language": "node scripts/lint-comment-language.mjs",
+    "lint:docs-terms": "node scripts/lint-docs-terms.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

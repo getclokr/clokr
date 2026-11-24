@@ -17,6 +17,16 @@ and in DATEV's field name „Mandantennummer“; „Phorest“ only in Schichtpl
 the permission names of the role editor. A permission key such as `role-assignment:manage` is never
 part of a text: the API gate names the permission in words.
 
+The Handbuch — `docs/index.md` and everything under `docs/handbuch` — follows the same rules (Issue
+#1064). Its gate is `pnpm run lint:docs-terms` (`scripts/lint-docs-terms.mjs`), which imports the
+term list of `lint:ui-terms` instead of copying it, runs in CI and in the pre-commit hook, and adds
+the checks only a manual needs: no app URL in text, no „Admin → Salons“ arrow path, and every
+„Bereich › Seite › …“ menu path must exist in `apps/web/src/lib/nav/routes.ts`, so a renamed page
+fails the lint until the Handbuch follows. „Phorest“ is allowed only under `docs/handbuch/verwalten/`
+and on the team Dienstplan page; „Flag“, „Generator“ and „Audit-Spur“ are forbidden in the whole
+Handbuch. Fenced code, HTML comments and link URLs are not read; inline code is, because the
+Handbuch shows it.
+
 ## 2. Address form: „du“
 
 - The app always addresses the reader with **du** — lowercase: du, dich, dir, dein, deine. A team
@@ -99,25 +109,28 @@ module is the one source.
 
 ## 5. What the lint checks — and what it cannot
 
-| Lint term id  | Glossary row                          |
-| ------------- | ------------------------------------- |
-| `tenant`      | Unternehmen                           |
-| `mandant`     | Unternehmen (operator console exempt) |
-| `ma`          | Mitarbeitende                         |
-| `code-value`  | plain words                           |
-| `danger-zone` | Kritische Aktionen                    |
-| `coverage`    | Besetzung                             |
-| `sigma`       | Summe                                 |
-| `korrelation` | say what is compared                  |
-| `entitaet`    | name the thing                        |
-| `schedule`    | Arbeitszeitmodell                     |
-| `inbox`       | Aufgaben                              |
-| `phorest`     | Phorest (area-scoped)                 |
-| `flag`        | Hinweis (Schichtplanung only)         |
-| `generator`   | Muster anwenden (Schichtplanung only) |
-| `audit-spur`  | wird protokolliert (Schichtplanung)   |
-| `sie-form`    | Address form „du“                     |
-| `ihr-form`    | Address form „du“ (euch, eure, euer)  |
+| Lint term id    | Glossary row                           |
+| --------------- | -------------------------------------- |
+| `tenant`        | Unternehmen                            |
+| `mandant`       | Unternehmen (operator console exempt)  |
+| `ma`            | Mitarbeitende                          |
+| `code-value`    | plain words                            |
+| `danger-zone`   | Kritische Aktionen                     |
+| `coverage`      | Besetzung                              |
+| `sigma`         | Summe                                  |
+| `korrelation`   | say what is compared                   |
+| `entitaet`      | name the thing                         |
+| `schedule`      | Arbeitszeitmodell                      |
+| `inbox`         | Aufgaben                               |
+| `phorest`       | Phorest (area-scoped)                  |
+| `flag`          | Hinweis (Schichtplanung only)          |
+| `generator`     | Muster anwenden (Schichtplanung only)  |
+| `audit-spur`    | wird protokolliert (Schichtplanung)    |
+| `sie-form`      | Address form „du“                      |
+| `ihr-form`      | Address form „du“ (euch, eure, euer)   |
+| `url-path`      | Menu path, no app URL (docs only)      |
+| `old-menu-path` | „Bereich › Seite“, not „→“ (docs only) |
+| `menu-path`     | Page names of `routes.ts` (docs only)  |
 
 `lint:api-terms` adds one term of its own: `permission-key` (no permission key in a text).
 

@@ -23,6 +23,10 @@ pnpm --filter @clokr/web lint:ui-terms || exit 1
 # One-shot lint:api-terms (Issue #861): the same glossary check for German API texts and mails.
 pnpm --filter @clokr/api run lint:api-terms || exit 1
 
+# One-shot lint:docs-terms (Issue #1064): the same glossary check, du-form and the menu paths of
+# routes.ts for the Handbuch (docs/index.md + docs/handbuch). Full tree, about 0.3 s.
+pnpm run lint:docs-terms || exit 1
+
 # One-shot lint-guard-vacuity (Phase 235-09, Issues #235/#240/#245). Full-repo, not staged-only —
 # lint-staged's *.{ts,js,svelte} glob does not match .mjs at all, and four of the guards this gate
 # proves are .mjs files. ~1.8s measured on this machine for the tool alone (`time pnpm --filter
