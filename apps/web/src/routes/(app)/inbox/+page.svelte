@@ -379,6 +379,15 @@
     }
   }
 
+  /**
+   * Issue #1026: a Zeitnachtrag decision can resolve an open task of the same person and day (since
+   * #1021 an approval corrects the entry, so its „Ausstempeln fehlt“ is gone) - the server decides,
+   * the list is read again after every decision, approval and rejection alike.
+   */
+  function reloadTasksAfterRetroDecision(): Promise<void> {
+    return canOpenTasks ? loadOpenTasks() : Promise.resolve();
+  }
+
   /** The open-task read (missing clock-outs, D-853-21/22); `types` decides which kinds exist (D-853-23). */
   async function loadOpenTasks() {
     openTasksLoading = true;
@@ -663,7 +672,9 @@
     toasts.success(
       reviewResultToast(status, `${retro.employee.firstName} ${retro.employee.lastName}`),
     );
+    const tasksReloaded = reloadTasksAfterRetroDecision();
     await loadRetroRequests();
+    await tasksReloaded;
   }
 
   /** The caller's own request: nobody decides it for themselves (four eyes, as in the dialog). */
@@ -768,7 +779,9 @@
       retroDetailOpen = false;
       retroDetail = null;
       toasts.success("Antrag wurde entschieden.");
+      const tasksReloaded = reloadTasksAfterRetroDecision();
       await loadRetroRequests();
+      await tasksReloaded;
     } catch (e: unknown) {
       const apiErr = e as { data?: { error?: string }; message?: string };
       retroReviewError = apiErr?.data?.error ?? apiErr?.message ?? "Fehler";
