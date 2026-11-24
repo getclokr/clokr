@@ -118,15 +118,20 @@ describe("#842 D-842-02 - selecting saves instantly as a personal preference", (
     expect(salz.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("the Modus control offers Hell and Dunkel and sets the mode store", async () => {
+  it("the Modus control offers Hell, Dunkel and Wie Gerät and sets the mode store", async () => {
     render(Page);
     const hell = screen.getByRole("radio", { name: "Hell" });
     const dunkel = screen.getByRole("radio", { name: "Dunkel" });
+    const system = screen.getByRole("radio", { name: "Wie Gerät" });
     expect(hell.getAttribute("aria-checked")).toBe("true");
 
     await fireEvent.click(dunkel);
     expect(get(mode)).toBe("dark");
     expect(dunkel.getAttribute("aria-checked")).toBe("true");
+
+    await fireEvent.click(system);
+    expect(get(mode)).toBe("system");
+    expect(system.getAttribute("aria-checked")).toBe("true");
   });
 });
 

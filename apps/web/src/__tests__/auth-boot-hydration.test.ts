@@ -232,6 +232,28 @@ describe("#842 D-842-17 — a retired server theme id hydrates as its successor"
   });
 });
 
+describe("#975 — a server mode of system hydrates the mode store", () => {
+  it("a server mode 'system' hydrates the mode store as system and a garbage mode as system", async () => {
+    seedSession();
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/me/preferences")) {
+        return jsonResponse({ ...VALID_PREFS, mode: "system" });
+      }
+      return errorResponse(404);
+    });
+
+    vi.resetModules();
+    await import("$stores/auth");
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { mode } = await import("$stores/mode");
+
+    await vi.waitFor(() => {
+      expect(get(prefsHydrated)).toBe(true);
+    });
+    expect(get(mode)).toBe("system");
+  });
+});
+
 describe("Phase 412 (#412) — structural regression guard (D-08)", () => {
   it("boot block wraps hydratePreferencesFromServer() in its own queueMicrotask call", async () => {
     const { readFileSync } = await import("node:fs");

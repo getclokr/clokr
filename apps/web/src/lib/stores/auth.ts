@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
 import { browser } from "$app/env";
 import { theme, normalizeTheme } from "$stores/theme";
-import { mode } from "$stores/mode";
+import { mode, normalizeModeChoice } from "$stores/mode";
 import { prefsHydrated } from "$stores/prefs-state";
 import { fetchPreferences } from "$api/preferences";
 import { ApiError, loadPermissionsIfMissing } from "$api/client";
@@ -61,7 +61,8 @@ async function hydratePreferencesFromServer(): Promise<void> {
     // #842 D-842-17: a server value of a retired theme id (the API maps them too, but an older
     // server or a cached response may still serve one) is mapped before it reaches data-theme.
     theme.set(normalizeTheme(prefs.theme));
-    mode.set(prefs.mode);
+    // #975: "system" (also what the server answers for a person who never chose) follows the device.
+    mode.set(normalizeModeChoice(prefs.mode));
     // Language store doesn't exist yet (planned). Once it does, set it here.
     prefsHydrated.set(true);
   } catch (err) {

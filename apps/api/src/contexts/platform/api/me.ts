@@ -23,7 +23,9 @@ import {
 // density keys are gone from the schema: z.object strips unknown keys, so a stale tab's
 // skin/density PUT is an empty merge, never a 400.
 const themeInput = z.enum([...UI_THEME_IDS, ...LEGACY_UI_THEME_IDS]).transform(normalizeUiTheme);
-const modeEnum = z.enum(["light", "dark"]);
+// Issue #975: "system" = follow the device's light/dark setting. An absent stored value means the
+// same (a person who never chose), so the answer never turns a never-chosen mode into "light".
+const modeEnum = z.enum(["light", "dark", "system"]);
 const languageEnum = z.enum(["de", "en"]);
 
 // Issue #602 (Phase 851): the e-mail groups the person switched off (the tenant toggle fields of the
@@ -64,7 +66,7 @@ const DEFAULT_PREFERENCES: UiPreferences = {
   theme: "pflaume",
   themeChoice: null,
   tenantDefaultTheme: "pflaume",
-  mode: "light",
+  mode: "system",
   language: "de",
   emailOptOut: [],
 };

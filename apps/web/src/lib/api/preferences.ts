@@ -8,7 +8,7 @@ export type EmailOptOutField =
 
 export interface UiPreferences {
   theme: Theme;
-  mode: "light" | "dark";
+  mode: "light" | "dark" | "system";
   language: "de" | "en";
   emailOptOut: EmailOptOutField[];
 }

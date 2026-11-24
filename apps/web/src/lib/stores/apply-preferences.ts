@@ -1,6 +1,6 @@
 import { get } from "svelte/store";
 import { prefsHydrated } from "$stores/prefs-state";
-import { mode, type Mode } from "$stores/mode";
+import { mode, type ModeChoice } from "$stores/mode";
 import { theme, type Theme } from "$stores/theme";
 import { savePreferences } from "$api/preferences";
 
@@ -24,7 +24,7 @@ import { savePreferences } from "$api/preferences";
  * attribute are unaffected: the subscribers still run unconditionally, only the auto-PUT is
  * suppressed while the gate is closed.
  */
-export function applyPreferences(prefs: { mode?: Mode; theme?: Theme }): void {
+export function applyPreferences(prefs: { mode?: ModeChoice; theme?: Theme }): void {
   const wasHydrated = get(prefsHydrated);
   prefsHydrated.set(false);
   try {

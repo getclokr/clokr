@@ -7,12 +7,10 @@
   import { theme, themes, type Theme } from "$stores/theme";
   import { mode } from "$stores/mode";
   import { applyPreferences } from "$stores/apply-preferences";
+  import { MODE_OPTIONS } from "$lib/settings/appearance-options";
 
   const themeOptions = themes.map((t) => ({ value: t.id, label: t.label }));
-  const modeOptions = [
-    { value: "light", label: "Hell" },
-    { value: "dark", label: "Dunkel" },
-  ];
+  const modeOptions = MODE_OPTIONS;
 
   function selectTheme(value: string) {
     const next = themes.find((t) => t.id === value)?.id as Theme | undefined;
@@ -20,7 +18,8 @@
   }
 
   function selectMode(value: string) {
-    applyPreferences({ mode: value === "dark" ? "dark" : "light" });
+    const next = MODE_OPTIONS.find((o) => o.value === value)?.value;
+    if (next) applyPreferences({ mode: next });
   }
 </script>
 

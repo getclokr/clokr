@@ -24,7 +24,7 @@ vi.mock("$stores/mode", async () => {
   const { writable, get } = await import("svelte/store");
   const { prefsHydrated } = await import("$stores/prefs-state");
   const { savePreferences } = await import("$api/preferences");
-  const mode = writable<"light" | "dark">("light");
+  const mode = writable<"light" | "dark" | "system">("light");
   mode.subscribe((value) => {
     if (get(prefsHydrated)) {
       savePreferences({ mode: value }).catch(() => {});

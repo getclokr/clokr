@@ -9,6 +9,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { theme, themes, type Theme } from "$stores/theme";
   import { mode, type Mode } from "$stores/mode";
+  import { MODE_OPTIONS } from "$lib/settings/appearance-options";
   import { applyPreferences } from "$stores/apply-preferences";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
@@ -22,10 +23,7 @@
     { id: "dark", label: "Dunkel" },
   ];
 
-  const modeOptions = [
-    { value: "light", label: "Hell" },
-    { value: "dark", label: "Dunkel" },
-  ];
+  const modeOptions = MODE_OPTIONS;
 
   /** Theme click: one PUT through applyPreferences (Issue #392 rationale). */
   function selectTheme(id: Theme) {
@@ -33,7 +31,8 @@
   }
 
   function selectMode(value: string) {
-    mode.set(value === "dark" ? "dark" : "light");
+    const next = MODE_OPTIONS.find((o) => o.value === value)?.value;
+    if (next) mode.set(next);
   }
 </script>
 
@@ -84,7 +83,7 @@
 
 <section class="settings-group" aria-labelledby="themes-modus-title">
   <h2 class="settings-group-title" id="themes-modus-title">Modus</h2>
-  <p class="settings-group-desc">Hell oder dunkel, unabhängig von der Farbwelt.</p>
+  <p class="settings-group-desc">Hell, dunkel oder wie dein Gerät, unabhängig von der Farbwelt.</p>
   <!-- A block wrapper keeps the control as wide as its options (the group stretches its children). -->
   <div>
     <SegmentedControl

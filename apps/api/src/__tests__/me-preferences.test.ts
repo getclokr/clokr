@@ -14,7 +14,7 @@
 // normalizeUiTheme().
 // #976: the answer additionally carries `themeChoice` (the own choice, null = none) and
 // `tenantDefaultTheme`; `theme` is the resolved value. The exact-key expectations below were updated
-// to that contract on purpose, not loosened.
+// to that contract on purpose, not loosened. #975: mode is light|dark|system, an absent mode reads "system".
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
@@ -28,7 +28,7 @@ const DEFAULTS = {
   theme: "pflaume",
   themeChoice: null,
   tenantDefaultTheme: "pflaume",
-  mode: "light",
+  mode: "system",
   language: "de",
   emailOptOut: [],
 };
@@ -190,6 +190,52 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
       language: "de",
       emailOptOut: [],
     });
+  });
+
+  // #975: "system" (follow the device) is a stored value, and an absent mode reads "system".
+  it("PUT mode system is stored and returned; light and dark stay as they are; an absent mode reads system", async () => {
+    await app.prisma.user.update({
+      where: { id: data.adminUser.id },
+      data: { uiPreferences: Prisma.DbNull },
+    });
+    const absent = await app.inject({
+      method: "GET",
+      url: "/api/v1/me/preferences",
+      headers: { authorization: `Bearer ${data.adminToken}` },
+    });
+    expect(JSON.parse(absent.body).mode).toBe("system");
+
+    for (const value of ["dark", "light", "system"]) {
+      const res = await app.inject({
+        method: "PUT",
+        url: "/api/v1/me/preferences",
+        headers: { authorization: `Bearer ${data.adminToken}` },
+        payload: { mode: value },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).mode).toBe(value);
+      const read = await app.inject({
+        method: "GET",
+        url: "/api/v1/me/preferences",
+        headers: { authorization: `Bearer ${data.adminToken}` },
+      });
+      expect(JSON.parse(read.body).mode).toBe(value);
+      const row = await app.prisma.user.findUnique({
+        where: { id: data.adminUser.id },
+        select: { uiPreferences: true },
+      });
+      expect((row?.uiPreferences as Record<string, unknown>).mode).toBe(value);
+    }
+  });
+
+  it("PUT mode auto is a 400", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/preferences",
+      headers: { authorization: `Bearer ${data.empToken}` },
+      payload: { mode: "auto" },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("an unknown theme id (lila) still returns 400", async () => {
