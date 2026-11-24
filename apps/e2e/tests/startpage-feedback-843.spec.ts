@@ -26,6 +26,14 @@ import type { TestTenant } from "../fixtures";
 const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 const PASSWORD = "test1234";
 
+// The fixture tenant lives in Europe/Berlin (test-bootstrap.ts) and the server names "today" in that zone,
+// while the page asks for today's rows by the date of the BROWSER. The runner's browser is UTC, so between
+// 23:00 and 24:00 UTC the two dates differ: the clock-in entry (tenant day) is missing from the page's
+// "today" reload, the stage falls back to idle and the Pause button vanishes (Issue #1065). Same convention
+// as multi-entry-day.spec.ts and travel-between-salons.spec.ts: the browser runs in the tenant's zone.
+const TENANT_TZ = "Europe/Berlin";
+test.use({ timezoneId: TENANT_TZ });
+
 async function signIn(page: Page, request: APIRequestContext, tenant: TestTenant): Promise<void> {
   const res = await request.post(`${API_BASE}/api/v1/auth/login`, {
     headers: { "content-type": "application/json" },
