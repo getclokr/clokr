@@ -90,7 +90,7 @@ describe("Issue #587 — the team leave page opens the existing dialog from the 
   it("imports the parser and reads it in onMount", () => {
     expect(PAGE).toContain("parseLeaveCreateDeepLink");
     const onMount = PAGE.slice(PAGE.indexOf("onMount(() => {"));
-    expect(onMount).toContain("parseLeaveCreateDeepLink($page.url.searchParams)");
+    expect(onMount).toContain("parseLeaveCreateDeepLink(page.url.searchParams)");
   });
 
   it("applies it inside runDeepLink (after the first list load), permission-checked", () => {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick, untrack } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
@@ -279,7 +279,7 @@
   }
 
   const today = toLocalDateStr(new Date());
-  const urlState: TeamLeaveState = $derived(parseTeamLeaveState($page.url.searchParams, today));
+  const urlState: TeamLeaveState = $derived(parseTeamLeaveState(page.url.searchParams, today));
   const activeTab: TeamLeaveTab = $derived(urlState.tab);
   const TAB_IDS: readonly TeamLeaveTab[] = ["uebersicht", "antraege", "planung"];
   const TIMELINE_ZOOMS: Zoom[] = ["jahr", "quartal", "monat"];
@@ -301,7 +301,7 @@
     // A highlighted request and a status filter belong to one navigation; neither rides along.
     const next: TeamLeaveState = { ...urlState, ...patch, requestId: patch.requestId ?? null };
     if (next.tab !== "antraege") next.status = null;
-    return goto(`?${teamLeaveSearch(next)}`, { replaceState, keepFocus: true, noScroll: true });
+    return goto(`?${teamLeaveSearch(next)}`, { replace: replaceState, reset: false });
   }
 
   function selectTab(id: string) {
@@ -315,15 +315,15 @@
   let salonDeepLinkHandled = false;
   $effect(() => {
     if (!contextLoaded || salonDeepLinkHandled) return;
-    const param = $page.url.searchParams.get("salonId");
+    const param = page.url.searchParams.get("salonId");
     untrack(() => {
       salonDeepLinkHandled = true;
       if (param === null) return;
       const linked = deepLinkSalon(param, $salonContext);
       if (linked !== null) salonContext.setSelection(linked);
-      const url = new URL($page.url);
+      const url = new URL(page.url.href);
       url.searchParams.delete("salonId");
-      void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+      void goto(url, { replace: true, reset: false });
     });
   });
 
@@ -553,7 +553,7 @@
     deepLinkRequestId = urlState.requestId;
 
     // Deep-link: ?create=1 (Issue #587) — validated now, applied after the first load.
-    deepLinkCreate = parseLeaveCreateDeepLink($page.url.searchParams);
+    deepLinkCreate = parseLeaveCreateDeepLink(page.url.searchParams);
   });
 
   onMount(() => {

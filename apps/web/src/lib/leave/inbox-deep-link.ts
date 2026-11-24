@@ -26,7 +26,10 @@ function parseYear(raw: string | null, currentYear: number): number | null {
 }
 
 /** Reads the three inbox deep-link parameters. Pure; never throws. */
-export function parseInboxDeepLink(params: URLSearchParams, currentYear: number): InboxDeepLink {
+export function parseInboxDeepLink(
+  params: Pick<URLSearchParams, "get">,
+  currentYear: number,
+): InboxDeepLink {
   try {
     return {
       requestId: normalizeEmployeeIdParam(params.get("request")),

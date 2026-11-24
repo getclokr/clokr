@@ -158,7 +158,7 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
   });
 
   it("[D-14] a deep link to a person outside the employee list opens the Salonansicht", () => {
-    const at = PAGE.indexOf("normalizeEmployeeIdParam($page.url.searchParams.get");
+    const at = PAGE.indexOf("normalizeEmployeeIdParam(page.url.searchParams.get");
     expect(at, "deep-link block not found").toBeGreaterThan(-1);
     const block = PAGE.slice(at, PAGE.indexOf("// Without a (valid) employee link", at));
     expect(block).toContain("employees.find(");

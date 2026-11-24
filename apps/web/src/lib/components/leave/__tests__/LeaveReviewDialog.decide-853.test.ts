@@ -3,7 +3,7 @@
 // (collision pre-check, PATCH /review, the sick-leave attest write, toast, reload, limit-exception
 // hand-over, the four-eyes guard), so the dialog stays closed (`open: false`) in every case here.
 //
-// Mocks as in LeaveReviewDialog.test.ts: `$stores/auth` (SvelteKit's `$app/environment` cannot be
+// Mocks as in LeaveReviewDialog.test.ts: `$stores/auth` (SvelteKit's `$app/env` cannot be
 // resolved in vitest) and `$api/client`.
 vi.mock("$stores/auth", () => ({ authStore: { subscribe: () => () => {} } }));
 

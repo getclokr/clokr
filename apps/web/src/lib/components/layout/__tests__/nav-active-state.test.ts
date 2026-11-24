@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/svelte";
 
-// Mounting pulls in $stores/auth -> $app/environment transitively, which the config does not
+// Mounting pulls in $stores/auth -> $app/env transitively, which the config does not
 // resolve; replacing the whole module with a writable store lets each test choose the user
 // (same idiom as version-line.test.ts, plus a settable value because the tab bar reads the
 // permissions and role).

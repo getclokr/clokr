@@ -213,7 +213,7 @@ Usage (detail mode with tabs):
 
 ```svelte
 <script>
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import ListDetail from "$lib/components/admin/ListDetail.svelte";
   import Section from "$lib/components/admin/Section.svelte";
   import DangerZone from "$lib/components/admin/DangerZone.svelte";

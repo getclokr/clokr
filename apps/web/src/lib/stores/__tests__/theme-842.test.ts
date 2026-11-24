@@ -1,7 +1,7 @@
 // Issue #842 (D-842-16, D-842-17) - the theme store knows exactly three themes, maps every legacy
 // value before it reaches localStorage or <html data-theme>, and forgets skin and density.
 //
-// `$stores/theme` is imported for real (the `$app/environment` alias resolves `browser` to true);
+// `$stores/theme` is imported for real (the `$app/env` alias resolves `browser` to true);
 // only the preference client is mocked so no request leaves the test. Modules are reset between
 // cases so `readInitial()` runs again against the seeded storage.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";

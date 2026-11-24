@@ -2,7 +2,7 @@
 // LeaveReviewDialog.test.ts's own mock setup (Phase 255): mocking "$stores/auth" (not needed
 // here since this component never imports the auth store, but the api-client mock pattern below
 // is copied verbatim) and "$api/client" so the component can be mounted without pulling in
-// SvelteKit's `$app/environment` (apps/web/vitest.config.ts registers no `$app/*` alias).
+// SvelteKit's `$app/env` (apps/web/vitest.config.ts registers no `$app/*` alias).
 //
 // `lib/components/leave/` sits outside `lint:ui-classes`' scope (CLAUDE.md § UI Consistency
 // Rules — only `lib/components/ui/` and `lib/components/layout/` are scanned). This mounted test

@@ -8,7 +8,7 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { authStore } from "$stores/auth";
   import { loadPermissionsIfMissing } from "$api/client";
   import { adminGuardDecision } from "$lib/nav/admin-route-permissions";
@@ -23,11 +23,11 @@
 
   let refreshFailed = $state(false);
   const decision = $derived(
-    refreshFailed ? "deny" : adminGuardDecision($authStore.user, $page.url.pathname),
+    refreshFailed ? "deny" : adminGuardDecision($authStore.user, page.url.pathname),
   );
 
   $effect(() => {
-    if (decision === "deny") void goto(homeHref($authStore.user), { replaceState: true });
+    if (decision === "deny") void goto(homeHref($authStore.user), { replace: true });
   });
 
   onMount(async () => {

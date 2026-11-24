@@ -8,7 +8,7 @@
 //
 // Test approach, and why it is shaped this way:
 // 1. The route pages (`/team/leave`, `/leave`, `/reports`) cannot be mounted — they import
-//    `$app/stores`, for which `apps/web/vitest.config.ts` deliberately registers no alias (see
+//    `$app/state`, for which `apps/web/vitest.config.ts` registers only a narrow single-purpose shim, not the router (see
 //    that file's own docblock, and `team-leave-attest-action.test.ts`'s header for the same wall).
 // 2. Even a mountable component proves nothing here: this test environment does not inject
 //    component-scoped `<style>` into jsdom (documented in

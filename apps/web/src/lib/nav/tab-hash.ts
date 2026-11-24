@@ -32,15 +32,22 @@ export function tabFromHash(
  */
 export function writeTabHash(tab: string): void {
   const hash = `#${tab}`;
+  const fallback = () => {
+    if (typeof history !== "undefined") {
+      history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+    }
+  };
   try {
     const url = page.url;
     // The href is built from the current `page.url`, whose path already carries any base path;
     // `resolve()` would prefix it a second time (same reasoning as `lib/table/url-state.ts`).
+    // Kit 3 reports a router that is not started yet (and any other refusal) as a rejected
+    // promise instead of a synchronous throw, so both paths end in the same History API fallback.
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    replaceState(`${url.pathname}${url.search}${hash}`, page.state ?? {});
+    Promise.resolve(replaceState(`${url.pathname}${url.search}${hash}`, page.state ?? {})).catch(
+      fallback,
+    );
   } catch {
-    if (typeof history !== "undefined") {
-      history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
-    }
+    fallback();
   }
 }

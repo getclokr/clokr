@@ -286,7 +286,7 @@
         <a
           class="vac-person-link"
           {href}
-          data-sveltekit-noscroll
+          data-sveltekit-reset="false"
           title={row.employeeName}
           onclick={(e) => onOpenPerson(e, row.employeeId)}>{row.employeeName}</a
         >

@@ -3,7 +3,7 @@
  * it names (`/team/aufgaben` → `routes/(app)/inbox`), so the pages keep their files while the URLs follow the
  * three areas. The URL in the address bar stays the new one. The mapping lives only in `$lib/nav/routes`.
  */
-import type { Reroute } from "@sveltejs/kit";
+import type { Reroute } from "@sveltejs/kit/hooks";
 import { rerouteTarget } from "$lib/nav/routes";
 
 export const reroute: Reroute = ({ url }) => rerouteTarget(url.pathname) ?? undefined;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
@@ -42,7 +42,7 @@
   // Issue #83 (D-13): access is decided by the admin layout guard (admin-route-permissions.ts);
   // the API answers 403 regardless.
   onMount(() => {
-    activeTab = visibleTabIds.length > 0 ? tabFromHash($page.url.hash, visibleTabIds) : "";
+    activeTab = visibleTabIds.length > 0 ? tabFromHash(page.url.hash, visibleTabIds) : "";
     void loadAll();
   });
 

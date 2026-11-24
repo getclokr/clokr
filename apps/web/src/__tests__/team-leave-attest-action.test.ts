@@ -1,8 +1,8 @@
 // Phase 201 (GitHub issue #201) — source-read pin for the "Attest erfassen/ändern" row action
 // and its dedicated dialog on the team leave page.
 //
-// Why source-read: `apps/web/vitest.config.ts` deliberately registers no `$app/*` aliases (see
-// its own docblock), so `+page.svelte` files that `import { page } from "$app/stores"` cannot be
+// Why source-read: `apps/web/vitest.config.ts` deliberately registers only narrow `$app/*` shims, no router (see
+// its own docblock), so `+page.svelte` files that `import { page } from "$app/state"` cannot be
 // mounted in a test. The mountable half of this change (the extracted Attest field markup) is
 // covered by `lib/components/leave/__tests__/AttestFields.test.ts`; this file pins the parts
 // that only exist in the route page — the row action, the dedicated modal, and that the new

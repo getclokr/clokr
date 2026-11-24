@@ -56,10 +56,9 @@ import { renderWithTheme } from "$tests/test-utils";
 import { authStore } from "$stores/auth";
 import { salonContext } from "$stores/salon-context";
 import { ApiError } from "$api/client";
-vi.mock("$app/stores", async () => {
-  const { readable } = await import("svelte/store");
-  return { page: readable({ url: new URL("http://localhost/team/heute"), state: {} }) };
-});
+vi.mock("$app/state", () => ({
+  page: { url: new URL("http://localhost/team/heute"), params: {}, state: {} },
+}));
 import DashboardPage from "../routes/(app)/dashboard/+page.svelte";
 import {
   attendanceBand,

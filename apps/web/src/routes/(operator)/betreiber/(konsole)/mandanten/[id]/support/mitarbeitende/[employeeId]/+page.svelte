@@ -2,7 +2,7 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import PageHead from "$components/layout/PageHead.svelte";
   import Breadcrumb from "$components/ui/Breadcrumb.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
@@ -41,9 +41,9 @@
   // Guards against a slow answer for an earlier month overwriting the one now shown.
   let loadSeq = 0;
 
-  const tenantId = $derived($page.params.id ?? "");
-  const employeeId = $derived($page.params.employeeId ?? "");
-  const month = $derived(monthFromQuery($page.url.searchParams.get("monat")) ?? currentMonth());
+  const tenantId = $derived(page.params.id ?? "");
+  const employeeId = $derived(page.params.employeeId ?? "");
+  const month = $derived(monthFromQuery(page.url.searchParams.get("monat")) ?? currentMonth());
   const personName = $derived(data ? `${data.employee.lastName}, ${data.employee.firstName}` : "");
 
   async function load(forMonth: string) {
@@ -73,8 +73,8 @@
   function showMonth(next: string) {
     if (next === month) return;
     void goto(supportMonthPath(tenantId, employeeId, next), {
-      replaceState: true,
-      keepFocus: true,
+      replace: true,
+      reset: false,
     });
   }
 

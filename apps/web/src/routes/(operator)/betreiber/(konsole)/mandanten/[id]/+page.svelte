@@ -1,7 +1,7 @@
 <script lang="ts">
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import PageHead from "$components/layout/PageHead.svelte";
   import Breadcrumb from "$components/ui/Breadcrumb.svelte";
   import Section from "$lib/components/admin/Section.svelte";
@@ -26,11 +26,11 @@
   let supportAccess = $state<OperatorSupportAccessState>({ active: null, history: [] });
   let loadState = $state<LoadState>("loading");
 
-  const tenantId = $derived($page.params.id ?? "");
+  const tenantId = $derived(page.params.id ?? "");
   // A read view that lost its grant sends the operator back with the reason code (D-21). Only the
   // known codes count; the sentence always comes from the reasons module, never from the URL.
   const supportNotice = $derived.by(() => {
-    const code = $page.url.searchParams.get("hinweis");
+    const code = page.url.searchParams.get("hinweis");
     return code !== null && SUPPORT_NOTICE_CODES.includes(code) ? code : null;
   });
 

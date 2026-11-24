@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick, untrack } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
@@ -282,7 +282,7 @@
   // `navigate` (the back button walks the tabs, a zoom or period change replaces the entry). The
   // viewed year and month are the anchor day's, so every year-bound read follows the URL.
   const today = toLocalDateStr(new Date());
-  const urlState: MyLeaveState = $derived(parseMyLeaveState($page.url.searchParams, today));
+  const urlState: MyLeaveState = $derived(parseMyLeaveState(page.url.searchParams, today));
   // A notification link names a request and no tab: it opens Meine Anträge at that row.
   const activeTab: MyLeaveTab = $derived(
     !urlState.explicitTab && urlState.requestId !== null ? "antraege" : urlState.tab,
@@ -332,7 +332,7 @@
   ): Promise<void> {
     // A highlighted request belongs to one navigation; it never rides along.
     const next: MyLeaveState = { ...urlState, tab: activeTab, ...patch, requestId: null };
-    return goto(`?${myLeaveSearch(next)}`, { replaceState, keepFocus: true, noScroll: true });
+    return goto(`?${myLeaveSearch(next)}`, { replace: replaceState, reset: false });
   }
 
   function selectTab(id: string) {
@@ -556,15 +556,15 @@
   let salonDeepLinkHandled = false;
   $effect(() => {
     if (!contextLoaded || salonDeepLinkHandled) return;
-    const param = $page.url.searchParams.get("salonId");
+    const param = page.url.searchParams.get("salonId");
     untrack(() => {
       salonDeepLinkHandled = true;
       if (param === null) return;
       const linked = deepLinkSalon(param, $salonContext);
       if (linked !== null) salonContext.setSelection(linked);
-      const url = new URL($page.url);
+      const url = new URL(page.url.href);
       url.searchParams.delete("salonId");
-      void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+      void goto(url, { replace: true, reset: false });
     });
   });
 
@@ -576,17 +576,16 @@
 
   onMount(() => {
     // ?antrag=urlaub|krank|ausgleich (#845, #605): the value maps to a leave type CODE, never a label.
-    const presetType = antragTypeCode($page.url.searchParams.get("antrag"));
+    const presetType = antragTypeCode(page.url.searchParams.get("antrag"));
     if (presetType) {
       pendingInitialType = presetType;
       editingRequest = null;
       showForm = true;
-      const url = new URL($page.url);
+      const url = new URL(page.url.href);
       url.searchParams.delete("antrag");
       void goto(`${url.pathname}${url.search}`, {
-        replaceState: true,
-        noScroll: true,
-        keepFocus: true,
+        replace: true,
+        reset: false,
       });
     }
   });

@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import { browser } from "$app/environment";
+import { browser } from "$app/env";
 import { theme, normalizeTheme } from "$stores/theme";
 import { mode } from "$stores/mode";
 import { prefsHydrated } from "$stores/prefs-state";

@@ -159,7 +159,9 @@ export interface ExportPreselection {
 }
 
 /** What a link to the page preselects: `?person=<uuid>&year=2026&month=10`. Every malformed value is dropped. */
-export function exportPreselection(url: URL): ExportPreselection {
+export function exportPreselection(url: {
+  searchParams: Pick<URLSearchParams, "get">;
+}): ExportPreselection {
   const person = url.searchParams.get("person");
   const year = url.searchParams.get("year");
   const month = url.searchParams.get("month");

@@ -164,7 +164,7 @@ describe("wiring", () => {
 
   it("Zeiten opens the existing edit dialog for the linked entry", () => {
     expect(ZEITEN).toContain(
-      "entryToEndFromParam(entries, $page.url.searchParams.get(END_ENTRY_PARAM))",
+      "entryToEndFromParam(entries, page.url.searchParams.get(END_ENTRY_PARAM))",
     );
     expect(ZEITEN).toContain("if (endTarget) openEdit(endTarget);");
   });

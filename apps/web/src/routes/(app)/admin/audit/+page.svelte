@@ -13,7 +13,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { format } from "date-fns";
   import { de } from "date-fns/locale";
   import { api } from "$api/client";
@@ -222,7 +222,7 @@
 
   /** The list's own query string, so the detail's back link returns to the same filtered list. */
   function detailHref(id: string): string {
-    return `/verwalten/daten/protokoll/${id}${$page.url.search}`;
+    return `/verwalten/daten/protokoll/${id}${page.url.search}`;
   }
 
   // ── CSV export of exactly the filtered list ──
@@ -276,7 +276,7 @@
   });
 
   onMount(() => {
-    activeTab = tabFromHash($page.url.hash, TAB_IDS);
+    activeTab = tabFromHash(page.url.hash, TAB_IDS);
     void loadRetention();
     if (untrack(() => canPickPerson)) void loadPeople();
   });

@@ -6,7 +6,7 @@
 // `$api/client` is mocked directly (same pattern as
 // apps/web/src/lib/components/leave/__tests__/LeaveReviewDialog.test.ts) — this page imports no
 // `$app/*` module itself, and mocking `$api/client` means `$stores/auth` (and its own
-// `$app/environment` dependency) never has to be resolved either.
+// `$app/env` dependency) never has to be resolved either.
 
 const apiGet = vi.fn();
 vi.mock("$api/client", () => ({
@@ -38,7 +38,7 @@ vi.mock("$stores/salon-context", async (importOriginal) => {
 });
 
 // Issue #853 (D-853-05): the page now reads the roster tabs from the signed-in user and the tenant feature
-// flag. The auth store imports `$app/environment`, which vitest does not resolve, so a salon manager who
+// flag. The auth store imports `$app/env`, which vitest does not resolve, so a salon manager who
 // may plan shifts stands in for it (same style as the salon-context mock above); the tenant-features store
 // needs no mock (its only request goes through the mocked `$api/client` and is never started here).
 vi.mock("$stores/auth", async () => {

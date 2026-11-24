@@ -10,7 +10,7 @@ import path from "node:path";
 // SvelteKit's "$app/*" alias errors at test resolution time.
 //
 // Preprocessor: uses vitePreprocess() from @sveltejs/vite-plugin-svelte (same as
-// apps/web/svelte.config.js) — no svelte-preprocess dependency required.
+// apps/web/vite.config.ts) — no svelte-preprocess dependency required.
 //
 // Coverage SCOPE (Phase 76, D-05):
 // - include: src/lib/**/*.{ts,svelte}  (where component + util logic lives)
@@ -32,7 +32,7 @@ export default defineConfig({
     svelte({
       // HMR is auto-disabled by vite-plugin-svelte when Vitest is running
       // (no top-level `hot` option in v7 — it was removed in favour of
-      // automatic detection). Preprocessor mirrors svelte.config.js.
+      // automatic detection). Preprocessor mirrors the sveltekit() options in vite.config.ts.
       preprocess: vitePreprocess(),
     }),
   ],
@@ -83,13 +83,11 @@ export default defineConfig({
       $api: path.resolve(__dirname, "./src/lib/api"),
       $tests: path.resolve(__dirname, "./src/__tests__"),
       // Phase 412 (#412): narrow single-specifier shim — see the stub file's own doc
-      // comment (src/__tests__/stubs/app-environment.ts) for the full rationale.
-      "$app/environment": path.resolve(__dirname, "./src/__tests__/stubs/app-environment.ts"),
+      // comment (src/__tests__/stubs/app-env.ts) for the full rationale.
+      "$app/env": path.resolve(__dirname, "./src/__tests__/stubs/app-env.ts"),
       // Issue #588: the same kind of narrow shim for `goto`, so the dashboard page can be mounted.
       "$app/navigation": path.resolve(__dirname, "./src/__tests__/stubs/app-navigation.ts"),
-      // Issue #609: and for `page`, so the dashboard's reminder parameter can be read when it is mounted.
-      "$app/stores": path.resolve(__dirname, "./src/__tests__/stubs/app-stores.ts"),
-      // Issue #843: and for `page.url`, the default reader of the table URL state helper.
+      // Issues #609, #843: and for `page`, the dashboard reminder parameter and the default reader of the table URL state helper.
       "$app/state": path.resolve(__dirname, "./src/__tests__/stubs/app-state.ts"),
     },
   },

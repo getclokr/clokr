@@ -89,7 +89,7 @@ describe("Issue #558 — the person selector of /team/time-entries follows the h
   });
 
   it("[D-14 deep link] a linked person missing from the narrowed list is looked up once in the unfiltered list", () => {
-    const at = PAGE.indexOf("normalizeEmployeeIdParam($page.url.searchParams.get");
+    const at = PAGE.indexOf("normalizeEmployeeIdParam(page.url.searchParams.get");
     expect(at, "deep-link block not found").toBeGreaterThan(-1);
     const block = PAGE.slice(at, PAGE.indexOf("// Without a (valid) employee link", at));
     // The link waits for the first completed list load.

@@ -1,7 +1,7 @@
 // Phase 257 (GitHub issue #257) — the team calendar's absence bars and legend, pinned at source.
 //
-// Why source-read and not mounted: apps/web/vitest.config.ts registers no `$app/*` alias and this
-// page imports `{ page } from "$app/stores"`, so it cannot be mounted here — the same wall
+// Why source-read and not mounted: apps/web/vitest.config.ts registers only narrow `$app/*` shims, no router and this
+// page imports `{ page } from "$app/state"`, so it cannot be mounted here — the same wall
 // team-leave-attest-action.test.ts documents. The behaviour itself is unit-tested in
 // src/lib/leave/__tests__/team-calendar-visibility.test.ts; this file pins that the PAGE actually
 // routes through that module, at every one of the three render points that used to carry their

@@ -7,10 +7,10 @@
 // storage (private mode, policy) must not break the console: the session then lives in memory for
 // the module lifetime, and a reload lands on the sign-in page.
 //
-// Imports are deliberately limited to `svelte/store` and `$app/environment`; the isolation scan
+// Imports are deliberately limited to `svelte/store` and `$app/env`; the isolation scan
 // (`__tests__/operator-isolation-89.test.ts`) fails on anything that reaches the tenant session.
 import { writable } from "svelte/store";
-import { browser } from "$app/environment";
+import { browser } from "$app/env";
 
 export const OPERATOR_TOKEN_KEY = "clokr.operator.accessToken";
 export const OPERATOR_EXPIRES_KEY = "clokr.operator.expiresAt";

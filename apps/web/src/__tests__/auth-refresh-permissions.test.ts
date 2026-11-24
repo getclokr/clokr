@@ -4,14 +4,14 @@
 //
 // Why source reads for stores/auth.ts: apps/web/vitest.config.ts declares no `$app` alias by
 // design (see that file's own doc comment) and `stores/auth.ts` transitively imports
-// `$app/environment`. Mocking "$app/environment" directly does not help — Vite's import-analysis
+// `$app/env`. Mocking "$app/env" directly does not help — Vite's import-analysis
 // plugin fails to resolve the bare specifier before Vitest's mock registry gets a chance to
 // intercept it (see version-line.test.ts's comment on the same failure mode). So the store's D-11
 // assertions below are structural, string-based checks against its source, the same established
 // pattern as nav-guard.test.ts's `readRouteFile`.
 //
 // Why client.ts CAN be exercised behaviourally: mocking "$stores/auth" (a real, alias-resolvable
-// path) replaces the whole module before its own `$app/environment` import is ever transformed —
+// path) replaces the whole module before its own `$app/env` import is ever transformed —
 // established precedent in presence.test.ts. That mock uses a hoisted, mutable `state` object so
 // each test can set up a different cached-user shape before importing/calling into client.ts.
 

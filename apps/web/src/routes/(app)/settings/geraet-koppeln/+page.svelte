@@ -12,8 +12,7 @@
 -->
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
-  import { get } from "svelte/store";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
 
   import PageHead from "$components/layout/PageHead.svelte";
@@ -21,11 +20,11 @@
   import { stripCodeFromAddress } from "$lib/presence/strip-code";
 
   // Read once at start, not reactive: the address bar loses the code after the preview.
-  const code = get(page).url.searchParams.get("code");
+  const code = page.url.searchParams.get("code");
 
   function onCodeHandled() {
     void stripCodeFromAddress({
-      hasCode: () => get(page).url.searchParams.has("code"),
+      hasCode: () => page.url.searchParams.has("code"),
       strip: () => replaceState("/settings/geraet-koppeln", {}),
     });
   }

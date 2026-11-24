@@ -1,7 +1,7 @@
 // Phase 255 (GitHub issue #255) — the mounted test suite for the ONE shared absence review
 // dialog. This is the phase's second, ticket-unnamed gain: logic that until now could only be
-// pinned via source-read tests (apps/web/vitest.config.ts registers no `$app/*` alias, so a route
-// file that imports `$app/stores` can never be mounted) is, for the first time, actually MOUNTED
+// pinned via source-read tests (apps/web/vitest.config.ts registers only narrow `$app/*` shims, no router, so a route
+// file that imports `$app/state` can never be mounted) is, for the first time, actually MOUNTED
 // and exercised here — because the dialog moved out of a route and into a component under `lib/`,
 // and because the component itself never imports the auth store (D-03).
 //
@@ -11,11 +11,11 @@
 // substitute safeguard for that gap, not an afterthought.
 //
 // Mounting pulls in `$api/client`, which imports `$stores/auth`, which imports SvelteKit's
-// `$app/environment` — and `apps/web/vitest.config.ts` registers no `$app/*` alias. Mocking
-// "$app/environment" directly does not help: Vite's import-analysis plugin fails to resolve the
+// `$app/env` — and `apps/web/vitest.config.ts` registers only narrow `$app/*` shims, no router. Mocking
+// "$app/env" directly does not help: Vite's import-analysis plugin fails to resolve the
 // bare specifier before Vitest's mock registry gets a chance to intercept it. Mocking
 // "$stores/auth" instead (a real, alias-resolvable path) replaces the whole module before its own
-// `$app/environment` import is ever transformed — precedent, quoted verbatim there:
+// `$app/env` import is ever transformed — precedent, quoted verbatim there:
 // apps/web/src/lib/components/layout/__tests__/version-line.test.ts:29-39,
 // apps/web/src/lib/components/layout/__tests__/WhatsNewPanel.test.ts:26.
 vi.mock("$stores/auth", () => ({ authStore: { subscribe: () => () => {} } }));

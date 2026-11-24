@@ -152,7 +152,7 @@ describe("Issue #840 D-840-05 - inbox deep links", () => {
   it("[read once] the link is parsed once in onMount through the pure parser", () => {
     expect(INBOX).toContain('from "$lib/leave/inbox-deep-link"');
     expect(INBOX.split("parseInboxDeepLink(").length - 1).toBe(1);
-    expect(onMountBody(INBOX)).toContain("parseInboxDeepLink($page.url.searchParams, currentYear)");
+    expect(onMountBody(INBOX)).toContain("parseInboxDeepLink(page.url.searchParams, currentYear)");
   });
 
   it("[apply] it runs after the first completed loads, never before", () => {

@@ -24,7 +24,7 @@
 //     [rejected empty state]                          -> [404 calm] (the calm sentence is the only text)
 //   page-rights-538.test.ts "no role under a name"    -> moved to the team page there (E-01)
 //
-// Why source-read and not mounted: the page imports `$app/stores` and `$app/navigation` and fires its
+// Why source-read and not mounted: the page imports `$app/state` and `$app/navigation` and fires its
 // requests on mount (the wall `team-leave-salon-558.test.ts` documents). The redirect itself is a pure
 // function, tested in `lib/leave/__tests__/area-tabs.test.ts`; the built-app probe is in the plan's
 // verification.

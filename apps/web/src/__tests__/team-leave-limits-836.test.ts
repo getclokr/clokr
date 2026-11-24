@@ -1,6 +1,6 @@
 // Issue #836 (plan 07) — source pins of the leave-limit wiring on Team-Anträge (/team/leave).
 //
-// Why source-read and not mounted: the page imports `$app/stores`, mounts a dozen dialogs and fires
+// Why source-read and not mounted: the page imports `$app/state`, mounts a dozen dialogs and fires
 // its requests on mount (the same wall `team-leave-salon-558.test.ts` documents). The pure decisions
 // are mounted/unit-tested in `lib/leave-limits/__tests__/` and `lib/components/leave/__tests__/`;
 // this file proves the page uses them the way the decisions require.

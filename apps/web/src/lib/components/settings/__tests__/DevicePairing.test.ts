@@ -9,7 +9,7 @@ import type { PairingPreview } from "$lib/api/presence";
 import { renderWithTheme } from "$tests/test-utils";
 
 // `pairing-view` imports `ApiError` from `$api/client`, which pulls in `$stores/auth` and with it
-// `$app/environment` (not aliased by the vitest config).
+// `$app/env` (not aliased by the vitest config).
 vi.mock("$stores/auth", () => ({
   authStore: {
     ...readable({ accessToken: null, refreshToken: null, user: null }),

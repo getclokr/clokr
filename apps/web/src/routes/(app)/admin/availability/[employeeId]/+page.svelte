@@ -10,7 +10,7 @@
   // is CORRECT (Phase 47.3 feature toggle) — this is a UX bug on the web side.
 
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api, ApiError } from "$api/client";
   import { tenantFeatures } from "$stores/tenant-features";
   import { toasts } from "$stores/toast";
@@ -55,7 +55,7 @@
     return new Date().toISOString().slice(0, 10);
   }
 
-  const employeeId = $derived($page.params.employeeId);
+  const employeeId = $derived(page.params.employeeId);
 
   let employee = $state<Employee | null>(null);
   let recurringEntries = $state<RecurringEntry[]>([]);

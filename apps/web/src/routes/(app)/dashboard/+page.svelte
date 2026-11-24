@@ -27,12 +27,12 @@
   // pages, both render from this one file, each showing and loading only its own part; the URL decides (a
   // route component takes no props of its own).
   const view = $derived<"me" | "team">(
-    matchesRoute("/team/heute", $page.url.pathname) ? "team" : "me",
+    matchesRoute("/team/heute", page.url.pathname) ? "team" : "me",
   );
   const pageKey = $derived(view === "team" ? "/team/heute" : "/dashboard");
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { afterNavigate, replaceState } from "$app/navigation"; // Issue #588 (P-11): a bar of the saldo card opens a person; #609: reminder arrival
-  import { page } from "$app/stores"; // Issue #609: the ?clock=1 reminder parameter
+  import { page } from "$app/state"; // Issue #609: the ?clock=1 reminder parameter
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
@@ -895,13 +895,13 @@
   );
 
   // D-01: every Kennzahl opens its list — the attendance filter lives in the URL (`?status=`).
-  const attendanceFilter = $derived(attendanceFilterOf($page.url.searchParams.get("status")));
+  const attendanceFilter = $derived(attendanceFilterOf(page.url.searchParams.get("status")));
   function statusHref(key: string): string {
-    const params = new URLSearchParams($page.url.searchParams);
+    const params = new URLSearchParams(page.url.search);
     if (key === "alle") params.delete("status");
     else params.set("status", key);
     const q = params.toString();
-    return `${$page.url.pathname}${q ? `?${q}` : ""}#jetzt`;
+    return `${page.url.pathname}${q ? `?${q}` : ""}#jetzt`;
   }
   const nowRows = $derived(filterAttendance(attendance?.employees ?? [], attendanceFilter));
   const band = $derived(attendanceBand(attendance));
@@ -1162,7 +1162,10 @@
   let clockHandledArrival = $state(-1);
   let clockReminderOpen = $state(false);
   let clockReminderPending = $state<"confirm-in" | "confirm-out" | null>(null);
-  afterNavigate(() => {
+  afterNavigate((navigation) => {
+    // Kit 3 reports shallow updates here too; the page's own clock-parameter strip is one and is
+    // no arrival (it would re-trigger the reminder it just handled).
+    if (navigation.shallow) return;
     clockArrival += 1;
   });
 
@@ -1182,7 +1185,10 @@
       ?.focus({ preventScroll: true });
   }
 
-  async function settleClockReminder(action: ClockReminderAction, url: URL) {
+  async function settleClockReminder(
+    action: ClockReminderAction,
+    url: Parameters<typeof stripClockParam>[0],
+  ) {
     if (action === "confirm-in" || action === "confirm-out") {
       clockReminderPending = action;
       clockReminderOpen = true;
@@ -1192,11 +1198,11 @@
     }
     // Deferred past the current update: never a synchronous router call from the effect itself.
     await tick();
-    replaceState(stripClockParam(url), $page.state);
+    replaceState(stripClockParam(url), page.state);
   }
 
   $effect(() => {
-    const param = $page.url.searchParams.get("clock");
+    const param = page.url.searchParams.get("clock");
     const arrival = clockArrival;
     const action = clockReminderAction({
       param,
@@ -1210,7 +1216,7 @@
     untrack(() => {
       if (arrival === clockHandledArrival) return;
       clockHandledArrival = arrival;
-      void settleClockReminder(action, $page.url);
+      void settleClockReminder(action, page.url);
     });
   });
 
@@ -2179,7 +2185,7 @@
                 {#if attendanceFilter !== "alle"}
                   <span class="ts-filter-on" data-testid="attendance-filter">
                     <Chip tone="brand">{ATTENDANCE_FILTERS[attendanceFilter].label}</Chip>
-                    <a class="mt-h2-link" href={statusHref("alle")} data-sveltekit-noscroll
+                    <a class="mt-h2-link" href={statusHref("alle")} data-sveltekit-reset="false"
                       >Alle zeigen</a
                     >
                   </span>

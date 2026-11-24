@@ -123,7 +123,7 @@ function anchorDay(datum: string | null, year: number | null, today: string): st
 }
 
 function parseAreaState<Tab extends string>(
-  params: URLSearchParams,
+  params: Pick<URLSearchParams, "get">,
   today: string,
   tabs: readonly Tab[],
   defaultTab: Tab,
@@ -147,7 +147,10 @@ function parseAreaState<Tab extends string>(
 }
 
 /** Tab, zoom, anchor day and filters of `/team/leave`; every unknown or invalid value is a default. */
-export function parseTeamLeaveState(params: URLSearchParams, today: string): TeamLeaveState {
+export function parseTeamLeaveState(
+  params: Pick<URLSearchParams, "get">,
+  today: string,
+): TeamLeaveState {
   return {
     ...parseAreaState(params, today, TEAM_TABS, TEAM_DEFAULT_TAB, TEAM_DEFAULT_ZOOM),
     allSalons: params.get("kreis") === "alle",
@@ -155,7 +158,10 @@ export function parseTeamLeaveState(params: URLSearchParams, today: string): Tea
 }
 
 /** Tab, zoom, anchor day and filters of `/leave` (Mein Bereich). */
-export function parseMyLeaveState(params: URLSearchParams, today: string): MyLeaveState {
+export function parseMyLeaveState(
+  params: Pick<URLSearchParams, "get">,
+  today: string,
+): MyLeaveState {
   return parseAreaState(params, today, MY_TABS, MY_DEFAULT_TAB, MY_DEFAULT_ZOOM);
 }
 
@@ -214,7 +220,10 @@ interface CarriedParams {
 }
 
 /** Reads and re-validates every whitelisted parameter; `tab` is checked against `tabs`. */
-function carriedParams(params: URLSearchParams, tabs: readonly string[]): CarriedParams {
+function carriedParams(
+  params: Pick<URLSearchParams, "get">,
+  tabs: readonly string[],
+): CarriedParams {
   const tabParam = params.get("tab");
   const zoomParam = params.get("zoom");
   const create = params.get("create") === "1";
@@ -270,7 +279,7 @@ const LEGACY_VIEW_TAB: Record<string, { tab: TeamLeaveTab; status?: LeaveStatusF
  *
  * `create`, `employeeId`, `date` and the other whitelisted parameters are carried unchanged.
  */
-export function teamLeaveRedirect(params: URLSearchParams): string | null {
+export function teamLeaveRedirect(params: Pick<URLSearchParams, "get">): string | null {
   const section9 = normalizeUuid(params.get("section9"));
   if (section9 !== null) return `${INBOX_PATH}?section9=${section9}`;
 
@@ -299,7 +308,7 @@ export function teamLeaveRedirect(params: URLSearchParams): string | null {
 }
 
 /** `/teamcal` is the Übersicht tab at month zoom; a valid salon, anchor day and year are carried. */
-export function teamcalRedirect(params: URLSearchParams): string {
+export function teamcalRedirect(params: Pick<URLSearchParams, "get">): string {
   const carried = carriedParams(params, TEAM_TABS);
   return targetOf(TEAM_LEAVE_PATH, {
     tab: "uebersicht",
@@ -320,7 +329,7 @@ export function teamcalRedirect(params: URLSearchParams): string {
  * Mein Bereich (the web check is presentation; the API decides every read and write). The salon
  * deep link and the year are carried, so the #835 notification link keeps working.
  */
-export function planungRedirect(params: URLSearchParams, canManage: boolean): string {
+export function planungRedirect(params: Pick<URLSearchParams, "get">, canManage: boolean): string {
   const carried = carriedParams(params, []);
   return targetOf(canManage ? TEAM_LEAVE_PATH : MY_LEAVE_PATH, {
     tab: "planung",

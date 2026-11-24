@@ -6,7 +6,7 @@
   import { DETAIL_TAB_ALIASES, employeeDetailTabs } from "$lib/employees/detail-tabs";
   import { markUnsaved } from "$stores/unsaved";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { onMount } from "svelte";
   import PageHeader from "$components/ui/PageHeader.svelte";
   import { avatarIndex, initialsOf } from "$components/ui/ListRow.svelte";
@@ -94,11 +94,11 @@
   let salonAssignments = $state<SalonAssignment[]>([]);
   let salonRefs = $state<SalonRef[]>([]);
 
-  const employeeId = $derived($page.params.id ?? "");
+  const employeeId = $derived(page.params.id ?? "");
 
   onMount(async () => {
     activeTab = tabFromHash(
-      $page.url.hash,
+      page.url.hash,
       tabs.map((t) => t.id),
       DETAIL_TAB_ALIASES,
     );

@@ -145,7 +145,7 @@ describe("setupChecks — each link opens the page and section that holds its se
     const page = read(`${ROUTES}/admin/integrations/+page.svelte`);
     expect(page.length).toBeGreaterThan(500);
     // the page opens the tab named by the hash (allow-listed in tab-hash.ts) and renders the terminals panel for it
-    expect(page).toContain("tabFromHash($page.url.hash, visibleTabIds, TAB_ALIASES)");
+    expect(page).toContain("tabFromHash(page.url.hash, visibleTabIds, TAB_ALIASES)");
     expect(page).toContain('value === "terminals"');
     expect(page).toContain("<TerminalsPanel");
     expect(read("../../settings/integrationen.ts")).toContain('value: "terminals"');

@@ -134,14 +134,18 @@ export function serialiseUrlState<S extends StateSchema>(
 // ── Reactive helper ──────────────────────────────────────────────────────────
 
 export interface NavigateOptions {
-  replaceState: boolean;
-  keepFocus: boolean;
-  noScroll: boolean;
+  replace: boolean;
+  reset: boolean;
 }
 
 /** Where the helper reads the current URL and how it navigates; both are injectable for tests. */
+/** The read-only part of a URL the helper needs (kit 3 types `page.url` with a read-only `searchParams`). */
+export type ReadonlyUrlParts = Pick<URL, "pathname" | "search" | "hash"> & {
+  searchParams: SearchParamsLike;
+};
+
 export interface UrlStateIo {
-  url(): URL;
+  url(): ReadonlyUrlParts;
   navigate(href: string, options: NavigateOptions): unknown;
 }
 
@@ -170,11 +174,11 @@ export function urlState<S extends StateSchema>(
     write: (patch) => {
       const url = io.url();
       const next = { ...parseUrlState(schema, url.searchParams), ...patch };
-      const query = serialiseUrlState(schema, next, url.searchParams);
+      const query = serialiseUrlState(schema, next, url.search);
       // Built from the current path only: the helper never forwards a string it was given.
       const href = `${url.pathname}${query === "" ? "" : `?${query}`}${url.hash}`;
       if (href === `${url.pathname}${url.search}${url.hash}`) return;
-      io.navigate(href, { replaceState: true, keepFocus: true, noScroll: true });
+      io.navigate(href, { replace: true, reset: false });
     },
   };
 }

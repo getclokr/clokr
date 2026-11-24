@@ -146,8 +146,8 @@ jobs:
         run: pnpm --filter @clokr/db exec prisma generate
 
       - name: Sync SvelteKit generated files
-        # ESLint + tsc on apps/web extend ./.svelte-kit/tsconfig.json (generated
-        # by `svelte-kit sync`). The file is gitignored, so we must regenerate
+        # ESLint + tsc on apps/web extend node_modules/$app/tsconfig.json (generated
+        # by `svelte-kit sync`). The file is not tracked, so we must regenerate
         # it before any lint/typecheck step that touches Web. Required for
         # Lint Web, Type check Web, Run Web tests with coverage.
         run: pnpm --filter @clokr/web exec svelte-kit sync
@@ -592,7 +592,8 @@ jobs:
         # Issue #589: shifts-week-roster-589.test.ts loads the web module lib/shifts/roster-rows.ts
         # to prove that every person counted in coverage is a row of the web roster (one fixture,
         # both layers). Vite's transform of that file reads apps/web/tsconfig.json, which extends
-        # the gitignored ./.svelte-kit/tsconfig.json — so it must exist here as in the web job.
+        # the untracked node_modules/$app/tsconfig.json (written by `svelte-kit sync`) — so it must
+        # exist here as in the web job.
         run: pnpm --filter @clokr/web exec svelte-kit sync
 
       - name: Runner capacity (Phase 106 / D-10 — measure, never assume)
@@ -808,8 +809,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync SvelteKit generated files
-        # ESLint + tsc on apps/web extend ./.svelte-kit/tsconfig.json (generated
-        # by `svelte-kit sync`). The file is gitignored, so we must regenerate
+        # ESLint + tsc on apps/web extend node_modules/$app/tsconfig.json (generated
+        # by `svelte-kit sync`). The file is not tracked, so we must regenerate
         # it before any lint/typecheck step that touches Web. Required for
         # Lint Web, Type check Web, Run Web tests with coverage.
         run: pnpm --filter @clokr/web exec svelte-kit sync

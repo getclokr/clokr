@@ -206,7 +206,7 @@ describe("D-11/D-12 — unsaved marker and guard registration on admin/shifts", 
 describe("Regeln › Dienstplan offers and loads only what the person may open", () => {
   it("takes its tabs from visibleDienstplanTabs and lets the URL hash pick only among them", () => {
     expect(PAGE).toContain("visibleDienstplanTabs(user)");
-    expect(PAGE).toContain("tabFromHash($page.url.hash, visibleTabIds)");
+    expect(PAGE).toContain("tabFromHash(page.url.hash, visibleTabIds)");
     expect(PAGE).toContain("tabs={visibleTabs.map(");
   });
 

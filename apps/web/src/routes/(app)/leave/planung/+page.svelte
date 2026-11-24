@@ -10,7 +10,7 @@
    * whitelisted parameters, T-840-38) - never from the URL.
    */
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions";
@@ -19,10 +19,10 @@
   onMount(() =>
     goto(
       planungRedirect(
-        $page.url.searchParams,
+        page.url.searchParams,
         hasPermission($authStore.user, "leave-plan:manage:ZUGEWIESEN"),
       ),
-      { replaceState: true },
+      { replace: true },
     ),
   );
 </script>

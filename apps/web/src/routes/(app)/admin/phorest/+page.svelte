@@ -11,7 +11,7 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { pageLabel } from "$lib/nav/page-labels";
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
   import { markUnsaved } from "$stores/unsaved";
@@ -37,7 +37,7 @@
   }
 
   onMount(() => {
-    activeTab = tabFromHash($page.url.hash, TAB_IDS);
+    activeTab = tabFromHash(page.url.hash, TAB_IDS);
   });
 
   // What the status strip shows; the panels write to it as they load and save.

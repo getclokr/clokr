@@ -13,7 +13,7 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { markUnsaved } from "$stores/unsaved";
@@ -88,7 +88,7 @@
   onMount(async () => {
     activeTab =
       visibleTabIds.length > 0
-        ? tabFromHash($page.url.hash, visibleTabIds, ARBEITSZEIT_TAB_ALIASES)
+        ? tabFromHash(page.url.hash, visibleTabIds, ARBEITSZEIT_TAB_ALIASES)
         : "";
     try {
       config = await api.get<WorkConfig>("/settings/work");

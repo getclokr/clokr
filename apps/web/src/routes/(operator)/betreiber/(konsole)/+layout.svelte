@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { clearSession, loadSession, operatorSession } from "$stores/operator-auth";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import OperatorBar from "$lib/components/operator/OperatorBar.svelte";
@@ -33,7 +33,7 @@
     if (leaving) return;
     leaving = true;
     clearSession();
-    void goto(buildSignInUrl($page.url.pathname + $page.url.search, { expired: true }));
+    void goto(buildSignInUrl(page.url.pathname + page.url.search, { expired: true }));
   }
 
   function logout() {
@@ -53,7 +53,7 @@
     });
 
     if (loadSession() === null) {
-      void goto(buildSignInUrl($page.url.pathname + $page.url.search, { expired: false }));
+      void goto(buildSignInUrl(page.url.pathname + page.url.search, { expired: false }));
       return;
     }
     now = Date.now();

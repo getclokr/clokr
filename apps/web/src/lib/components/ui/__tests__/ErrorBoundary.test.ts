@@ -86,6 +86,13 @@ describe("ErrorBoundary — one boundary, two messages (Issue #127)", () => {
     expect(callout?.textContent).not.toContain("BOOM-127-render");
   });
 
+  it("a plain object (what kit 3's transformError hands a boundary) is not reported again (#1015)", () => {
+    // hooks.client.ts handleError already reported it once; reporting here would log "[object Object]".
+    renderWithTheme(BoundaryHarness, { scope: "view", when: "render-plain" });
+    expect(document.querySelector("[data-boundary-failed]")).not.toBeNull();
+    expect(errorMock).not.toHaveBeenCalled();
+  });
+
   it('a "Seite neu laden" button is offered as a plain button, not a link', () => {
     renderWithTheme(BoundaryHarness, { scope: "view", when: "render" });
     const button = screen.getByRole("button", { name: "Seite neu laden" });

@@ -5,5 +5,5 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
 
-  onMount(() => goto("/verwalten/regeln/abwesenheiten#betriebsurlaub", { replaceState: true }));
+  onMount(() => goto("/verwalten/regeln/abwesenheiten#betriebsurlaub", { replace: true }));
 </script>

@@ -3,7 +3,7 @@
 // #842 D-842-16: the skin store is gone, so only mode + theme remain.
 //
 // $stores/mode and $stores/theme cannot be imported for real here: they import
-// `$app/environment`, which apps/web/vitest.config.ts does not alias (see the comment in
+// `$app/env`, which apps/web/vitest.config.ts does not alias (see the comment in
 // apps/web/src/lib/components/layout/__tests__/version-line.test.ts lines 29-40 for the full
 // reasoning). Each is instead mocked with an async factory that dynamically imports svelte/store,
 // the REAL $stores/prefs-state, and the mocked $api/preferences, and reproduces the production

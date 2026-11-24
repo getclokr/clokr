@@ -82,19 +82,19 @@ describe("/reports period area (Issue #612) - the URL is the one state", () => {
     expect(PAGE).toMatch(
       /import \{[^}]*\bperiodSearch\b[^}]*\} from "\$lib\/reports\/period-state"/s,
     );
-    expect(PAGE).toContain("parsePeriodState($page.url.searchParams, today, rights.periodTabs)");
+    expect(PAGE).toContain("parsePeriodState(page.url.searchParams, today, rights.periodTabs)");
     // No second reader of the URL: the page never asks the search params for the state itself.
     expect(PAGE).not.toMatch(/searchParams\.get\(\s*["'](from|to|tab|person|salonId)["']/);
     expect(PAGE).not.toMatch(/new URLSearchParams\(/);
   });
 
-  it("every period or tab change is a replaceState navigation that keeps focus and scroll", () => {
+  it("every period or tab change is a replacing navigation that keeps focus and scroll", () => {
     const body = functionBody("writeState");
     expect(body).toContain("periodSearch(next)");
-    expect(body).toMatch(/replaceState: true,\s+keepFocus: true,\s+noScroll: true/);
+    expect(body).toMatch(/replace: true,\s+reset: false/);
     // Every goto( of the page replaces the history entry except the ONE push: opening a person.
     const calls = [...SCRIPT.matchAll(/goto\(/g)].length;
-    const replaced = [...SCRIPT.matchAll(/replaceState: true/g)].length;
+    const replaced = [...SCRIPT.matchAll(/replace: true/g)].length;
     expect(calls).toBeGreaterThanOrEqual(2);
     expect(replaced).toBe(calls - 1);
   });
@@ -103,8 +103,8 @@ describe("/reports period area (Issue #612) - the URL is the one state", () => {
     const body = functionBody("openPerson");
     expect(body).toContain("if (!isPlainLeftClick(event)) return;");
     expect(body).toContain("event.preventDefault();");
-    expect(body).toMatch(/goto\(personHref\(row\), \{ keepFocus: true, noScroll: true \}\)/);
-    expect(body).not.toContain("replaceState");
+    expect(body).toMatch(/goto\(personHref\(row\), \{ reset: false \}\)/);
+    expect(body).not.toContain("replace");
     expect(functionBody("personHref")).toContain(
       "periodSearch({ ...urlState, person: row.employeeId })",
     );

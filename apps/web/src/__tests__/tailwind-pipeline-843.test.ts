@@ -202,8 +202,9 @@ describe("wiring", () => {
   it("runs the Tailwind plugin before sveltekit() in vite.config.ts", () => {
     const vite = readFileSync(resolve(WEB, "vite.config.ts"), "utf8");
     expect(vite).toMatch(/import\s+tailwindcss\s+from\s+["']@tailwindcss\/vite["']/);
-    const plugins = /plugins:\s*\[([^\]]*)\]/.exec(vite)?.[1] ?? "";
-    expect(plugins.replace(/\s/g, "")).toBe("tailwindcss(),sveltekit()");
+    // sveltekit() carries its options object since kit 3 (no svelte.config.js), so pin the prefix.
+    const code = vite.replace(/^\s*\/\/.*$/gm, "").replace(/\s/g, "");
+    expect(code).toContain("plugins:[tailwindcss(),sveltekit(");
   });
 
   it("imports tokens.css, then app.css, then tailwind-theme.css in the root layout", () => {

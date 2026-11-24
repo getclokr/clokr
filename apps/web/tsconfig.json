@@ -1,5 +1,5 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
+  "extends": "$app/tsconfig",
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
@@ -10,16 +10,11 @@
     "sourceMap": true,
     "strict": true
   },
-  // SvelteKit's generated tsconfig (.svelte-kit/tsconfig.json) includes:
-  //   ambient.d.ts, non-ambient.d.ts, ./types/**/$types.d.ts,
-  //   ../vite.config.{js,ts}, ../src/**/*.{js,ts,svelte}, ../test{,s}/**
-  // Re-listing them here is required because `include` is overridden (not merged)
-  // on extension. We add ../vitest.config.ts so type-aware ESLint can lint it.
-  // Paths are RELATIVE to this tsconfig.json (sibling of .svelte-kit/).
+  // SvelteKit 3 generates the parent config into node_modules/$app/tsconfig.json when
+  // `svelte-kit sync` runs (it sets the paths, rootDirs for route `$types`, and
+  // `types: ["$app/types"]`). `include` is overridden (not merged) on extension, so the
+  // project files are listed here; vitest.config.ts is added so type-aware ESLint can lint it.
   "include": [
-    "./.svelte-kit/ambient.d.ts",
-    "./.svelte-kit/non-ambient.d.ts",
-    "./.svelte-kit/types/**/$types.d.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "src/**/*.js",

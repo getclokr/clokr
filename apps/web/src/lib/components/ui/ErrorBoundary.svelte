@@ -10,7 +10,7 @@
   // navigation, and without the reset the failure view survived every navigation. If the new
   // page throws too, the boundary simply fails again. Resetting here (not with a `{#key}`
   // in the layout) leaves the boundary's pinned position in both layouts unchanged.
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { clientLogger } from "$lib/utils/logger";
   import Note from "./Note.svelte";
 
@@ -39,7 +39,7 @@
   let pendingReset = $state<{ reset: () => void; path: string } | null>(null);
 
   $effect(() => {
-    const path = $page.url.pathname;
+    const path = page.url.pathname;
     if (pendingReset && path !== pendingReset.path) {
       const { reset } = pendingReset;
       pendingReset = null;
@@ -48,15 +48,18 @@
   });
 
   function handleError(error: unknown, reset: () => void) {
-    pendingReset = { reset, path: $page.url.pathname };
+    pendingReset = { reset, path: page.url.pathname };
 
     // D-06: keep the raw Error — and its clickable stack — in the dev console. A
     // boundary that hides the stack trades one diagnosis problem for another.
     if (import.meta.env.DEV) console.error("[clokr] svelte:boundary", scope, error);
 
-    const err = error instanceof Error ? error : undefined;
-    clientLogger.error(`Render-Fehler (${scope}): ${err?.message ?? String(error)}`, {
-      stack: err?.stack,
+    // Under kit 3 a boundary only ever receives kit's transformed plain `{ status, message }` object,
+    // and `hooks.client.ts` handleError has already reported the original error once; reporting it
+    // here again would log "[object Object]". Outside kit (component tests) errors arrive raw.
+    if (!(error instanceof Error)) return;
+    clientLogger.error(`Render-Fehler (${scope}): ${error.message}`, {
+      stack: error.stack,
       boundary: scope,
     });
   }

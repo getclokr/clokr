@@ -1,6 +1,6 @@
 // Issue #558 D-03/D-04/D-08/D-09 — source pins of the salon filter on Team-Anträge (/team/leave).
 //
-// Why source-read and not mounted: the page imports `$app/stores`, mounts a dozen dialogs and fires
+// Why source-read and not mounted: the page imports `$app/state`, mounts a dozen dialogs and fires
 // its requests on mount (the same wall `team-leave-attest-action.test.ts` documents). The rendering
 // contract of the label is mounted in `lib/components/team/__tests__/SalonScopeLabel.test.ts`, the
 // pure decisions in `lib/salons/__tests__/page-scope.test.ts`; this file proves the page uses them
@@ -177,8 +177,8 @@ describe("Issue #558 — Team-Anträge follow the header salon", () => {
     expect(body).not.toContain('get("view")');
     expect(body).not.toContain('view = "approvals"');
     // #840 D-840-05: ?section9=<id> is handled by /inbox.
-    expect(body).not.toContain('$page.url.searchParams.get("section9")');
-    expect(PAGE).toContain("parseTeamLeaveState($page.url.searchParams, today)");
+    expect(body).not.toContain('page.url.searchParams.get("section9")');
+    expect(PAGE).toContain("parseTeamLeaveState(page.url.searchParams, today)");
   });
 
   it("[deep links] the scroll and highlight run after the first completed load, never from onMount", () => {

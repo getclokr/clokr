@@ -6,7 +6,7 @@
 // zoom, search and „Personenkreis“ filter sit in one toolbar row inside the panel. The pins below
 // keep their meaning and read the new markup.
 //
-// Why source-read and not mounted: the page imports `$app/stores` and `$app/navigation`, mounts a
+// Why source-read and not mounted: the page imports `$app/state` and `$app/navigation`, mounts a
 // dozen dialogs and fires its requests on mount (the same wall `team-leave-salon-558.test.ts`
 // documents). The pure decisions are tested where they live (`lib/leave/__tests__/area-tabs.test.ts`,
 // `team-leave-model.test.ts`), the components in their own mounted tests.
@@ -100,12 +100,12 @@ describe("Issue #840 E-01 - one page, one tab strip, one timeline", () => {
   });
 
   it("[URL state] tab, zoom and anchor come only from parseTeamLeaveState; a change writes the URL through goto", () => {
-    expect(PAGE).toContain("parseTeamLeaveState($page.url.searchParams, today)");
+    expect(PAGE).toContain("parseTeamLeaveState(page.url.searchParams, today)");
     expect(count(PAGE, "parseTeamLeaveState(")).toBe(1);
     const navigate = functionBody("navigate");
     expect(navigate).toContain("teamLeaveSearch(next)");
-    expect(navigate).toContain("keepFocus: true");
-    expect(navigate).toContain("noScroll: true");
+    // `reset: false` keeps scroll position and focus (kit 3; kit 2 spelled it keepFocus + noScroll).
+    expect(navigate).toContain("reset: false");
     // A tab change is a history entry, a zoom / period / filter change replaces it.
     expect(functionBody("selectTab")).toContain("void navigate({ tab })");
     expect(functionBody("onZoomSelected")).toContain("void navigate({ zoom }, true)");
@@ -386,7 +386,7 @@ describe("Issue #840 D-840-17/03/31 - Planung tab, legacy links, create link on 
   it("[create link] ?create=1&employeeId&date is read once in onMount and opens the dialog on whatever tab is active", () => {
     const mountAt = PAGE.indexOf("onMount(() => {");
     const mount = PAGE.slice(mountAt, PAGE.indexOf("\n  });", mountAt));
-    expect(mount).toContain("deepLinkCreate = parseLeaveCreateDeepLink($page.url.searchParams)");
+    expect(mount).toContain("deepLinkCreate = parseLeaveCreateDeepLink(page.url.searchParams)");
     const run = functionBody("runDeepLink");
     const create = run.slice(run.indexOf("const createLink = deepLinkCreate;"));
     expect(create).toContain('hasPermission($authStore.user, "leave-request:create:ZUGEWIESEN")');

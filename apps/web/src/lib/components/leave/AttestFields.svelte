@@ -8,7 +8,7 @@
    * one copy avoids the two drifting apart.
    *
    * It is also what makes these fields testable at all: `apps/web/vitest.config.ts` registers no
-   * `$app/*` aliases, so route pages that `import { page } from "$app/stores"` cannot be mounted
+   * `$app/*` aliases, so route pages that `import { page } from "$app/state"` cannot be mounted
    * in a test — only a component living under `lib/` can be. Extracting this block is what buys
    * real, mounted test coverage instead of a source-read pin.
    *

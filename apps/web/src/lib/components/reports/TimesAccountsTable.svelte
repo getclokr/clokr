@@ -160,7 +160,7 @@
       <a
         class="period-person-link"
         href={personHref(row)}
-        data-sveltekit-noscroll
+        data-sveltekit-reset="false"
         title={row.employeeName}
         onclick={(e) => onOpenPerson(e, row)}>{row.employeeName}</a
       >

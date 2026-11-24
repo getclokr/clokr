@@ -123,7 +123,7 @@ describe("Issue #835 - the planner (hosts of the Planung tab, #840)", () => {
     expect(TEAM_HOST).toContain("parseTeamLeaveState(");
     expect(MY_HOST).toContain("parseMyLeaveState(");
     for (const host of HOSTS) {
-      expect(host).toContain("$page.url.searchParams");
+      expect(host).toContain("page.url.searchParams");
       expect(host).not.toContain("getFullYear() + 1");
     }
     expect(PANEL).toContain("const year = $derived(period.year)");
@@ -275,7 +275,7 @@ describe("Issue #835 - the planner (hosts of the Planung tab, #840)", () => {
     expect(STUB).toContain("planungRedirect(");
     expect(STUB).toContain('hasPermission($authStore.user, "leave-plan:manage:ZUGEWIESEN")');
     expect(STUB).toMatch(/onMount\(\(\) =>\s*goto\(/);
-    expect(STUB).toContain("replaceState: true");
+    expect(STUB).toContain("replace: true");
     // No template, no head, no request: the template part is empty.
     expect(STUB.replace(/<script[\s\S]*?<\/script>/g, "").trim()).toBe("");
     // The target is never assembled from the URL here.
