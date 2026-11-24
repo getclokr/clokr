@@ -216,6 +216,27 @@ describe("findMissingWorkdays — SHIFT_BASED gaps (CLOSE-02, Pitfall A4)", () =
     expect(gapDates(result)).not.toContain("2026-07-02");
   });
 
+  it("Issue #1053: SHIFT_BASED rostered days outside [effectiveStart, effectiveEnd] are NOT gaps", () => {
+    // The callers fetch the roster of the whole month. In the running month effectiveEnd is
+    // tenant-local yesterday (#986), and on a mid-month hire/exit the employment window clips it
+    // (#613) - a shift before hire, after exit or in the future is no missing day.
+    const result = findMissingWorkdays(
+      baseShiftInput({
+        effectiveStart: new Date("2026-07-06T00:00:00+02:00"),
+        effectiveEnd: new Date("2026-07-15T00:00:00Z"),
+        rosterDates: new Set([
+          "2026-07-02",
+          "2026-07-06",
+          "2026-07-15",
+          "2026-07-16",
+          "2026-07-27",
+        ]),
+      }),
+    );
+
+    expect(gapDates(result).sort()).toEqual(["2026-07-06", "2026-07-15"]);
+  });
+
   it("case 8: SHIFT_BASED non-rostered weekday is NOT a gap — SHIFT_BASED keys off rosterDates only", () => {
     // 2026-07-03 is a Friday — {day}Hours > 0 for this schedule, but NOT in rosterDates
     // PITFALL A4 fix: getDayHoursFromSchedule must NOT be used for SHIFT_BASED

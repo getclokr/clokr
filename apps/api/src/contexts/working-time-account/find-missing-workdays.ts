@@ -148,7 +148,11 @@ export function findMissingWorkdays(input: MissingWorkdaysInput): MissingWorkday
   if (type === "SHIFT_BASED") {
     // Use rosterDates only — keys off Shift.date, NOT {day}Hours (pitfall A4).
     // If rosterDates is not provided, treat as empty set → no gaps.
-    expectedDates = input.rosterDates ?? new Set<string>();
+    // Issue #1053: callers pass the roster of the whole month, so clip it to the span like the
+    // FIXED branch's iteration - no gap before hire, after exit or after yesterday (#986).
+    expectedDates = new Set(
+      [...(input.rosterDates ?? [])].filter((ds) => ds >= spanStart && ds <= spanEnd),
+    );
   } else {
     // FIXED_SCHEDULE / FIXED_WEEKLY / null / unknown - workDays-primary (Phase 128, D-01).
     //

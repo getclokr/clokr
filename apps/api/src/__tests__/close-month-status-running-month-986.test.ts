@@ -7,6 +7,8 @@
  * Tenant time zone Europe/Berlin, clock faked to Wednesday 2026-11-18T10:00:00Z (only `Date`).
  * One FIXED_SCHEDULE person (Mo–Fr 8 h) with an entry on every workday of November up to and
  * including 17.11. except ONE real gap on Tuesday 10.11.; no entries in October at all.
+ * Issue #1053: a second, SHIFT_BASED person with shifts on past, present and future days of
+ * November - only the past rostered day without an entry is a gap.
  * Synthetic fixture, no person names.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -40,8 +42,13 @@ describe("Issue #986 — Monatsabschluss status in the running month", () => {
   let app: FastifyInstance;
   let d: Awaited<ReturnType<typeof seedTestData>>;
   let person: PopulationPerson;
+  let shiftPerson: PopulationPerson;
 
-  async function statusRow(year: number, month: number): Promise<StatusRow> {
+  async function statusRow(
+    year: number,
+    month: number,
+    employeeId: string = person.employeeId,
+  ): Promise<StatusRow> {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(FAKE_NOW);
     try {
@@ -52,7 +59,7 @@ describe("Issue #986 — Monatsabschluss status in the running month", () => {
       });
       expect(res.statusCode).toBe(200);
       const rows = (JSON.parse(res.body) as { employees: StatusRow[] }).employees;
-      const row = rows.find((r) => r.employeeId === person.employeeId);
+      const row = rows.find((r) => r.employeeId === employeeId);
       expect(row).toBeDefined();
       return row!;
     } finally {
@@ -85,6 +92,41 @@ describe("Issue #986 — Monatsabschluss status in the running month", () => {
         },
       });
     }
+
+    shiftPerson = await createPopulationPerson(app, {
+      tenantId: d.tenant.id,
+      salonId: d.salonId,
+      tag: "rs",
+      hireDate: new Date("2025-01-01T00:00:00.000Z"),
+    });
+    await app.prisma.workSchedule.updateMany({
+      where: { employeeId: shiftPerson.employeeId },
+      data: { type: "SHIFT_BASED" },
+    });
+    // 16.11. worked, 17.11. not recorded (the one real gap), 18.11. = today, 20.11./27.11. future.
+    for (const day of ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-20", "2026-11-27"]) {
+      await app.prisma.shift.create({
+        data: {
+          employeeId: shiftPerson.employeeId,
+          salonId: d.salonId,
+          date: new Date(`${day}T00:00:00Z`),
+          startTime: "08:00",
+          endTime: "16:30",
+        },
+      });
+    }
+    await app.prisma.timeEntry.create({
+      data: {
+        employeeId: shiftPerson.employeeId,
+        date: new Date("2026-11-16T00:00:00Z"),
+        startTime: new Date("2026-11-16T07:00:00Z"),
+        endTime: new Date("2026-11-16T15:30:00Z"),
+        breakMinutes: 30,
+        breakStatus: "CONFIRMED",
+        type: "WORK",
+        salonId: d.salonId,
+      },
+    });
   }, 120_000);
 
   afterAll(async () => {
@@ -110,5 +152,12 @@ describe("Issue #986 — Monatsabschluss status in the running month", () => {
     // October 2026 has no entries at all: every workday through the month's last day is a gap
     // (03.10. is a Saturday, so no statutory holiday falls on a workday).
     expect(row.missingDates).toEqual(workdaysBetween("2026-10-01", "2026-10-31"));
+  });
+
+  it("Issue #1053: a SHIFT_BASED person's future shifts in the running month are no gaps", async () => {
+    const row = await statusRow(2026, 11, shiftPerson.employeeId);
+    expect(row.status).toBe("missing");
+    expect(row.missingDates).toEqual(["2026-11-17"]);
+    expect(row.missingDateCount).toBe(1);
   });
 });
