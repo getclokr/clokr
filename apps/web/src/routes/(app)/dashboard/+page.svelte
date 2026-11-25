@@ -40,6 +40,8 @@
   import { tenantFeatures } from "$stores/tenant-features"; // Issue #1066: the tenant's zone
   import { tenantDay, tenantTimeOfDay } from "$lib/utils/tenant-day"; // Issue #1066
   import Pagination from "$components/ui/Pagination.svelte";
+  import ListWidget from "$components/ui/ListWidget.svelte"; // Issue #1028
+  import TaskRow from "$lib/components/team/aufgaben/TaskRow.svelte"; // Issue #1028: the shared task row
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import ClockSalonSelect from "$lib/components/dashboard/ClockSalonSelect.svelte"; // Issue #87
@@ -139,7 +141,6 @@
     filterAttendance,
     ATTENDANCE_FILTERS,
     TEAM_WEEK_PAGE_SIZE,
-    openTeamLeaveTasks,
     leaveTypeLabel,
     pastWeeksOfMonth,
     missingDaysOfMonth,
@@ -157,8 +158,18 @@
     openTaskBreakdown,
     openTaskSummary,
     taskGates,
-    type OpenTaskSummary,
   } from "$lib/team/task-sources"; // Issue #948: the count of Team › Aufgaben, one rule
+  import {
+    filterByKind,
+    rowsForView,
+    taskKindLabel,
+    taskRowsFrom,
+    TASK_KIND_VALUES,
+    type LeaveTaskSource,
+    type TaskKind,
+    type TaskRowModel,
+    type TaskSources,
+  } from "$lib/team/task-model"; // Issue #1028: the Aufgaben widget lists the rows the KPI counts
   import { fmtBalance } from "$lib/utils/format-minutes";
   import { de } from "date-fns/locale";
   import { salonContext } from "$stores/salon-context"; // Issue #84 (D-01)
@@ -825,16 +836,66 @@
   let attendance = $state<TodayAttendanceData | null>(null);
   let teamMonth = $state<TeamTrendMonth | null>(null);
   let teamMonthResponse = $state<TeamTrendResponse | null>(null);
-  let pendingLeave = $state<TeamTaskLeave[]>([]);
-  // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
-  let openTasks = $state<OpenTaskSummary | null>(null);
+  // Issue #1028 (P-04): the Aufgaben widget lists exactly the rows the cell „Aufgaben“ counts - the
+  // open rows of ONE `loadOpenTaskSources()` answer, through the model of Team › Aufgaben. So a counted
+  // task is always listable and chip, cell and list are one figure. `null` = not loaded yet.
+  let taskSources = $state<TaskSources | null>(null);
   let reviewOpen = $state(false);
   let reviewRequest = $state<TeamTaskLeave | null>(null);
-  const canDecideLeave = $derived(
-    hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),
-  );
   // Issue #948: the cell and the section are offered exactly to whom the page is (its gate).
   const taskSourceGates = $derived(taskGates($authStore.user));
+  // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
+  const openTasks = $derived(taskSources ? openTaskSummary(taskSources, taskSourceGates) : null);
+  const openTaskRows = $derived.by((): TaskRowModel[] =>
+    taskSources
+      ? rowsForView(
+          taskRowsFrom(taskSources, {
+            leaveDays: (r) => leaveDaysLabel(Number(r.days), r.halfDay, r.typeCode),
+            ownEmployeeId: $authStore.user?.employeeId ?? null,
+          }),
+          "offen",
+        )
+      : [],
+  );
+  // The filter chips: „Alle“ plus the kinds with open rows; every count is the KPI cell's own.
+  const taskChips = $derived(
+    openTasks && openTasks.total > 0
+      ? [
+          { value: "alle", label: "Alle", count: openTasks.total },
+          ...openTasks.kinds
+            .filter((kind) => openTasks.counts[kind] > 0)
+            .map((kind) => ({
+              value: kind as string,
+              label: taskKindLabel(kind),
+              count: openTasks.counts[kind],
+            })),
+        ]
+      : undefined,
+  );
+  let taskFilter = $state<string | undefined>(undefined);
+  const shownTaskRows = $derived(
+    filterByKind(
+      openTaskRows,
+      (TASK_KIND_VALUES as readonly string[]).includes(taskFilter ?? "")
+        ? (taskFilter as TaskKind)
+        : "alle",
+    ),
+  );
+
+  /**
+   * The leave request behind a task row the caller may decide here: PENDING and not the caller's own
+   * (four-eyes, mirrored from the review route so no impossible decision is offered). Looked up in the
+   * same `GET /leave/requests?status=PENDING` answer the row came from; that answer carries every field
+   * of the review dialog's request type, which the task model's narrower source type does not name,
+   * hence the one cast.
+   */
+  function decidableLeave(row: TaskRowModel): TeamTaskLeave | null {
+    if (row.kind !== "urlaub" || row.status !== "PENDING") return null;
+    const source = taskSources?.leave?.find((l: LeaveTaskSource) => l.id === row.sourceId);
+    if (!source) return null;
+    const request = source as unknown as TeamTaskLeave;
+    return request.employeeId === ($authStore.user?.employeeId ?? null) ? null : request;
+  }
 
   async function loadTodayAttendance() {
     const filter = teamFilter;
@@ -876,36 +937,26 @@
   }
 
   // D-03: the open leave requests decided here go through the SAME dialog as Aufgaben
-  // (LeaveReviewDialog) — this page never writes a decision of its own. The list follows the salon
-  // context; the count of the „Aufgaben“ cell is the page's own (Issue #948): the same sources, gates
-  // and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon selection (#558).
+  // (LeaveReviewDialog) - this page never writes a decision of its own. Issue #1028 (P-04, replaces
+  // #84 D-07 for this one list): the widget and the count of the „Aufgaben“ cell are one set - the same
+  // sources, gates and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon
+  // selection (#558, #948). The old „N weitere Aufgaben warten“ row covered other kinds, other salons
+  // and rows past five; without it a counted task must be listable.
   async function loadTeamTasks() {
-    const filter = teamFilter;
     const generation = teamGeneration;
     const gates = taskSourceGates;
-    const [leaveR, sourcesR] = await Promise.allSettled([
-      canDecideLeave
-        ? api.get<TeamTaskLeave[]>(withSalonId("/leave/requests?status=PENDING", filter))
-        : Promise.resolve([] as TeamTaskLeave[]),
-      gates.page
-        ? loadOpenTaskSources(<T,>(path: string) => api.get<T>(path), gates)
-        : Promise.resolve(null),
-    ]);
+    let sources: TaskSources | null = null;
+    if (gates.page) {
+      try {
+        sources = await loadOpenTaskSources(<T,>(path: string) => api.get<T>(path), gates);
+      } catch {
+        // Every source is read calmly; a failure of the whole read shows an empty list, not a skeleton.
+        sources = {};
+      }
+    }
     if (generation !== teamGeneration) return;
-    pendingLeave =
-      leaveR.status === "fulfilled"
-        ? openTeamLeaveTasks(leaveR.value, $authStore.user?.employeeId)
-        : [];
-    openTasks =
-      sourcesR.status === "fulfilled" && sourcesR.value
-        ? openTaskSummary(sourcesR.value, gates)
-        : null;
+    taskSources = sources;
   }
-
-  /** The open tasks the section does not list by name (other kinds, other salons, more than five). */
-  const moreTaskCount = $derived(
-    Math.max(0, (openTasks?.total ?? 0) - Math.min(pendingLeave.length, 5)),
-  );
 
   // D-01: every Kennzahl opens its list — the attendance filter lives in the URL (`?status=`).
   const attendanceFilter = $derived(attendanceFilterOf(page.url.searchParams.get("status")));
@@ -2257,47 +2308,51 @@
             {/if}
 
             {#if taskSourceGates.page}
-              <section class="ts-sec" aria-labelledby="ts-tasks">
-                <h2 id="ts-tasks" class="mt-h2">
-                  Aufgaben <a class="mt-h2-link" href="/team/aufgaben">Alle Aufgaben</a>
-                </h2>
-                {#if pendingLeave.length === 0 && moreTaskCount === 0}
+              <ListWidget
+                listId="team.heute.aufgaben"
+                title="Aufgaben"
+                items={shownTaskRows}
+                itemKey={(task) => task.key}
+                filters={taskChips}
+                bind:filter={taskFilter}
+                moreHref="/team/aufgaben"
+                moreLabel="Alle Aufgaben"
+                loading={taskSources === null}
+                rowHeight={88}
+                testId="team-tasks"
+                filterTestId="team-tasks-filter"
+              >
+                {#snippet row(task)}
+                  {@const request = decidableLeave(task)}
+                  <TaskRow
+                    row={task}
+                    typeLabel={task.typeCode ? leaveTypeLabel(task.typeCode) : undefined}
+                    actionsPlacement="end"
+                  >
+                    {#snippet actions()}
+                      {#if request}
+                        <button
+                          type="button"
+                          class="btn btn-outline btn-sm"
+                          onclick={() => openReview(request)}>Ablehnen</button
+                        >
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm"
+                          onclick={() => openReview(request)}>Genehmigen</button
+                        >
+                      {:else}
+                        <a class="btn btn-outline btn-sm" href={`/team/aufgaben?typ=${task.kind}`}
+                          >Öffnen</a
+                        >
+                      {/if}
+                    {/snippet}
+                  </TaskRow>
+                {/snippet}
+                {#snippet empty()}
                   <p class="mt-quiet">Nichts zu entscheiden.</p>
-                {:else}
-                  <List ariaLabel="Aufgaben">
-                    {#each pendingLeave.slice(0, 5) as req (req.id)}
-                      <ListRow
-                        variant="task"
-                        avatar={false}
-                        title={`${leaveTypeLabel(req.typeCode)} · ${req.employee.firstName} ${req.employee.lastName} · ${formatShortDate(req.startDate)}–${formatShortDate(req.endDate)}`}
-                        subtitle={leaveDaysLabel(Number(req.days), req.halfDay, req.typeCode)}
-                      >
-                        {#snippet actions()}
-                          <button
-                            type="button"
-                            class="btn btn-outline btn-sm"
-                            onclick={() => openReview(req)}>Ablehnen</button
-                          >
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm"
-                            onclick={() => openReview(req)}>Genehmigen</button
-                          >
-                        {/snippet}
-                      </ListRow>
-                    {/each}
-                    {#if moreTaskCount > 0}
-                      <ListRow
-                        avatar={false}
-                        title={moreTaskCount === 1
-                          ? "1 weitere Aufgabe wartet"
-                          : `${moreTaskCount} weitere Aufgaben warten`}
-                        href="/team/aufgaben"
-                      />
-                    {/if}
-                  </List>
-                {/if}
-              </section>
+                {/snippet}
+              </ListWidget>
             {/if}
 
             <section class="ts-sec" aria-labelledby="ts-upcoming">

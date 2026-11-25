@@ -1,0 +1,41 @@
+{
+  "registerSource": "Issue #1028 - the ONE register of list ids. Read by the API (validation of PUT /me/preferences, key `lists`) and by the web (resolution of the shown page size and filter). A list that is not named here cannot store anything.",
+  "pageSizes": {
+    "widget": [5, 10, 20],
+    "table": [25, 50, 100]
+  },
+  "defaults": {
+    "widget": 5,
+    "table": 25
+  },
+  "lists": {
+    "team.heute.jetzt": {
+      "kind": "widget",
+      "filters": ["alle", "anwesend", "erwartet", "abwesend"],
+      "defaultFilter": "anwesend"
+    },
+    "team.heute.fehlende-zeiten": { "kind": "widget" },
+    "team.heute.aufgaben": {
+      "kind": "widget",
+      "filters": [
+        "alle",
+        "urlaub",
+        "nachtrag",
+        "paragraf9",
+        "pausenbefund",
+        "ausstempeln",
+        "zeitkorrektur"
+      ],
+      "defaultFilter": "alle"
+    },
+    "team.heute.demnaechst": { "kind": "widget", "defaultFilter": "alle" },
+    "team.heute.team-woche": { "kind": "table" },
+    "ich.tag.fuer-dich": { "kind": "widget" },
+    "ich.tag.letzte-tage": { "kind": "widget" },
+    "ich.tag.verlauf": { "kind": "widget" },
+    "verwalten.monatsabschluss.verschoben": { "kind": "widget" },
+    "team.aufgaben.liste": { "kind": "table" },
+    "team.berichte.nicht-in-kennzahl": { "kind": "widget" },
+    "verwalten.export.letzte-exporte": { "kind": "widget" }
+  }
+}

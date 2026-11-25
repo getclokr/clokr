@@ -3,6 +3,7 @@ import { prefsHydrated } from "$stores/prefs-state";
 import { mode, normalizeModeChoice, type ModeChoice } from "$stores/mode";
 import { theme, themeChoice, tenantDefaultTheme, normalizeTheme, type Theme } from "$stores/theme";
 import { fetchPreferences, savePreferences, type UiPreferences } from "$api/preferences";
+import { setListPrefsFromServer } from "$stores/list-prefs";
 
 /**
  * How the web applies the personal appearance (mode + Farbwelt) and the server's answer about it.
@@ -63,6 +64,8 @@ export function applyServerPreferences(
     tenantDefaultTheme.set(
       prefs.tenantDefaultTheme === undefined ? undefined : normalizeTheme(prefs.tenantDefaultTheme),
     );
+    // Issue #1028: the stored page size and filter per list; an answer without `lists` stores none.
+    setListPrefsFromServer(prefs.lists ?? {});
   });
 }
 

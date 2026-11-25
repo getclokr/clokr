@@ -1,5 +1,6 @@
 import { api } from "$api/client";
 import type { Theme } from "$stores/theme";
+import type { ListId, ListPreference } from "$lib/lists/list-registry";
 
 /** Server shape — matches apps/api/src/contexts/platform/api/me.ts merged defaults. */
 /** Issue #602: the e-mail groups a person may switch off (the server's PERSONAL_EMAIL_OPT_OUT_FIELDS). */
@@ -16,6 +17,11 @@ export interface UiPreferences {
   mode: "light" | "dark" | "system";
   language: "de" | "en";
   emailOptOut: EmailOptOutField[];
+  /**
+   * Issue #1028: the page size and filter the person chose per list (registered ids only). Absent in an
+   * answer of an older server = nothing stored.
+   */
+  lists?: Partial<Record<ListId, ListPreference>>;
 }
 
 /** What a PUT may carry; `theme: null` removes the own choice (back to the tenant default). */

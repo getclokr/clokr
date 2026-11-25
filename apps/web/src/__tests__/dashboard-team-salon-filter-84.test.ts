@@ -59,9 +59,16 @@ describe("Issue #84 — the Team block follows the salon context through team-vi
     expect(functionBody("loadTodayAttendance")).toContain(
       'withSalonId("/dashboard/today-attendance", filter)',
     );
-    expect(functionBody("loadTeamTasks")).toContain(
-      'withSalonId("/leave/requests?status=PENDING", filter)',
-    );
+    // Issue #1028 (P-04) changes THIS expectation, on purpose and for this one list only: the Aufgaben
+    // widget lists the rows the KPI cell „Aufgaben“ counts, i.e. the open rows of one
+    // `loadOpenTaskSources()` answer - the same sources as Team › Aufgaben, which is a work queue and not
+    // narrowed by the header salon selection (#558, #948). The former „N weitere Aufgaben warten“ row
+    // covered the other kinds, the other salons and everything past five; with it gone a counted task
+    // must be listable, so the list and the count have to be one set. The salon filter therefore no
+    // longer reaches this loader; the other four loaders above and below keep it unchanged.
+    const tasks = functionBody("loadTeamTasks");
+    expect(tasks).toContain("loadOpenTaskSources(");
+    expect(tasks).not.toContain("withSalonId(");
     expect(functionBody("loadUpcomingLeaves")).toContain(
       'withSalonId("/dashboard/team-upcoming-leave", filter)',
     );

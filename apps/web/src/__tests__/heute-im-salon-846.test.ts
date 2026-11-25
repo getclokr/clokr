@@ -7,6 +7,10 @@
 // list (D-01); no chart and no saldo figure is requested or drawn (D-04); the team week pages only
 // from 25 persons on and its count text is right (D-02, regression of „1 – 18 von 14“); deciding a
 // request opens the shared review dialog of Aufgaben and the page itself writes nothing (D-03).
+//
+// Issue #1028: the Aufgaben widget lists the rows the KPI cell counts (P-04), so the old expectation
+// „2 weitere Aufgaben warten“ is replaced - the section has no summary row any more; every counted task
+// is a row, the chips carry the KPI's own numbers and the widget pages like every other list.
 const apiGet = vi.fn();
 const apiPatch = vi.fn();
 const apiPost = vi.fn();
@@ -51,10 +55,11 @@ vi.mock("$lib/utils/logger", () => ({
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import { authStore } from "$stores/auth";
 import { salonContext } from "$stores/salon-context";
+import { resetListPrefs } from "$stores/list-prefs";
 import { ApiError } from "$api/client";
 vi.mock("$app/state", () => ({
   page: { url: new URL("http://localhost/team/heute"), params: {}, state: {} },
@@ -122,6 +127,7 @@ const PENDING = [
     attestPresent: false,
     attestValidFrom: null,
     attestValidTo: null,
+    createdAt: "2026-11-01T08:00:00.000Z",
   },
 ];
 
@@ -143,6 +149,10 @@ const RETRO = [
 
 // Issue #948: the open-tasks read of Team › Aufgaben (missing clock-outs). Empty unless a test sets it.
 let openTasksAnswer: { types: string[]; tasks: unknown[] } = { types: ["ausstempeln"], tasks: [] };
+// Issue #1028: the other sources of the task model; empty unless a test sets them.
+let leaveAnswer: unknown[] = PENDING;
+let section9Answer: unknown[] = [];
+let notificationsAnswer: unknown[] = [];
 
 function answer(path: string): Promise<unknown> {
   if (path === "/me/context") {
@@ -184,7 +194,9 @@ function answer(path: string): Promise<unknown> {
     });
   }
   if (path.startsWith("/dashboard/team-upcoming-leave")) return Promise.resolve({ items: [] });
-  if (path.startsWith("/leave/requests")) return Promise.resolve(PENDING);
+  if (path.startsWith("/leave/requests")) return Promise.resolve(leaveAnswer);
+  if (path === "/leave/section9") return Promise.resolve(section9Answer);
+  if (path === "/notifications") return Promise.resolve({ notifications: notificationsAnswer });
   if (path === "/retro-entry-requests") return Promise.resolve(RETRO);
   if (path === "/tasks/open") return Promise.resolve(openTasksAnswer);
   if (path === "/dashboard/open-items") return Promise.resolve({});
@@ -214,6 +226,11 @@ function asManager() {
 beforeEach(async () => {
   teamSize = 3;
   openTasksAnswer = { types: ["ausstempeln"], tasks: [] };
+  leaveAnswer = PENDING;
+  section9Answer = [];
+  notificationsAnswer = [];
+  // A chip choice of an earlier test is a stored list choice of this session; start every test clean.
+  resetListPrefs();
   apiGet.mockReset();
   apiGet.mockImplementation((path: string) => answer(path));
   apiPatch.mockReset();
@@ -271,8 +288,9 @@ describe("Heute im Salon — the Kennzahlen-Band (D-01)", () => {
     expect(screen.getByTestId("kpi-tasks").textContent).toContain(
       "Urlaub 1 · Nachtrag 1 · Ausstempeln fehlt 1",
     );
-    // The section names the leave request and points to the rest on the page.
-    expect(await screen.findByText("2 weitere Aufgaben warten")).toBeTruthy();
+    // #1028: no summary row any more - the three counted tasks are three rows of the widget.
+    await waitFor(() => expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(3));
+    expect(screen.queryByText(/weitere Aufgabe/)).toBeNull();
   });
 
   it("lists the missing person with the shift start, never the person without a day", async () => {
@@ -345,6 +363,194 @@ describe("Heute im Salon — tasks decided through the dialog of Aufgaben (D-03)
       expect(src).not.toMatch(/\/leave\/requests\/\$\{[^}]+\}\/review/);
     }
     expect(dialog).toMatch(/\/leave\/requests\/\$\{ctx\.id\}\/review/);
+  });
+});
+
+// Issue #1028 - the Aufgaben widget on the shared list block.
+const ALL_KINDS_LEAVE = [
+  ...PENDING,
+  {
+    ...PENDING[0],
+    id: "lr2",
+    employeeId: "e10",
+    employee: { firstName: "Jonas", lastName: "Storno" },
+    status: "CANCELLATION_REQUESTED",
+    createdAt: "2026-11-02T08:00:00.000Z",
+  },
+];
+
+function everyKindPresent() {
+  leaveAnswer = ALL_KINDS_LEAVE;
+  section9Answer = [
+    {
+      id: "s9",
+      employeeName: "Kira Paragraf",
+      status: "AU_PENDING",
+      overlapStart: "2026-11-03",
+      overlapEnd: "2026-11-04",
+      sickRequest: { startDate: "2026-11-03", endDate: "2026-11-04" },
+      vacationRequest: { startDate: "2026-11-01", endDate: "2026-11-06" },
+    },
+  ];
+  notificationsAnswer = [
+    {
+      id: "n1",
+      type: "BREAK_PLACEMENT_VIOLATION",
+      title: "Pause prüfen",
+      message: "Die Pause lag am Rand der Arbeitszeit.",
+      link: null,
+      createdAt: "2026-11-07T08:00:00.000Z",
+      dismissedAt: null,
+    },
+  ];
+  openTasksAnswer = {
+    types: ["ausstempeln", "zeitkorrektur"],
+    tasks: [
+      {
+        type: "ausstempeln",
+        id: "te1",
+        employeeId: "e4",
+        personName: "Dora",
+        day: "2026-11-08",
+        startTime: "09:00",
+        label: "Ausstempeln fehlt",
+        link: "/team/time-entries?employeeId=e4&date=2026-11-08",
+      },
+      {
+        type: "zeitkorrektur",
+        id: "zk1",
+        employeeId: "e5",
+        personName: "Emil",
+        day: "2026-11-08",
+        label: "Zeitkorrektur",
+        link: "/team/time-entries?employeeId=e5&date=2026-11-08",
+      },
+    ],
+  };
+}
+
+function asManagerWithSection9() {
+  asManager();
+  const store = authStore as unknown as {
+    update: (f: (v: { user: { permissions: string[] } }) => unknown) => void;
+  };
+  store.update((v) => ({
+    ...v,
+    user: { ...v.user, permissions: [...v.user.permissions, "section9:decide:ZUGEWIESEN"] },
+  }));
+}
+
+/** „Urlaub 2 · Nachtrag 1“ of the KPI cell as [label, count] pairs. */
+function kpiBreakdown(): Array<[string, number]> {
+  const text = screen.getByTestId("kpi-tasks").querySelector(".kpi-explanation")?.textContent ?? "";
+  return text.split(" · ").map((part) => {
+    const m = /^(.*\S)\s(\d+)$/.exec(part.trim());
+    return [m?.[1] ?? part, Number(m?.[2] ?? Number.NaN)] as [string, number];
+  });
+}
+
+describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", () => {
+  it("chips are „Alle“ plus the offered kinds; every count equals the KPI cell's breakdown", async () => {
+    everyKindPresent();
+    asManagerWithSection9();
+    renderWithTheme(DashboardPage, {});
+    await waitFor(() =>
+      expect(screen.getByTestId("kpi-tasks").textContent).toMatch(/Aufgaben\s*7/),
+    );
+    const chips = await screen.findAllByRole("radio");
+    const shown = chips.map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim());
+    expect(shown[0]).toBe("Alle 7");
+    const kpi = kpiBreakdown().map(([label, n]) => `${label} ${n}`);
+    expect(kpi).toEqual([
+      "Urlaub 2",
+      "Nachtrag 1",
+      "Krank im Urlaub 1",
+      "Pausenbefund 1",
+      "Ausstempeln fehlt 1",
+      "Zeitkorrektur 1",
+    ]);
+    expect(shown.slice(1)).toEqual(kpi);
+  });
+
+  it("pages like every list: five rows, then the rest, and a chip filters by kind", async () => {
+    everyKindPresent();
+    asManagerWithSection9();
+    renderWithTheme(DashboardPage, {});
+    await screen.findAllByRole("radio");
+    expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(5);
+    const range = () =>
+      (
+        screen.getByTestId("team-tasks-pager").querySelector("[data-testid='pager-range']")
+          ?.textContent ?? ""
+      ).trim();
+    expect(range()).toBe("1–5 von 7");
+    await fireEvent.click(
+      within(screen.getByTestId("team-tasks-pager")).getByRole("button", { name: "Nächste Seite" }),
+    );
+    expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(2);
+    expect(range()).toBe("6–7 von 7");
+
+    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    await waitFor(() => expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(2));
+    for (const row of screen.getAllByTestId(/^task-row-/)) {
+      expect(row.getAttribute("data-kind")).toBe("urlaub");
+    }
+    expect(screen.queryByTestId("team-tasks-pager")).toBeNull();
+  });
+
+  it("a PENDING request of another person has „Ablehnen“ and „Genehmigen“ at the row end, both open the review dialog", async () => {
+    everyKindPresent();
+    asManagerWithSection9();
+    renderWithTheme(DashboardPage, {});
+    await screen.findAllByRole("radio");
+    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    const row = await screen.findByTestId("task-row-urlaub-lr1");
+    expect(row.classList.contains("list-row--actions-end")).toBe(true);
+    const actions = row.querySelector(".list-actions") as HTMLElement;
+    expect(within(actions).getByRole("button", { name: "Ablehnen" })).toBeTruthy();
+    await fireEvent.click(within(actions).getByRole("button", { name: "Ablehnen" }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(apiPatch).not.toHaveBeenCalled();
+  });
+
+  it("a cancellation request and every other kind has one link „Öffnen“ to its kind on Team › Aufgaben", async () => {
+    everyKindPresent();
+    asManagerWithSection9();
+    renderWithTheme(DashboardPage, {});
+    await screen.findAllByRole("radio");
+    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    const cancel = await screen.findByTestId("task-row-urlaub-lr2");
+    const link = within(cancel).getByRole("link", { name: "Öffnen" });
+    expect(link.getAttribute("href")).toBe("/team/aufgaben?typ=urlaub");
+    expect(within(cancel).queryByRole("button", { name: "Genehmigen" })).toBeNull();
+
+    await fireEvent.click(screen.getByRole("radio", { name: /^Nachtrag/ }));
+    const retro = await screen.findByTestId("task-row-nachtrag-rr1");
+    expect(within(retro).getByRole("link", { name: "Öffnen" }).getAttribute("href")).toBe(
+      "/team/aufgaben?typ=nachtrag",
+    );
+  });
+
+  it("the caller's own request is never offered for a decision", async () => {
+    leaveAnswer = [{ ...PENDING[0], id: "own", employeeId: "e1" }];
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    const row = await screen.findByTestId("task-row-urlaub-own");
+    expect(within(row).queryByRole("button", { name: "Genehmigen" })).toBeNull();
+    expect(within(row).getByRole("link", { name: "Öffnen" })).toBeTruthy();
+  });
+
+  it("without any task the section says so calmly and shows no chips or pager", async () => {
+    leaveAnswer = [];
+    asManager();
+    // The default fixtures still carry a Zeitnachtrag; the retro source is empty here.
+    apiGet.mockImplementation((path: string) =>
+      path === "/retro-entry-requests" ? Promise.resolve([]) : answer(path),
+    );
+    renderWithTheme(DashboardPage, {});
+    expect(await screen.findByText("Nichts zu entscheiden.")).toBeTruthy();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByTestId("team-tasks-pager")).toBeNull();
   });
 });
 
