@@ -54,8 +54,10 @@
     cellClickAction,
     entryCountTitle,
     openEntryOfDay,
+    prefillNewEntry,
     salonFieldOptions,
     salonIdToSend,
+    type PrefillSource,
   } from "$lib/time-entries/day-entry-actions"; // Issue #70, D-07
   import {
     OPEN_ENTRY_TEXTS,
@@ -398,6 +400,9 @@
   let formStart = $state("09:00");
   let formEnd = $state("17:00");
   let formHasEnd = $state(true);
+  // Issue #991 N-09: where the form of a NEW entry was prefilled from; `null` for an edit and for a
+  // further entry on a day that already has some. Drives the one visible „bitte prüfen“ line.
+  let prefillSource = $state<PrefillSource | null>(null);
   let formBreaks = $state<{ start: string; end: string }[]>([]);
   let formBreakTotal = $derived(
     formBreaks.reduce((sum, b) => sum + slotMinutes(b.start, b.end), 0),
@@ -442,6 +447,14 @@
   let formTravelFrom = $state("");
   let formTravelTo = $state("");
   let travelActive = $derived(travelMode === "travel" || (travelMode === "offer" && formTravel));
+  // Issue #991 M-45 (D-991-07): an open end is possible only for today or for an entry that is open
+  // already. A past day without an end is a stale entry, so there the end is required.
+  let showEndToggle = $derived(
+    !travelActive && (formDate === todayStr || (editEntry !== null && editEntry.endTime === null)),
+  );
+  $effect(() => {
+    if (modalOpen && !showEndToggle && !formHasEnd) formHasEnd = true;
+  });
   let travelToOptions = $derived(travelArrivalOptions(formSalonOptions, editEntry));
   let defaultBreakStart: string | null = $state(null);
   // Phase 93 (BREAK-07) — tenant-configured break durations for the new-entry
@@ -1197,11 +1210,34 @@
       openEdit(action.entry);
       return;
     }
+    // Issue #991 N-09 (D-991-06): a day WITHOUT entries starts from the person's usual day, else
+    // from the contract hours of that weekday (no daily target: none), else from 09:00-17:00. A
+    // further entry on a day that has some keeps its continuation preset.
+    if (rowsOfDay(targetDate).length === 0) {
+      const prefill = prefillNewEntry(targetDate, {
+        entries,
+        dayContractMinutes:
+          schedule && !isNoDailyTarget
+            ? getDayExpectedMinutes(schedule, new Date(`${targetDate}T12:00:00`))
+            : 0,
+        defaultBreakStart,
+        breakOver6h,
+        breakOver9h,
+      });
+      openNew(targetDate, prefill.start, prefill.end, prefill);
+      return;
+    }
     openNew(targetDate, action.start, action.end);
   }
 
-  function openNew(targetDate: string, start: string, end: string) {
+  function openNew(
+    targetDate: string,
+    start: string,
+    end: string,
+    prefill?: { breaks: { start: string; end: string }[]; source: PrefillSource },
+  ) {
     editEntry = null;
+    prefillSource = prefill?.source ?? null;
     formDate = targetDate;
     formStart = start;
     formEnd = end;
@@ -1214,7 +1250,10 @@
     // no break row (no auto-break, no AUTO, no nudge). When defaultBreakStart is
     // null, fall back to no prefilled row — do not invent a start time.
     const suggested = suggestedBreakMinutes(formStart, formEnd);
-    if (suggested > 0 && defaultBreakStart) {
+    if (prefill) {
+      // Issue #991: the breaks were decided together with the times (usual day: copied as recorded).
+      formBreaks = prefill.breaks.map((b) => ({ ...b }));
+    } else if (suggested > 0 && defaultBreakStart) {
       formBreaks = [
         { start: defaultBreakStart, end: addMinutesToTime(defaultBreakStart, suggested) },
       ];
@@ -1418,6 +1457,7 @@
 
   function openEdit(entry: TimeEntry) {
     editEntry = entry;
+    prefillSource = null;
     formDate = (entry.date ?? entry.startTime).split("T")[0];
     formStart = format(new Date(entry.startTime), "HH:mm");
     formHasEnd = !!entry.endTime;
@@ -1442,6 +1482,7 @@
   function closeModal() {
     modalOpen = false;
     editEntry = null;
+    prefillSource = null;
     deleteConfirmId = "";
     retroWindowExceeded = false;
     retroWindowDays = 0;
@@ -2378,7 +2419,7 @@
 
   <!-- Issue #604: hints on probably unrecorded time (appointments the person did not record). The
        server decides each one; „Nachtragen“ opens the day's own dialog and never prefills it with
-       appointment times. Renders nothing while the tenant switch is off or nothing is open. -->
+       appointment times (the usual-day prefill of #991 is the person's own recorded or contract data). Renders nothing while the tenant switch is off or nothing is open. -->
   {#if hasEmployeeLink && !isExempt}
     <AppointmentHintsCallout onRecord={(date) => openAdd(date)} />
   {/if}
@@ -3099,7 +3140,7 @@
        data-testid following [surface]-[element]-[action]? (D-05). The modal
        primitive owns role=dialog already; this wrapper exposes the modal
        root + body fields by stable id for spec consumers. -->
-    <div data-testid="time-entry-modal">
+    <div class="te-entry-form" data-testid="time-entry-modal">
       {#if saveError}
         <div class="alert alert-error" role="alert" data-testid="time-entry-modal-error">
           <span>⚠</span><span>{saveError}</span>
@@ -3116,6 +3157,23 @@
         />
         {#if retroHint}
           <p class="form-hint" data-testid="time-entry-modal-retro-hint">{retroHint}</p>
+        {/if}
+        <!-- Issue #991 N-09: a state to act on, so visible text and no InfoHint (#1058). Only a NEW
+             entry carries it; nothing is saved before the person has looked. -->
+        {#if editEntry === null && prefillSource?.kind === "usual"}
+          <p class="form-hint" data-testid="time-entry-modal-prefill-hint">
+            Vorbelegt wie dein Tag am {format(
+              new Date(`${prefillSource.day}T12:00:00`),
+              "EEEEEE d.M.",
+              {
+                locale: de,
+              },
+            )} – bitte prüfen.
+          </p>
+        {:else if editEntry === null && prefillSource?.kind === "contract"}
+          <p class="form-hint" data-testid="time-entry-modal-prefill-hint">
+            Vorbelegt mit deiner Vertragszeit ({fmtMin(prefillSource.minutes)} h) – bitte prüfen.
+          </p>
         {/if}
       </div>
       {#if multiEntryUi}
@@ -3202,20 +3260,7 @@
           />
         </div>
         <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label" for="f-end">Arbeitsende</label>
-            {#if !travelActive}
-              <label class="end-toggle">
-                <input
-                  type="checkbox"
-                  bind:checked={formHasEnd}
-                  aria-label="Arbeitsende erfasst"
-                  data-testid="time-entry-modal-end-toggle"
-                />
-                <span class="text-muted end-toggle-hint">erfasst</span>
-              </label>
-            {/if}
-          </div>
+          <label class="form-label" for="f-end">Arbeitsende</label>
           <input
             id="f-end"
             type="time"
@@ -3224,6 +3269,17 @@
             disabled={!formHasEnd}
             data-testid="time-entry-modal-end"
           />
+          {#if showEndToggle}
+            <!-- Issue #991 M-45: under the field with the full label, not squeezed into the label row. -->
+            <label class="end-toggle">
+              <input
+                type="checkbox"
+                bind:checked={formHasEnd}
+                data-testid="time-entry-modal-end-toggle"
+              />
+              <span>Arbeitsende erfasst</span>
+            </label>
+          {/if}
           {#if editEntry && editEntry.endTime === null && !formHasEnd}
             <p class="form-hint" data-testid="time-entry-modal-open-hint">
               {OPEN_ENTRY_TEXTS.openHint}
@@ -3628,7 +3684,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
   }
@@ -4244,7 +4299,6 @@
     padding: 12px 16px;
     background: var(--sunk);
     border-radius: var(--r-control);
-    margin-top: 4px;
   }
   /* Issue #927: normal case, like every other v2 label. */
   .net-label {
@@ -4273,20 +4327,20 @@
     font-weight: 500;
     color: var(--text-2);
   }
-  .form-label-row {
+  /* Issue #991 N-14: the form's groups sit in one column with one gap; before, the wrapper was a plain
+     block and the groups touched each other (the retro hint ran into the next label). */
+  .te-entry-form {
     display: flex;
-    align-items: center;
-    margin-bottom: 0.25rem;
-  }
-  .form-label-row .form-label {
-    margin-bottom: 0;
+    flex-direction: column;
+    gap: var(--s-4);
   }
   .end-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.375rem;
     cursor: pointer;
-    margin-left: 0.5rem;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
   .btn-sm {
     padding: 0.35rem 0.75rem;
@@ -4298,9 +4352,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-  .breaks-section {
-    margin-bottom: 12px;
   }
   .te-breaks-head {
     display: flex;
@@ -4351,7 +4402,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: 4px;
   }
   .day-warnings {
     display: flex;

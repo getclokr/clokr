@@ -89,6 +89,8 @@ Mit **Stundennachweis (PDF)** oben erstellst du deinen Stundennachweis für den 
 4. Wähle den **Salon**, wenn du in mehreren arbeitest. Sonst trägt Clokr ihn laut Plan ein.
 5. Schreibe optional eine **Notiz** und speichere.
 
+Der Dialog ist mit deinem üblichen Tag vorbelegt (oder mit deiner Vertragszeit); prüfe die Zeiten vor dem Speichern. Die Zeile unter dem Datum sagt dir, woher die Werte kommen. Das Kästchen **Arbeitsende erfasst** gibt es nur für heute und für einen Eintrag, der noch läuft. Für einen früheren Tag brauchst du immer ein Ende.
+
 Die Arbeitszeit rechnet Clokr dir beim Eintragen vor. Wirst du zwischen zwei Salons eingesetzt, kannst du die **Fahrzeit zwischen Salons** als eigenen Eintrag erfassen. Der Weg von und nach Hause ist keine Arbeitszeit.
 
 Zum Löschen eines Eintrags nennst du einen kurzen Grund („Eintrag löschen?“).
@@ -146,7 +148,7 @@ Wenn dein Unternehmen es eingerichtet hat, gleicht Clokr die Termine aus dem Ter
 
 Der Hinweis nennt den Tag, das Ende deines letzten Termins und, falls du ausgestempelt hast, die Zeit. Du hast zwei Möglichkeiten:
 
-- **Nachtragen** öffnet den Tag. Du trägst deine Zeit selbst ein, Clokr füllt nichts vor.
+- **Nachtragen** öffnet den Tag. Clokr übernimmt keine Zeiten aus deinen Terminen: Du trägst deine Zeit selbst ein und prüfst die Vorbelegung des Dialogs.
 - **Stimmt so** blendet den Hinweis für diesen Tag dauerhaft aus, zum Beispiel weil du nach dem letzten Termin wirklich Feierabend hattest. Das wird mit Datum und Uhrzeit festgehalten. Auch deine Führungskraft sieht den Hinweis dann nicht mehr.
 
 Clokr trägt nie selbst Zeit ein und ändert dein Stundenkonto nicht. Hinweise gibt es nur für die Tage, die du noch selbst bearbeiten darfst, nicht für heute, nicht für Tage mit Urlaub oder Krankheit und nicht für abgeschlossene Monate. Unter **Ich › Profil** steht im Abschnitt „Abgleich mit deinen Terminen“, dass abgeglichen wird, solange dein Unternehmen den Abgleich eingeschaltet hat.
