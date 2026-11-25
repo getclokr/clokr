@@ -191,6 +191,7 @@
     />
   </div>
   <DataTable
+    listId="verwalten.monatsabschluss.monate"
     columns={monthColumns}
     rows={visibleMonths}
     rowKey={(ms) => ms.month}
@@ -269,6 +270,7 @@
       </Note>
     {/if}
     <DataTable
+      listId="verwalten.monatsabschluss.personen"
       columns={personColumns}
       rows={employees}
       rowKey={(emp) => emp.employeeId}

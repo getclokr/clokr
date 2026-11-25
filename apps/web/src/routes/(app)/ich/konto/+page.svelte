@@ -268,6 +268,7 @@
         />
       </div>
       <DataTable
+        listId="ich.konto.monate"
         caption="Herleitung des Stundenkontos nach Monaten"
         columns={COLUMNS}
         {rows}
@@ -313,6 +314,7 @@
               </p>
             {:else}
               <DataTable
+                listId="ich.konto.tage"
                 caption="Tage im {month.label}"
                 columns={DAY_COLUMNS}
                 rows={openDayRows}

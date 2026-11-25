@@ -217,6 +217,7 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.dienstplan.bedarfsregeln"
       {columns}
       {rows}
       rowKey={(row) => row.id}

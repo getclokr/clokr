@@ -402,7 +402,8 @@ test.describe("operator console - tenant list", () => {
     );
     expect(seen).toContain("GET /tenants");
     // 2 tenants: no pagination.
-    await expect(page.getByTestId("op-tenants-pagination")).toHaveCount(0);
+    // Issue #1028: the table's shared Pager replaced the `op-tenants-pagination` wrapper.
+    await expect(page.getByRole("navigation", { name: "Seitennavigation" })).toHaveCount(0);
   });
 
   test("a tenant name leads to the tenant page", async ({ page }) => {
@@ -450,7 +451,7 @@ test.describe("operator console - tenant list", () => {
       state.tenants = manyTenants(30);
     });
 
-    await expect(page.getByTestId("op-tenants-pagination")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Seitennavigation" })).toBeVisible();
     await expect(page.locator('[data-testid^="op-tenant-row-"]')).toHaveCount(25);
 
     await page.getByRole("button", { name: "Nächste Seite" }).click();

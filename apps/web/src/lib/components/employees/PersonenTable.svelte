@@ -14,6 +14,7 @@
   import TableToolbar, { type ToolbarFilter } from "$components/ui/TableToolbar.svelte";
   import { avatarIndex, initialsOf } from "$components/ui/ListRow.svelte";
   import Chip from "$components/ui/Chip.svelte";
+  import type { ListId } from "$lib/lists/list-registry";
   import { scheduleModelLabel } from "$lib/employees/contract-history";
   import type { PersonenRow } from "$lib/team/personen-model";
   import { PERSONEN_VERTRAG_CODES } from "$lib/team/personen-url-state";
@@ -25,6 +26,8 @@
   }
 
   interface Props {
+    /** The list register id of the page (Issue #1028): the page size is stored per page and person. */
+    listId: ListId;
     /** The shown rows: already filtered and sorted by the page. */
     rows: PersonenRow[];
     /** How many rows the list holds before search and filters (the toolbar's „von N“). */
@@ -64,6 +67,7 @@
   }
 
   let {
+    listId,
     rows,
     total,
     loading,
@@ -133,6 +137,8 @@
 </script>
 
 <DataTable
+  {listId}
+  pageResetKey={[query, filter]}
   {columns}
   {rows}
   rowKey={(row) => row.id}

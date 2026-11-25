@@ -101,6 +101,7 @@
       {#if own.length > 0}
         <div data-testid="salon-worked-own">
           <DataTable
+            listId="team.berichte.salon-gearbeitet"
             {columns}
             rows={own}
             rowKey={(row) => row.employeeId}
@@ -118,6 +119,7 @@
       {#if helpers.length > 0}
         <div data-testid="salon-worked-helpers">
           <DataTable
+            listId="team.berichte.salon-aushilfen"
             {columns}
             rows={helperRows}
             rowKey={(row) => row.employeeId}

@@ -199,6 +199,7 @@
       <EmptyState icon="calendar" title="In deiner Reichweite arbeitet niemand nach Schichtplan." />
     {:else}
       <DataTable
+        listId="team.dienstplan.planungsbedarf"
         caption="Planungsbedarf der Woche"
         {columns}
         rows={tableRows}

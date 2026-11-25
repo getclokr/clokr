@@ -313,6 +313,7 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.abwesenheiten.urlaubsgrenzen"
       {columns}
       rows={rules}
       rowKey={(row) => row.id}

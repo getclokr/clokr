@@ -245,6 +245,7 @@
     {/if}
   {:else}
     <DataTable
+      listId="verwalten.integrationen.terminals"
       {columns}
       rows={keys}
       rowKey={(row) => row.id}

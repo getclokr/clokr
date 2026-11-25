@@ -7,7 +7,7 @@
   // the team median comes from `$lib/reports/team-saldo` (#588 rule), never from a sum of this
   // component. It owns no URL and no navigation: the page hands in the person link and decides what
   // a click on it does.
-  import { untrack, type Snippet } from "svelte";
+  import type { Snippet } from "svelte";
   import Chip from "$components/ui/Chip.svelte";
   import DataTable, {
     type DataTableColumn,
@@ -15,7 +15,6 @@
   } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
   import { fmtDateDe, fmtHoursDe } from "$lib/reports/period-format";
@@ -68,8 +67,6 @@
 
   let search = $state("");
   let sort = $state<{ key: PeriodSortKey; dir: SortDir }>({ key: "name", dir: "asc" });
-  let page = $state(1);
-  let pageSize = $state(25);
 
   const all = $derived(rows ?? []);
   const showSaldo = $derived(hasSaldoFigures(all));
@@ -77,16 +74,9 @@
   // DataTable's row type is a string-keyed record; the interface of the period row has no index
   // signature, so the shown rows carry the intersection.
   type TableRow = PeriodRow & Record<string, unknown>;
-  const pageRows = $derived(visible.slice((page - 1) * pageSize, page * pageSize) as TableRow[]);
-
-  // Search and sort apply to all rows before paging; a change returns to page 1.
-  $effect(() => {
-    void search;
-    void sort;
-    untrack(() => {
-      page = 1;
-    });
-  });
+  // Search and sort apply to all rows; the table pages them (Issue #1028) and returns to page 1 on a
+  // change of the sort or of `pageResetKey` (the search).
+  const tableRows = $derived(visible as TableRow[]);
 
   // The team median of the closing saldi (P-12) and who is outside it. Only where saldo exists.
   const figures = $derived(periodSaldoFigures(all));
@@ -230,8 +220,10 @@
   {:else}
     <div class="period-table">
       <DataTable
+        listId="team.berichte.zeiten-konten"
         {columns}
-        rows={pageRows}
+        rows={tableRows}
+        pageResetKey={search}
         rowKey={(row) => row.employeeId}
         rowTestId={(row) => `period-row-${row.employeeId}`}
         {cell}
@@ -252,17 +244,6 @@
         {/snippet}
       </DataTable>
     </div>
-
-    {#if visible.length > 0}
-      <Pagination
-        total={visible.length}
-        bind:page
-        bind:pageSize
-        pageSizeOptions={[25, 50, 100]}
-        labelSingular="Person"
-        labelPlural="Personen"
-      />
-    {/if}
   {/if}
 
   {@render exited?.()}

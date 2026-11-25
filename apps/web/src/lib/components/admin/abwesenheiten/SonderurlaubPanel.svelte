@@ -179,6 +179,7 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.abwesenheiten.sonderurlaub"
       {columns}
       rows={rules}
       rowKey={(row) => row.id}

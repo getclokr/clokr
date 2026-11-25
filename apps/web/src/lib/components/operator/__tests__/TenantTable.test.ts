@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { screen } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import type { OperatorDashboardTenant, OperatorTenant } from "$lib/operator/types";
 import TenantTable from "../TenantTable.svelte";
@@ -128,7 +129,9 @@ describe("TenantTable", () => {
     const list = many(30);
     renderWithTheme(TenantTable, { tenants: list, page: 1, pageSize: 25 }, "salz");
     expect(rows()).toBe(25);
-    expect(byId("op-tenants-pagination")).not.toBeNull();
+    // Issue #1028 re-target, with reason: the DataTable's shared Pager replaced the table's own
+    // `op-tenants-pagination` wrapper; the pager is found by its navigation role.
+    expect(screen.queryByRole("navigation", { name: "Seitennavigation" })).not.toBeNull();
     expect(byId("op-tenant-row-t-0")).not.toBeNull();
     expect(byId("op-tenant-row-t-25")).toBeNull();
   });
@@ -144,19 +147,20 @@ describe("TenantTable", () => {
   it("renders no pagination for 25 tenants or fewer", () => {
     renderWithTheme(TenantTable, { tenants: many(25), page: 1, pageSize: 25 }, "salz");
     expect(rows()).toBe(25);
-    expect(byId("op-tenants-pagination")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Seitennavigation" })).toBeNull();
   });
 
-  it("offers the page sizes 25, 50 and 100 and the Mandant labels", () => {
+  it("offers the page sizes 25, 50 and 100 and the range text", () => {
     renderWithTheme(TenantTable, { tenants: many(30), page: 1, pageSize: 25 }, "salz");
-    const select = document.querySelector<HTMLSelectElement>("select.pag-select");
+    const select = document.querySelector<HTMLSelectElement>("select.pager-select");
     expect(select).not.toBeNull();
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual([
       "25",
       "50",
       "100",
     ]);
-    expect(byId("op-tenants-pagination")).toHaveTextContent("30 Mandanten");
+    // The noun „Mandanten“ of the old Pagination is gone with it; the range keeps the total.
+    expect(screen.getByTestId("pager-range")).toHaveTextContent("1–25 von 30");
   });
 
   it("has a screen-reader caption and the eight column headers", () => {

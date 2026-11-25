@@ -307,6 +307,7 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
         </Note>
       {/if}
       <DataTable
+        listId="verwalten.import.vorschau"
         columns={previewColumns}
         rows={previewRows}
         rowKey={(row) => row.__row}
@@ -334,6 +335,7 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
 
       {#if refusedRows.length > 0}
         <DataTable
+          listId="verwalten.import.abgelehnt"
           columns={resultColumns}
           rows={refusedRows}
           rowKey={(row) => row.row}

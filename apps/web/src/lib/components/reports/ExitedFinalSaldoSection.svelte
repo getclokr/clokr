@@ -77,6 +77,7 @@
     {/if}
     {#if rows.length > 0}
       <DataTable
+        listId="team.berichte.ausgetreten-endsaldo"
         {columns}
         rows={rows as TableRow[]}
         rowKey={(row) => row.id}

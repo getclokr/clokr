@@ -25,7 +25,6 @@
   import FormField from "$components/ui/FormField.svelte";
   import KpiStrip from "$components/ui/KpiStrip.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import {
@@ -48,7 +47,7 @@
   let runsTotal = $state(0);
   let runsLoading = $state(false);
   let page = $state(1);
-  let pageSize = $state(10);
+  let pageSize = $state(25);
 
   let syncStart = $state("");
   let syncEnd = $state("");
@@ -234,8 +233,13 @@
     <section class="settings-group" aria-labelledby="phorest-verlauf-title">
       <h2 class="settings-group-title" id="phorest-verlauf-title">Verlauf</h2>
       <DataTable
+        listId="verwalten.phorest.abgleiche"
         {columns}
         rows={runs}
+        total={runsTotal}
+        bind:page
+        bind:pageSize
+        onPageChange={() => loadRuns()}
         rowKey={(row) => row.id}
         loading={runsLoading && runs.length === 0}
         caption="Verlauf der Abgleiche mit Status und Zahlen"
@@ -258,14 +262,6 @@
           {/if}
         {/snippet}
       </DataTable>
-      <Pagination
-        total={runsTotal}
-        bind:page
-        bind:pageSize
-        labelSingular="Lauf"
-        labelPlural="Läufe"
-        onChange={() => loadRuns()}
-      />
     </section>
   {/if}
 {/if}

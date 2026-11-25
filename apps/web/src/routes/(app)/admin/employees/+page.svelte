@@ -473,6 +473,7 @@
     />
   {:else}
     <PersonenTable
+      listId="verwalten.personen.liste"
       rows={shownRows}
       total={allRows.length}
       {loading}

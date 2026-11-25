@@ -137,6 +137,7 @@
     </div>
 
     <DataTable
+      listId="verwalten.rollen.zuweisungen"
       {columns}
       {rows}
       rowKey={(row) => row.key}

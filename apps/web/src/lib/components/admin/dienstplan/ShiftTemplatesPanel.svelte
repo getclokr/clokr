@@ -161,6 +161,7 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.dienstplan.schichtvorlagen"
       {columns}
       {rows}
       rowKey={(row) => row.id}

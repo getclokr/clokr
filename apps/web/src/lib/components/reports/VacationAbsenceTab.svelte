@@ -11,7 +11,6 @@
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
@@ -82,7 +81,6 @@
 
   let search = $state("");
   let page = $state(1);
-  let pageSize = $state(25);
   let chosenYear = $state<number | null>(null);
 
   // ── The vacation year ──────────────────────────────────────────────────────────────
@@ -115,9 +113,10 @@
   // signature, so the shown rows carry the intersection.
   type VacRow = PeriodVacationRow & Record<string, unknown>;
   type KindRow = PeriodAbsence & Record<string, unknown>;
-  const pageRows = $derived(visible.slice((page - 1) * pageSize, page * pageSize) as VacRow[]);
+  const tableRows = $derived(visible as VacRow[]);
 
-  // A search, another year or a new answer returns to page 1.
+  // A search, another year or a new answer returns to page 1 (the table pages `rows` itself, Issue #1028;
+  // it only returns to page 1 on its own for a sort change, so this page keeps its own reset).
   $effect(() => {
     void search;
     void activeYear;
@@ -390,8 +389,10 @@
     {/if}
 
     <DataTable
+      listId="team.berichte.urlaub-je-person"
       columns={vacationColumns}
-      rows={pageRows}
+      rows={tableRows}
+      bind:page
       rowKey={(row) => row.employeeId}
       rowTestId={(row) => `vac-row-${row.employeeId}`}
       cell={vacationCell}
@@ -409,17 +410,6 @@
         />
       {/snippet}
     </DataTable>
-
-    {#if visible.length > 0}
-      <Pagination
-        total={visible.length}
-        bind:page
-        bind:pageSize
-        pageSizeOptions={[25, 50, 100]}
-        labelSingular="Person"
-        labelPlural="Personen"
-      />
-    {/if}
   {/if}
 </section>
 
@@ -438,6 +428,7 @@
   {:else}
     <div class="abs-table" data-testid="absence-kinds">
       <DataTable
+        listId="team.berichte.abwesenheiten-nach-art"
         columns={kindColumns}
         rows={shownAbsences as KindRow[]}
         rowKey={(row) => row.code}

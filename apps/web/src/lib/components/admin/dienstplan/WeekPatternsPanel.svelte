@@ -150,6 +150,7 @@
     </Note>
   {:else}
     <DataTable
+      listId="verwalten.dienstplan.wochenmuster"
       {columns}
       {rows}
       rowKey={(row) => row.id}

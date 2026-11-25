@@ -195,6 +195,7 @@
   <ErrorState onRetry={() => void load()} retrying={loading} />
 {:else}
   <PersonenTable
+    listId="team.personen.liste"
     rows={shownRows}
     total={allRows.length}
     {loading}

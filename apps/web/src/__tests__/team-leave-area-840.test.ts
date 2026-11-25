@@ -257,7 +257,10 @@ describe("Issue #840 E-02 - Anträge: a status filter, open requests marked, dec
     // #840 G-1: „Offen“ lists every request that waits for a decision, so the list shows what was counted.
     expect(PAGE).toContain("matchesStatusFilter(req.status, urlState.status)");
     expect(PAGE).not.toContain("req.status !== filterLeaveStatus");
-    expect(PAGE).toContain("<Pagination");
+    // Issue #1028 re-target, with reason: the Anträge list no longer carries an own `<Pagination>`; the
+    // DataTable pages the filtered rows itself and the page binds the shown page (the deep link of
+    // `focusRequest` still sets it). The assertion keeps its meaning: the list is paged.
+    expect(PAGE).toContain("bind:page={teamReqPage}");
   });
 
   it("[PENDING marking] an open row carries the „Offen“ badge and the dashed chip of the beantragt style", () => {
@@ -434,7 +437,9 @@ describe("review IN-03 - the Anträge empty state follows the filtered list", ()
 describe("Issue #853 (853-13) - the Anträge table and the create flow ask for whom first", () => {
   it("[Anträge table] one DataTable over the paged requests, the toolbar searches by person name", () => {
     expect(count(PAGE, "<DataTable")).toBe(2); // the loading skeleton and the rows
-    expect(PAGE).toContain("pagedTeamRequests.map((req) => ({ id: req.id, req }))");
+    // Issue #1028 re-target, with reason: the page no longer slices a page of requests itself; the
+    // DataTable pages the filtered requests (`bind:page={teamReqPage}`), so the rows are every filtered one.
+    expect(PAGE).toContain("filteredTeamRequests.map((req) => ({ id: req.id, req }))");
     expect(PAGE).toContain(
       "matchesSearch(`${req.employee.firstName} ${req.employee.lastName}`, requestQuery)",
     );

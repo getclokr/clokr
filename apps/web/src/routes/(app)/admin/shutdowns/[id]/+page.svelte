@@ -392,6 +392,7 @@
         />
       {:else}
         <DataTable
+          listId="verwalten.betriebsurlaub.ausnahmen"
           columns={exceptionColumns}
           rows={shownShutdown.exceptions}
           rowKey={(row) => row.id}

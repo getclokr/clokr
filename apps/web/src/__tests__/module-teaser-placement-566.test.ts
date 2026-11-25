@@ -185,7 +185,9 @@ describe("module teaser placement — the other three set-up spots (Phase 566-10
     expect(presence).toContain("handleCreateSource");
     expect(presence).toContain("askRevokeSource");
     expect(presence.indexOf("askRevokeSource(row)")).toBeGreaterThan(presence.indexOf("{/if}"));
-    expect(presence).toContain("pagedSources");
+    // Issue #1028 re-target, with reason: the list is paged by the DataTable itself now (the page's own
+    // `pagedSources` slice is gone); the anchor still pins that the sources list is the one table.
+    expect(presence).toContain("rows={sources}");
   });
 
   it("(e2) a refused source creation shows the server message for 409 only", () => {

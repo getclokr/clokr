@@ -244,7 +244,9 @@ describe("reports attendance list - action links (Issue #587, source pin)", () =
   it("anchors are present (non-vacuous)", () => {
     expect(tableStart).toBeGreaterThan(-1);
     expect(cellStart).toBeGreaterThan(-1);
-    expect(REPORTS).toContain("rows={pagedTodayRows}");
+    // Issue #1028 re-target, with reason: the DataTable pages the attendance rows itself, so the page's
+    // `pagedTodayRows` slice is gone; the anchor pins the rows the table is given.
+    expect(REPORTS).toContain("rows={attendance.employees}");
   });
 
   it("offers the two links only on a missing row, each behind its flag", () => {

@@ -14,7 +14,9 @@
       "filters": ["alle", "anwesend", "erwartet", "abwesend"],
       "defaultFilter": "anwesend"
     },
-    "team.heute.fehlende-zeiten": { "kind": "widget" },
+    "team.heute.fehlende-zeiten": {
+      "kind": "widget"
+    },
     "team.heute.aufgaben": {
       "kind": "widget",
       "filters": [
@@ -28,14 +30,194 @@
       ],
       "defaultFilter": "alle"
     },
-    "team.heute.demnaechst": { "kind": "widget", "defaultFilter": "alle" },
-    "team.heute.team-woche": { "kind": "table" },
-    "ich.tag.fuer-dich": { "kind": "widget" },
-    "ich.tag.letzte-tage": { "kind": "widget" },
-    "ich.tag.verlauf": { "kind": "widget" },
-    "verwalten.monatsabschluss.verschoben": { "kind": "widget" },
-    "team.aufgaben.liste": { "kind": "table" },
-    "team.berichte.nicht-in-kennzahl": { "kind": "widget" },
-    "verwalten.export.letzte-exporte": { "kind": "widget" }
+    "team.heute.demnaechst": {
+      "kind": "widget",
+      "defaultFilter": "alle"
+    },
+    "team.heute.team-woche": {
+      "kind": "table"
+    },
+    "ich.tag.fuer-dich": {
+      "kind": "widget"
+    },
+    "ich.tag.letzte-tage": {
+      "kind": "widget"
+    },
+    "ich.tag.verlauf": {
+      "kind": "widget"
+    },
+    "verwalten.monatsabschluss.verschoben": {
+      "kind": "widget"
+    },
+    "team.aufgaben.liste": {
+      "kind": "table"
+    },
+    "team.berichte.nicht-in-kennzahl": {
+      "kind": "widget"
+    },
+    "verwalten.export.letzte-exporte": {
+      "kind": "widget"
+    },
+    "ich.abwesenheiten.elternzeit-kuerzung": {
+      "kind": "table"
+    },
+    "ich.abwesenheiten.antraege": {
+      "kind": "table"
+    },
+    "ich.verfuegbarkeit.einzeltage": {
+      "kind": "table"
+    },
+    "ich.konto.monate": {
+      "kind": "table"
+    },
+    "ich.konto.tage": {
+      "kind": "table",
+      "defaultPageSize": 50
+    },
+    "ich.zeiten.eintraege": {
+      "kind": "table",
+      "defaultPageSize": 50
+    },
+    "team.abwesenheiten.antraege": {
+      "kind": "table"
+    },
+    "team.personen.liste": {
+      "kind": "table"
+    },
+    "team.berichte.abwesenheiten-je-person": {
+      "kind": "table"
+    },
+    "team.berichte.abwesenheiten-nach-art": {
+      "kind": "table"
+    },
+    "team.berichte.anwesenheit-heute": {
+      "kind": "table"
+    },
+    "team.berichte.ausgetreten-endsaldo": {
+      "kind": "table"
+    },
+    "team.berichte.monatsabschluesse": {
+      "kind": "table"
+    },
+    "team.berichte.person-monate": {
+      "kind": "table"
+    },
+    "team.berichte.person-tage": {
+      "kind": "table",
+      "defaultPageSize": 50
+    },
+    "team.berichte.salon-aushilfen": {
+      "kind": "table"
+    },
+    "team.berichte.salon-gearbeitet": {
+      "kind": "table"
+    },
+    "team.berichte.urlaub-je-person": {
+      "kind": "table"
+    },
+    "team.berichte.zeiten-konten": {
+      "kind": "table"
+    },
+    "team.dienstplan.planungsbedarf": {
+      "kind": "table"
+    },
+    "team.zeiten.salon-eintraege": {
+      "kind": "table",
+      "defaultPageSize": 50
+    },
+    "team.zeiten.tage": {
+      "kind": "table",
+      "defaultPageSize": 50
+    },
+    "verwalten.abwesenheiten.betriebsurlaub": {
+      "kind": "table"
+    },
+    "verwalten.abwesenheiten.sonderurlaub": {
+      "kind": "table"
+    },
+    "verwalten.abwesenheiten.urlaubsgrenzen": {
+      "kind": "table"
+    },
+    "verwalten.betriebsurlaub.ausnahmen": {
+      "kind": "table"
+    },
+    "verwalten.dienstplan.bedarfsregeln": {
+      "kind": "table"
+    },
+    "verwalten.dienstplan.schichtvorlagen": {
+      "kind": "table"
+    },
+    "verwalten.dienstplan.wochenmuster": {
+      "kind": "table"
+    },
+    "verwalten.import.abgelehnt": {
+      "kind": "table"
+    },
+    "verwalten.import.vorschau": {
+      "kind": "table"
+    },
+    "verwalten.integrationen.api-schluessel": {
+      "kind": "table"
+    },
+    "verwalten.integrationen.praesenz-quellen": {
+      "kind": "table"
+    },
+    "verwalten.integrationen.terminals": {
+      "kind": "table"
+    },
+    "verwalten.integrationen.wlan-geraete": {
+      "kind": "table"
+    },
+    "verwalten.integrationen.wlan-personen": {
+      "kind": "table"
+    },
+    "verwalten.monatsabschluss.monate": {
+      "kind": "table"
+    },
+    "verwalten.monatsabschluss.personen": {
+      "kind": "table"
+    },
+    "verwalten.personen.liste": {
+      "kind": "table"
+    },
+    "verwalten.personen.salonzuordnungen": {
+      "kind": "table"
+    },
+    "verwalten.phorest.abgleiche": {
+      "kind": "table"
+    },
+    "verwalten.phorest.mitarbeitende": {
+      "kind": "table"
+    },
+    "verwalten.protokoll.eintraege": {
+      "kind": "table"
+    },
+    "verwalten.protokoll.felder": {
+      "kind": "table"
+    },
+    "verwalten.rollen.rollen": {
+      "kind": "table"
+    },
+    "verwalten.rollen.zuweisungen": {
+      "kind": "table"
+    },
+    "verwalten.salons.feiertage-gesetzlich": {
+      "kind": "table"
+    },
+    "verwalten.salons.feiertage-zusaetzlich": {
+      "kind": "table"
+    },
+    "verwalten.salons.liste": {
+      "kind": "table"
+    },
+    "verwalten.support.abrufe": {
+      "kind": "table"
+    },
+    "verwalten.support.zugriffe": {
+      "kind": "table"
+    },
+    "verwalten.verfuegbarkeit.personen": {
+      "kind": "table"
+    }
   }
 }

@@ -45,10 +45,20 @@
   // cells are restyled into cards that print their column label (`data-label`). The component keeps
   // no table state: sort, search and filters belong to the caller (local state or `urlState()`).
   // Cells are rendered as text through the `cell` snippet as plain text.
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import EmptyState from "./EmptyState.svelte";
   import Skeleton from "./Skeleton.svelte";
   import SortHeader from "./SortHeader.svelte";
+  import Pager from "./Pager.svelte";
+  import { listPrefs, saveListPreference } from "$stores/list-prefs";
+  import {
+    pageSizesOf,
+    pageSizesOfKind,
+    defaultPageSizeOfKind,
+    resolveListPreference,
+    type ListId,
+  } from "$lib/lists/list-registry";
+  import { clampPage, pageSlice } from "$lib/lists/list-page";
 
   interface Props {
     columns: DataTableColumn[];
@@ -103,6 +113,27 @@
     onSelectionChange?: (next: (string | number)[]) => void;
     /** Accessible name of a row's checkbox; default „<text of the primary or first column> auswählen“. */
     selectionLabel?: (row: Row) => string;
+    /**
+     * Issue #1028 (additive): the id of the list register. The page size a person picks is stored per
+     * table and person (`PUT /me/preferences`, key `lists`); without it the choice lives for the visit
+     * only (operator tables, demos).
+     */
+    listId?: ListId;
+    /** Issue #1028 (additive): the shown page, one-based (bindable; a deep link to a row sets it). */
+    page?: number;
+    /**
+     * Issue #1028 (additive): rows per page (bindable). Absent = the stored size of `listId`, else the
+     * table default (25). A caller that passes it owns the size (server mode with a limit in the URL).
+     */
+    pageSize?: number;
+    /**
+     * Issue #1028 (additive): server mode. The number of rows over all pages; `rows` then holds the
+     * shown page only and is never sliced. The page and size changes are reported by `onPageChange`.
+     */
+    total?: number;
+    onPageChange?: (change: { page: number; pageSize: number }) => void;
+    /** Issue #1028 (additive): a change of this value (a filter, a search) returns to page 1. */
+    pageResetKey?: unknown;
   }
 
   let {
@@ -130,10 +161,69 @@
     selectedKeys = $bindable([]),
     onSelectionChange,
     selectionLabel,
+    listId,
+    page = $bindable(1),
+    pageSize = $bindable(),
+    total,
+    onPageChange,
+    pageResetKey,
   }: Props = $props();
 
+  // ── Paging (Issue #1028) ──────────────────────────────────────────────────────────────────────
+  // Client mode slices `rows`; server mode (`total` given) shows `rows` as the page the caller loaded.
+  const sizes = $derived(listId ? pageSizesOf(listId) : pageSizesOfKind("table"));
+  const storedChoice = $derived(listId ? $listPrefs[listId] : undefined);
+  // The size of this visit for a table that stores nothing (no `listId`) and has no caller size.
+  let visitSize = $state<number | null>(null);
+  const size = $derived(
+    pageSize !== undefined
+      ? pageSize
+      : listId
+        ? resolveListPreference(listId, storedChoice).pageSize
+        : (visitSize ?? defaultPageSizeOfKind("table")),
+  );
+  const serverMode = $derived(total !== undefined);
+  const rowCount = $derived(total ?? rows.length);
+  const shownPage = $derived(clampPage(page, rowCount, size));
+  const shownRows = $derived(serverMode ? rows : pageSlice(rows, shownPage, size));
+
+  function setSize(next: number) {
+    if (next === size) return;
+    if (pageSize !== undefined) pageSize = next;
+    else if (!listId) visitSize = next;
+    if (listId) void saveListPreference(listId, { pageSize: next });
+  }
+
+  // A caller that owns the size (`pageSize` bound, e.g. a server-paged list that sends it as a limit)
+  // still follows the person's stored choice: an explicitly stored size is adopted once it differs, and
+  // a server-mode caller is told through `onPageChange` so it reads the page again.
+  $effect(() => {
+    const stored = storedChoice?.pageSize;
+    if (!listId || untrack(() => pageSize) === undefined) return;
+    if (typeof stored !== "number" || !sizes.includes(stored)) return;
+    if (stored === untrack(() => pageSize)) return;
+    pageSize = stored;
+    page = 1;
+    if (untrack(() => serverMode)) onPageChange?.({ page: 1, pageSize: stored });
+  });
+
+  // A sort or filter change returns to page 1; a new `rows` array with the same keys keeps the page
+  // (only clamps). Server mode leaves it to the caller, who owns the URL.
+  let resetToken: string | undefined;
+  $effect.pre(() => {
+    const token = `${sort?.key ?? ""}|${sort?.dir ?? ""}|${JSON.stringify(pageResetKey ?? null)}`;
+    if (resetToken === undefined) {
+      resetToken = token;
+      return;
+    }
+    if (token !== resetToken) {
+      resetToken = token;
+      if (!untrack(() => serverMode) && untrack(() => page) !== 1) page = 1;
+    }
+  });
+
   const selectedSet = $derived(new Set(selectedKeys));
-  const shownKeys = $derived(rows.map((row) => rowKey(row)));
+  const shownKeys = $derived(shownRows.map((row) => rowKey(row)));
   const selectedShown = $derived(shownKeys.filter((key) => selectedSet.has(key)).length);
   const allShownSelected = $derived(shownKeys.length > 0 && selectedShown === shownKeys.length);
   const someShownSelected = $derived(selectedShown > 0 && !allShownSelected);
@@ -241,7 +331,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each rows as row (rowKey(row))}
+          {#each shownRows as row (rowKey(row))}
             {#if onRowClick}
               <!-- The keyboard path is the primary cell's button; the row click is the pointer
                    convenience of the same action, so the row itself needs no role or tabindex. -->
@@ -330,6 +420,13 @@
         </tbody>
       </table>
     </div>
+    <Pager
+      total={rowCount}
+      bind:page={() => shownPage, (next) => (page = next)}
+      bind:pageSize={() => size, setSize}
+      {sizes}
+      onChange={(change) => onPageChange?.(change)}
+    />
   {/if}
 </div>
 

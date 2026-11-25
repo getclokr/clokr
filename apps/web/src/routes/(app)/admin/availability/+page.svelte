@@ -85,6 +85,7 @@
 
 <div class="page" data-testid="availability-page">
   <DataTable
+    listId="verwalten.verfuegbarkeit.personen"
     caption="Personen"
     {columns}
     rows={shownRows}

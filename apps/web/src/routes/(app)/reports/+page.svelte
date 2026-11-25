@@ -846,6 +846,7 @@
         </div>
       {:else}
         <DataTable
+          listId="team.berichte.monatsabschluesse"
           columns={EMP_COLUMNS}
           rows={empRows}
           rowKey={(row) => row.key}

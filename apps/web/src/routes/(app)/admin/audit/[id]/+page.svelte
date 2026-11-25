@@ -160,6 +160,7 @@
         <Note tone="info">Zu diesem Eintrag wurden keine einzelnen Feldwerte gespeichert.</Note>
       {:else}
         <DataTable
+          listId="verwalten.protokoll.felder"
           {columns}
           {rows}
           rowKey={(row) => row.key}

@@ -396,6 +396,7 @@
       <section class="drill-section" aria-labelledby="drill-months">
         <h3 id="drill-months" class="settings-group-title">Monate</h3>
         <DataTable
+          listId="team.berichte.person-monate"
           columns={monthColumns}
           rows={months as MonthRow[]}
           rowKey={(m) => `${m.year}-${m.month}`}
@@ -454,6 +455,7 @@
           {:else}
             <div class="drill-days">
               <DataTable
+                listId="team.berichte.person-tage"
                 columns={dayColumns}
                 rows={entries as DayRow[]}
                 rowKey={(e) => e.id}

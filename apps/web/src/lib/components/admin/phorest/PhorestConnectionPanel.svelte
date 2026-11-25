@@ -41,7 +41,6 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import { countChanges, pickSection } from "$lib/settings/section-state";
@@ -256,8 +255,6 @@
   let phEmployees: PhEmployee[] = $state([]);
   let mapRows: PhorestMappingRow[] = $state([]);
   let mapLoading = $state(false);
-  let mapPage = $state(1);
-  let mapPageSize = $state(10);
   let removeConfirm = $state<{ open: boolean; phorestStaffId: string; name: string }>({
     open: false,
     phorestStaffId: "",
@@ -266,7 +263,6 @@
 
   const mappedCount = $derived(mapRows.filter((row) => row.savedEmployeeId).length);
   const unmappedCount = $derived(mapRows.length - mappedCount);
-  const pagedRows = $derived(mapRows.slice((mapPage - 1) * mapPageSize, mapPage * mapPageSize));
   const mappingChanges = $derived(unsavedMappingCount(mapRows));
 
   $effect(() => {
@@ -608,8 +604,9 @@
         />
       {:else}
         <DataTable
+          listId="verwalten.phorest.mitarbeitende"
           columns={mapColumns}
-          rows={pagedRows}
+          rows={mapRows}
           rowKey={(row) => row.phorestStaffId}
           caption="Phorest-Mitarbeitende mit ihrer Zuordnung zu Clokr"
         >
@@ -667,13 +664,6 @@
             {/if}
           {/snippet}
         </DataTable>
-        <Pagination
-          total={mapRows.length}
-          bind:page={mapPage}
-          bind:pageSize={mapPageSize}
-          labelSingular="Person"
-          labelPlural="Personen"
-        />
       {/if}
     </section>
   {/if}

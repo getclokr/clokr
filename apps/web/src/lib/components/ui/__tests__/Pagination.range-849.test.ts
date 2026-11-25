@@ -6,8 +6,11 @@ import { screen, fireEvent } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import Pagination from "../Pagination.svelte";
 
+// Issue #1028 re-target, with reason: `Pagination` is now a delegate of the shared `Pager`, which has
+// no `.pag-range` class (its range sits in `data-testid="pager-range"`) and no „Seite x von y“ line;
+// the count text itself (every range assertion below) is unchanged.
 function rangeText(): string {
-  const el = document.querySelector(".pag-range");
+  const el = document.querySelector('[data-testid="pager-range"]');
   return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
@@ -15,12 +18,6 @@ describe("Pagination count text (Issue #849)", () => {
   it("14 rows at 10 per page read 1–10 von 14, then 11–14 von 14", async () => {
     renderWithTheme(Pagination, { total: 14, page: 1, pageSize: 10 });
     expect(rangeText()).toBe("1–10 von 14 Einträge");
-    expect(
-      screen
-        .getByText(/^Seite/)
-        .textContent?.replace(/\s+/g, " ")
-        .trim(),
-    ).toBe("Seite 1 von 2");
 
     await fireEvent.click(screen.getByLabelText("Nächste Seite"));
     expect(rangeText()).toBe("11–14 von 14 Einträge");
