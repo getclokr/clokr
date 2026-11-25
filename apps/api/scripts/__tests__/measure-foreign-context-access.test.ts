@@ -67,9 +67,9 @@ describe("MODEL_OWNER", () => {
   // 9 -> 10) — 54 -> 55 models — and Issue #836 (+ LeaveLimitRule, absence 10 -> 11) — 55 -> 56
   // models — and Issue #835 (+ LeavePlan, LeavePlanWish, absence 11 -> 13) — 56 -> 58 models — and Issue #599 (+ MonthCorrectionRequest, working-time-account 5 -> 6) — 58 -> 59 models — and Issue #597 (+ CalendarFeedToken, platform 21 -> 22) — 59 -> 60 models — and Issue #1079 (+ CompanyShutdownSalon, absence 13 -> 14) — 60 -> 61 models — and Issue #604 (+ AppointmentHintDismissal, time-tracking 10 -> 11) — 61 -> 62 models. This is the new models' own schema change landing in the count, not a correction of a
   // prior miscount.
-  it("assigns exactly 61 models, every owner one of the five OWNER_AREAS", () => {
+  it("assigns exactly 62 models, every owner one of the five OWNER_AREAS", () => {
     const models = Object.keys(MODEL_OWNER);
-    expect(models).toHaveLength(61);
+    expect(models).toHaveLength(62);
     for (const owner of Object.values(MODEL_OWNER)) {
       expect(OWNER_AREAS).toContain(owner);
     }
