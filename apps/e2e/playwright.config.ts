@@ -349,6 +349,7 @@ export default defineConfig({
         /team-pages-853\.spec\.ts/,
         /appearance-mode-975\.spec\.ts/,
         /tenant-theme-976\.spec\.ts/,
+        /salon-hours-visibility-1030\.spec\.ts/,
       ],
       use: {
         ...devices["Desktop Chrome"],
