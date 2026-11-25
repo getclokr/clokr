@@ -60,18 +60,18 @@ Ohne einen dokumentierten Hinweis verfällt Urlaub nicht von allein. Ist die Fri
 
 ## Betriebsurlaub
 
-Auf dem Reiter **Betriebsurlaub** legst du Zeiträume an, in denen der ganze Betrieb geschlossen hat, etwa eine Weihnachtsschließung.
+Auf dem Reiter **Betriebsurlaub** hältst du Zeiträume fest, in denen der ganze Betrieb geschlossen hat, etwa eine Weihnachtsschließung.
+
+::: warning Achtung
+Clokr merkt sich einen Betriebsurlaub mit allen Angaben und zeigt ihn an, rechnet ihn aber noch nicht automatisch ab: Weder das Urlaubskonto noch das Stundenkonto ändert sich dadurch. Die automatische Verrechnung wird gerade gebaut. Bis sie da ist, verrechnest du die Schließung für die betroffenen Personen selbst und prüfst Urlaubskonto und Stundenkonto danach.
+:::
 
 1. Wähle oben das **Jahr** und klicke auf **Betriebsurlaub anlegen**.
 2. Trage **Bezeichnung**, **Startdatum** und **Enddatum** ein.
-3. Entscheide mit **Vom Urlaubskonto abziehen**, ob die Schließung den Jahresurlaub belasten soll. Optional schreibst du eine interne **Notiz**.
+3. Mit **Vom Urlaubskonto abziehen** hältst du fest, ob die Schließung den Jahresurlaub belasten soll. Die Einstellung wird gespeichert und wirkt, sobald die automatische Verrechnung da ist. Optional schreibst du eine interne **Notiz**.
 4. Speichere.
 
-Ein Klick auf einen Betriebsurlaub öffnet seine Seite. Dort änderst du ihn mit **Betriebsurlaub speichern** oder löschst ihn. Unter **Ausnahmen** nimmst du einzelne Personen aus, zum Beispiel wegen Notdienst: Klicke auf **Ausnahme hinzufügen**, wähle die Person und nenne optional einen **Grund**. Bei diesen Personen wird das Urlaubskonto nicht belastet.
-
-::: warning Achtung
-Prüfe nach dem Anlegen im Urlaubskonto der betroffenen Personen, ob der Urlaubsverbrauch so ankommt, wie du ihn erwartest.
-:::
+Ein Klick auf einen Betriebsurlaub öffnet seine Seite. Dort änderst du ihn mit **Betriebsurlaub speichern** oder löschst ihn. Unter **Ausnahmen** hältst du einzelne Personen fest, die von der Schließung ausgenommen sind, zum Beispiel wegen Notdienst: Klicke auf **Ausnahme hinzufügen**, wähle die Person und nenne optional einen **Grund**. Auch die Ausnahmen werden gespeichert und wirken erst mit der automatischen Verrechnung.
 
 ## Urlaubsgrenzen & Sperren
 

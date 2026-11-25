@@ -21,3 +21,9 @@ The site is rendered by the workspace package `apps/docs` (VitePress, exact vers
 - The repository is public. Excluded files stay readable on GitHub; the exclusion only decides what the site presents.
 - A new Markdown file under `docs/` needs a decision: add it to a sidebar group in `apps/docs/navigation.mjs` or to `EXCLUDED` in `publication.mjs`, otherwise the post-build gate fails.
 - Commands: `pnpm --filter @clokr/docs dev` (local preview), `pnpm --filter @clokr/docs build` (build, fails on a dead internal link) and `pnpm --filter @clokr/docs check` (post-build gate).
+
+## Known gaps between the UI and the behaviour
+
+The Handbuch describes only what the app does. Where the UI promises more than the code delivers, the Handbuch says so neutrally and the gap is tracked here.
+
+- **Betriebsurlaub does not deduct anything** ([#1069](https://github.com/getclokr/clokr/issues/1069)). `CompanyShutdown.deductsFromVacation` and `CompanyShutdownException` are stored and shown (`contexts/absence/api/company-shutdowns.ts`, read for display by `leave-plan/planner-read.ts`), but nothing books leave days or lowers the Soll, although the UI says „Zieht vom Urlaubskonto ab“. The Handbuch page [Abwesenheiten und Urlaub](../handbuch/verwalten/abwesenheiten-und-urlaub.md) states that the setting is recorded and the automatic deduction is being built. When #1069 ships, update that page and remove this entry.
