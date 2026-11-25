@@ -8,6 +8,8 @@
   import Card from "$components/ui/Card.svelte";
   import CardHeader from "$components/ui/CardHeader.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
+  import ListRow from "$components/ui/ListRow.svelte"; // Issue #1028
+  import ListWidget from "$components/ui/ListWidget.svelte"; // Issue #1028
   import { chartAriaLabel, getChartTheme } from "$lib/utils/chart-theme";
   import { TEAM_SALDO_BARS_CHART, teamSaldoBarsChartConfig } from "$lib/dashboard/team-charts";
   import { fmtBalance } from "$lib/utils/format-minutes";
@@ -39,14 +41,11 @@
     cardIdx = 7,
   }: Props = $props();
 
-  const EXCLUDED_SHOWN = 5;
   // One bar is 22 px; the axis, its title and the padding take 56 px (ten bars: 276 px).
   const BAR_PX = 22;
   const AXIS_PX = 56;
 
   const figures = $derived(teamSaldoFigures(rows));
-  const excludedShown = $derived(figures.excluded.slice(0, EXCLUDED_SHOWN));
-  const excludedMore = $derived(Math.max(0, figures.excluded.length - EXCLUDED_SHOWN));
   const hasAnyone = $derived(figures.counted + figures.excluded.length > 0);
   const chartHeight = $derived(figures.diverging.length * BAR_PX + AXIS_PX);
 
@@ -139,15 +138,17 @@
 
       {#if figures.excluded.length > 0}
         <div class="saldo-excluded" data-testid="team-saldo-excluded">
-          <p class="saldo-excluded-title">Nicht in der Kennzahl</p>
-          <ul>
-            {#each excludedShown as person (person.id)}
-              <li>{person.name} <span class="saldo-reason">· {person.reasonLabel}</span></li>
-            {/each}
-          </ul>
-          {#if excludedMore > 0}
-            <p class="saldo-more">und {excludedMore} weitere</p>
-          {/if}
+          <!-- Issue #1028: every excluded person is a row, paged by the shared list block. -->
+          <ListWidget
+            listId="team.berichte.nicht-in-kennzahl"
+            title="Nicht in der Kennzahl"
+            items={figures.excluded}
+            itemKey={(person) => person.id}
+          >
+            {#snippet row(person)}
+              <ListRow title={person.name} subtitle={person.reasonLabel} avatar={false} />
+            {/snippet}
+          </ListWidget>
         </div>
       {/if}
     </div>
@@ -241,20 +242,6 @@
     margin-top: 1rem;
     font-size: 0.8125rem;
     color: var(--text-2);
-  }
-
-  .saldo-excluded-title {
-    margin: 0 0 0.25rem;
-    font-weight: 600;
-  }
-
-  .saldo-excluded ul {
-    margin: 0;
-    padding-left: 1.1rem;
-  }
-
-  .saldo-more {
-    margin: 0.25rem 0 0;
   }
 
   .saldo-skeleton {

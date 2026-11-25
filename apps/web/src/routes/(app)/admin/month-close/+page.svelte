@@ -21,6 +21,8 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import FormField from "$components/ui/FormField.svelte";
   import KpiStrip from "$components/ui/KpiStrip.svelte";
+  import ListRow from "$components/ui/ListRow.svelte";
+  import ListWidget from "$components/ui/ListWidget.svelte";
   import Note from "$components/ui/Note.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
@@ -30,6 +32,7 @@
   import { daysWithoutEntryText, gapCountOf, missingDaysText } from "$lib/month-close/day-lists";
   import { READY_KPI, autoCloseHintText, closesBlind } from "$lib/month-close/next-step";
   import type {
+    DeferredEmployee,
     DeferredState,
     EmployeeStatus,
     MonthDetailResponse,
@@ -97,6 +100,18 @@
   function monthLabel(m: { year: number; month: number } | null): string {
     if (!m) return "";
     return `${MONTH_NAMES_DE[m.month - 1]} ${m.year}`;
+  }
+
+  // One row of the „verschoben“ list: the person, since when, and what blocks the close (Issue #1028 puts
+  // every deferred person into the list widget instead of cutting it at eight).
+  function deferredRowText(e: DeferredEmployee): string {
+    const why =
+      e.reason === "EXIT_DATE_MISSING"
+        ? "Austrittsdatum fehlt, bitte prüfen"
+        : gapCountOf(e) > 0
+          ? `${e.dayDetailsWithheld ? "" : "fehlende Tage: "}${missingDaysText(e, { iso: true })}`
+          : "keine Tageslücken gefunden";
+    return `${e.employeeName}: offen seit ${monthLabel(e.oldestOpenMonth)} · ${why}`;
   }
 
   const deferredTone = $derived(
@@ -583,25 +598,19 @@
             : `${deferred.gapCount} fehlende Tageseinträge blockieren`} den Abschluss.
         {/if}
       </Note>
-      <ul class="mc-deferred-list">
-        {#each deferred.employees.slice(0, 8) as e (e.employeeId)}
-          <li>
-            {e.employeeName}: offen seit {monthLabel(e.oldestOpenMonth)}
-            {#if e.reason === "EXIT_DATE_MISSING"}
-              · Austrittsdatum fehlt, bitte prüfen
-            {:else if gapCountOf(e) > 0}
-              · {e.dayDetailsWithheld ? "" : "fehlende Tage: "}{missingDaysText(e, {
-                iso: true,
-              })}
-            {:else}
-              · keine Tageslücken gefunden
-            {/if}
-          </li>
-        {/each}
-        {#if deferred.employees.length > 8}
-          <li>… und {deferred.employees.length - 8} weitere.</li>
-        {/if}
-      </ul>
+      <div class="mc-deferred-list">
+        <ListWidget
+          listId="verwalten.monatsabschluss.verschoben"
+          title="Betroffene Mitarbeiter"
+          items={deferred.employees}
+          itemKey={(e) => e.employeeId}
+          testId="month-close-deferred-list"
+        >
+          {#snippet row(e)}
+            <ListRow title={deferredRowText(e)} avatar={false} wrap />
+          {/snippet}
+        </ListWidget>
+      </div>
       <button
         type="button"
         class="btn btn-secondary btn-sm"
@@ -847,11 +856,8 @@
   }
 
   .mc-deferred-list {
-    margin: 0;
-    padding-left: var(--s-5);
-    font-size: var(--fs-sm);
-    line-height: 1.55;
-    color: var(--text-2);
+    align-self: stretch;
+    min-width: 0;
   }
 
   .mc-dialog {

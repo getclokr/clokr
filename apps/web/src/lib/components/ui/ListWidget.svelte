@@ -19,8 +19,10 @@
   import Skeleton from "./Skeleton.svelte";
   import { listPrefs, saveListPreference } from "$stores/list-prefs";
   import {
+    defaultPageSizeOfKind,
     filtersOf,
     pageSizesOf,
+    pageSizesOfKind,
     resolveListPreference,
     type ListId,
   } from "$lib/lists/list-registry";
@@ -36,11 +38,16 @@
   }
 
   interface Props {
-    /** The id of the register; it names the stored size and filter. */
-    listId: ListId;
+    /**
+     * The id of the register; it names the stored size and filter. Without it (the catalogue demo) the
+     * widget offers the widget sizes and keeps the choice for this visit only - nothing is stored.
+     */
+    listId?: ListId;
     title: string;
     /** A short muted text after the title (a week, a period). Display text only. */
     meta?: string;
+    /** Something small beside the title (an `InfoHint`); rendered in the head, never part of the heading text. */
+    titleExtra?: Snippet;
     /** Every row of the list (after the filter), not only the shown page. */
     items: readonly T[];
     /** A unique key per row. */
@@ -76,6 +83,7 @@
     listId,
     title,
     meta,
+    titleExtra,
     items,
     itemKey,
     filters,
@@ -96,11 +104,19 @@
 
   const uid = $props.id();
 
-  const stored = $derived($listPrefs[listId]);
-  const resolved = $derived(resolveListPreference(listId, stored));
-  const sizes = $derived(pageSizesOf(listId));
+  // The size of this visit for a widget without a `listId` (nothing is stored then).
+  let visitSize = $state<number | null>(null);
+  const stored = $derived(listId ? $listPrefs[listId] : undefined);
+  const resolved = $derived(
+    listId
+      ? resolveListPreference(listId, stored)
+      : { pageSize: visitSize ?? defaultPageSizeOfKind("widget"), filter: null },
+  );
+  const sizes = $derived(listId ? pageSizesOf(listId) : pageSizesOfKind("widget"));
   const pageSize = $derived(resolved.pageSize);
-  const hasFilter = $derived(filtersOf(listId) !== undefined || resolved.filter !== null);
+  const hasFilter = $derived(
+    listId ? filtersOf(listId) !== undefined || resolved.filter !== null : false,
+  );
 
   // A chip click (or a URL filter) of this visit; until then the stored choice decides.
   let picked = $state<string | null>(null);
@@ -160,22 +176,25 @@
     picked = value;
     page = 1;
     onFilterChange?.(value);
-    void saveListPreference(listId, entry({ filter: value }));
+    if (listId) void saveListPreference(listId, entry({ filter: value }));
   }
 
   function changeSize(change: { page: number; pageSize: number }) {
     page = change.page;
-    if (change.pageSize !== pageSize) {
-      void saveListPreference(listId, entry({ pageSize: change.pageSize }));
-    }
+    if (change.pageSize === pageSize) return;
+    if (listId) void saveListPreference(listId, entry({ pageSize: change.pageSize }));
+    else visitSize = change.pageSize;
   }
 </script>
 
 <section class="lw" aria-labelledby="{uid}-title" data-testid={testId}>
   <header class="lw-head">
-    <h2 id="{uid}-title" class="lw-title">
-      {title}{#if meta}<span class="lw-meta">{meta}</span>{/if}
-    </h2>
+    <div class="lw-heading">
+      <h2 id="{uid}-title" class="lw-title">
+        {title}{#if meta}<span class="lw-meta">{meta}</span>{/if}
+      </h2>
+      {@render titleExtra?.()}
+    </div>
     {#if moreHref}
       <a class="lw-more" href={moreHref}>{moreLabel}</a>
     {/if}
@@ -245,6 +264,12 @@
     justify-content: space-between;
     gap: var(--s-2);
     margin: 0 0 var(--s-2);
+  }
+  .lw-heading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    min-width: 0;
   }
   .lw-title {
     margin: 0;

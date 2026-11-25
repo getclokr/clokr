@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   csvPeriodProblem,
-  EXPORT_HISTORY_SIZE,
   exportHistoryRows,
   exportHref,
   exportPreselection,
@@ -112,11 +111,13 @@ describe("exportHistoryRows", () => {
     expect(rows.some((r) => r.kind === "Sonstige Änderung")).toBe(false);
   });
 
-  it("shows at most EXPORT_HISTORY_SIZE rows", () => {
-    const many = Array.from({ length: EXPORT_HISTORY_SIZE + 5 }, (_, i) =>
+  it("returns every row, newest first (Issue #1028: the list block pages them, no cut at 20)", () => {
+    const many = Array.from({ length: 25 }, (_, i) =>
       row({ id: `r${i}`, createdAt: at((i % 28) + 1) }),
     );
-    expect(exportHistoryRows(many)).toHaveLength(EXPORT_HISTORY_SIZE);
+    const rows = exportHistoryRows(many);
+    expect(rows).toHaveLength(25);
+    expect(rows[0].id).toBe("r24");
   });
 
   it("shows the operator and the system by their words, not as an empty name", () => {

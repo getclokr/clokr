@@ -40,11 +40,10 @@
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Combobox from "$components/ui/Combobox.svelte";
   import FormField from "$components/ui/FormField.svelte";
-  import List from "$components/ui/List.svelte";
   import ListRow from "$components/ui/ListRow.svelte";
+  import ListWidget from "$components/ui/ListWidget.svelte";
   import Note from "$components/ui/Note.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
-  import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
@@ -224,7 +223,7 @@
     if (!canReadAudit) return;
     try {
       // The newest 200 EXPORT rows (the list's maximum page), narrowed to this page's kinds by their
-      // type code; the list shows the first EXPORT_HISTORY_SIZE of them.
+      // type code; the list block pages every one of them.
       const res = await api.get<{ logs: ExportLogLike[] }>("/audit-logs?action=EXPORT&limit=200");
       history = { status: "ready", data: exportHistoryRows(res.logs) };
     } catch (e: unknown) {
@@ -480,34 +479,39 @@
     </div>
   </section>
 
-  <section class="settings-group" aria-labelledby="export-history-title">
-    <div class="hint-row">
-      <h2 class="settings-group-title" id="export-history-title">Letzte Exporte</h2>
+  <!-- Issue #1028: every export of the 200 read is a row of the list block (page size stored per person). -->
+  <ListWidget
+    listId="verwalten.export.letzte-exporte"
+    title="Letzte Exporte"
+    items={history.status === "ready" && canReadAudit ? history.data : []}
+    itemKey={(row) => row.id}
+    loading={canReadAudit && history.status === "loading"}
+    ariaLabel="Letzte Exporte"
+  >
+    {#snippet titleExtra()}
       <InfoHint
-        text="Die 20 neuesten Exporte deines Unternehmens."
+        text="Die neuesten Exporte deines Unternehmens."
         label={hintLabel("Letzte Exporte")}
       />
-    </div>
-    {#if !canReadAudit}
-      <Note tone="info">Die letzten Exporte siehst du mit dem Recht, das Protokoll zu lesen.</Note>
-    {:else if history.status === "loading"}
-      <Skeleton shape="row" count={3} />
-    {:else if history.status === "failed"}
-      <div role="alert"><Note tone="bad">{history.message}</Note></div>
-    {:else if history.data.length === 0}
-      <Note tone="info">Es gibt noch keinen Export.</Note>
-    {:else}
-      <List ariaLabel="Letzte Exporte">
-        {#each history.data as row (row.id)}
-          <ListRow title={row.kind} subtitle={row.scope} avatar={false}>
-            {#snippet trailing()}
-              <span class="export-when">{row.when} · {row.who}</span>
-            {/snippet}
-          </ListRow>
-        {/each}
-      </List>
-    {/if}
-  </section>
+    {/snippet}
+    {#snippet empty()}
+      {#if !canReadAudit}
+        <Note tone="info">Die letzten Exporte siehst du mit dem Recht, das Protokoll zu lesen.</Note
+        >
+      {:else if history.status === "failed"}
+        <div role="alert"><Note tone="bad">{history.message}</Note></div>
+      {:else}
+        <Note tone="info">Es gibt noch keinen Export.</Note>
+      {/if}
+    {/snippet}
+    {#snippet row(row)}
+      <ListRow title={row.kind} subtitle={row.scope} avatar={false}>
+        {#snippet trailing()}
+          <span class="export-when">{row.when} · {row.who}</span>
+        {/snippet}
+      </ListRow>
+    {/snippet}
+  </ListWidget>
 </div>
 
 <style>

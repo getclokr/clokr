@@ -8,9 +8,13 @@
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
+  import { listPrefs, saveListPreference } from "$stores/list-prefs"; // Issue #1028
+  import { pageSizesOf, resolveListPreference } from "$lib/lists/list-registry"; // Issue #1028
+  import { clampPage, pageOfIndex, pageSlice } from "$lib/lists/list-page"; // Issue #1028
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import List from "$components/ui/List.svelte";
+  import Pager from "$components/ui/Pager.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
   import Dialog from "$components/ui/Dialog.svelte"; // Issue #853 (D-853-18)
   import FormField from "$components/ui/FormField.svelte";
@@ -330,6 +334,9 @@
         return;
       }
       highlightSection9Id = id;
+      // A deep link pages to its row (Issue #1028).
+      const at = visibleTaskRows.findIndex((r) => r.kind === "paragraf9" && r.sourceId === id);
+      if (at >= 0) taskPage = pageOfIndex(at, taskPageSize);
       await tick();
       requestAnimationFrame(() => {
         document
@@ -465,6 +472,23 @@
   const viewCounts = $derived(taskCounts(viewRows));
   const visibleTaskRows = $derived(filterByKind(viewRows, activeTyp));
 
+  // ── Paging of the task list (Issue #1028) ─────────────────────────────────────────────────────
+  // The list is a full page, so it pages with the table sizes of the register (`team.aufgaben.liste`);
+  // the URL kind filter (`typ`) stays the page filter. A change of the kind or the view returns to
+  // page 1, a new list (a decision) only clamps the page.
+  const TASK_LIST_ID = "team.aufgaben.liste";
+  const taskPageSize = $derived(
+    resolveListPreference(TASK_LIST_ID, $listPrefs[TASK_LIST_ID]).pageSize,
+  );
+  let taskPage = $state(1);
+  const shownTaskPage = $derived(clampPage(taskPage, visibleTaskRows.length, taskPageSize));
+  const pagedTaskRows = $derived(pageSlice(visibleTaskRows, shownTaskPage, taskPageSize));
+  $effect(() => {
+    void activeTyp;
+    void taskView.ansicht;
+    taskPage = 1;
+  });
+
   const typOptions = $derived([
     { value: "alle", label: `Alle (${viewRows.length})` },
     ...availableKinds.map((kind) => ({
@@ -517,10 +541,10 @@
   // ── The context line of a leave row (Issue #853-19, prototype „Aufgaben“) ──────────────────────
   // „Resturlaub danach 11 · niemand sonst ...“ (the sentence lives in task-row-facts.ts), read per open leave row of the current list from
   // the two reads the decision dialog makes, within the caller's permissions (a fact the caller may
-  // not read is left out, `lib/team/task-row-facts.ts`). Only the rows in view are read, at most
-  // `CONTEXT_ROWS` of them, with cached reads (one per person and year / per period) and four reads
-  // in flight at most. A decision changes the figures of the other rows, so it starts a new epoch.
-  const CONTEXT_ROWS = 40;
+  // not read is left out, `lib/team/task-row-facts.ts`). Only the rows of the shown page
+  // are read (Issue #1028: no fixed cut of the first rows any more - a page that is turned to reads
+  // its own rows), with cached reads (one per person and year / per period) and four
+  // reads in flight at most. A decision changes the figures of the other rows, so it starts a new epoch.
   const canReadEntitlementFact = $derived(
     hasPermission($authStore.user, "leave-entitlement:read:ZUGEWIESEN"),
   );
@@ -547,8 +571,8 @@
   $effect(() => {
     const reads = contextReads;
     if (taskView.ansicht !== "offen") return;
-    const rows = visibleTaskRows.filter((r) => r.kind === "urlaub" && !r.decided);
-    for (const row of rows.slice(0, CONTEXT_ROWS)) {
+    const rows = pagedTaskRows.filter((r) => r.kind === "urlaub" && !r.decided);
+    for (const row of rows) {
       const req = leaveOf(row);
       if (!req || reads.requested.has(req.id)) continue;
       reads.requested.add(req.id);
@@ -985,7 +1009,7 @@
       {/if}
     {:else}
       <List ariaLabel="Aufgaben" testId="inbox-task-list">
-        {#each visibleTaskRows as row (row.key)}
+        {#each pagedTaskRows as row (row.key)}
           {@const request = leaveOf(row)}
           {@const retro = retroOf(row)}
           {@const c = section9Of(row)}
@@ -1066,6 +1090,15 @@
           </TaskRow>
         {/each}
       </List>
+      <Pager
+        total={visibleTaskRows.length}
+        bind:page={() => shownTaskPage, (next) => (taskPage = next)}
+        bind:pageSize={
+          () => taskPageSize, (next) => void saveListPreference(TASK_LIST_ID, { pageSize: next })
+        }
+        sizes={pageSizesOf(TASK_LIST_ID)}
+        testId="inbox-task-pager"
+      />
     {/if}
   </div>
 {/if}

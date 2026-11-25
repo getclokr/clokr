@@ -124,10 +124,10 @@ export const EXPORT_CENTRE_TYPES: ReadonlySet<string> = new Set([
   "MONTHLY_EXPORT_PDF",
 ]);
 
-/** How many rows „Letzte Exporte“ shows. */
-export const EXPORT_HISTORY_SIZE = 20;
-
-/** The history list: one row per `EXPORT` audit row of this page's kinds, newest first, in German words only. */
+/**
+ * The history list: one row per `EXPORT` audit row of this page's kinds, newest first, in German words
+ * only. Every row is returned (Issue #1028): the page pages them in the list block, nothing is cut here.
+ */
 export function exportHistoryRows(logs: readonly ExportLogLike[]): ExportHistoryRow[] {
   return [...logs]
     .filter((log) => {
@@ -148,8 +148,7 @@ export function exportHistoryRows(logs: readonly ExportLogLike[]): ExportHistory
         kind: exportTypeLabel(typeof type === "string" ? type : ""),
         scope: scope === "" ? "—" : scope,
       };
-    })
-    .slice(0, EXPORT_HISTORY_SIZE);
+    });
 }
 
 export interface ExportPreselection {
