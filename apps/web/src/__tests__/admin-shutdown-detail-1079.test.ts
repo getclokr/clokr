@@ -106,6 +106,23 @@ describe("Betriebsurlaub detail with salons", () => {
     expect((screen.getByLabelText("Salon Süd") as HTMLInputElement).checked).toBe(false);
   });
 
+  it("the empty exception list names who is affected: the salons' persons or everyone", async () => {
+    serve(shutdown());
+    await mount();
+    expect(
+      screen.getByText(
+        "Betroffen ist, wer an dem Tag seinen Stammsalon in einem der gewählten Salons hat.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Alle Mitarbeitenden sind vom Betriebsurlaub betroffen.")).toBeNull();
+  });
+
+  it("an Unternehmen-wide row keeps the everyone text", async () => {
+    serve(shutdown({ salons: [] }));
+    await mount();
+    expect(screen.getByText("Alle Mitarbeitenden sind vom Betriebsurlaub betroffen.")).toBeTruthy();
+  });
+
   it("a changed scope is sent as salonIds and the booking toast follows", async () => {
     serve(shutdown());
     patch.mockResolvedValue(

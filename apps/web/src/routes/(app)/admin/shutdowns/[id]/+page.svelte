@@ -534,7 +534,9 @@
         <EmptyState
           icon="users"
           title="Noch keine Ausnahmen"
-          description="Alle Mitarbeitenden sind vom Betriebsurlaub betroffen."
+          description={shownShutdown.salons.length === 0
+            ? "Alle Mitarbeitenden sind vom Betriebsurlaub betroffen."
+            : "Betroffen ist, wer an dem Tag seinen Stammsalon in einem der gewählten Salons hat."}
         />
       {:else}
         <DataTable
