@@ -4,6 +4,7 @@ import { mode, normalizeModeChoice, type ModeChoice } from "$stores/mode";
 import { theme, themeChoice, tenantDefaultTheme, normalizeTheme, type Theme } from "$stores/theme";
 import { fetchPreferences, savePreferences, type UiPreferences } from "$api/preferences";
 import { setListPrefsFromServer } from "$stores/list-prefs";
+import { setWhyClockIntroFromServer } from "$stores/why-clock-intro";
 
 /**
  * How the web applies the personal appearance (mode + Farbwelt) and the server's answer about it.
@@ -66,6 +67,8 @@ export function applyServerPreferences(
     );
     // Issue #1028: the stored page size and filter per list; an answer without `lists` stores none.
     setListPrefsFromServer(prefs.lists ?? {});
+    // Issue #606: has the person closed the „Warum stempeln?“ intro (unknown stays unknown).
+    setWhyClockIntroFromServer(prefs.whyClockIntroSeen);
   });
 }
 

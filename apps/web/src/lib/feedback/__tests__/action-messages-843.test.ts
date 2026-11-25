@@ -70,3 +70,12 @@ describe("leaveDecided (#846 D-03, #853 S-29)", () => {
     );
   });
 });
+
+describe("whyClockIntroHidden (#606)", () => {
+  it("says the intro is hidden and where it can be opened again", async () => {
+    const { whyClockIntroHidden } = await import("../action-messages");
+    expect(whyClockIntroHidden()).toBe(
+      "Ausgeblendet. „Warum stempeln?“ findest du jederzeit im Profil.",
+    );
+  });
+});

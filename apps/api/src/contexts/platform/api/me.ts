@@ -2,7 +2,9 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { API_KEY_SUBJECT_PREFIX, accessContextFromRequest } from "../access-context";
+import { requireAnyPermission } from "../request-permissions";
 import { contextSalonIds, ownRoleNames } from "../facade/role-assignments";
+import { tenantHasActiveApiKey, timeEntryReaderGroups } from "../facade/time-entry-readers";
 import { isMultiSalonTenant, listSalons } from "../facade/salons";
 import { packagesForDisplay } from "../tenant-packages";
 import { PERSONAL_EMAIL_OPT_OUT_FIELDS } from "../notification-email-policy";
@@ -48,6 +50,9 @@ const updatePreferencesSchema = z.object({
   // Issue #1028: the stored page size and filter per list, validated against the register
   // `packages/types/list-preferences.json`. Merged one level deep (per list id) on write.
   lists: listPreferencesInput.optional(),
+  // Issue #606: the person closed the „Warum stempeln?“ intro. Only `true` is accepted - there is no
+  // way back (the profile reopens the content without writing anything).
+  whyClockIntroSeen: z.literal(true).optional(),
 });
 
 // Phase 110 (D-10/AK-10): the version string is echoed back to the client and stored, so it is
@@ -70,6 +75,8 @@ interface UiPreferences {
   emailOptOut: z.infer<typeof emailOptOutInput>;
   // Issue #1028: `{ [listId]: { pageSize?, filter? } }`, only entries that are valid for the register.
   lists: Record<string, StoredListPreference>;
+  // Issue #606: true once the person closed the „Warum stempeln?“ intro on any device.
+  whyClockIntroSeen: boolean;
 }
 
 const DEFAULT_PREFERENCES: UiPreferences = {
@@ -80,6 +87,7 @@ const DEFAULT_PREFERENCES: UiPreferences = {
   language: "de",
   emailOptOut: [],
   lists: {},
+  whyClockIntroSeen: false,
 };
 
 /**
@@ -106,6 +114,7 @@ function mergePreferences(stored: unknown, tenantDefault: UiThemeId): UiPreferen
         )
       : [],
     lists: storedListPreferences(partial.lists),
+    whyClockIntroSeen: partial.whyClockIntroSeen === true,
   };
 }
 
@@ -128,7 +137,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default. `lists` holds the stored page size and filter per list id (only entries that are valid for the list register)",
+        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default. `lists` holds the stored page size and filter per list id (only entries that are valid for the list register). `whyClockIntroSeen` is true once the person closed the first-sign-in intro on any device",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -154,7 +163,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. `lists` is merged one level deep: an entry for one list id replaces that list's stored entry and never touches another list's. The answer has the same shape as GET",
+        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. `lists` is merged one level deep: an entry for one list id replaces that list's stored entry and never touches another list's. `whyClockIntroSeen` accepts only `true` (no way back). The answer has the same shape as GET",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -324,6 +333,38 @@ export async function meRoutes(app: FastifyInstance) {
         // Issue #538: names of the caller's own roles, a display label only (Topbar, Sidebar,
         // profile). Own data, no new permission; decides nothing.
         roles: await ownRoleNames(app.prisma, tenant.id, user.id),
+      };
+    },
+  });
+
+  // ── Who can read my times (Issue #606) ──────────────────────────────────────
+
+  // GET /api/v1/me/time-entry-readers
+  app.get("/time-entry-readers", {
+    preHandler: requireAnyPermission("time-entry:read:EIGENE", "time-entry:read:ZUGEWIESEN"),
+    schema: {
+      tags: ["Mein Bereich"],
+      description:
+        "Get the roles that can read the caller's own time entries, how far each reaches over the caller and why (categories only: role name, coverage and purposes - never a name, an id or a head count) and whether an API key of the tenant is connected. Derived live from the stored role assignments through the same read rule as GET /time-entries",
+      security: [{ bearerAuth: [] }],
+    },
+    handler: async (req, reply) => {
+      if (req.user.sub.startsWith(API_KEY_SUBJECT_PREFIX)) {
+        return reply.code(400).send({ error: "API-Keys haben keinen Benutzerkontext" });
+      }
+      if (!req.user.employeeId) {
+        return reply.code(400).send({ error: "Kein Mitarbeiterprofil vorhanden" });
+      }
+      const now = new Date();
+      return {
+        groups: await timeEntryReaderGroups(
+          app.prisma,
+          req.user.tenantId,
+          req.user.employeeId,
+          req.user.sub,
+          now,
+        ),
+        connectedPrograms: await tenantHasActiveApiKey(app.prisma, req.user.tenantId, now),
       };
     },
   });

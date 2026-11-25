@@ -74,3 +74,25 @@ export interface ApiError {
   error: string;
   statusCode: number;
 }
+
+// ── Wer sieht meine Zeiten? (Issue #606) ─────────────────────────────────────
+
+/** How far a role reaches over one person's time entries (decided server-side, scope-filter.ts). */
+export type TimeEntryReaderCoverage = "wholeTenant" | "homeSalon" | "workSalon" | "person";
+
+/** Why a role reads time entries: hours = Stundenkonto, payroll = Lohnabrechnung, protection = Arbeitsschutz. */
+export type TimeEntryReaderPurpose = "hours" | "payroll" | "protection";
+
+/** One row of the person's own "who sees my times" list: categories only, no names or ids. */
+export interface TimeEntryReaderGroup {
+  roleName: string;
+  coverage: TimeEntryReaderCoverage;
+  purposes: TimeEntryReaderPurpose[];
+}
+
+/** Answer of `GET /api/v1/me/time-entry-readers`. */
+export interface TimeEntryReadersResponse {
+  groups: TimeEntryReaderGroup[];
+  /** True when at least one active API key of the tenant exists (it reads every time entry). */
+  connectedPrograms: boolean;
+}

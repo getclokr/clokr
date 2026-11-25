@@ -12,6 +12,8 @@
   import Spinner from "$components/ui/Spinner.svelte";
   import AppearanceSettings from "$components/settings/AppearanceSettings.svelte";
   import MyWorkSettings from "$components/settings/MyWorkSettings.svelte";
+  import TimeEntryReadersSettings from "$components/settings/TimeEntryReadersSettings.svelte";
+  import { hasAnyPermission } from "$lib/permissions";
   import EmailNotificationSettings from "$components/settings/EmailNotificationSettings.svelte";
   import Dialog from "$components/ui/Dialog.svelte";
   import PasswordStrength from "$components/ui/PasswordStrength.svelte";
@@ -195,6 +197,10 @@
   <div class="profile-grid">
     <div class="profile-col">
       <MyWorkSettings />
+      <!-- Wer sieht meine Zeiten? (Issue #606): only for a person who has own times to read -->
+      {#if hasAnyPermission( $authStore.user, ["time-entry:read:EIGENE", "time-entry:read:ZUGEWIESEN"] )}
+        <TimeEntryReadersSettings />
+      {/if}
       <EmailNotificationSettings />
       <!-- Notifications: push per device and the shift reminders (Issue #608/#609) -->
       <PushSettings />

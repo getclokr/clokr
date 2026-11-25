@@ -97,6 +97,7 @@
   import ListRow from "$components/ui/ListRow.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import Note from "$components/ui/Note.svelte";
+  import WhyClockIntroCard from "$lib/components/transparency/WhyClockIntroCard.svelte"; // Issue #606
   import Skeleton from "$components/ui/Skeleton.svelte";
   import {
     saldoFigure,
@@ -490,6 +491,13 @@
   // exempt user OUT — but it does mean a non-exempt user is never falsely
   // hidden from clocking in. The personal Time-Entries page mirrors this.
   let isExempt = $state(false);
+  // Issue #606: true once the load above has answered the exemption question (for the first time).
+  let exemptKnown = $state(false);
+  // Issue #606: after the „Warum stempeln?“ card closed, focus moves on to the next block's heading.
+  async function focusWeekHeading() {
+    await tick();
+    document.getElementById("mt-week")?.focus();
+  }
 
   // ── Load ───────────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -599,6 +607,9 @@
       } catch {
         isExempt = false;
       }
+      // Issue #606: the exemption is known now (a failed read counts as "not exempt", like above),
+      // so the „Warum stempeln?“ card may decide. Never reset: a reload must not blink the card.
+      exemptKnown = true;
 
       // Karenztage-Hinweis (D-21) — self-scoped, fail-safe: any error renders nothing.
       try {
@@ -2056,10 +2067,13 @@
         {/if}
       </div>
 
+      <!-- „Warum stempeln?“ (Issue #606): below the Kennzahlen so the stage and the KPIs keep the first screen -->
+      <WhyClockIntroCard exempt={isExempt} ready={exemptKnown} onDismissed={focusWeekHeading} />
+
       <div class="mt-grid">
         <div class="mt-col">
           <section class="mt-sec card-animate" style="--card-idx: 2;" aria-labelledby="mt-week">
-            <h2 id="mt-week" class="mt-h2">
+            <h2 id="mt-week" class="mt-h2" tabindex="-1">
               Deine Woche <span class="mt-h2-meta">KW {getWeekNumber(todayIso)}</span>
             </h2>
             <ol class="mt-week" data-testid="mein-tag-week">

@@ -25,7 +25,8 @@ import { getTestApp, closeTestApp, seedTestData, cleanupTestData } from "./setup
 import type { JwtPayload } from "../middleware/auth";
 
 // #842 D-842-18: the response carries exactly theme, mode, language - and since #602 (Phase 851) the
-// list of e-mail groups the person switched off.
+// list of e-mail groups the person switched off. #606 adds `whyClockIntroSeen` (false by default): an
+// intended additive contract change, so every exact-shape expectation gained that key.
 const DEFAULTS = {
   theme: "pflaume",
   themeChoice: null,
@@ -34,6 +35,7 @@ const DEFAULTS = {
   language: "de",
   emailOptOut: [],
   lists: {},
+  whyClockIntroSeen: false,
 };
 
 const SET_A = { theme: "petrol", mode: "dark", language: "en" };
@@ -96,12 +98,13 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
           tenantDefaultTheme: "pflaume",
           emailOptOut: [],
           lists: {},
+          whyClockIntroSeen: false,
         });
       }
     },
   );
 
-  it("a single partial PUT on a fresh state returns 200 with exactly the 7 default-merged keys", async () => {
+  it("a single partial PUT on a fresh state returns 200 with exactly the 8 default-merged keys", async () => {
     const res = await app.inject({
       method: "PUT",
       url: "/api/v1/me/preferences",
@@ -119,6 +122,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
       "tenantDefaultTheme",
       "theme",
       "themeChoice",
+      "whyClockIntroSeen",
     ]);
     expect(body).toEqual({ ...DEFAULTS, theme: "petrol", themeChoice: "petrol" });
   });
@@ -187,6 +191,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
       "tenantDefaultTheme",
       "theme",
       "themeChoice",
+      "whyClockIntroSeen",
     ]);
     expect(body).toEqual({
       theme: "petrol",
@@ -196,6 +201,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
       language: "de",
       emailOptOut: [],
       lists: {},
+      whyClockIntroSeen: false,
     });
   });
 

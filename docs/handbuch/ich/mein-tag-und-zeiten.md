@@ -43,6 +43,10 @@ Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir di
 - **Verlauf**: deine letzten Ereignisse, etwa Stempelungen und Entscheidungen.
 - **Krank melden** und **Urlaub beantragen** oben rechts führen direkt in den Antrag, siehe [Abwesenheiten](abwesenheiten.md).
 
+### „Warum stempeln?“ beim ersten Mal
+
+Bei deiner ersten Anmeldung steht unter den Kennzahlen eine Karte „Warum stempeln?“. Die Karte nennt drei Gründe: Das Gesetz verlangt die Erfassung deiner Arbeitszeit, sie schützt dich vor unbezahlter Arbeit, und jede gestempelte Minute zählt für dein Stundenkonto. Mit **Verstanden** oder **Überspringen** blendest du die Karte aus; die Karte kommt auf keinem deiner Geräte wieder. Den Text findest du jederzeit unter **Ich › Profil**: Dort öffnet **„Warum stempeln?“ ansehen** dieselben drei Gründe noch einmal.
+
 ## Pausen bestätigen
 
 Arbeitest du länger als 6 Stunden ohne erfasste Pause, trägt Clokr die gesetzlich vorgeschriebene Pause nach § 4 ArbZG automatisch ein. Das gilt, wenn dein Unternehmen die Pausenprüfung eingeschaltet hat. Ein solcher Eintrag ist zuerst **unbestätigt**. Du findest ihn unter „Für dich“ auf **Ich › Mein Tag** und als Hinweis „Pause bestätigen“ auf **Ich › Zeiten**.
