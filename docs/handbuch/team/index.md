@@ -1,6 +1,6 @@
 # Team
 
-Der Bereich **Team** ist für Teamleitungen und alle, die Verantwortung für andere tragen: wer heute im Salon ist, Anträge entscheiden, Zeiten prüfen, den Dienstplan planen und Berichte erstellen. Du siehst nur die Personen, für die du zuständig bist, in der Regel die Mitarbeitenden deiner Salons. Welche Seiten du bekommst, hängt von deinen Rechten ab.
+Der Bereich **Team** ist für Teamleitungen und alle, die Verantwortung für andere tragen: wer heute im Salon ist, Anträge entscheiden, Zeiten prüfen, den Dienstplan planen und Berichte erstellen. Du siehst nur die Personen, für die du zuständig bist, in der Regel die Mitarbeitenden deiner Salons. Welche Seiten du bekommst, hängt von deinen Rechten ab, siehe [Rollen und Rechte](../verwalten/rollen-und-rechte.md).
 
 ## Ich möchte …
 
