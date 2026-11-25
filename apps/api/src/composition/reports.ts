@@ -2073,6 +2073,14 @@ export async function reportRoutes(app: FastifyInstance) {
         y,
         m,
       );
+      // Issue #1082 (D-05): the same release-day source as GET /datev, for this one person.
+      const paidReleaseDaysByEmployeeDatevSingle = await fetchPaidReleaseDaysByEmployeeForDatev(
+        app,
+        req.user.tenantId,
+        [emp],
+        y,
+        m,
+      );
 
       // Issue #304: LODAS personnel numbers are numeric; never drop a person silently (§ 41 EStG).
       const invalidPnrs = datevInvalidPnrs([emp]);
@@ -2094,7 +2102,7 @@ export async function reportRoutes(app: FastifyInstance) {
         kanzlei,
         section9ByEmp: section9ByEmpDatevSingle,
         leaveDaysByEmployee: leaveDaysByEmployeeDatevSingle,
-        paidReleaseDaysByEmployee: new Map(), // placeholder until the single-person route reads it
+        paidReleaseDaysByEmployee: paidReleaseDaysByEmployeeDatevSingle,
       });
 
       await app.audit({
@@ -2141,8 +2149,16 @@ export async function reportRoutes(app: FastifyInstance) {
 
       const selection = await selectMonthlyExportPersons(app, req, y, m, salonId);
       if (!selection.ok) return reply.code(404).send(SALON_VIEW_NOT_FOUND);
-      const { tz, firstDay, lastDay, employees, section9ByEmp, leaveDaysByEmployee, salon } =
-        selection;
+      const {
+        tz,
+        firstDay,
+        lastDay,
+        employees,
+        section9ByEmp,
+        leaveDaysByEmployee,
+        paidReleaseDaysByEmployee,
+        salon,
+      } = selection;
       const tenant = await app.prisma.tenant.findUnique({
         where: { id: req.user.tenantId },
         select: { name: true },
@@ -2186,7 +2202,7 @@ export async function reportRoutes(app: FastifyInstance) {
           lastDay,
           section9ByEmp,
           leaveDaysByEmployee,
-          paidReleaseDaysByEmployee: new Map(), // placeholder until the export reads it
+          paidReleaseDaysByEmployee,
         });
         rows.push({
           employeeName: `${emp.lastName}, ${emp.firstName}`,
@@ -2208,6 +2224,7 @@ export async function reportRoutes(app: FastifyInstance) {
             unpaid: datev.unpaidDays,
             maternity: datev.maternityDays,
             parental: datev.parentalDays,
+            paidRelease: datev.paidReleaseDays,
           },
           section9: (section9ByEmp.get(emp.id)?.length ?? 0) > 0,
           vacation: (() => {

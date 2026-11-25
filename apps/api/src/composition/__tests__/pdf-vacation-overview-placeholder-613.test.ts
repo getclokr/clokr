@@ -54,6 +54,7 @@ const NO_ABSENCE = {
   unpaid: 0,
   maternity: 0,
   parental: 0,
+  paidRelease: 0,
 };
 
 function makeRow(overrides: Partial<MonthlyExportRow>): MonthlyExportRow {

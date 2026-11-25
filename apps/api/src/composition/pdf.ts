@@ -425,6 +425,11 @@ export const MONTHLY_EXPORT_DATEV_LEGEND =
 export const MONTHLY_EXPORT_UNITS_LEGEND =
   "Zeiten in Stunden:Minuten. Abwesenheiten in Arbeitstagen wie im DATEV-Export (leer = keine). Saldo Monat: der ganze Monat, im laufenden Monat als Prognose. Gesamtsaldo: Stand zum Monatsende, im laufenden Monat bis gestern.";
 
+// Issue #1082 (D-06): printed only when the column "Freistellung" is shown (some listed person has
+// paid release days). The units legend below already says the days are Arbeitstage like in DATEV.
+export const MONTHLY_EXPORT_PAID_RELEASE_LEGEND =
+  "Freistellung: bezahlte Freistellung im Betriebsurlaub (Tage ohne Urlaubsabzug). In der DATEV-Datei stehen sie nur, wenn unter Integrationen \u203a DATEV eine Lohnart daf\u00fcr eingetragen ist.";
+
 export interface MonthlyExportAbsenceDays {
   vacation: number;
   sick: number;
@@ -435,6 +440,8 @@ export interface MonthlyExportAbsenceDays {
   unpaid: number;
   maternity: number;
   parental: number;
+  /** Issue #1082 (D-06): paid release days of a Betriebsurlaub, the figure of the optional DATEV row. */
+  paidRelease: number;
 }
 
 /**
@@ -662,6 +669,7 @@ function monthColumns(): ExportColumn[] {
     absenceColumn("unpaid", "Unbezahlt", 42, false),
     absenceColumn("maternity", "Mutter-\nschutz", 38, false),
     absenceColumn("parental", "Eltern-\nzeit", 34, false),
+    absenceColumn("paidRelease", "Frei-\nstellung", 40, false),
   ];
 }
 
@@ -881,6 +889,9 @@ export function drawMonthlyExport(doc: PDFKit.PDFDocument, data: MonthlyExportDa
   }
   if (data.rows.some((r) => Math.round(r.workedMinutes) !== Math.round(r.datevWorkedMinutes))) {
     y = drawLegend(doc, MONTHLY_EXPORT_DATEV_LEGEND, y);
+  }
+  if (data.rows.some((r) => r.absenceDays.paidRelease !== 0)) {
+    y = drawLegend(doc, MONTHLY_EXPORT_PAID_RELEASE_LEGEND, y);
   }
   y = drawLegend(doc, MONTHLY_EXPORT_UNITS_LEGEND, y);
 
