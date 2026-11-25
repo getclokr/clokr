@@ -166,6 +166,13 @@
   // and an edit keep the request wording.
   const ownSick = $derived(!editingRequest && !personPicker && SICK_TYPE_CODES.has(formType));
 
+  // #991: a dialog opened as „Krank melden“ offers the sick types only (by code, never by name), so
+  // the sick report cannot turn into a vacation request through the list. A manager entering an
+  // absence for a person (person picker) and an edit keep the full list.
+  const sickOnly = $derived(
+    !editingRequest && !personPicker && SICK_TYPE_CODES.has(initialTypeCode),
+  );
+
   let specialLeaveRules: SpecialLeaveRule[] = $state([]);
   let formSpecialRuleId = $state("");
 
@@ -685,7 +692,9 @@
             }}
           >
             {#each LEAVE_TYPE_OPTIONS as t (t.code)}
-              <option value={t.code}>{t.label}</option>
+              {#if !sickOnly || SICK_TYPE_CODES.has(t.code)}
+                <option value={t.code}>{t.label}</option>
+              {/if}
             {/each}
           </select>
         </div>

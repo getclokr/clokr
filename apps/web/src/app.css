@@ -54,12 +54,13 @@ h6 {
    of a hub list, #847) is no
    inline text link: its row is the affordance. The tab of a PageTabs strip in link mode (#853) is a
    tab, not a link, and looks like every other tab; a `.row-action` („Öffnen“ in a table row, #853) is
-   a quiet action whose row already says it is clickable. */
+   a quiet action whose row already says it is clickable. A tile of „Deine Woche“ on Mein Tag
+   (`.mt-day-link`, #991) is a whole-tile link, not text. */
 a:not(.btn):not(.nav-item):not(.admin-tab):not(.mobile-nav-item):not(.sidebar-user):not(
     .sidebar-brand
   ):not(.mehr-item):not(.list-link):not(.team-grid__link):not(.hub-row):not(.page-tab):not(
     .row-action
-  ) {
+  ):not(.mt-day-link) {
   text-decoration-line: underline;
   text-decoration-color: var(--brand);
   text-underline-offset: 2px;
@@ -69,7 +70,7 @@ a:not(.btn):not(.nav-item):not(.admin-tab):not(.mobile-nav-item):not(.sidebar-us
     .sidebar-brand
   ):not(.mehr-item):not(.list-link):not(.team-grid__link):not(.hub-row):not(.page-tab):not(
     .row-action
-  ):hover {
+  ):not(.mt-day-link):hover {
   text-decoration-color: var(--brand);
 }
 

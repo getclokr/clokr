@@ -4,7 +4,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { freeIdleDay, historyWhenLabel, weekStripPhoneText, weekTileHref } from "../mein-tag";
+import {
+  freeIdleDay,
+  historyWhenLabel,
+  weekStripCompactText,
+  weekStripPhoneText,
+  weekTileHref,
+} from "../mein-tag";
 
 describe("freeIdleDay (D-991-01)", () => {
   it("is true only for an idle day without a shift and without a Soll", () => {
@@ -45,6 +51,19 @@ describe("weekStripPhoneText (D-991-02)", () => {
   });
 });
 
+describe("weekStripCompactText (#991)", () => {
+  it("drops the leading zero and a full hour's minutes", () => {
+    expect(weekStripCompactText("09:00–17:00")).toBe("9–17");
+    expect(weekStripCompactText("09:30–17:30")).toBe("9:30–17:30");
+    expect(weekStripCompactText("10:00–18:30")).toBe("10–18:30");
+  });
+  it("leaves anything that is not a time range unchanged", () => {
+    for (const text of ["Frei", "8:00 h", "Berufsschule", "Tag der Deutschen Einheit"]) {
+      expect(weekStripCompactText(text)).toBe(text);
+    }
+  });
+});
+
 describe("historyWhenLabel (D-991-03)", () => {
   const today = "2026-11-25";
   it("shows HH:mm for an instant on the tenant's today", () => {
@@ -77,6 +96,23 @@ describe("Mein Tag page wiring (source pins)", () => {
   it("makes every week tile a link to its day", () => {
     expect(page).toMatch(/<a[^>]*class="mt-day-link"[^>]*href=\{weekTileHref\(/);
     expect(page).toContain("weekStripPhoneText(");
+  });
+
+  it("shows the tile's time in its short form and never cuts it with an ellipsis (#991)", () => {
+    expect(page).toContain("weekStripCompactText(text)");
+    const rule = /\n {2}\.mt-day-s\s*\{([^}]*)\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).not.toContain("ellipsis");
+    expect(rule![1]).not.toContain("nowrap");
+  });
+
+  it("keeps the tile content free of the inline-link underline (#991)", () => {
+    const appCss = readFileSync(resolve(__dirname, "../../../app.css"), "utf8");
+    const rule = appCss.slice(
+      appCss.indexOf("a:not(.btn)"),
+      appCss.indexOf("text-decoration-line"),
+    );
+    expect(rule).toContain(":not(.mt-day-link)");
   });
 
   it("keeps the second line of a tile visible on the phone", () => {

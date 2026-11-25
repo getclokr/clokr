@@ -108,6 +108,7 @@
     plannedDaysCount,
     weekStripText,
     weekStripPhoneText,
+    weekStripCompactText,
     weekTileHref,
     freeIdleDay,
     historyWhenLabel,
@@ -2163,7 +2164,7 @@
                         >{format(new Date(d.date + "T12:00:00"), "EEEEEE", { locale: de })}</span
                       ><b>{format(new Date(d.date + "T12:00:00"), "d")}</b></span
                     >
-                    <span class="mt-day-s">{weekStripPhoneText(text)}</span>
+                    <span class="mt-day-s">{weekStripPhoneText(weekStripCompactText(text))}</span>
                   </a>
                 </li>
               {/each}
@@ -2887,11 +2888,13 @@
     font-size: var(--fs-base);
     font-variant-numeric: tabular-nums;
   }
+  /* #991: the second line is never cut with an ellipsis: a shift reads in its short form, a longer
+     text breaks after a dash or inside the word. The full text is the link's accessible name. */
   .mt-day-s {
     color: var(--text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    hyphens: auto;
     font-variant-numeric: tabular-nums;
   }
   /* Issue #942: the hint of an open entry of an earlier day, below the stage */
@@ -2925,8 +2928,10 @@
       flex: 1 1 0;
     }
     /* Issue #991 (N-04): the second line stays on the phone and may break after a dash */
+    .mt-day-link {
+      padding: var(--s-2) var(--s-1);
+    }
     .mt-day-s {
-      white-space: normal;
       font-size: var(--fs-xs);
       line-height: 1.2;
       text-align: center;

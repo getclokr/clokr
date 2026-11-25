@@ -50,6 +50,14 @@ describe("vacationTakenHint (D-991-18)", () => {
     );
   });
 
+  it("prints one date for a one-day range (#991)", () => {
+    const day = { startDate: "2026-12-02", endDate: "2026-12-02" };
+    expect(vacationTakenHint([req({ status: "PENDING", ...day })], TODAY)).toBe(
+      "beantragt: 2.12., wartet auf Entscheidung",
+    );
+    expect(vacationTakenHint([req(day)], TODAY)).toBe("nächster: 2.12.");
+  });
+
   it("an approved vacation beats a pending one, even a later one", () => {
     const rows = [
       req({ status: "PENDING", startDate: "2026-11-30", endDate: "2026-11-30" }),

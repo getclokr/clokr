@@ -1,12 +1,12 @@
 <script lang="ts">
-  // Phase 46 — date-specific availability list with Pagination, inline edit,
+  // Phase 46 — date-specific availability list (DataTable block: table, cards on a phone), inline edit,
   // and destructive delete. Used by both /availability (MA-Self-Service) and
   // /admin/availability (Admin) pages.
 
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
+  import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import AvailabilityStatusPill from "./AvailabilityStatusPill.svelte";
   import AvailabilityEditModal, {
     type AvailabilityEntryDraft,
@@ -45,12 +45,14 @@
   // ── Sorted view ─────────────────────────────────────────────────────
   const sorted = $derived([...entries].sort((a, b) => a.date.localeCompare(b.date)));
 
-  // ── Pagination ──────────────────────────────────────────────────────
-  let page = $state(1);
-  let pageSize = $state(10);
-  const pagedEntries = $derived(
-    sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
-  );
+  // The table block pages itself (listId in the register); the columns are the one-off's facts.
+  const ONEOFF_COLUMNS: DataTableColumn[] = [
+    { key: "date", label: "Datum", primary: true },
+    { key: "status", label: "Status" },
+    { key: "validUntil", label: "Gültig bis" },
+    { key: "note", label: "Notiz" },
+    { key: "actions", label: "Aktion", align: "end" },
+  ];
 
   // ── Edit modal state ────────────────────────────────────────────────
   let editOpen = $state(false);
@@ -147,66 +149,50 @@
 {#if sorted.length === 0}
   <p class="av-empty">Keine Einmaltermine vorhanden.</p>
 {:else}
-  <div class="table-scroll">
-    <table class="av-oneoff-table">
-      <thead>
-        <tr>
-          <th scope="col">Datum</th>
-          <th scope="col">Status</th>
-          <th scope="col">Gültig bis</th>
-          <th scope="col">Notiz</th>
-          <th scope="col" class="av-col-action">Aktion</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each pagedEntries as entry (entry.id ?? entry.date)}
-          <tr>
-            <td class="mono">{formatDE(entry.date)}</td>
-            <td>
-              <AvailabilityStatusPill status={entry.status} />
-            </td>
-            <td class="mono">{entry.validUntil ? formatDE(entry.validUntil) : "—"}</td>
-            <td class="av-note">{entry.note ?? ""}</td>
-            <td class="av-col-action">
-              <div class="av-col-action__group">
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  {disabled}
-                  onclick={() => openEdit(entry)}
-                >
-                  Bearbeiten
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  {disabled}
-                  onclick={() => askRemove(entry)}
-                >
-                  Entfernen
-                </button>
-              </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
-  {#if sorted.length > 10}
-    <Pagination
-      listId="ich.verfuegbarkeit.einzeltage"
-      total={sorted.length}
-      bind:page
-      bind:pageSize
-      labelSingular="Eintrag"
-      labelPlural="Einträge"
-    />
-  {/if}
+  <DataTable
+    caption="Einzelne Tage"
+    columns={ONEOFF_COLUMNS}
+    rows={sorted}
+    rowKey={(entry) => entry.id ?? entry.date}
+    listId="ich.verfuegbarkeit.einzeltage"
+  >
+    {#snippet cell(entry, column)}
+      {#if column.key === "date"}
+        <span class="av-mono">{formatDE(entry.date)}</span>
+      {:else if column.key === "status"}
+        <AvailabilityStatusPill status={entry.status} />
+      {:else if column.key === "validUntil"}
+        <span class="av-mono">{entry.validUntil ? formatDE(entry.validUntil) : "—"}</span>
+      {:else if column.key === "note"}
+        {entry.note ?? ""}
+      {:else if column.key === "actions"}
+        <div class="av-col-action__group">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            {disabled}
+            onclick={() => openEdit(entry)}
+          >
+            Bearbeiten
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            {disabled}
+            onclick={() => askRemove(entry)}
+          >
+            Entfernen
+          </button>
+        </div>
+      {/if}
+    {/snippet}
+  </DataTable>
 {/if}
 
 <AvailabilityEditModal
   bind:open={editOpen}
   mode="oneoff"
+  isNew={editTargetIdx == null}
   initial={editInitial}
   onsave={handleEditSave}
   oncancel={handleEditCancel}
@@ -238,59 +224,21 @@
     margin: 0;
   }
 
-  .av-oneoff-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9375rem;
-  }
-
-  .av-oneoff-table th,
-  .av-oneoff-table td {
-    text-align: left;
-    padding: var(--s-2) var(--s-3);
-    border-bottom: 1px solid var(--line);
-    vertical-align: middle;
-  }
-
-  .av-oneoff-table th {
-    font-family: var(--font-ui);
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-2);
-  }
-
-  .mono {
+  .av-mono {
     font-family: var(--font-ui);
     font-size: 13px;
     font-weight: 600;
     color: var(--text);
   }
 
-  .av-note {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text);
-  }
-
-  .av-col-action {
-    width: 1%;
-    white-space: nowrap;
-  }
-  /* Issue #442 — flex layout lives on the inner wrapper, never on the td itself, so the cell
-     keeps display: table-cell (th.av-col-action carries no wrapper, only the text-align rule
-     below). */
+  /* Issue #442 — flex layout lives on the inner wrapper, never on the td itself (the td is the
+     DataTable block's), and wraps so both actions stay reachable on a phone card. */
   .av-col-action__group {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--s-1);
     justify-content: flex-end;
     align-items: center;
-  }
-
-  /* Header cell mirrors the body alignment */
-  th.av-col-action {
-    text-align: right;
   }
 
   .modal-actions {

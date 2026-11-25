@@ -138,11 +138,14 @@ describe("A Krankmeldung is no Antrag (#991 N-16, D-991-14)", () => {
     expect(screen.queryByTestId("leave-form-half-day")).toBeNull();
   });
 
-  it("switching to VACATION brings the request wording and the half-day toggle back", async () => {
+  it("a sick report offers only the sick types, Urlaub is not in the list", () => {
     renderForm({ initialTypeCode: "SICK" });
-    await fireEvent.change(screen.getByTestId("leave-form-type"), {
-      target: { value: "VACATION" },
-    });
+    const select = screen.getByTestId("leave-form-type") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["SICK", "SICK_CHILD"]);
+  });
+
+  it("a vacation dialog keeps the request wording and the half-day toggle", () => {
+    renderForm();
     expect(screen.getByRole("heading", { name: "Neuer Abwesenheitsantrag" })).toBeTruthy();
     expect(screen.getByTestId("leave-form-submit").textContent?.trim()).toBe("Antrag einreichen");
     expect(screen.getByTestId("leave-form-half-day")).toBeTruthy();

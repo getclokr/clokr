@@ -125,6 +125,13 @@ function hintDay(iso: string): string {
   return `${Number(d)}.${Number(m)}.`;
 }
 
+/** One date for a one-day range, „1.12.–2.12.“ otherwise (a request of one day reads „2.3.“). */
+function hintRange(startDate: string, endDate: string): string {
+  const start = hintDay(startDate);
+  const end = hintDay(endDate);
+  return start === end ? start : `${start}–${end}`;
+}
+
 /**
  * The line under „Genommen & genehmigt“. An effective vacation ahead wins („nächster: 1.12.–2.12.“);
  * without one, a waiting vacation request is named, so the card never says „kein Urlaub geplant“
@@ -136,10 +143,10 @@ export function vacationTakenHint(requests: readonly VacationHintRequest[], toda
     .filter((r) => r.typeCode === "VACATION" && r.startDate.slice(0, 10) >= today)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
   const next = ahead.find((r) => isEffectiveLeaveStatus(r.status));
-  if (next) return `nächster: ${hintDay(next.startDate)}–${hintDay(next.endDate)}`;
+  if (next) return `nächster: ${hintRange(next.startDate, next.endDate)}`;
   const waiting = ahead.find((r) => r.status === "PENDING");
   if (waiting) {
-    return `beantragt: ${hintDay(waiting.startDate)}–${hintDay(waiting.endDate)}, wartet auf Entscheidung`;
+    return `beantragt: ${hintRange(waiting.startDate, waiting.endDate)}, wartet auf Entscheidung`;
   }
   return "kein Urlaub geplant";
 }

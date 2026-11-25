@@ -380,6 +380,19 @@ export function weekTileHref(day: string, today: string): string {
 }
 
 /**
+ * #991: a shift range of a week-strip tile in its short form - hours without a leading zero, full
+ * hours without „:00“: „09:00–17:00“ reads „9–17“, „09:30–17:30“ reads „9:30–17:30“. Anything that is
+ * not such a range (a holiday name, „Frei“, „8:00 h“) comes back unchanged. The full range stays in
+ * the tile's accessible name.
+ */
+export function weekStripCompactText(text: string): string {
+  const match = /^(\d{1,2}):(\d{2})–(\d{1,2}):(\d{2})$/.exec(text);
+  if (!match) return text;
+  const short = (h: string, m: string) => (m === "00" ? `${Number(h)}` : `${Number(h)}:${m}`);
+  return `${short(match[1], match[2])}–${short(match[3], match[4])}`;
+}
+
+/**
  * Issue #991 (N-04): a zero-width space after every „–“ so a range such as „09:00–17:30“ can break
  * after the dash in a narrow phone tile. A text without a dash comes back unchanged.
  */

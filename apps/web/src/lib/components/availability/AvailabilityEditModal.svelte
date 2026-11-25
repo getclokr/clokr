@@ -25,11 +25,13 @@
     open: boolean;
     mode: "recurring" | "oneoff";
     initial?: AvailabilityEntryDraft;
+    /** True while a new entry is created (title „anlegen“); false or absent edits one („bearbeiten“). */
+    isNew?: boolean;
     onsave: (entry: AvailabilityEntryDraft) => void;
     oncancel: () => void;
   }
 
-  let { open = $bindable(), mode, initial, onsave, oncancel }: Props = $props();
+  let { open = $bindable(), mode, initial, isNew = false, onsave, oncancel }: Props = $props();
 
   const STATUS_OPTIONS = [
     { value: "AVAILABLE", label: "Verfügbar", glyph: "✓" },
@@ -104,7 +106,15 @@
     oncancel();
   }
 
-  const title = $derived(mode === "recurring" ? "Wochentag bearbeiten" : "Einmaltermin bearbeiten");
+  const title = $derived(
+    mode === "recurring"
+      ? isNew
+        ? "Wochentag anlegen"
+        : "Wochentag bearbeiten"
+      : isNew
+        ? "Einmaltermin anlegen"
+        : "Einmaltermin bearbeiten",
+  );
 </script>
 
 <Modal bind:open eyebrow={mode === "recurring" ? "Wöchentlich" : "Einmalig"} {title}>
@@ -132,6 +142,7 @@
         bind:value={status}
         name="av-edit-status"
         ariaLabel="Status"
+        fill
       />
     </div>
 
