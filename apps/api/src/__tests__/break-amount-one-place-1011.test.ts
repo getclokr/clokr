@@ -11,10 +11,11 @@
  * production code by file and COUNT (never by line number):
  *
  *  - `break-amount.ts` x1: inside `breakAmountFor` itself.
- *  - `scheduling/api/shifts.ts` x1: the § 3 ArbZG daily-max check of PUT /shifts. Since Issue #1075
- *    POST nets through `shiftNettoMinutes` in `scheduling/shift-write-checks.ts`, the one gate.
- *    A minor is capped by § 8 / § 12 JArbSchG in `scheduling/minor-shift-limits.ts`, which nets
- *    through `shiftNettoMinutes` / `breakAmountFor` (Issue #1057) and runs before this check.
+ *  - `scheduling/api/shifts.ts` is NOT listed: since Issue #1075 the roster's § 3 ArbZG daily-max
+ *    check nets every shift through `shiftNettoMinutes` / `breakAmountFor` in
+ *    `scheduling/shift-write-checks.ts`, the one gate of every adding write path. Its entry was
+ *    REMOVED, which tightens this gate. A minor is capped by § 8 / § 12 JArbSchG in
+ *    `scheduling/minor-shift-limits.ts`, which nets the same way (Issue #1057).
  *  - The three Arbeitszeitkonto closures (`close-employee-month.ts`, `month-saldo.ts`,
  *    `overtime-balance.ts`) are NOT listed: since Issue #1056 the SHIFT_BASED roster Soll goes through
  *    `rosterShiftBreakMinutes` -> `breakAmountFor`, pinned by `roster-minor-break-gate-1056.test.ts`.
@@ -44,11 +45,6 @@ const EXPECTED: Record<string, { count: number; reason: string }> = {
   "apps/api/src/contexts/time-tracking/break-amount.ts": {
     count: 1,
     reason: "inside breakAmountFor, the one break-amount rule",
-  },
-  "apps/api/src/contexts/scheduling/api/shifts.ts": {
-    count: 1,
-    reason:
-      "§ 3 ArbZG daily max of PUT /shifts for adults (POST nets through shiftNettoMinutes in shift-write-checks.ts since Issue #1075); minors are capped by § 8/§ 12 JArbSchG in minor-shift-limits.ts through breakAmountFor (Issue #1057)",
   },
 };
 

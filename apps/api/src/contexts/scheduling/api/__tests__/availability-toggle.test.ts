@@ -5,6 +5,7 @@ import {
   seedTestData,
   cleanupTestData,
 } from "../../../../__tests__/setup";
+import { addDaysStr, dowOf, futureDateStr } from "../../../../__tests__/test-dates";
 import type { FastifyInstance } from "fastify";
 
 /**
@@ -23,11 +24,15 @@ describe("Verfügbarkeits-System Feature-Toggle (Phase 47.3)", () => {
   let app: FastifyInstance;
   let data: Awaited<ReturnType<typeof seedTestData>>;
 
-  // ISO Monday of an arbitrary future test week (Mo=2026-06-15..So=2026-06-21)
-  // The Wednesday of that week is 2026-06-17. We seed an UNAVAILABLE row for
-  // dayOfWeek=2 (Mi, where 0=Mo..6=So matches the rest of shifts.ts).
-  const TEST_WEEK_START = "2026-06-15";
-  const TEST_WEEK_WEDNESDAY = "2026-06-17";
+  // ISO Monday of a future test week, anchored on the live clock (Issue #1075: generate-week refuses
+  // days before today, so a fixed calendar week would turn the skip assertions vacuous once past).
+  // We seed an UNAVAILABLE row for dayOfWeek=2 (Mi, where 0=Mo..6=So matches the rest of shifts.ts).
+  const TEST_WEEK_START = (() => {
+    let d = futureDateStr(14);
+    while (dowOf(d) !== 1) d = addDaysStr(d, 1);
+    return d;
+  })();
+  const TEST_WEEK_WEDNESDAY = addDaysStr(TEST_WEEK_START, 2);
 
   beforeAll(async () => {
     app = await getTestApp();

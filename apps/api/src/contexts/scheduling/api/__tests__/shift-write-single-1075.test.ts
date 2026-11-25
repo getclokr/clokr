@@ -198,4 +198,174 @@ describe("single shift writes — one gate (Issue #1075)", () => {
       expect(res.statusCode, res.body).toBe(201);
     });
   });
+
+  // ── PUT ─────────────────────────────────────────────────────────────────────────────────────
+
+  describe("PUT /shifts/:id", () => {
+    const put = (id: string, payload: Record<string, unknown>, query = "") =>
+      app.inject({ method: "PUT", url: `/api/v1/shifts/${id}${query}`, headers: auth(), payload });
+
+    it("a label-only edit of an already illegal legacy shift passes, a lengthening is refused with the row untouched", async () => {
+      const emp = await person("PutLegacy");
+      const legacy = await stored(emp, day(1), "07:00", "18:30"); // 11:30 gross, 10:45 net
+      expect((await put(legacy.id, { label: "Neues Etikett" })).statusCode).toBe(200);
+      expect((await put(legacy.id, { endTime: "18:00" })).statusCode).toBe(200); // shorter
+
+      const worse = await put(legacy.id, { endTime: "19:00" }, "?force=true");
+      expect(worse.statusCode, worse.body).toBe(422);
+      expect(JSON.parse(worse.body)).toMatchObject({
+        code: "ARBZG_VIOLATION_DAILY_MAX",
+        canForce: false,
+      });
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: legacy.id } });
+      expect(row.endTime).toBe("18:00");
+      expect(await auditRowsFor(app, "Shift", legacy.id, "UPDATE")).toHaveLength(2);
+    });
+
+    it("moving a shift onto a day that already holds another one counts the day together", async () => {
+      const emp = await person("PutMove");
+      const moving = await stored(emp, day(1), "08:00", "13:00");
+      await stored(emp, day(2), "13:30", "19:30");
+      const res = await put(moving.id, { date: day(2) });
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body).code).toBe("ARBZG_VIOLATION_DAILY_MAX");
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: moving.id } });
+      expect(row.date.toISOString().slice(0, 10)).toBe(day(1));
+    });
+
+    it("a lengthening that shortens the rest to the NEXT day is a forceable 409 and the forced audit carries nextShiftId", async () => {
+      const emp = await person("PutRest");
+      const mine = await stored(emp, day(1), "14:00", "20:00");
+      const next = await stored(emp, day(2), "06:00", "14:00");
+      const refused = await put(mine.id, { endTime: "22:00" });
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(JSON.parse(refused.body)).toMatchObject({
+        code: "ARBZG_VIOLATION_REST_PERIOD",
+        canForce: true,
+      });
+      const forced = await put(mine.id, { endTime: "22:00" }, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(200);
+      const rows = await auditRowsFor(app, "Shift", mine.id, "SHIFT_FORCED_OVER_ARBZG");
+      expect(rows).toHaveLength(1);
+      expect(rows[0].newValue).toMatchObject({ nextShiftId: next.id, restGapHours: 8 });
+    });
+
+    it("a day before the tenant's today cannot be changed, the answer keeps its title", async () => {
+      const emp = await person("PutPast");
+      const past = await stored(emp, pastDateStr(1), "08:00", "16:00");
+      const res = await put(past.id, { label: "x" });
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Schicht-Änderung in der Vergangenheit nicht erlaubt",
+        code: "SHIFT_PAST_IMMUTABLE",
+      });
+    });
+
+    it("an employeeId of another tenant answers 404 before any rule and leaves the row alone (GD-9)", async () => {
+      const emp = await person("PutForeign");
+      const mine = await stored(emp, day(1), "08:00", "16:00");
+      const other = await seedTestData(app, "write1075other");
+      try {
+        const res = await put(mine.id, { employeeId: other.employee.id });
+        expect(res.statusCode, res.body).toBe(404);
+        expect(JSON.parse(res.body)).toEqual({ error: "Mitarbeiter nicht gefunden" });
+        const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: mine.id } });
+        expect(row.employeeId).toBe(emp);
+      } finally {
+        await cleanupTestData(app, other.tenant.id);
+      }
+    });
+  });
+
+  // ── restore ─────────────────────────────────────────────────────────────────────────────────
+
+  describe("POST /shifts/:id/restore", () => {
+    const restore = (id: string, query = "") =>
+      app.inject({ method: "POST", url: `/api/v1/shifts/${id}/restore${query}`, headers: auth() });
+    const removed = (emp: string, dateIso: string, start: string, end: string) =>
+      stored(emp, dateIso, start, end, {
+        deletedAt: new Date(),
+        deletedReason: "AUTO_BS_DAY_CLEANUP",
+      });
+
+    it("a removed shift on a past day cannot come back", async () => {
+      const emp = await person("RestorePast");
+      const gone = await removed(emp, pastDateStr(1), "08:00", "16:00");
+      const res = await restore(gone.id);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Wiederherstellung in der Vergangenheit nicht erlaubt",
+        code: "SHIFT_PAST_IMMUTABLE",
+      });
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: gone.id } });
+      expect(row.deletedAt).not.toBeNull();
+      expect(await auditRowsFor(app, "Shift", gone.id, "SHIFT_RESTORED")).toHaveLength(0);
+    });
+
+    it("a restore that would push the day above 10:00 is refused", async () => {
+      const emp = await person("RestoreDay");
+      const gone = await removed(emp, day(1), "08:00", "13:00");
+      await stored(emp, day(1), "13:30", "19:30");
+      const res = await restore(gone.id, "?force=true");
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body).code).toBe("ARBZG_VIOLATION_DAILY_MAX");
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: gone.id } });
+      expect(row.deletedAt).not.toBeNull();
+    });
+
+    it("a short rest to the next day is a forceable 409; forced, the restore writes SHIFT_RESTORED and the forced audit", async () => {
+      const emp = await person("RestoreRest");
+      const gone = await removed(emp, day(1), "14:00", "22:00");
+      const next = await stored(emp, day(2), "06:00", "14:00");
+      const refused = await restore(gone.id);
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(JSON.parse(refused.body)).toMatchObject({
+        code: "ARBZG_VIOLATION_REST_PERIOD",
+        canForce: true,
+      });
+      const forced = await restore(gone.id, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(200);
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: gone.id } });
+      expect(row.deletedAt).toBeNull();
+      expect(await auditRowsFor(app, "Shift", gone.id, "SHIFT_RESTORED")).toHaveLength(1);
+      const rows = await auditRowsFor(app, "Shift", gone.id, "SHIFT_FORCED_OVER_ARBZG");
+      expect(rows).toHaveLength(1);
+      expect(rows[0].newValue).toMatchObject({ nextShiftId: next.id });
+    });
+
+    it("a removed shift on a closed Sunday needs the override", async () => {
+      const emp = await person("RestoreSunday");
+      const gone = await removed(emp, day(6), "08:00", "16:00");
+      const refused = await restore(gone.id);
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(JSON.parse(refused.body).code).toBe("SHIFT_OUTSIDE_STORE_HOURS");
+      const forced = await restore(gone.id, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(200);
+      expect(await auditRowsFor(app, "Shift", gone.id, "SHIFT_FORCED_OUTSIDE_HOURS")).toHaveLength(
+        1,
+      );
+    });
+
+    it("a person whose contract starts after the day gets the contract answer", async () => {
+      const emp = await person("RestoreNoContract", { contractFrom: day(10) });
+      const gone = await removed(emp, day(1), "08:00", "16:00");
+      const res = await restore(gone.id);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Wiederherstellung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+      });
+    });
+
+    it("a flagged-only shift keeps the no-time branch: the flag clears even on a past day", async () => {
+      const emp = await person("RestoreFlag");
+      const flagged = await stored(emp, pastDateStr(1), "08:00", "16:00", {
+        conflictsWithLeave: true,
+      });
+      const res = await restore(flagged.id);
+      expect(res.statusCode, res.body).toBe(200);
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: flagged.id } });
+      expect(row.conflictsWithLeave).toBe(false);
+    });
+  });
 });

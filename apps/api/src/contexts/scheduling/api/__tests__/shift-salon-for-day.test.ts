@@ -131,6 +131,11 @@ describe("POST /shifts — omitted salonId resolves via salonForDay() (Phase 344
   });
 
   it("an explicit salonId still always wins over salonForDay()", async () => {
+    // The first test of this file left a 09:00-17:00 shift on THURSDAY. A second identical one would
+    // be a 14 h day (§ 3 ArbZG is a day rule since Issue #1075), which says nothing about the salon.
+    await app.prisma.shift.deleteMany({
+      where: { employeeId: data.employee.id, date: new Date(`${THURSDAY}T00:00:00Z`) },
+    });
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/shifts",

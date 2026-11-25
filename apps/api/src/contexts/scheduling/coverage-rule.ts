@@ -18,7 +18,7 @@ import type { AccessReach } from "../platform";
  * CLOSED (`closedWeekdaysOf`, `isCoverageDayClosed`). A day on which the salon in view (or, with no salon
  * in view, every salon of the caller's reach) is closed has no staffing target, so it never reads as a
  * shortfall; its `minStaff` stays the rule value and only the status is forced to "ok". The write-side
- * opening-hours check (`assertWithinStoreHours`) is a separate rule and is not touched.
+ * opening-hours rule of `checkShiftWrite` (shift-write-checks.ts) is a separate rule and is not touched.
  */
 
 export interface CoverageRuleCandidate {

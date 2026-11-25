@@ -5,19 +5,18 @@ import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
 import {
+  SHIFT_PAST_MESSAGE,
+  SHIFT_WRITE_SKIP_REASON,
   checkShiftWrite,
   formatDateDe,
+  isPastShiftDay,
   loadShiftWriteContext,
   shiftWriteReplyBody,
+  tenantTodayIso,
   type ShiftWriteFinding,
+  type ShiftWriteSkipReason,
 } from "../shift-write-checks"; // Issue #1075 — the one gate of every adding Shift write path
-import {
-  findMinorShiftLimitViolation,
-  loadMinorShiftWeeks,
-  minorShiftLimitReplyBody,
-  type MinorShiftWeek,
-} from "../minor-shift-limits"; // Issue #1057 — § 8 / § 12 JArbSchG for a minor's shift
-import { getEffectiveBreakDuration, getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
+import { getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
 import { classifyLeaveTypeCode, type AvailabilityBucket } from "../shift-availability"; // Phase 98 (T3, plan 03) — the two classifiers' new home
 import {
   NOT_ANONYMIZED_EMPLOYEE_WHERE,
@@ -655,115 +654,6 @@ async function findWeekOverbookedConflicts(
   return entries;
 }
 
-/**
- * Phase 47.1 → Issue #589 (OD-589-1, D-589-02) — verify an employee can receive a shift on a date.
- *
- * Phase 47.1 allowed shifts only for SHIFT_BASED contracts (422 `SHIFT_INVALID_EMPLOYEE_TYPE`). The
- * owner decision of 19.10.2026 (every person of a salon is in the roster and can be given shifts,
- * whatever the Arbeitszeitmodell) replaces that gate: any Arbeitszeitmodell is eligible as
- * long as a contract (a `WorkSchedule` row, any type) is valid on the shift's date; a date without a
- * contract is 422 `SHIFT_NO_CONTRACT`. The bulk, generate-week and copy-week routes and the Phorest sync
- * never had the type gate, so this makes the write paths consistent. Soll and saldo are untouched: a
- * shift decides a Soll only for SHIFT_BASED (OD-589-2), and no reader of a non-SHIFT_BASED Soll reads
- * shifts. Returns null if eligible, otherwise a {code, message} payload for the 422 response.
- */
-async function assertEmployeeHasContractOn(
-  prisma: import("@clokr/db").PrismaClient,
-  employeeId: string,
-  isoDate: string,
-  tenantTz: string,
-): Promise<{ code: "SHIFT_NO_CONTRACT"; message: string } | null> {
-  const sched = await prisma.workSchedule.findFirst({
-    where: { employeeId, validFrom: { lte: dayRangeUtc(isoDate, tenantTz).end } },
-    select: { id: true },
-  });
-  if (sched) return null;
-  return {
-    code: "SHIFT_NO_CONTRACT",
-    message: "Für diese Person gilt an diesem Tag kein Vertrag.",
-  };
-}
-
-/**
- * Phase 47.2 — Schichten in der Vergangenheit sind audit-proof immutable.
- * Compares the shift date (YYYY-MM-DD) against today; returns a 422 payload
- * when the date is strictly before today. Today is OK (in-day correction).
- */
-function assertShiftNotPast(iso: string): { code: "SHIFT_PAST_IMMUTABLE"; message: string } | null {
-  const today = new Date();
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  if (iso < todayIso) {
-    return {
-      code: "SHIFT_PAST_IMMUTABLE",
-      message: "Schicht in der Vergangenheit ist nicht änderbar (Revisionssicherheit).",
-    };
-  }
-  return null;
-}
-
-/**
- * Phase 47.5 — Verify a shift falls inside its own salon's opening hours.
- * Since Phase 325 (issue #325) this reads the SHIFT'S OWN `Salon.openingHours` (0=Mo..6=So) — the
- * caller resolves and passes it (POST: the assigned salon; PUT: the new salonId if given, else the
- * shift's existing salon, D-10). `shiftStoreHoursMode` stays a TENANT setting, read from
- * `TenantConfig` here (unchanged). The tenant-level opening-hours column is retired (#563) and
- * nothing mirrors into salons any more — hours are edited per salon only.
- * D-11 preserves every OLD null-return exactly: no TenantConfig row -> null (mirrors the old
- * combined tenant-hours branch — a tenant whose config row does not exist gets no check at
- * all, regardless of what its salon's hours say); mode OFF -> null; hours not a real array -> null
- * (the old missing-value branch, now guarding a malformed/absent `openingHours` value instead of a
- * missing tenant-level one); weekday entry missing -> null; closed-day and STRICT comparisons
- * unchanged.
- * Returns null if inside or no config; otherwise a 409 payload for soft-warn override.
- * Cross-midnight shifts (end < start) are NOT supported by this check — they always
- * fail because they leave the day's open/close window; users override via force=true.
- */
-async function assertWithinStoreHours(
-  prisma: import("@clokr/db").PrismaClient,
-  tenantId: string,
-  openingHours: unknown,
-  isoDate: string,
-  startTime: string,
-  endTime: string,
-): Promise<{ code: "SHIFT_OUTSIDE_STORE_HOURS"; message: string } | null> {
-  const cfg = await prisma.tenantConfig.findUnique({
-    where: { tenantId },
-    select: { shiftStoreHoursMode: true },
-  });
-  if (!cfg) return null; // D-11: no TenantConfig row -> no check
-  const mode = cfg.shiftStoreHoursMode ?? "DAY_ONLY";
-  if (mode === "OFF") return null;
-  if (!Array.isArray(openingHours)) return null; // D-11: the old missing-value branch
-  const rows = openingHours as Array<{
-    day: number;
-    open: string;
-    close: string;
-    closed?: boolean;
-  }>;
-  // dayOfWeek: 0=Mo..6=So (matches schema comment)
-  const d = new Date(isoDate + "T00:00:00Z");
-  const jsDow = d.getUTCDay();
-  const dow = jsDow === 0 ? 6 : jsDow - 1;
-  const entry = rows.find((r) => r.day === dow);
-  if (!entry) return null;
-  if (entry.closed) {
-    return {
-      code: "SHIFT_OUTSIDE_STORE_HOURS",
-      message: `Schicht am ${formatDateDe(isoDate)} außerhalb der Öffnungszeiten — Geschäft geschlossen.`,
-    };
-  }
-  // DAY_ONLY: closed-day check above is sufficient; pre/post-hour shifts (Vorbereitung/Aufräumen) allowed.
-  if (mode === "DAY_ONLY") return null;
-  // STRICT: string compare on HH:MM works because zero-padded.
-  if (startTime < entry.open || endTime > entry.close) {
-    return {
-      code: "SHIFT_OUTSIDE_STORE_HOURS",
-      message: `Schicht ${startTime}–${endTime} außerhalb der Öffnungszeiten (${entry.open}–${entry.close}).`,
-    };
-  }
-  return null;
-}
-
 // Phase 46 — Map EmployeeAvailability.status (DB enum) to the lowercase Availability union.
 function statusToAvail(s: "AVAILABLE" | "UNAVAILABLE" | "PREFERRED"): Availability {
   return s === "UNAVAILABLE" ? "unavailable" : s === "PREFERRED" ? "preferred" : "available";
@@ -830,110 +720,6 @@ async function findUnavailability(
   const dowMatch = rows.find((r) => r.dayOfWeek !== null && appliesOnDay(r, isoDate, isoToDow));
   if (dowMatch) return { id: dowMatch.id };
   return null;
-}
-
-/**
- * Phase 47.4-01 — ArbZG § 3 (Tägliche Höchstarbeitszeit).
- *
- * Computes gross shift duration in hours (handles cross-midnight via +24h).
- * Returns a violation payload if netHours > 10 (strict); otherwise null.
- * Exactly 10.0h is legal (boundary OK).
- *
- * Phase 76.10 — `effectiveBreakMinutes` MUST be the resolved Employee +
- * TenantConfig override (compute it via `getEffectiveBreakDuration` at the
- * call site BEFORE invoking this function). This function does NOT enforce
- * the ArbZG § 4 floor itself — it trusts the resolved value. The TenantConfig
- * defaults (`defaultBreakOver6h: 30`, `defaultBreakOver9h: 45`) act as the
- * floor source of truth for tenants without an employee override.
- *
- * No DB access — pure HH:MM math.
- */
-function assertArbZGDailyMax(
-  start: string,
-  end: string,
-  effectiveBreakMinutes: number,
-): { violationHours: number } | null {
-  const toMin = (s: string): number => {
-    const [h, m] = s.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const startMin = toMin(start);
-  const endMin = toMin(end);
-  let grossMin = endMin - startMin;
-  if (grossMin <= 0) grossMin += 24 * 60; // cross-midnight
-  const grossHours = grossMin / 60;
-  // ArbZG § 3 limits ARBEITSZEIT (net), not Anwesenheit (gross).
-  // Caller resolved the § 4 break via getEffectiveBreakDuration; trust it.
-  const breakHours = effectiveBreakMinutes / 60;
-  const netHours = grossHours - breakHours;
-  if (netHours > 10) return { violationHours: netHours };
-  return null;
-}
-
-/**
- * Phase 47.4-01 — ArbZG § 5 (Mindestruhezeit).
- *
- * Checks whether the rest gap between the previous calendar day's last shift
- * end and the new shift's start is < 11 hours. Returns a violation payload if
- * so; otherwise null. Exactly 11.0h gap is legal (boundary OK).
- *
- * - `excludeShiftId` skips a specific shift (used by PUT so a self-move doesn't
- *   collide with its own existing record).
- * - If multiple shifts exist on the previous day, the SMALLEST gap wins (worst-case).
- * - Cross-midnight prev shifts (end ≤ start) end on the new shift's day at HH:MM.
- */
-async function assertArbZGRestPeriod(
-  prisma: import("@clokr/db").PrismaClient,
-  employeeId: string,
-  isoDate: string,
-  startTime: string,
-  excludeShiftId?: string,
-): Promise<{ restHours: number; prevShiftId: string; prevEndIso: string } | null> {
-  // Compute previous calendar day in UTC
-  const target = new Date(isoDate + "T00:00:00Z");
-  if (Number.isNaN(target.getTime())) return null;
-  const prev = new Date(target);
-  prev.setUTCDate(prev.getUTCDate() - 1);
-  const prevIso = prev.toISOString().slice(0, 10);
-
-  const prevShifts = await prisma.shift.findMany({
-    where: {
-      employeeId,
-      date: new Date(prevIso + "T00:00:00Z"),
-      deletedAt: null, // Phase 67.2 — exclude soft-deleted shifts from rest-period calc
-      ...(excludeShiftId ? { NOT: { id: excludeShiftId } } : {}),
-    },
-    select: { id: true, startTime: true, endTime: true },
-  });
-
-  if (prevShifts.length === 0) return null;
-
-  const toMin = (s: string): number => {
-    const [h, m] = s.split(":").map(Number);
-    return h * 60 + m;
-  };
-
-  // Compute prev gross-end timestamp (ms) for each candidate; pick worst gap.
-  const prevDayBaseMs = new Date(prevIso + "T00:00:00Z").getTime();
-  const newStartMs = target.getTime() + toMin(startTime) * 60_000;
-
-  let worst: { restHours: number; prevShiftId: string; prevEndIso: string } | null = null;
-  for (const ps of prevShifts) {
-    const psStartMin = toMin(ps.startTime);
-    const psEndMin = toMin(ps.endTime);
-    let endOffsetMin = psEndMin;
-    if (psEndMin <= psStartMin) endOffsetMin += 24 * 60; // cross-midnight
-    const prevEndMs = prevDayBaseMs + endOffsetMin * 60_000;
-    const restMs = newStartMs - prevEndMs;
-    const restHours = restMs / 3_600_000;
-    if (restHours < 11) {
-      const prevEndIso = new Date(prevEndMs).toISOString();
-      if (!worst || restHours < worst.restHours) {
-        worst = { restHours, prevShiftId: ps.id, prevEndIso };
-      }
-    }
-  }
-  return worst;
 }
 
 // ── Issue #1075 — the gate's answer titles and the forced-override audit rows ─────────────────
@@ -1445,7 +1231,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           : await resolveStammsalonScopedEmployeeIds(app.prisma, tenantId, weekScopeReach, monday);
       // Issue #563 (D-15): display data for the week view's closed-day dimming — the ACTIVE salons in
       // the same `shift:read` reach as the shifts. The authoritative check stays
-      // `assertWithinStoreHours()` on POST/PUT.
+      // opening-hours rule of `checkShiftWrite` (shift-write-checks.ts) on every adding write path.
       const activeSalons = await listSalons(app.prisma, tenantId, { includeInactive: false });
       const salonOpeningHours = activeSalons
         .filter(
@@ -2665,7 +2451,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       const durationMinutes = (start: string, end: string): number => {
         const s = toMin(start);
         const e = toMin(end);
-        // Cross-midnight: end < start ⇒ add 24h. Mirrors assertArbZGDailyMax convention.
+        // Cross-midnight: end < start ⇒ add 24h — the gross convention of shift-netto.ts (shiftBruttoMinutes).
         return e >= s ? e - s : e + 24 * 60 - s;
       };
 
@@ -3001,34 +2787,13 @@ export async function shiftRoutes(app: FastifyInstance) {
       const effStartTime = body.startTime ?? existing.startTime;
       const effEndTime = body.endTime ?? existing.endTime;
 
-      // Issue #589 (D-589-02): the post-update person needs a contract on the effective date (the
-      // Phase 47.1 SHIFT_BASED-only gate is retired). Even when employeeId is unchanged, re-check
-      // defensively (the contract may have changed, the date may have moved).
-      const eligibility = await assertEmployeeHasContractOn(
-        app.prisma,
-        effEmployeeId,
-        effDateIso,
-        await getTenantTimezone(app.prisma, req.user.tenantId),
-      );
-      if (eligibility) {
-        return reply.code(422).send({
-          error: "Schicht-Verschiebung nicht möglich",
-          code: eligibility.code,
-          message: eligibility.message,
-        });
-      }
-
-      // Phase 47.2 — Past-immutable: existing date AND new date must both be today or later.
-      const existingIso = existing.date.toISOString().slice(0, 10);
-      const pastGuardExisting = assertShiftNotPast(existingIso);
-      const pastGuardNew = assertShiftNotPast(effDateIso);
-      if (pastGuardExisting || pastGuardNew) {
-        return reply.code(422).send({
-          error: "Schicht-Änderung in der Vergangenheit nicht erlaubt",
-          code: "SHIFT_PAST_IMMUTABLE",
-          message: (pastGuardExisting ?? pastGuardNew)!.message,
-        });
-      }
+      // GD-9 (Issue #1075): the effective person must belong to the tenant BEFORE any rule reads
+      // them — a foreign employeeId never reaches the gate (same 404 as POST).
+      const effEmployee = await app.prisma.employee.findFirst({
+        where: { id: effEmployeeId, tenantId: req.user.tenantId },
+        select: { id: true },
+      });
+      if (!effEmployee) return reply.code(404).send({ error: "Mitarbeiter nicht gefunden" });
 
       // Phase 325 (issue #325) Plan 02, D-05/D-06/D-07/D-10: a CHANGED salonId must resolve to
       // one of the caller's own ACTIVE salons; an unchanged salonId is NEVER rejected here — an
@@ -3051,117 +2816,38 @@ export async function shiftRoutes(app: FastifyInstance) {
         effSalon = currentSalon;
       }
 
-      // Phase 47.5 — Store-Hours Soft-Warn (effective values).
-      if (!force) {
-        const storeHit = await assertWithinStoreHours(
-          app.prisma,
-          req.user.tenantId,
-          effSalon.openingHours,
-          effDateIso,
-          effStartTime,
-          effEndTime,
-        );
-        if (storeHit) {
-          return reply.code(409).send({
-            error: "Schicht außerhalb Öffnungszeiten",
-            code: "SHIFT_OUTSIDE_STORE_HOURS",
-            message: storeHit.message,
-            canForce: true,
-          });
-        }
-      }
-
-      // Issue #1057 — § 8 / § 12 JArbSchG on the effective (post-update) person, date and times
-      // (§ 18 Abs. 2 ArbZG). Not overridable. Removing this shift's own stored row from the week
-      // makes a label-only edit and a move within the week neutral, and a move onto another
-      // person a pure addition.
-      {
-        const minorWeeks = await loadMinorShiftWeeks(
-          app.prisma,
-          req.user.tenantId,
-          [effEmployeeId],
-          new Date(effDateIso + "T00:00:00Z"),
-        );
-        const minorWeek = minorWeeks.get(effEmployeeId);
-        if (minorWeek) {
-          const minorHit = findMinorShiftLimitViolation(minorWeek, {
-            removeShiftId: id,
-            add: [
-              {
-                date: new Date(effDateIso + "T00:00:00Z"),
-                startTime: effStartTime,
-                endTime: effEndTime,
-              },
-            ],
-          });
-          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
-        }
-      }
-
-      // Phase 47.4 — ArbZG § 3 Hart-Block: max 10h Tagesarbeitszeit (effective values).
-      // Phase 76.10 — break duration is resolved via Employee + TenantConfig
-      // override chain (getEffectiveBreakDuration), not a hardcoded 30/45 floor.
-      // Use the effective (post-update) employee id so a body.employeeId change
-      // honors the NEW employee's override, not the existing record's owner.
-      const arbzgEmp = await app.prisma.employee.findFirst({
-        where: { id: effEmployeeId, tenantId: req.user.tenantId },
-        select: { breakOver6hOverride: true, breakOver9hOverride: true },
+      // Issue #1075 — the one gate (contract on the effective day, past lock for the old AND the
+      // new day, opening hours, § 8 / § 12 JArbSchG, § 3 and § 5 ArbZG) over the effective values.
+      // `replaces` takes this shift's own stored row out of the day sum, the rest gaps and the minor
+      // week, so a label-only edit and a shortening of an already illegal shift pass and a move
+      // onto another person is a pure addition there.
+      const existingIso = existing.date.toISOString().slice(0, 10);
+      const gateCtx = await loadShiftWriteContext(app.prisma, req.user.tenantId, {
+        employeeIds: [effEmployeeId],
+        fromIso: effDateIso < existingIso ? effDateIso : existingIso,
+        toIso: effDateIso > existingIso ? effDateIso : existingIso,
       });
-      if (!arbzgEmp) return reply.code(404).send({ error: "Mitarbeiter nicht gefunden" });
-      const arbzgTenantCfg = await app.prisma.tenantConfig.findUnique({
-        where: { tenantId: req.user.tenantId },
-        select: { defaultBreakOver6h: true, defaultBreakOver9h: true },
-      });
-      const arbzgGrossMin = (() => {
-        const toMin = (s: string): number => {
-          const [h, m] = s.split(":").map(Number);
-          return h * 60 + m;
-        };
-        let g = toMin(effEndTime) - toMin(effStartTime);
-        if (g <= 0) g += 24 * 60; // cross-midnight
-        return g;
-      })();
-      const arbzgEffectiveBreakMin = getEffectiveBreakDuration(
+      const gate = checkShiftWrite(
+        gateCtx,
         {
-          breakOver6hOverride: arbzgEmp.breakOver6hOverride ?? null,
-          breakOver9hOverride: arbzgEmp.breakOver9hOverride ?? null,
+          draft: {
+            employeeId: effEmployeeId,
+            dateIso: effDateIso,
+            startTime: effStartTime,
+            endTime: effEndTime,
+            openingHours: effSalon.openingHours,
+          },
+          replaces: { id, dateIso: existingIso },
         },
-        {
-          defaultBreakOver6h: arbzgTenantCfg?.defaultBreakOver6h ?? 30,
-          defaultBreakOver9h: arbzgTenantCfg?.defaultBreakOver9h ?? 45,
-        },
-        arbzgGrossMin,
+        { force },
       );
-      const dailyMaxHit = assertArbZGDailyMax(effStartTime, effEndTime, arbzgEffectiveBreakMin);
-      if (dailyMaxHit) {
-        return reply.code(422).send({
-          error: "ArbZG-Verstoß",
-          code: "ARBZG_VIOLATION_DAILY_MAX",
-          message:
-            "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
-          canForce: false,
-        });
-      }
-
-      // Phase 47.4 — ArbZG § 5 Soft-Warn: 11h Ruhezeit (excludeShiftId so a self-move
-      // does not trigger a phantom conflict against its own previous-day record).
-      const arbzgRestHit = await assertArbZGRestPeriod(
-        app.prisma,
-        effEmployeeId,
-        effDateIso,
-        effStartTime,
-        id,
-      );
-      if (arbzgRestHit && !force) {
-        const prevDayDate = new Date(effDateIso + "T00:00:00Z");
-        prevDayDate.setUTCDate(prevDayDate.getUTCDate() - 1);
-        const prevDayIso = prevDayDate.toISOString().slice(0, 10);
-        return reply.code(409).send({
-          error: "ArbZG-Verstoß",
-          code: "ARBZG_VIOLATION_REST_PERIOD",
-          message: `Verstoß gegen § 5 ArbZG: zwischen Schichtende am ${formatDateDe(prevDayIso)} und neuem Beginn liegen nur ${arbzgRestHit.restHours.toFixed(1)}h (mindestens 11h erforderlich).`,
-          canForce: true,
-        });
+      if (gate.blocking) {
+        return reply.code(gate.blocking.status).send(
+          shiftWriteReplyBody(gate.blocking, {
+            contract: "Schicht-Verschiebung nicht möglich",
+            past: "Schicht-Änderung in der Vergangenheit nicht erlaubt",
+          }),
+        );
       }
 
       const { conflict, halfDayHint } = await findShiftConflict(
@@ -3301,52 +2987,13 @@ export async function shiftRoutes(app: FastifyInstance) {
           request: { ip: req.ip, headers: req.headers as Record<string, string> },
         });
       }
-      if (arbzgRestHit && force) {
-        await app.audit({
-          userId: req.user.sub,
-          action: "SHIFT_FORCED_OVER_ARBZG",
-          entity: "Shift",
-          entityId: id,
-          newValue: {
-            employeeId: effEmployeeId,
-            date: effDateIso,
-            startTime: effStartTime,
-            endTime: effEndTime,
-            restGapHours: arbzgRestHit.restHours,
-            prevShiftId: arbzgRestHit.prevShiftId,
-            forcedByUserId: req.user.sub,
-          },
-          request: { ip: req.ip, headers: req.headers as Record<string, string> },
-        });
-      }
-      // Phase 47.5 — Force-audit when store-hours override used.
-      if (force) {
-        const storeHitForAudit = await assertWithinStoreHours(
-          app.prisma,
-          req.user.tenantId,
-          effSalon.openingHours, // Phase 325 (issue #325) Plan 02, D-10
-          effDateIso,
-          effStartTime,
-          effEndTime,
-        );
-        if (storeHitForAudit) {
-          await app.audit({
-            userId: req.user.sub,
-            action: "SHIFT_FORCED_OUTSIDE_HOURS",
-            entity: "Shift",
-            entityId: id,
-            newValue: {
-              employeeId: effEmployeeId,
-              date: effDateIso,
-              startTime: effStartTime,
-              endTime: effEndTime,
-              reason: storeHitForAudit.message,
-              forcedByUserId: req.user.sub,
-            },
-            request: { ip: req.ip, headers: req.headers as Record<string, string> },
-          });
-        }
-      }
+      await writeForcedShiftAudits(app, req, id, {
+        employeeId: effEmployeeId,
+        dateIso: effDateIso,
+        startTime: effStartTime,
+        endTime: effEndTime,
+        forced: gate.forced,
+      });
 
       // Phase 76.5 (D-01, D-02) — refresh OvertimeAccount.balanceHours immediately.
       // The PUT body schema allows employeeId reassignment (body.employeeId may
@@ -3579,7 +3226,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           | "no-pattern"
           | "open-day"
           | "availability-unavailable"
-          | "jarbschg"; // Issue #1057
+          | ShiftWriteSkipReason; // Issue #1057 ("jarbschg"), Issue #1075 (the six gate reasons)
         message?: string;
       }> = [];
 
@@ -3670,58 +3317,13 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
-      // Issue #1057 — § 8 / § 12 JArbSchG: a cell that would put a person under 18 into an illegal
-      // week is skipped with its German reason, in date order per person (the walk follows
-      // `toCreate`, which lists each person's days in calendar order). Preview and commit both use
-      // the filtered list.
-      {
-        const minorWeeks = await loadMinorShiftWeeks(
-          app.prisma,
-          tenantId,
-          Array.from(new Set(toCreate.map((c) => c.employeeId))),
-          monday,
-        );
-        if (minorWeeks.size > 0) {
-          const kept: typeof toCreate = [];
-          for (const c of toCreate) {
-            const week = minorWeeks.get(c.employeeId);
-            if (!week) {
-              kept.push(c);
-              continue;
-            }
-            const draft = {
-              date: new Date(c.date + "T00:00:00Z"),
-              startTime: c.startTime,
-              endTime: c.endTime,
-            };
-            const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
-            if (minorHit) {
-              skip.push({
-                employeeId: c.employeeId,
-                date: c.date,
-                reason: "jarbschg",
-                message: minorHit.message,
-              });
-              continue;
-            }
-            week.shifts.push({ ...draft, id: `generate-draft-${kept.length}` });
-            kept.push(c);
-          }
-          toCreate.splice(0, toCreate.length, ...kept);
-        }
-      }
-
-      // Preview mode — return the diff without persisting
-      if (!body.commit) {
-        return { weekStart: weekStartIso, create: toCreate, skip, committed: false };
-      }
-
       // Phase 344 (issue #344): generate-week's patterns/templates carry no salon — each
-      // generated shift now resolves via salonForDay(employee, date) first, per (employeeId,
-      // date), falling back to the tenant's default salon (resolved at most once and cached, since
-      // it is tenant-wide and date-independent). Resolved once, before the transaction, only when
-      // there is something to write.
-      const generateWeekSalonByEmployeeDate = new Map<string, string>();
+      // generated shift resolves via salonForDay(employee, date) first, per (employeeId, date),
+      // falling back to the tenant's default salon (resolved at most once and cached, since it is
+      // tenant-wide and date-independent). Issue #1075: the salon is needed BEFORE the gate (its
+      // opening hours are a rule), so it is resolved softly here — null instead of an answer — and
+      // only a cell that is still kept at commit time and has no salon answers the 409 below.
+      const generateWeekSalonByEmployeeDate = new Map<string, import("@clokr/db").Salon | null>();
       let generateWeekCachedDefault: import("@clokr/db").Salon | null | undefined = undefined;
       for (const c of toCreate) {
         const key = `${c.employeeId}::${c.date}`;
@@ -3734,15 +3336,67 @@ export async function shiftRoutes(app: FastifyInstance) {
           new Date(c.date),
         );
         if (forDaySalon) {
-          generateWeekSalonByEmployeeDate.set(key, forDaySalon.id);
+          generateWeekSalonByEmployeeDate.set(key, forDaySalon);
           continue;
         }
 
         if (generateWeekCachedDefault === undefined) {
           generateWeekCachedDefault = await findDefaultSalon(app.prisma, tenantId);
         }
-        if (!generateWeekCachedDefault) return reply.code(409).send(NO_ACTIVE_SALON_REPLY);
-        generateWeekSalonByEmployeeDate.set(key, generateWeekCachedDefault.id);
+        generateWeekSalonByEmployeeDate.set(key, generateWeekCachedDefault);
+      }
+
+      // Issue #1075 — the one gate (contract, past lock, opening hours, § 8 / § 12 JArbSchG, § 3 and
+      // § 5 ArbZG) for every candidate cell, in `toCreate` order (each person's days in calendar
+      // order). A blocking finding skips the cell with its reason and German message; there is no
+      // override on a pattern (GD-2), so `force` is false. An accepted cell joins the context the
+      // next one is judged against. Preview and commit both use the filtered list.
+      if (toCreate.length > 0) {
+        const gateCtx = await loadShiftWriteContext(app.prisma, tenantId, {
+          employeeIds: toCreate.map((c) => c.employeeId),
+          fromIso: weekDays[0],
+          toIso: weekDays[6],
+        });
+        const kept: typeof toCreate = [];
+        for (const c of toCreate) {
+          const salon = generateWeekSalonByEmployeeDate.get(`${c.employeeId}::${c.date}`) ?? null;
+          const gate = checkShiftWrite(
+            gateCtx,
+            {
+              draft: {
+                employeeId: c.employeeId,
+                dateIso: c.date,
+                startTime: c.startTime,
+                endTime: c.endTime,
+                openingHours: salon?.openingHours ?? null,
+              },
+            },
+            { force: false },
+          );
+          if (gate.blocking) {
+            skip.push({
+              employeeId: c.employeeId,
+              date: c.date,
+              reason: SHIFT_WRITE_SKIP_REASON[gate.blocking.rule],
+              message: gate.blocking.message,
+            });
+            continue;
+          }
+          kept.push(c);
+        }
+        toCreate.splice(0, toCreate.length, ...kept);
+      }
+
+      // Preview mode — return the diff without persisting
+      if (!body.commit) {
+        return { weekStart: weekStartIso, create: toCreate, skip, committed: false };
+      }
+
+      // Commit mode: a kept cell with no active salon to land on is the old 409 (Phase 325, D-04/D-05).
+      if (
+        toCreate.some((c) => !generateWeekSalonByEmployeeDate.get(`${c.employeeId}::${c.date}`))
+      ) {
+        return reply.code(409).send(NO_ACTIVE_SALON_REPLY);
       }
 
       // Commit mode — write everything in one transaction
@@ -3753,7 +3407,7 @@ export async function shiftRoutes(app: FastifyInstance) {
             data: {
               employeeId: c.employeeId,
               templateId: c.templateId,
-              salonId: generateWeekSalonByEmployeeDate.get(`${c.employeeId}::${c.date}`) as string, // Phase 344 (issue #344)
+              salonId: generateWeekSalonByEmployeeDate.get(`${c.employeeId}::${c.date}`)!.id, // Phase 344 (issue #344)
               date: new Date(c.date),
               startTime: c.startTime,
               endTime: c.endTime,
@@ -4051,7 +3705,8 @@ export async function shiftRoutes(app: FastifyInstance) {
       type CopySkip = {
         employeeId: string;
         date: string;
-        reason: "leave" | "absence" | "existing" | "availability-unavailable" | "jarbschg"; // Issue #1057
+        reason:
+          "leave" | "absence" | "existing" | "availability-unavailable" | ShiftWriteSkipReason; // Issue #1057 ("jarbschg"), Issue #1075 (the six gate reasons)
         message?: string;
       };
 
@@ -4118,45 +3773,90 @@ export async function shiftRoutes(app: FastifyInstance) {
         });
       }
 
-      // Issue #1057 — § 8 / § 12 JArbSchG on the TARGET week: a cell that would put a person under
-      // 18 into an illegal week is skipped with its German reason, in source order (date, then
-      // start time, so each person's days are walked in calendar order). Preview and commit both
-      // use the filtered list.
-      {
-        const minorWeeks = await loadMinorShiftWeeks(
-          app.prisma,
-          tenantId,
-          Array.from(new Set(toCreate.map((c) => c.employeeId))),
-          targetMonday,
-        );
-        if (minorWeeks.size > 0) {
-          const kept: typeof toCreate = [];
-          for (const c of toCreate) {
-            const week = minorWeeks.get(c.employeeId);
-            if (!week) {
-              kept.push(c);
-              continue;
-            }
-            const draft = {
-              date: new Date(c.date + "T00:00:00Z"),
-              startTime: c.startTime,
-              endTime: c.endTime,
-            };
-            const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
-            if (minorHit) {
-              skip.push({
-                employeeId: c.employeeId,
-                date: c.date,
-                reason: "jarbschg",
-                message: minorHit.message,
-              });
-              continue;
-            }
-            week.shifts.push({ ...draft, id: `copy-draft-${kept.length}` });
-            kept.push(c);
-          }
-          toCreate.splice(0, toCreate.length, ...kept);
+      // Phase 325 (issue #325) / Phase 344 (issue #344): a copy keeps the SOURCE shift's salon
+      // when that salon is still active — UNCHANGED. Only when it is no longer active does the
+      // fallback apply: salonForDay(employee, targetDate) first, per (employeeId, targetDate), then
+      // the tenant default (resolved at most once and cached). Issue #1075: the salon is needed
+      // BEFORE the gate (its opening hours are a rule), so it is resolved softly per source shift —
+      // null instead of an answer — and only a cell that is still kept at commit time and has no
+      // salon answers the 409 below.
+      const activeSalonById = new Map(
+        toCreate.length > 0
+          ? (await listSalons(app.prisma, tenantId, { includeInactive: false })).map(
+              (sl) => [sl.id, sl] as const,
+            )
+          : [],
+      );
+      const copyWeekSalonBySource = new Map<string, import("@clokr/db").Salon | null>();
+      const copyWeekFallbackByEmployeeDate = new Map<string, import("@clokr/db").Salon | null>();
+      let copyWeekCachedDefault: import("@clokr/db").Salon | null | undefined = undefined;
+      for (const c of toCreate) {
+        const sourceSalonId = sourceSalonByShiftId.get(c.sourceShiftId);
+        const sourceSalon = sourceSalonId ? activeSalonById.get(sourceSalonId) : undefined;
+        if (sourceSalon) {
+          copyWeekSalonBySource.set(c.sourceShiftId, sourceSalon); // keeps source salon
+          continue;
         }
+
+        const key = `${c.employeeId}::${c.date}`;
+        if (!copyWeekFallbackByEmployeeDate.has(key)) {
+          const forDaySalon = await activeSalonForDay(
+            app.prisma,
+            tenantId,
+            c.employeeId,
+            new Date(c.date),
+          );
+          if (forDaySalon) {
+            copyWeekFallbackByEmployeeDate.set(key, forDaySalon);
+          } else {
+            if (copyWeekCachedDefault === undefined) {
+              copyWeekCachedDefault = await findDefaultSalon(app.prisma, tenantId);
+            }
+            copyWeekFallbackByEmployeeDate.set(key, copyWeekCachedDefault);
+          }
+        }
+        copyWeekSalonBySource.set(c.sourceShiftId, copyWeekFallbackByEmployeeDate.get(key) ?? null);
+      }
+
+      // Issue #1075 — the one gate (contract, past lock, opening hours, § 8 / § 12 JArbSchG, § 3 and
+      // § 5 ArbZG) for every candidate cell of the TARGET week, in source order (date, then start
+      // time, so each person's days are walked in calendar order). A blocking finding skips the cell
+      // with its reason and German message; there is no override on a copy (GD-2). An accepted cell
+      // joins the context the next one is judged against. Preview and commit both use the filtered
+      // list.
+      if (toCreate.length > 0) {
+        const gateCtx = await loadShiftWriteContext(app.prisma, tenantId, {
+          employeeIds: toCreate.map((c) => c.employeeId),
+          fromIso: targetWeekDays[0],
+          toIso: targetWeekDays[6],
+        });
+        const kept: typeof toCreate = [];
+        for (const c of toCreate) {
+          const gate = checkShiftWrite(
+            gateCtx,
+            {
+              draft: {
+                employeeId: c.employeeId,
+                dateIso: c.date,
+                startTime: c.startTime,
+                endTime: c.endTime,
+                openingHours: copyWeekSalonBySource.get(c.sourceShiftId)?.openingHours ?? null,
+              },
+            },
+            { force: false },
+          );
+          if (gate.blocking) {
+            skip.push({
+              employeeId: c.employeeId,
+              date: c.date,
+              reason: SHIFT_WRITE_SKIP_REASON[gate.blocking.rule],
+              message: gate.blocking.message,
+            });
+            continue;
+          }
+          kept.push(c);
+        }
+        toCreate.splice(0, toCreate.length, ...kept);
       }
 
       // Preview mode — return the diff without persisting
@@ -4170,42 +3870,9 @@ export async function shiftRoutes(app: FastifyInstance) {
         };
       }
 
-      // Phase 325 (issue #325) / Phase 344 (issue #344): a copy keeps the SOURCE shift's salon
-      // when that salon is still active by commit time — UNCHANGED. Only when it is no longer
-      // active does the fallback change (#344): instead of the tenant's oldest active salon, it
-      // now resolves via salonForDay(employee, targetDate) first, per (employeeId, targetDate),
-      // falling back to the tenant default (resolved at most once and cached). Resolved once,
-      // before the transaction, only when there is something to write.
-      const activeSalonIds = new Set(
-        toCreate.length > 0
-          ? (await listSalons(app.prisma, tenantId, { includeInactive: false })).map((s) => s.id)
-          : [],
-      );
-      const copyWeekFallbackSalonByEmployeeDate = new Map<string, string>();
-      let copyWeekCachedDefault: import("@clokr/db").Salon | null | undefined = undefined;
-      for (const c of toCreate) {
-        const sourceSalonId = sourceSalonByShiftId.get(c.sourceShiftId);
-        if (sourceSalonId && activeSalonIds.has(sourceSalonId)) continue; // keeps source salon — no fallback needed
-
-        const key = `${c.employeeId}::${c.date}`;
-        if (copyWeekFallbackSalonByEmployeeDate.has(key)) continue;
-
-        const forDaySalon = await activeSalonForDay(
-          app.prisma,
-          tenantId,
-          c.employeeId,
-          new Date(c.date),
-        );
-        if (forDaySalon) {
-          copyWeekFallbackSalonByEmployeeDate.set(key, forDaySalon.id);
-          continue;
-        }
-
-        if (copyWeekCachedDefault === undefined) {
-          copyWeekCachedDefault = await findDefaultSalon(app.prisma, tenantId);
-        }
-        if (!copyWeekCachedDefault) return reply.code(409).send(NO_ACTIVE_SALON_REPLY);
-        copyWeekFallbackSalonByEmployeeDate.set(key, copyWeekCachedDefault.id);
+      // Commit mode: a kept cell with no active salon to land on is the old 409 (Phase 325, D-04/D-05).
+      if (toCreate.some((c) => !copyWeekSalonBySource.get(c.sourceShiftId))) {
+        return reply.code(409).send(NO_ACTIVE_SALON_REPLY);
       }
 
       // Commit mode — write everything in one transaction
@@ -4213,11 +3880,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         const rows: Array<Awaited<ReturnType<typeof tx.shift.create>> & { sourceShiftId: string }> =
           [];
         for (const c of toCreate) {
-          const sourceSalonId = sourceSalonByShiftId.get(c.sourceShiftId);
-          const salonId =
-            sourceSalonId && activeSalonIds.has(sourceSalonId)
-              ? sourceSalonId
-              : copyWeekFallbackSalonByEmployeeDate.get(`${c.employeeId}::${c.date}`)!;
+          const salonId = copyWeekSalonBySource.get(c.sourceShiftId)!.id;
           const row = await tx.shift.create({
             data: {
               employeeId: c.employeeId,
@@ -4347,6 +4010,7 @@ export async function shiftRoutes(app: FastifyInstance) {
     schema: { tags: ["Schichtplanung"], security: [{ bearerAuth: [] }] },
     preHandler: requirePermission("shift:plan:ZUGEWIESEN"),
     handler: async (req, reply) => {
+      const access = accessContextFromRequest(req);
       const { shifts: shiftDefs } = bulkShiftSchema.parse(req.body);
 
       // Phase 325 (issue #325) Plan 02, D-08/AC-1/AC-3: a validation pass BEFORE the transaction —
@@ -4389,7 +4053,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       // salonForDay's answer depends only on that pair; the tenant default (resolveShiftSalon's
       // existing 409 NO_ACTIVE_SALON handling, reused unchanged) is resolved at most once and
       // cached, since it is tenant-wide and date-independent.
-      const bulkResolvedSalonByEmployeeDate = new Map<string, string>();
+      const bulkResolvedSalonByEmployeeDate = new Map<string, import("@clokr/db").Salon>();
       let bulkCachedTenantDefault: ShiftSalonResolution | null = null;
       for (const s of shiftDefs) {
         if (s.salonId !== undefined) continue;
@@ -4403,7 +4067,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           new Date(s.date),
         );
         if (forDaySalon) {
-          bulkResolvedSalonByEmployeeDate.set(key, forDaySalon.id);
+          bulkResolvedSalonByEmployeeDate.set(key, forDaySalon);
           continue;
         }
 
@@ -4419,49 +4083,72 @@ export async function shiftRoutes(app: FastifyInstance) {
             .code(bulkCachedTenantDefault.reply.status)
             .send(bulkCachedTenantDefault.reply.body);
         }
-        bulkResolvedSalonByEmployeeDate.set(key, bulkCachedTenantDefault.salon.id);
+        bulkResolvedSalonByEmployeeDate.set(key, bulkCachedTenantDefault.salon);
       }
 
-      // (d) Issue #1057 — § 8 / § 12 JArbSchG for every item whose person is under 18 on a day of
-      // its week. Each week is loaded once per Monday, the items are walked in input order and an
-      // accepted item joins the week the next one is judged against; the first violation answers
-      // for the WHOLE atomic batch, like (a)-(c).
+      // (d) Bulk checks each person against the planner's reach like POST: every item's own salon and
+      // person must lie inside the caller's `shift:plan` reach, answered exactly like POST answers an
+      // out-of-reach person (audit SCOPE_ACCESS_DENIED, the same 404 as an unknown employee), before
+      // any rule reads the person and before anything is written.
+      const bulkSalonOf = (s: (typeof shiftDefs)[number]): import("@clokr/db").Salon =>
+        s.salonId
+          ? bulkSalonByRequestedId.get(s.salonId)!
+          : bulkResolvedSalonByEmployeeDate.get(`${s.employeeId}::${s.date}`)!;
       {
-        const mondayIsoOf = (iso: string): string =>
-          mondayOfWeekUtc(new Date(iso + "T00:00:00Z"))
-            .toISOString()
-            .slice(0, 10);
-        const employeesByMonday = new Map<string, Set<string>>();
+        const bulkScopeReach = await resolveAccessReach(
+          app.prisma,
+          access,
+          "shift:plan:ZUGEWIESEN",
+        );
         for (const s of shiftDefs) {
-          const monIso = mondayIsoOf(s.date);
-          const set = employeesByMonday.get(monIso) ?? new Set<string>();
-          set.add(s.employeeId);
-          employeesByMonday.set(monIso, set);
-        }
-        const minorWeekByKey = new Map<string, MinorShiftWeek>();
-        for (const [monIso, ids] of employeesByMonday) {
-          const weeks = await loadMinorShiftWeeks(
-            app.prisma,
-            req.user.tenantId,
-            Array.from(ids),
-            new Date(monIso + "T00:00:00Z"),
-          );
-          for (const [employeeId, week] of weeks) {
-            minorWeekByKey.set(`${employeeId}::${monIso}`, week);
+          if (
+            isShiftInScope(bulkScopeReach, { salonId: bulkSalonOf(s).id, employeeId: s.employeeId })
+          ) {
+            continue;
           }
+          await app.audit({
+            userId: req.user.sub,
+            action: "SCOPE_ACCESS_DENIED",
+            entity: "Employee",
+            entityId: s.employeeId,
+            request: { ip: req.ip, headers: req.headers as Record<string, string> },
+          });
+          return reply.code(404).send({ error: "Mitarbeiter nicht gefunden" });
         }
-        let bulkDraftSeq = 0;
-        for (const s of shiftDefs) {
-          const week = minorWeekByKey.get(`${s.employeeId}::${mondayIsoOf(s.date)}`);
-          if (!week) continue;
-          const draft = {
-            date: new Date(s.date + "T00:00:00Z"),
-            startTime: s.startTime,
-            endTime: s.endTime,
-          };
-          const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
-          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
-          week.shifts.push({ ...draft, id: `bulk-draft-${bulkDraftSeq++}` });
+      }
+
+      // (e) Issue #1075 — the one gate for every item, in input order: an accepted item joins the
+      // context the next one is judged against, and the first blocking finding answers for the WHOLE
+      // atomic batch with its itemIndex (like (a)-(c): nothing written). There is no override on a
+      // collective path — a bulk request is never a per-shift, audited decision — so `force` is
+      // always false and the reply says `canForce: false`.
+      if (shiftDefs.length > 0) {
+        const itemDates = shiftDefs.map((s) => s.date).sort();
+        const gateCtx = await loadShiftWriteContext(app.prisma, req.user.tenantId, {
+          employeeIds: shiftDefs.map((s) => s.employeeId),
+          fromIso: itemDates[0],
+          toIso: itemDates[itemDates.length - 1],
+        });
+        for (const [i, s] of shiftDefs.entries()) {
+          const gate = checkShiftWrite(
+            gateCtx,
+            {
+              draft: {
+                employeeId: s.employeeId,
+                dateIso: s.date,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                openingHours: bulkSalonOf(s).openingHours,
+              },
+            },
+            { force: false },
+          );
+          if (gate.blocking) {
+            return reply.code(gate.blocking.status).send({
+              ...shiftWriteReplyBody(gate.blocking, POST_TITLES, { canForce: false }),
+              itemIndex: i,
+            });
+          }
         }
       }
 
@@ -4475,9 +4162,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         for (const s of shiftDefs) {
           // Phase 325 (issue #325) Plan 02, D-08: each item's own resolved salon — the caller's
           // explicit choice, or the tenant default resolved above.
-          const salonId = s.salonId
-            ? bulkSalonByRequestedId.get(s.salonId)!.id
-            : bulkResolvedSalonByEmployeeDate.get(`${s.employeeId}::${s.date}`)!;
+          const salonId = bulkSalonOf(s).id;
           const row = await tx.shift.create({
             data: {
               employeeId: s.employeeId,
@@ -4646,13 +4331,18 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
-      // Phase 47.2 — Past-immutable: no deletion of shifts dated before today.
-      const pastGuard = assertShiftNotPast(existing.date.toISOString().slice(0, 10));
-      if (pastGuard) {
+      // Phase 47.2 / Issue #1075 — Past-immutable: no deletion of shifts dated before the tenant's
+      // calendar day (a deletion removes time, so only the past lock of the gate applies).
+      if (
+        isPastShiftDay(
+          await tenantTodayIso(app.prisma, req.user.tenantId),
+          existing.date.toISOString().slice(0, 10),
+        )
+      ) {
         return reply.code(422).send({
           error: "Schicht-Löschung in der Vergangenheit nicht erlaubt",
           code: "SHIFT_PAST_IMMUTABLE",
-          message: pastGuard.message,
+          message: SHIFT_PAST_MESSAGE,
         });
       }
 
@@ -5008,23 +4698,46 @@ export async function shiftRoutes(app: FastifyInstance) {
         });
       }
 
-      // Issue #1057 — bringing a Berufsschule-cleanup shift back adds working time again, so it is
-      // checked like a new shift (§ 8 / § 12 JArbSchG). The flag-clearing branch below adds no
-      // time and needs no check; the soft-deleted row is not part of the loaded week.
-      if (shift.deletedAt && shift.deletedReason === "AUTO_BS_DAY_CLEANUP") {
-        const minorWeeks = await loadMinorShiftWeeks(
-          app.prisma,
-          req.user.tenantId,
-          [shift.employeeId],
-          shift.date,
+      // Issue #1057 / #1075 — bringing a Berufsschule-cleanup shift back adds working time again, so
+      // it passes the same gate as a new shift (contract, past lock, opening hours, JArbSchG, § 3
+      // and § 5 ArbZG). A restore is one deliberate write and accepts `?force=true` for the two
+      // overridable findings exactly like POST. The flag-clearing branch below adds no time,
+      // person or day and needs no check; the soft-deleted row is not part of the loaded context,
+      // so the gate sees a pure addition.
+      const restoreForce = (req.query as { force?: string }).force === "true";
+      const restoresRemovedShift = shift.deletedAt && shift.deletedReason === "AUTO_BS_DAY_CLEANUP";
+      let restoreForced: ShiftWriteFinding[] = [];
+      const restoreDateIso = shift.date.toISOString().slice(0, 10);
+      if (restoresRemovedShift) {
+        // Like PUT, an inactive salon still gives its hours; no salon row means no hours check.
+        const ownSalon = await findSalon(app.prisma, req.user.tenantId, shift.salonId);
+        const gateCtx = await loadShiftWriteContext(app.prisma, req.user.tenantId, {
+          employeeIds: [shift.employeeId],
+          fromIso: restoreDateIso,
+          toIso: restoreDateIso,
+        });
+        const gate = checkShiftWrite(
+          gateCtx,
+          {
+            draft: {
+              employeeId: shift.employeeId,
+              dateIso: restoreDateIso,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              openingHours: ownSalon?.openingHours ?? null,
+            },
+          },
+          { force: restoreForce },
         );
-        const minorWeek = minorWeeks.get(shift.employeeId);
-        if (minorWeek) {
-          const minorHit = findMinorShiftLimitViolation(minorWeek, {
-            add: [{ date: shift.date, startTime: shift.startTime, endTime: shift.endTime }],
-          });
-          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
+        if (gate.blocking) {
+          return reply.code(gate.blocking.status).send(
+            shiftWriteReplyBody(gate.blocking, {
+              contract: "Wiederherstellung nicht möglich",
+              past: "Wiederherstellung in der Vergangenheit nicht erlaubt",
+            }),
+          );
         }
+        restoreForced = gate.forced;
       }
 
       // Branch on what's being restored:
@@ -5033,12 +4746,11 @@ export async function shiftRoutes(app: FastifyInstance) {
       // For an idempotent restore on a healthy shift, we still emit the audit
       // entry but the diff is empty — that's intentional (manager intent log).
       const oldValue = { ...shift };
-      const updateData =
-        shift.deletedAt && shift.deletedReason === "AUTO_BS_DAY_CLEANUP"
-          ? { deletedAt: null, deletedReason: null }
-          : shift.conflictsWithLeave
-            ? { conflictsWithLeave: false }
-            : {};
+      const updateData = restoresRemovedShift
+        ? { deletedAt: null, deletedReason: null }
+        : shift.conflictsWithLeave
+          ? { conflictsWithLeave: false }
+          : {};
 
       // Phase 107 (D-15): the restore write and the leave-recalc call share ONE new
       // transaction — restoring a shift re-adds a workday to the roster, the same category of
@@ -5070,6 +4782,13 @@ export async function shiftRoutes(app: FastifyInstance) {
         oldValue,
         newValue: updated,
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
+      });
+      await writeForcedShiftAudits(app, req, id, {
+        employeeId: shift.employeeId,
+        dateIso: restoreDateIso,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        forced: restoreForced,
       });
 
       // Phase 76.5 (D-01, D-02, D-08) — refresh OvertimeAccount.balanceHours.
