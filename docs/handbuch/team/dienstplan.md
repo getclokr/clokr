@@ -77,4 +77,4 @@ Genehmigter Urlaub ist verbindlich. Wie viele Urlaubstage ein Antrag kostet, ric
 
 ## Schichten aus Phorest
 
-Wenn dein Unternehmen Phorest nutzt, kommen die Schichten von dort automatisch in den Plan. Ein eigener Sync-Button steht hier nicht. Wird eine Schicht gelöscht, die Kundentermine hat, warnt Clokr vorher. Die Einrichtung übernimmt die Verwaltung.
+Wenn dein Unternehmen Phorest nutzt, kommen die Schichten von dort automatisch in den Plan. Ein eigener Sync-Button steht hier nicht. Wird eine Schicht gelöscht, die Kundentermine hat, warnt Clokr vorher. Die Einrichtung übernimmt die Verwaltung, siehe [Phorest](../verwalten/phorest.md).

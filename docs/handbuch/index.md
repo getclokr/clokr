@@ -20,6 +20,11 @@ Welche Bereiche und Seiten du siehst, hängt von deinen Rechten ab. Eine Seite, 
 | **Teamleitung**   | im Bereich **Team**      |
 | **Verwaltung**    | im Bereich **Verwalten** |
 
+## Hintergrund
+
+- [Compliance und Revisionssicherheit](hintergrund/compliance.md): welche Gesetze Clokr beachtet und wie Daten geschützt und aufbewahrt werden
+- [Häufige Fragen](hintergrund/faq.md): kurze Antworten auf die häufigsten Fragen
+
 ## Revisionssicher
 
 Zeit- und Urlaubsdaten werden nie endgültig gelöscht. Jede Änderung wird protokolliert, und ein abgeschlossener Monat ist unveränderlich.

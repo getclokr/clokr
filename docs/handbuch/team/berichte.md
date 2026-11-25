@@ -31,5 +31,5 @@ Mit **Exportieren** oben öffnest du den Export-Dialog. Er bietet je nach Rechte
 Die Dateien entstehen sofort und werden direkt heruntergeladen. Es gibt keine Warteschlange und keine Benachrichtigung.
 
 ::: tip Hinweis
-Den DATEV-Export, die Nummern für die Lohnabrechnung und die weiteren Exporte beschreibt die Seite zu **Verwalten › Daten › Export**. Du erreichst sie über das Verwalten-Menü, wenn du die Rechte dafür hast.
+Den DATEV-Export, die Nummern für die Lohnabrechnung und die weiteren Exporte beschreibt der Abschnitt [Export in System und Daten](../verwalten/system-und-daten.md#export). Du erreichst die Seite **Verwalten › Daten › Export** nur, wenn du die Rechte dafür hast.
 :::

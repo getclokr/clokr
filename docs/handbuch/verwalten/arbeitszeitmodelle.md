@@ -62,4 +62,4 @@ Pausen und Fenster wirken auf neue Einträge ab dem Speichern.
 - **Monatsstunden**: ohne Stunden pro Monat kein Soll. Mit Soll mindern Urlaub, Krankheit, angeordnete Abwesenheiten und Feiertage es anteilig.
 - **Nach Schichtplan**: Das Soll kommt aus den geplanten Schichten. Urlaub und Abwesenheiten mindern es an den Tagen, an denen laut Plan gearbeitet worden wäre.
 
-Ein Tag mindert das Soll immer nur einmal. Wie Soll und Saldo zusammenwirken, erklärt die Seite zum Monatsabschluss.
+Ein Tag mindert das Soll immer nur einmal. Wie Soll und Saldo zusammenwirken, erklärt die Seite [Monatsabschluss](monatsabschluss.md).

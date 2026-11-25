@@ -102,7 +102,7 @@ Beim Erfassen prüft Clokr deine Zeiten und markiert den Tag, wenn etwas auffäl
 - Zwischen zwei Arbeitstagen müssen mindestens 11 Stunden Ruhezeit liegen (§ 5 ArbZG).
 - Unter 18 Jahren gelten die strengeren Pausenregeln des Jugendarbeitsschutzgesetzes (§ 11 JArbSchG).
 
-Die Hinweise verhindern das Speichern nicht. Du kannst den Eintrag sichern und danach korrigieren.
+Die Hinweise verhindern das Speichern nicht. Du kannst den Eintrag sichern und danach korrigieren. Den rechtlichen Hintergrund findest du unter [Compliance und Revisionssicherheit](../hintergrund/compliance.md).
 
 ::: tip Hinweis
 Die „8-Stunden-Regel“ ist gesetzlich ein Durchschnitt über 24 Wochen, keine Grenze pro Tag. Ein einzelner Tag zwischen 8 und 10 Stunden ist erlaubt und löst keinen Hinweis aus.

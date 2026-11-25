@@ -28,7 +28,7 @@ Clokr prüft jeden Tag und markiert Auffälligkeiten am Tag, mit „ArbZG-Hinwei
 - Die Tagessumme liegt über der Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG).
 - Zu den Pausen des Tages liegt ein Befund nach § 4 ArbZG vor, bei Jugendlichen nach § 11 JArbSchG.
 
-Die Hinweise sind eine Kontrolle und blockieren das Speichern nicht. Im Tagesfenster kannst du Pausen eintragen oder löschen und einen Pausenverstoß mit Begründung quittieren, sofern du das darfst. Die Quittung ersetzt keine Pause, sie hält fest, dass der Befund geprüft und begründet wurde, und der Verstoß bleibt dokumentiert. Die rechtlichen Grundlagen stehen im Handbuch unter „Hintergrund“.
+Die Hinweise sind eine Kontrolle und blockieren das Speichern nicht. Im Tagesfenster kannst du Pausen eintragen oder löschen und einen Pausenverstoß mit Begründung quittieren, sofern du das darfst. Die Quittung ersetzt keine Pause, sie hält fest, dass der Befund geprüft und begründet wurde, und der Verstoß bleibt dokumentiert. Die rechtlichen Grundlagen stehen unter [Compliance und Revisionssicherheit](../hintergrund/compliance.md).
 
 ## Zeit eintragen und korrigieren
 
