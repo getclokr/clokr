@@ -63,6 +63,7 @@
     type PhorestStatus,
     type PhorestValues,
   } from "$lib/settings/phorest";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     status: PhorestStatus;
@@ -377,7 +378,7 @@
   <SettingsGroup
     id="zugangsdaten"
     title="Zugangsdaten und Import"
-    description="So meldet sich Clokr bei Phorest an und so holt es die Schichten ab."
+    hint="So meldet sich Clokr bei Phorest an und so holt es die Schichten ab."
     changes={configChanges}
     errors={shownErrorCount}
     {saving}
@@ -444,7 +445,7 @@
       {/snippet}
     </FormField>
 
-    <FormField label="API-Passwort" help="Leer lassen, um das gespeicherte Passwort beizubehalten.">
+    <FormField label="API-Passwort" hint="Leer lassen, um das gespeicherte Passwort beizubehalten.">
       {#snippet field({ id, describedBy })}
         <input
           {id}
@@ -480,11 +481,13 @@
     {/if}
 
     {#if status.configured}
-      <h3 class="pc-subhead">Vor- und Nachbereitung</h3>
-      <p class="pc-note">
-        Phorest hält die buchbare Zeit fest. Die tatsächliche Arbeitszeit beginnt früher und endet
-        später. Dieser Puffer wird bei jedem Import auf die gespeicherte Schicht angewendet.
-      </p>
+      <div class="hint-row">
+        <h3 class="pc-subhead">Vor- und Nachbereitung</h3>
+        <InfoHint
+          text="Phorest hält die buchbare Zeit fest. Die tatsächliche Arbeitszeit beginnt früher und endet später. Dieser Puffer wird bei jedem Import auf die gespeicherte Schicht angewendet."
+          label={hintLabel("Vor- und Nachbereitung")}
+        />
+      </div>
       <div class="pc-pair">
         <FormField label="Vorbereitungszeit (Minuten)" error={shownMessages.phorestPrepMinutes}>
           {#snippet field({ id, describedBy, invalid })}
@@ -527,7 +530,7 @@
       <h3 class="pc-subhead">Zeitfenster</h3>
       <FormField
         label="Zeitfenster (Tage)"
-        help="Gilt für den automatischen und den manuellen Abgleich. Standard: 7 Tage."
+        hint="Gilt für den automatischen und den manuellen Abgleich. Standard: 7 Tage."
         error={shownMessages.phorestSyncWindowDays}
       >
         {#snippet field({ id, describedBy, invalid })}
@@ -552,7 +555,7 @@
       <ToggleField
         bind:checked={values.phorestAutoSync}
         label="Automatischen Abgleich aktivieren"
-        help="Schichten werden automatisch aus Phorest übernommen. Der Zeitplan gilt ab dem Speichern."
+        hint="Schichten werden automatisch aus Phorest übernommen. Der Zeitplan gilt ab dem Speichern."
         disabled={saving}
         testid="admin-phorest-autosync"
       />
@@ -578,11 +581,13 @@
 
   {#if status.configured}
     <section class="settings-group" aria-labelledby="phorest-zuordnung-title">
-      <h2 class="settings-group-title" id="phorest-zuordnung-title">Mitarbeiter-Zuordnung</h2>
-      <p class="settings-group-desc">
-        Verbinde die Phorest-Mitarbeitenden mit den Personen in Clokr. Die Schichten einer Person
-        ohne Zuordnung werden übersprungen.
-      </p>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="phorest-zuordnung-title">Mitarbeiter-Zuordnung</h2>
+        <InfoHint
+          text="Verbinde die Phorest-Mitarbeitenden mit den Personen in Clokr. Die Schichten einer Person ohne Zuordnung werden übersprungen."
+          label={hintLabel("Mitarbeiter-Zuordnung")}
+        />
+      </div>
 
       {#if unmappedCount > 0}
         <div role="alert">
@@ -692,8 +697,7 @@
     gap: var(--s-3);
   }
 
-  .pc-test-hint,
-  .pc-note {
+  .pc-test-hint {
     margin: 0;
     font-size: var(--fs-sm);
     color: var(--text-2);

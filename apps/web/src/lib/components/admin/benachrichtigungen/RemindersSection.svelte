@@ -96,7 +96,7 @@
 
 <SettingsGroup
   title="Erinnerungen"
-  description="Wann Clokr Mitarbeitende und Vorgesetzte an offene Punkte erinnert."
+  hint="Wann Clokr Mitarbeitende und Vorgesetzte an offene Punkte erinnert."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -106,7 +106,7 @@
 >
   <FormField
     label="Erinnerung bei offener Stempelung nach (Stunden)"
-    help="Mitarbeitende werden erinnert, wenn sie länger als diese Zeit eingestempelt sind."
+    hint="Mitarbeitende werden erinnert, wenn sie länger als diese Zeit eingestempelt sind."
     error={messages.clockOutReminderHours}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -128,7 +128,7 @@
 
   <FormField
     label="Erinnerung bei fehlenden Einträgen nach (Tagen)"
-    help="Mitarbeitende und Vorgesetzte werden benachrichtigt, wenn keine Zeiteinträge erfasst wurden."
+    hint="Mitarbeitende und Vorgesetzte werden benachrichtigt, wenn keine Zeiteinträge erfasst wurden."
     error={messages.missingEntriesDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -157,7 +157,7 @@
   {#if values.reminderPendingLeaveEnabled}
     <FormField
       label="Erinnern nach (Stunden)"
-      help="So lange darf ein Antrag offen sein, bevor Clokr erinnert."
+      hint="So lange darf ein Antrag offen sein, bevor Clokr erinnert."
       error={messages.reminderPendingLeaveHours}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -187,7 +187,7 @@
   {#if values.reminderUpcomingAbsenceEnabled}
     <FormField
       label="Erinnern vorher (Tage)"
-      help="So viele Tage vor Beginn einer genehmigten Abwesenheit erinnert Clokr."
+      hint="So viele Tage vor Beginn einer genehmigten Abwesenheit erinnert Clokr."
       error={messages.reminderUpcomingAbsenceDays}
     >
       {#snippet field({ id, describedBy, invalid })}

@@ -30,6 +30,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -193,11 +194,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="integrationen-api-title">
-  <h2 class="settings-group-title" id="integrationen-api-title">API-Schlüssel</h2>
-  <p class="settings-group-desc">
-    Mit einem API-Schlüssel greifen externe Dienste auf die gewählten Daten zu, zum Beispiel für
-    einen Export.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="integrationen-api-title">API-Schlüssel</h2>
+    <InfoHint
+      text="Mit einem API-Schlüssel greifen externe Dienste auf die gewählten Daten zu, zum Beispiel für einen Export."
+      label={hintLabel("API-Schlüssel")}
+    />
+  </div>
 
   {#if newKeyRaw}
     <OneTimeKey
@@ -281,7 +284,7 @@
       void createApiKey();
     }}
   >
-    <FormField label="Name" required help="Zum Beispiel „DATEV-Export“.">
+    <FormField label="Name" required hint="Zum Beispiel „DATEV-Export“.">
       {#snippet field({ id, describedBy })}
         <input
           {id}

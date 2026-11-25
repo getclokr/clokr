@@ -921,7 +921,7 @@
   <title>{pageLabel("/inbox")} – Clokr</title>
 </svelte:head>
 
-<PageHead title={pageLabel("/inbox")} sub="Entscheidungen, die auf dich warten" />
+<PageHead title={pageLabel("/inbox")} hint="Entscheidungen, die auf dich warten" />
 
 {#if error}
   <ErrorState message={error} hint="" onRetry={() => void loadRequests()} retrying={loading} />
@@ -1168,7 +1168,7 @@
 
       {#if section9AttestSource === "PAPIER"}
         <div class="review-section">
-          <FormField label="Papier-AU (optional)" help="PDF, JPG oder PNG, max. 10 MB.">
+          <FormField label="Papier-AU (optional)" hint="PDF, JPG oder PNG, max. 10 MB.">
             {#snippet field({ id, describedBy, invalid })}
               <input
                 {id}

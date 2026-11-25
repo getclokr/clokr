@@ -36,6 +36,7 @@
     shutdownYears,
     type CompanyShutdown,
   } from "$lib/settings/betriebsurlaub";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     active: boolean;
@@ -158,11 +159,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="abwesenheiten-betriebsurlaub-title">
-  <h2 class="settings-group-title" id="abwesenheiten-betriebsurlaub-title">Betriebsurlaub</h2>
-  <p class="settings-group-desc">
-    Zeiträume, in denen der ganze Betrieb geschlossen hat. Ein Betriebsurlaub kann vom Urlaubskonto
-    abgezogen werden; einzelne Mitarbeitende nimmst du in der Ansicht des Betriebsurlaubs aus.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="abwesenheiten-betriebsurlaub-title">Betriebsurlaub</h2>
+    <InfoHint
+      text="Zeiträume, in denen der ganze Betrieb geschlossen hat. Ein Betriebsurlaub kann vom Urlaubskonto abgezogen werden; einzelne Mitarbeitende nimmst du in der Ansicht des Betriebsurlaubs aus."
+      label={hintLabel("Betriebsurlaub")}
+    />
+  </div>
 
   <div class="bu-bar">
     <FormField label="Jahr">
@@ -295,7 +298,7 @@
     <ToggleField
       bind:checked={deductsFromVacation}
       label="Vom Urlaubskonto abziehen"
-      help="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
+      hint="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
       testid="abwesenheiten-betriebsurlaub-deducts"
     />
     <FormField label="Notiz">

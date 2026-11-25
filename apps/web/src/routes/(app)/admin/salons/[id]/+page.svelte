@@ -239,7 +239,7 @@
 {:else if !isCreate && (loadError || !salon)}
   <div role="alert"><Note tone="bad">{loadError || "Salon nicht gefunden."}</Note></div>
 {:else if isCreate}
-  <PageHead title="Neuer Salon" sub="Name, Adresse und Bundesland des neuen Salons" />
+  <PageHead title="Neuer Salon" hint="Name, Adresse und Bundesland des neuen Salons" />
   <SalonMasterDataForm
     salon={null}
     canEdit={rights.canManage}
@@ -252,7 +252,7 @@
          left, the three areas as the segment control on the right (PageHeader, tabsLook="segments"). -->
   <PageHeader
     title={salon.name}
-    subtitle="Stammdaten, Öffnungszeiten und Feiertage dieses Salons"
+    hint="Stammdaten, Öffnungszeiten und Feiertage dieses Salons"
     tabs={[...TABS]}
     tab={activeTab}
     onTabChange={selectTab}

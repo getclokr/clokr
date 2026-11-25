@@ -106,6 +106,52 @@ describe("PageHeader - the D-843-22 contract (no rule, no eyebrow, no accent wor
   });
 });
 
+describe("PageHeader - hint (Issue #1058)", () => {
+  it("puts an info symbol next to the heading; the heading keeps its exact name and no p.sub renders", () => {
+    const { container } = renderWithTheme(PageHeader, { title: "Aufgaben", hint: "Erklärung." });
+    expect(screen.getByRole("heading", { level: 1, name: "Aufgaben" })).toBeTruthy();
+    const trigger = screen.getByRole("button", { name: "Erklärung zu „Aufgaben“" });
+    const text = container.querySelector(".page-head-text")!;
+    expect(text.contains(trigger)).toBe(true);
+    expect(container.querySelector("h1")!.contains(trigger), "never inside the heading").toBe(
+      false,
+    );
+    expect(
+      container.querySelector("h1")!.compareDocumentPosition(trigger) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.querySelector("p.sub")).toBeNull();
+    expect(document.getElementById(trigger.getAttribute("aria-describedby")!)!.textContent).toBe(
+      "Erklärung.",
+    );
+  });
+
+  it("renders hint and subtitle together (positive control: the visible line is still the subtitle)", () => {
+    const { container } = renderWithTheme(PageHeader, {
+      title: "Aufgaben",
+      subtitle: "Zwei offen",
+      hint: "Erklärung.",
+    });
+    expect(container.querySelector("p.sub")!.textContent).toBe("Zwei offen");
+    expect(screen.getByRole("button", { name: "Erklärung zu „Aufgaben“" })).toBeTruthy();
+  });
+
+  it("works for headingLevel 2, and PageHead passes hint through", () => {
+    renderWithTheme(PageHeader, { title: "Teil", hint: "Erklärung.", headingLevel: 2 });
+    expect(screen.getByRole("heading", { level: 2, name: "Teil" })).toBeTruthy();
+    cleanup();
+    renderWithTheme(PageHead, { title: "Aufgaben", hint: "Erklärung." });
+    expect(screen.getByRole("button", { name: "Erklärung zu „Aufgaben“" })).toBeTruthy();
+    expect(document.querySelector("p.sub")).toBeNull();
+  });
+
+  it("without hint the markup carries no title row", () => {
+    const { container } = renderWithTheme(PageHeader, { title: "Aufgaben" });
+    expect(container.querySelector(".page-head-title")).toBeNull();
+    expect(container.querySelector(".info-hint")).toBeNull();
+  });
+});
+
 describe("PageHeader - the title is element text only (T-843-03)", () => {
   it("never interprets a title as HTML", () => {
     const { container } = renderWithTheme(PageHeader, {

@@ -75,7 +75,7 @@
 
 <SettingsGroup
   title="Arbeitstage"
-  description="Welche Wochentage in deinem Unternehmen Arbeitstage sind, unabhängig vom Arbeitszeitmodell."
+  hint="Welche Wochentage in deinem Unternehmen Arbeitstage sind, unabhängig vom Arbeitszeitmodell."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -86,7 +86,7 @@
   <WeekdayPicker
     bind:value={values.defaultWorkDays}
     legend="Standard-Arbeitstage"
-    help="Clokr nutzt sie für den Urlaubsverbrauch und die Pro-Rata-Berechnung, wenn der Vertrag einer Person keine eigenen Arbeitstage nennt."
+    hint="Clokr nutzt sie für den Urlaubsverbrauch und die Pro-Rata-Berechnung, wenn der Vertrag einer Person keine eigenen Arbeitstage nennt."
     error={messages.defaultWorkDays}
     disabled={!canEdit || saving}
     testidPrefix="arbeitszeit-arbeitstage"

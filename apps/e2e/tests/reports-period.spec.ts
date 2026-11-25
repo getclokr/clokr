@@ -642,13 +642,16 @@ test.describe("Issue #612 — Berichtsseite: Zeitraum im Browser", () => {
     await page.getByTestId("reports-period-export").click();
     const dialog = page.getByRole("dialog", { name: "Exportieren" });
     await expect(dialog).toBeVisible();
-    const monthSelect = dialog.getByLabel("Monat für Monatsexport und DATEV");
+    const monthSelect = dialog.getByLabel("Monat für Monatsexport und DATEV", { exact: true });
     await expect(monthSelect).toBeVisible();
     await expect(monthSelect).toHaveValue(ymKey(now));
     await expect(monthSelect.locator("option")).toHaveCount(3);
     // Issue #854 (D-854-22): no DATEV download here - the row links to Daten › Export with the
     // chosen month preselected.
-    await expect(dialog.getByRole("button", { name: /DATEV/ })).toHaveCount(0);
+    // Issue #1058: an InfoHint trigger („Erklärung zu „…““) may mention DATEV; it is no download.
+    await expect(
+      dialog.getByRole("button", { name: /DATEV/ }).and(dialog.locator(":not(.ih-trigger)")),
+    ).toHaveCount(0);
     await expect(dialog.getByRole("link", { name: "Zu Daten › Export" })).toHaveAttribute(
       "href",
       `/verwalten/daten/export?year=${now.year}&month=${now.month}`,
@@ -1426,8 +1429,13 @@ test.describe("Issue #714 — Salonwechsel: Stammsalon-Sicht im Blick", () => {
         await expectSeenInViewport(tile, "the KPI tile 'Im Salon gearbeitet'");
         await expect(tile.locator(".kpi-value")).toContainText(fmtHours(salonMinutes as number));
 
+        // Issue #1058: the hint is an info symbol; its text element is visually hidden, so the
+        // viewport/pointer check goes to the trigger and the text is read from the element.
         const hint = page.getByTestId("period-kpis-salon-note");
-        await expectSeenInViewport(hint, "the Stammsalon hint callout");
+        await expectSeenInViewport(
+          page.getByTestId("period-kpis-salon-note-trigger"),
+          "the Stammsalon hint info symbol",
+        );
         await expect(hint).toContainText(STAMMSALON_HINT);
 
         const row = page.locator('tr[data-testid^="period-row-"]', { hasText: sina.fullName });

@@ -34,7 +34,7 @@ Every block is a Svelte 5 component built on bits-ui (the only primitive library
 | 5   | Liste             | `List`                                       | `ListRow` (`default` and `task` variant)                                                              | —                                                                      |
 | 6   | Tabelle + Toolbar | `DataTable`                                  | `TableToolbar`, `SortHeader`, `$lib/table/url-state.ts`, `$lib/table/search.ts`                       | —                                                                      |
 | 7   | Formular-Satz     | `FormField`                                  | `SaveBar`, `SegmentedControl` (the Segment), `Combobox`, `DatePicker`, `DayGrid`, `BulkPreviewDialog` | —                                                                      |
-| 8   | Chips & Hinweise  | `Chip`                                       | `Note`                                                                                                | the `.badge-*` recipes in `app.css` stay as written                    |
+| 8   | Chips & Hinweise  | `Chip`                                       | `Note`, `InfoHint` (Issue #1058)                                                                      | the `.badge-*` recipes in `app.css` stay as written                    |
 | 9   | Rückmeldung       | `Toast` (mounted once in the root layout)    | `ToastItem`, the `toasts` store (`success` / `error` / `info`), `$lib/feedback/action-messages.ts`    | —                                                                      |
 | 10  | Zustände          | `Skeleton`                                   | `EmptyState` (`noData` / `noMatches`), `ErrorState`                                                   | —                                                                      |
 | 11  | Dialog / Sheet    | `Dialog`                                     | `DialogPanel` (the bare panel for the example page)                                                   | `Modal`, `ConfirmDialog`, `ReasonDialog` (wrappers, callers untouched) |
@@ -60,7 +60,7 @@ The app layout gives every page one of two widths, chosen per route in `$lib/nav
 
 ### `<PageHeader>` and `<PageTabs>`
 
-Source: `$components/ui/PageHeader.svelte`, `PageTabs.svelte`. Props: `title`, `subtitle?`, `eyebrow?` and `accent?` (both inert since D-843-22: accepted so `PageHead` callers compile, never rendered), `actions?` (one or two buttons, at most one primary), `tabs?` + `tab` (bindable) + `panel?` + `onTabChange?` (bits-ui Tabs, arrow keys loop, every trigger controls a rendered panel), `headingLevel?` (1 or 2). The `<PageHead>` section below documents the legacy props and the look; `layout/PageHead.svelte` has no markup of its own.
+Source: `$components/ui/PageHeader.svelte`, `PageTabs.svelte`. Props: `title`, `subtitle?`, `eyebrow?` and `accent?` (both inert since D-843-22: accepted so `PageHead` callers compile, never rendered), `hint?` (Issue #1058: an explanatory text as an `InfoHint` next to the heading, never inside it; `subtitle` stays the visible line for data, deadlines and warnings), `actions?` (one or two buttons, at most one primary), `tabs?` + `tab` (bindable) + `panel?` + `onTabChange?` (bits-ui Tabs, arrow keys loop, every trigger controls a rendered panel), `headingLevel?` (1 or 2). The `<PageHead>` section below documents the legacy props and the look; `layout/PageHead.svelte` has no markup of its own.
 
 `PageTabs` can also be used on its own (Issue #853, D-853-05, D-853-11): a page places it **directly after its `PageHead`** (PageHead has no tabs prop). Tab items take `value`, `label` and the optional `href`, `testId`, `badge`, `badgeLabel`, `onBadgeSelect`; the component takes `tabsLabel` and the optional `testIdPrefix`.
 
@@ -89,6 +89,18 @@ Sources: `DataTable.svelte` (`columns`, `rows`, `rowKey`, `cell?`, `sort` + `onS
 ### `<Chip>`, `<Note>`
 
 Sources: `Chip.svelte` (`tone` `ok | warn | bad | info | brand | neutral`, `title?`, `children`; 22 px pill with a dot) and `Note.svelte` (`tone` `ok | warn | bad | info | brand`, `icon?`, `children`; soft-colour hint line). The `.badge-*` recipes stay as written in `app.css`; the chip tones declare their own proven pairs.
+
+### `<InfoHint>` (Issue #1058)
+
+Source: `$components/ui/InfoHint.svelte`, a sub-part of block 8 „Chips & Hinweise“ (beside `Note`), not a thirteenth block. Props: `text` (string or string array, plain text), `label` (accessible name of the trigger, `hintLabel(subject)` gives „Erklärung zu „<subject>““), `tone?` (`info` default, `warn` = the solid warn disc with „!“), `textId?`, `testId?` (lands on the always-present text element), `triggerTestId?` (default `<testId>-trigger`), `size?`. The module exports `hintLabel()` and `HINT_HOVER_DELAY_MS`.
+
+**The rule (owner, 24.11.2026).** An explanation that only says what a setting means or how a figure is built becomes an info symbol beside the heading, label or value it explains. These stay visible text: a deadline (Frist), a lock (Sperre), a warning (Warnung), an error (Fehler), a legal consequence (Rechtsfolge), the effect of the button about to be pressed (Folge einer Handlung) and a state the person must act on (Zustand zum Handeln). The page subtitle under the H1 counts as an explanation, unless it carries data (date, count, salon, period). `src/__tests__/info-hint-rule-1058.test.ts` guards the rule for what it can read: a literal page subtitle (`PageHead` `sub`, `PageHeader` `subtitle`), a literal `SettingsGroup` `description` or admin `Section` `sub` fails, and a literal `help` of `FormField`, `ToggleField` or `WeekdayPicker` must be registered in its `VISIBLE_HELP` with a reason from the list above. It does not see computed or conditional texts, raw paragraphs or a `Note`: those stay a review item.
+
+Behaviour: opens on hover after `HINT_HOVER_DELAY_MS`, on keyboard focus and on a tap (a second tap closes); closes on Escape (inside a `Dialog` only the hint closes, not the dialog), on blur and on an outside press. Why bits-ui `Popover` and not `Tooltip`: the Tooltip trigger ignores touch and closes on every pointerdown, so a tap could never open it; the Popover trigger toggles on click/tap and Enter/Space and has `openOnHover`. Keyboard-focus opening is added in the block (a pointerdown flag separates it from the focus a press causes).
+
+A11y: the trigger is a `type="button"` named by `label`; its `aria-describedby` points at a visually hidden text that is in the DOM from the start, so the explanation is announced when the trigger gets focus. The panel is portaled, `aria-hidden` (it repeats that text) and carries `z-index: 1600` on the content element itself so it stacks above a Dialog (1500/1501; the Combobox lesson of Issue #853).
+
+Placement: beside, never inside, a heading, label, legend, button or link; plain text only, no link or button inside (it would be unreachable). Carriers with a `hint` prop do the placement; see below.
 
 ### `<Toast>`, `<Skeleton>`, `<EmptyState>`, `<ErrorState>`
 
@@ -126,6 +138,8 @@ interface Props {
   accent?: string;
   /** Optional muted sub-paragraph, max-width 560 px, below the H1. */
   sub?: string;
+  /** Issue #1058: an explanatory text as an info symbol next to the H1; `sub` stays visible. */
+  hint?: string;
   /** Optional right-aligned action cluster (buttons) on the same row as the H1. */
   actions?: Snippet;
 }
@@ -389,9 +403,9 @@ Labels: „2026“ / „Q4 2026 · Okt–Dez“ / „November 2026“; arrow nam
 
 Sources: `$components/ui/FormField.svelte`, `SaveBar.svelte` (+ `save-bar.ts`), `DayGrid.svelte` (Issue #843, D-843-01 block 7; `SegmentedControl` is the Segment of this set).
 
-- `FormField` (`label`, `help?`, `error?`, `required?`, `field` snippet): the snippet receives `{ id, describedBy, invalid }` and puts them on the page's own control (`aria-describedby={describedBy}`, `aria-invalid={invalid ? "true" : undefined}`). Ids come from `$props.id()`.
+- `FormField` (`label`, `help?`, `hint?`, `error?`, `required?`, `field` snippet; `hint` is the Issue #1058 info symbol next to the label, its text id comes first in `describedBy`; `help` keeps its meaning as the visible line): the snippet receives `{ id, describedBy, invalid }` and puts them on the page's own control (`aria-describedby={describedBy}`, `aria-invalid={invalid ? "true" : undefined}`). Ids come from `$props.id()`.
 - `SaveBar` (`changes`, `errors`, `saving?`, `saveLabel`, `onSave`, `onDiscard`): the section-button rule of `docs/ADMIN_STRUCTURE.md` §3.2.1 as code. Hidden at 0 changes; the save button is disabled while `errors > 0` or `saving`; `saveLabel` says what happens („Vertrag speichern“). The German phrase and the `canSave` rule live only in `save-bar.ts`. No page adopts it yet.
-- **Settings pages (Issue #854, D-854-04/D-854-15).** A settings page groups its fields in `.settings-group` sections (`app.css`: `.settings-group-title` is an `h2` in sentence case at the h2 token, `.settings-group-desc` the muted help line) and gives each section its own `SaveBar`. The bar is fed by `$lib/settings/section-state.ts`: `countChanges(snapshot, values, KEYS)` for `changes`, `sectionErrors(errors)` for `errors`, `pickSection(values, KEYS)` as the own-fields payload of the save (never a spread of a load-time copy, #878). The page sums the counts of its sections into ONE `markUnsaved` call. The frame is `SettingsGroup` (`lib/components/admin/settings/`, with `ToggleField` and `WeekdayPicker`); a section's keys, endpoint and permission come from the one registry `lib/settings/settings-pages.ts` (`settingsSection(id)`), never from a literal in the page (`settings-pages-854.test.ts`). One `SaveBar` per section, never across tabs; the toggles of a section wait for it, they do not save instantly.
+- **Settings pages (Issue #854, D-854-04/D-854-15).** A settings page groups its fields in `.settings-group` sections (`app.css`: `.settings-group-title` is an `h2` in sentence case at the h2 token, `.settings-group-desc` the muted help line) and gives each section its own `SaveBar`. The bar is fed by `$lib/settings/section-state.ts`: `countChanges(snapshot, values, KEYS)` for `changes`, `sectionErrors(errors)` for `errors`, `pickSection(values, KEYS)` as the own-fields payload of the save (never a spread of a load-time copy, #878). The page sums the counts of its sections into ONE `markUnsaved` call. The frame is `SettingsGroup` (`lib/components/admin/settings/`, with `ToggleField` and `WeekdayPicker`); a section's keys, endpoint and permission come from the one registry `lib/settings/settings-pages.ts` (`settingsSection(id)`), never from a literal in the page (`settings-pages-854.test.ts`). One `SaveBar` per section, never across tabs; the toggles of a section wait for it, they do not save instantly. Issue #1058: `SettingsGroup` (`description` stays the visible line, `hint` is the info symbol in a `.hint-row` beside the h2 and the section's `aria-describedby`), `ToggleField` and `WeekdayPicker` (`help` stays visible, `hint` sits beside the label / after the legend and joins the control's `aria-describedby`) and the admin `Section` (`sub` stays visible, `hint` beside the title) take the additive `hint` prop; a raw settings section puts its h2 and an `InfoHint` into a `div.hint-row` (`app.css`). No existing prop changed its meaning, so a call site that is not migrated cannot move by accident.
 - `DayGrid` (`value` bindable `{ mon … sun }` hours or `null`, `label`, `step?`, `disabled?`, `onchange?`, `sumTestId?`): Mo…So fields (one row of seven from 760 px container width, two rows below), a tinted live sum row „N Arbeitstage pro Woche … 39:30 h“ (#854, the same on Regeln › Arbeitszeit and in a person's contract), a field error outside 0…24 (feedback only, the API validates).
 
 ### Bulk change preview: `<BulkPreviewDialog>`
@@ -712,6 +726,7 @@ import PageHead from "$components/layout/PageHead.svelte";
 import Dialog from "$components/ui/Dialog.svelte";
 import DataTable from "$components/ui/DataTable.svelte";
 import Skeleton from "$components/ui/Skeleton.svelte";
+import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
 ```
 
 ## Lint gates

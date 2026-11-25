@@ -60,7 +60,7 @@
 
 <PageHead
   title={pageLabel("/admin/phorest")}
-  sub="Hier verbindest du Clokr mit Phorest und übernimmst die Schichten aus der Salon-Software."
+  hint="Hier verbindest du Clokr mit Phorest und übernimmst die Schichten aus der Salon-Software."
 />
 
 {#if status.configured}

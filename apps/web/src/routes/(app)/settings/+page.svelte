@@ -205,7 +205,7 @@
       <AppearanceSettings />
       <!-- Stempeln mit dem Handy: WLAN presence and coupled phones (Issue #388/#610) -->
       <WifiPresenceSettings />
-      <Section title="Sicherheit" sub="Dein Passwort für die Anmeldung.">
+      <Section title="Sicherheit" hint="Dein Passwort für die Anmeldung.">
         <div>
           <button
             type="button"

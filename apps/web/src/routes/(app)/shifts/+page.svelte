@@ -1607,7 +1607,7 @@
   <div class="roster-head">
     <PageHead
       title={pageLabel("/shifts")}
-      sub="Schichten der Woche planen und Muster anwenden. Vorlagen und Mindestbesetzung pflegt die Verwaltung."
+      hint="Schichten der Woche planen und Muster anwenden. Vorlagen und Mindestbesetzung pflegt die Verwaltung."
     >
       {#snippet actions()}
         <!-- Issue #853 (D-853-13): the two plan actions live in the head; the sibling links to the

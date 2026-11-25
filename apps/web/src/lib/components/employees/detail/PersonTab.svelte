@@ -61,6 +61,7 @@
     statutoryMinimumFiveDayWeek,
   } from "$lib/statutory-minimum-vacation";
   import { vacationBaseDefaultPlaceholder } from "$lib/vacation-base-default";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     employee: PersonEmployee;
@@ -272,7 +273,7 @@
 <div class="person-tab detail-form">
   <SettingsGroup
     title="Persönliche Daten"
-    description="Name, Mitarbeiter-Nr., Geburtsdatum und NFC-Karte."
+    hint="Name, Mitarbeiter-Nr., Geburtsdatum und NFC-Karte."
     changes={canEdit ? identityChanges : 0}
     errors={sectionErrors(identityShown)}
     saving={savingIdentity}
@@ -325,7 +326,7 @@
 
       <FormField
         label="NFC-Karten-ID"
-        help="Optional. Ermöglicht das Stempeln per NFC-Karte."
+        hint="Optional. Ermöglicht das Stempeln per NFC-Karte."
         error={identityShown.nfcCardId}
       >
         {#snippet field({ id, describedBy, invalid })}
@@ -343,7 +344,7 @@
       </FormField>
       <FormField
         label="Geburtsdatum"
-        help="Optional. Für Personen unter 18 Jahren gelten bei den Pausen die Regeln nach § 11 JArbSchG: mehr als 4,5 Stunden 30 Min, mehr als 6 Stunden 60 Min."
+        hint="Optional. Für Personen unter 18 Jahren gelten bei den Pausen die Regeln nach § 11 JArbSchG: mehr als 4,5 Stunden 30 Min, mehr als 6 Stunden 60 Min."
       >
         {#snippet field({ id, describedBy, invalid })}
           <DatePicker
@@ -364,7 +365,7 @@
 
   <SettingsGroup
     title="Personalstruktur"
-    description="Die Personalkategorie bringt Standardwerte für Schicht-Gewicht und Aufsichtspflicht mit; du kannst beide einzeln überschreiben."
+    hint="Die Personalkategorie bringt Standardwerte für Schicht-Gewicht und Aufsichtspflicht mit; du kannst beide einzeln überschreiben."
     changes={canEdit ? structureChanges : 0}
     errors={sectionErrors(structureShown)}
     saving={savingStructure}
@@ -437,7 +438,7 @@
 
   <SettingsGroup
     title="Austritt und Urlaubsbasis"
-    description="Das Austrittsdatum beendet das Beschäftigungsverhältnis. Die Urlaubsbasis gilt für künftige Urlaubsjahre."
+    hint="Das Austrittsdatum beendet das Beschäftigungsverhältnis. Die Urlaubsbasis gilt für künftige Urlaubsjahre."
     changes={canEdit ? employmentChanges : 0}
     errors={sectionErrors(employmentShown)}
     saving={savingEmployment}
@@ -448,7 +449,7 @@
     <div class="pt-grid">
       <FormField
         label="Austrittsdatum"
-        help="Optional. Bei gesetztem Datum wird der Jahresurlaub anteilig berechnet (§ 5 Abs. 2 BUrlG). Die Person bleibt mit allen Daten sichtbar, der Zugang zur App bleibt aktiv, bis er gesondert gesperrt wird."
+        hint="Optional. Bei gesetztem Datum wird der Jahresurlaub anteilig berechnet (§ 5 Abs. 2 BUrlG). Die Person bleibt mit allen Daten sichtbar, der Zugang zur App bleibt aktiv, bis er gesondert gesperrt wird."
       >
         {#snippet field({ id, describedBy, invalid })}
           <DatePicker
@@ -464,7 +465,7 @@
 
       <FormField
         label="Urlaubstage pro Jahr (5-Tage-Woche)"
-        help="Leer = Azubi-Standard für Auszubildende, sonst Unternehmensstandard (beides unter Regeln › Abwesenheiten). Gilt für künftige Urlaubsjahre; bestehende Ansprüche änderst du im Tab Urlaub (mit Protokoll)."
+        hint="Leer = Azubi-Standard für Auszubildende, sonst Unternehmensstandard (beides unter Regeln › Abwesenheiten). Gilt für künftige Urlaubsjahre; bestehende Ansprüche änderst du im Tab Urlaub (mit Protokoll)."
         error={employmentShown.annualVacationDays}
       >
         {#snippet field({ id, describedBy, invalid })}
@@ -500,12 +501,13 @@
 
   {#if canEdit}
     <section class="settings-group" aria-labelledby="person-exempt-title">
-      <h2 class="settings-group-title" id="person-exempt-title">Zeiterfassungs-Pflicht</h2>
-      <p class="settings-group-desc">
-        Inhaber, Geschäftsführer und leitende Angestellte sind nach § 18 ArbZG von der
-        Arbeitszeiterfassung befreit. Der Urlaubsanspruch nach BUrlG bleibt bestehen. Die Änderung
-        gilt sofort, nachdem du sie bestätigt hast.
-      </p>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="person-exempt-title">Zeiterfassungs-Pflicht</h2>
+        <InfoHint
+          text="Inhaber, Geschäftsführer und leitende Angestellte sind nach § 18 ArbZG von der Arbeitszeiterfassung befreit. Der Urlaubsanspruch nach BUrlG bleibt bestehen. Die Änderung gilt sofort, nachdem du sie bestätigt hast."
+          label={hintLabel("Zeiterfassungs-Pflicht")}
+        />
+      </div>
       <ToggleField
         bind:checked={exempt}
         label="Keine Zeiterfassungs-Pflicht (§ 18 ArbZG)"

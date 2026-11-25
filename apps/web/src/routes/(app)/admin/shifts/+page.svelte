@@ -128,7 +128,7 @@
 
 <PageHead
   title={pageLabel("/admin/shifts")}
-  sub="Schichtvorlagen, Bedarfsregeln, Wochenmuster und Einstellungen für den Dienstplan deines Unternehmens."
+  hint="Schichtvorlagen, Bedarfsregeln, Wochenmuster und Einstellungen für den Dienstplan deines Unternehmens."
 />
 
 {#if visibleTabs.length === 0}

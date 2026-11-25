@@ -37,7 +37,7 @@
     eyebrow="Ich"
     title={pageLabel("/settings/geraet-koppeln")}
     accent="koppeln"
-    sub="Dein Handy im Salon-WLAN erkennen lassen"
+    hint="Dein Handy im Salon-WLAN erkennen lassen"
   />
   <DevicePairing {code} {onCodeHandled} />
 </div>

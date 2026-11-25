@@ -26,6 +26,7 @@
     resolveShiftToken,
     type ShiftTemplate,
   } from "$lib/shifts/dienstplan-config";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     templates: ShiftTemplate[];
@@ -140,11 +141,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="dienstplan-vorlagen-title">
-  <h2 class="settings-group-title" id="dienstplan-vorlagen-title">Schichtvorlagen</h2>
-  <p class="settings-group-desc">
-    Wiederkehrende Schichten mit Zeitraum und Farbe. Du wählst sie im Dienstplan, in den
-    Bedarfsregeln und in den Wochenmustern aus.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="dienstplan-vorlagen-title">Schichtvorlagen</h2>
+    <InfoHint
+      text="Wiederkehrende Schichten mit Zeitraum und Farbe. Du wählst sie im Dienstplan, in den Bedarfsregeln und in den Wochenmustern aus."
+      label={hintLabel("Schichtvorlagen")}
+    />
+  </div>
 
   <div class="dp-bar">
     <button type="button" class="btn btn-primary" onclick={openCreate}>Vorlage anlegen</button>

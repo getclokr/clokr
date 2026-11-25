@@ -139,7 +139,7 @@
 
 <SettingsGroup
   title="Standard-Arbeitszeit"
-  description="Standard-Stunden pro Wochentag und die Überstunden-Regeln für alle im Unternehmen. Neue Verträge starten mit diesen Werten."
+  hint="Standard-Stunden pro Wochentag und die Überstunden-Regeln für alle im Unternehmen. Neue Verträge starten mit diesen Werten."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -156,7 +156,7 @@
 
   <FormField
     label="Warnschwelle für Überstunden (Stunden)"
-    help="Ab diesem Saldo erscheint die kritische Warnung."
+    hint="Ab diesem Saldo erscheint die kritische Warnung."
     error={messages.overtimeThreshold}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -179,7 +179,7 @@
   <ToggleField
     bind:checked={values.allowOvertimePayout}
     label="Auszahlung von Überstunden erlauben"
-    help="Aus: Überstunden werden nur mit Freizeit ausgeglichen."
+    hint="Aus: Überstunden werden nur mit Freizeit ausgeglichen."
     disabled={!canEdit || saving}
     testid="arbeitszeit-standard-payout"
   />

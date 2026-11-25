@@ -25,7 +25,7 @@
 </script>
 
 <div data-block="7" class="form-pickers-demo">
-  <FormField label="Stammsalon" help="Tippen filtert die Liste.">
+  <FormField label="Stammsalon" hint="Tippen filtert die Liste.">
     {#snippet field({ id, describedBy, invalid })}
       <Combobox items={salons} bind:value={salon} {id} {describedBy} {invalid} />
     {/snippet}

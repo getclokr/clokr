@@ -16,6 +16,7 @@
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
   import Modal from "$components/ui/Modal.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { takeOver } from "$lib/leave-plan/api";
   import { planErrorMessage } from "$lib/leave-plan/errors";
   import { mergeTakeoverResults } from "$lib/leave-plan/takeover-result";
@@ -117,14 +118,17 @@
 >
   {#snippet body()}
     <div class="takeover-body" data-testid="takeover-confirm">
-      <p class="takeover-count" data-testid="takeover-count">
-        {openWishCount === 1
-          ? "1 offener Wunsch wird in einen Urlaubsantrag übernommen."
-          : `${openWishCount} offene Wünsche werden in Urlaubsanträge übernommen.`}
-      </p>
-      <p class="takeover-note">
-        Deine eigenen Wünsche werden als Antrag zur Genehmigung durch eine andere Person angelegt.
-      </p>
+      <div class="hint-row">
+        <p class="takeover-count" data-testid="takeover-count">
+          {openWishCount === 1
+            ? "1 offener Wunsch wird in einen Urlaubsantrag übernommen."
+            : `${openWishCount} offene Wünsche werden in Urlaubsanträge übernommen.`}
+        </p>
+        <InfoHint
+          text="Deine eigenen Wünsche werden als Antrag zur Genehmigung durch eine andere Person angelegt."
+          label={hintLabel("Übernahme der Wünsche")}
+        />
+      </div>
       {#if errorText}
         <p class="takeover-error" role="alert" data-testid="takeover-error">{errorText}</p>
       {/if}

@@ -84,9 +84,14 @@ test.describe("Tracking exemption — admin toggle (Phase 76.7 D-26)", () => {
 
     // Hint text + label render with the canonical German strings.
     await expect(page.getByText("Keine Zeiterfassungs-Pflicht (§ 18 ArbZG)")).toBeVisible();
+    // The explanation sits behind an info symbol (Issue #1058): the trigger is visible, the text is
+    // attached for the screen reader.
+    await expect(
+      page.getByRole("button", { name: "Erklärung zu „Zeiterfassungs-Pflicht“" }),
+    ).toBeVisible();
     await expect(
       page.getByText(/Inhaber, Geschäftsführer und leitende Angestellte sind nach § 18 ArbZG/),
-    ).toBeVisible();
+    ).toHaveCount(1);
 
     // ── Flip ON ──────────────────────────────────────────────────────────
     // Capture the PATCH so we don't race the assertions.

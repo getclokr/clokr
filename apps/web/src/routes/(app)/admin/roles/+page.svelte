@@ -70,7 +70,7 @@
 
 <PageHead
   title={pageLabel("/admin/roles")}
-  sub="Rollen aus dem Rechte-Katalog zusammenstellen und Personen zuweisen."
+  hint="Rollen aus dem Rechte-Katalog zusammenstellen und Personen zuweisen."
 />
 
 {#if tabs.length === 0}

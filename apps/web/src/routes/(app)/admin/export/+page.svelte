@@ -46,6 +46,7 @@
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   const user = $derived($authStore.user);
   const canReadMonthClose = $derived(hasPermission(user, "month-close:read:ZUGEWIESEN"));
@@ -274,15 +275,17 @@
 <div data-testid="admin-export-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/export")}
-    sub="Hier lädst du die Lohndaten für DATEV, Zeiten, Abwesenheiten, das Monatsexport und Kalenderdateien herunter."
+    hint="Hier lädst du die Lohndaten für DATEV, Zeiten, Abwesenheiten, das Monatsexport und Kalenderdateien herunter."
   />
 
   <section class="settings-group" aria-labelledby="export-datev-title">
-    <h2 class="settings-group-title" id="export-datev-title">DATEV-Lohnexport</h2>
-    <p class="settings-group-desc">
-      Die Datei für die Lohnbuchhaltung, für alle Personen eines Monats oder für eine einzelne
-      Person.
-    </p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="export-datev-title">DATEV-Lohnexport</h2>
+      <InfoHint
+        text="Die Datei für die Lohnbuchhaltung, für alle Personen eines Monats oder für eine einzelne Person."
+        label={hintLabel("DATEV-Lohnexport")}
+      />
+    </div>
 
     <PeriodPicker
       label={monthName(exportMonth)}
@@ -324,7 +327,7 @@
     {#if canPickPerson}
       <FormField
         label="Einzelne Person"
-        help="Die Datei enthält nur diese Person im gewählten Monat."
+        hint="Die Datei enthält nur diese Person im gewählten Monat."
       >
         {#snippet field({ id, describedBy })}
           <Combobox
@@ -357,10 +360,13 @@
   </section>
 
   <section class="settings-group" aria-labelledby="export-csv-title">
-    <h2 class="settings-group-title" id="export-csv-title">Zeiten und Abwesenheiten (CSV)</h2>
-    <p class="settings-group-desc">
-      Eine Zeile pro Person für den gewählten Zeitraum, höchstens 12 Monate, mit Semikolon getrennt.
-    </p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="export-csv-title">Zeiten und Abwesenheiten (CSV)</h2>
+      <InfoHint
+        text="Eine Zeile pro Person für den gewählten Zeitraum, höchstens 12 Monate, mit Semikolon getrennt."
+        label={hintLabel("Zeiten und Abwesenheiten (CSV)")}
+      />
+    </div>
 
     <div class="export-periods">
       <PeriodPicker
@@ -413,11 +419,13 @@
   </section>
 
   <section class="settings-group" aria-labelledby="export-pdf-title">
-    <h2 class="settings-group-title" id="export-pdf-title">Monatsexport (PDF)</h2>
-    <p class="settings-group-desc">
-      Die lesbare Fassung des DATEV-Exports: alle Personen eines Monats, ohne Tagesliste. Der Monat
-      ist der Abrechnungsmonat von oben ({monthName(exportMonth)}).
-    </p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="export-pdf-title">Monatsexport (PDF)</h2>
+      <InfoHint
+        text={`Die lesbare Fassung des DATEV-Exports: alle Personen eines Monats, ohne Tagesliste. Der Monat ist der Abrechnungsmonat von oben (${monthName(exportMonth)}).`}
+        label={hintLabel("Monatsexport (PDF)")}
+      />
+    </div>
     {#if multiSalon}
       <Note tone="info">
         Das Monatsexport enthält alle Salons. Für einen einzelnen Salon exportierst du es unter
@@ -439,10 +447,13 @@
   </section>
 
   <section class="settings-group" aria-labelledby="export-ical-title">
-    <h2 class="settings-group-title" id="export-ical-title">Kalender (iCal)</h2>
-    <p class="settings-group-desc">
-      Abwesenheiten als Kalenderdatei für Outlook, Google Kalender oder Apple Kalender.
-    </p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="export-ical-title">Kalender (iCal)</h2>
+      <InfoHint
+        text="Abwesenheiten als Kalenderdatei für Outlook, Google Kalender oder Apple Kalender."
+        label={hintLabel("Kalender (iCal)")}
+      />
+    </div>
     <div class="export-actions">
       {#if canReadTeamLeave}
         <button
@@ -470,8 +481,13 @@
   </section>
 
   <section class="settings-group" aria-labelledby="export-history-title">
-    <h2 class="settings-group-title" id="export-history-title">Letzte Exporte</h2>
-    <p class="settings-group-desc">Die 20 neuesten Exporte deines Unternehmens.</p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="export-history-title">Letzte Exporte</h2>
+      <InfoHint
+        text="Die 20 neuesten Exporte deines Unternehmens."
+        label={hintLabel("Letzte Exporte")}
+      />
+    </div>
     {#if !canReadAudit}
       <Note tone="info">Die letzten Exporte siehst du mit dem Recht, das Protokoll zu lesen.</Note>
     {:else if history.status === "loading"}

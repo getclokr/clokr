@@ -30,6 +30,7 @@
     type SupportAccessDetailResponse,
     type SupportAccessRead,
   } from "$lib/support-access/labels";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     detail: SupportAccessDetailResponse;
@@ -102,10 +103,13 @@
 <section class="settings-group" aria-labelledby="sa-grant-title">
   <div class="sa-head">
     <div class="sa-head-text">
-      <h2 class="settings-group-title" id="sa-grant-title">Freigabe</h2>
-      <p class="settings-group-desc">
-        Wer wann und warum auf die Daten deines Unternehmens zugegriffen hat
-      </p>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="sa-grant-title">Freigabe</h2>
+        <InfoHint
+          text="Wer wann und warum auf die Daten deines Unternehmens zugegriffen hat"
+          label={hintLabel("Freigabe")}
+        />
+      </div>
     </div>
     {#if canEnd}
       <button type="button" class="btn btn-danger" onclick={openConfirm}>Zugriff beenden</button>
@@ -145,10 +149,13 @@
 </section>
 
 <section class="settings-group" aria-labelledby="sa-reads-title">
-  <h2 class="settings-group-title" id="sa-reads-title">Gelesene Daten</h2>
-  <p class="settings-group-desc">
-    Jeder einzelne Abruf unter diesem Zugriff, in der Reihenfolge des Abrufs
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="sa-reads-title">Gelesene Daten</h2>
+    <InfoHint
+      text="Jeder einzelne Abruf unter diesem Zugriff, in der Reihenfolge des Abrufs"
+      label={hintLabel("Gelesene Daten")}
+    />
+  </div>
   {#if detail.reads.length === 0}
     <Note tone="info">Noch keine Abrufe.</Note>
   {:else}

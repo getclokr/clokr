@@ -30,6 +30,7 @@
     skipReasonText,
     vacationLines,
   } from "$lib/admin/deactivate-format";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     open: boolean;
@@ -221,10 +222,12 @@
         <div class="dx-figure">
           <dt>{SALDO_LABEL}</dt>
           <dd>
-            <p>{saldoLine(view)}</p>
-            {#if view.saldo}
-              <p class="dx-note">{SALDO_FINAL_NOTE}</p>
-            {/if}
+            <div class="hint-row">
+              <p>{saldoLine(view)}</p>
+              {#if view.saldo}
+                <InfoHint text={SALDO_FINAL_NOTE} label={hintLabel(SALDO_LABEL)} />
+              {/if}
+            </div>
           </dd>
         </div>
         {#if vacationLines(view).length > 0}
@@ -330,11 +333,6 @@
   }
   .dx-figure dd p {
     margin: 0;
-  }
-  .dx-figure dd .dx-note {
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--text-2);
   }
   .dx-absences {
     border-top: 1px solid var(--line);

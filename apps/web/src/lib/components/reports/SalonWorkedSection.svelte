@@ -8,6 +8,7 @@
   // saldo of a person outside the Stammsalon circle.
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { fmtHoursDe } from "$lib/reports/period-format";
   import type { PeriodHelper, PeriodRow } from "$lib/reports/period-report";
   import {
@@ -81,7 +82,16 @@
 
 <section class="settings-group salon-worked" aria-labelledby="salon-worked-title">
   <div>
-    <h2 class="settings-group-title" id="salon-worked-title">{SALON_WORKED_LABEL}</h2>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="salon-worked-title">{SALON_WORKED_LABEL}</h2>
+      {#if helpersReach === "SCOPED"}
+        <InfoHint
+          testId="salon-worked-reach-note"
+          text={SALON_HELPERS_REACH_NOTE}
+          label={hintLabel(SALON_WORKED_LABEL)}
+        />
+      {/if}
+    </div>
     <p class="settings-group-desc salon-worked-period">{periodLabel}</p>
   </div>
   <div class="salon-worked-body" data-testid="salon-worked-section" aria-busy={loading}>
@@ -127,12 +137,6 @@
           <strong>{fmtHoursDe(totalMinutes)} h</strong>
         </p>
       {/if}
-    {/if}
-
-    {#if helpersReach === "SCOPED"}
-      <p class="settings-group-desc salon-worked-calm" data-testid="salon-worked-reach-note">
-        {SALON_HELPERS_REACH_NOTE}
-      </p>
     {/if}
   </div>
 </section>

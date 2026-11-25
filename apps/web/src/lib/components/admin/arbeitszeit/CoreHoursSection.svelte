@@ -76,7 +76,7 @@
 
 <SettingsGroup
   title="Gleitzeit"
-  description="Standard-Kernzeit für neue Gleitzeit-Verträge. Beim Anlegen wird sie vorbelegt und lässt sich pro Person überschreiben."
+  hint="Standard-Kernzeit für neue Gleitzeit-Verträge. Beim Anlegen wird sie vorbelegt und lässt sich pro Person überschreiben."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -116,7 +116,7 @@
   <WeekdayPicker
     bind:value={values.defaultCoreDays}
     legend="Standard-Kernzeit-Tage"
-    help="Lass alles leer, wenn es keine Vorgabe für das Unternehmen geben soll. Mitarbeitende mit Gleitzeit starten dann ohne vorausgewählte Kernzeit."
+    hint="Lass alles leer, wenn es keine Vorgabe für das Unternehmen geben soll. Mitarbeitende mit Gleitzeit starten dann ohne vorausgewählte Kernzeit."
     disabled={!canEdit || saving}
     testidPrefix="arbeitszeit-gleitzeit-tag"
   />

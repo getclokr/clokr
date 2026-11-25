@@ -58,7 +58,7 @@
   <PageHead
     eyebrow="Administration"
     title={pageLabel("/admin/bausteine")}
-    sub="Alle Bausteine des Designsystems in den sechs Kombinationen aus Thema und Modus."
+    hint="Alle Bausteine des Designsystems in den sechs Kombinationen aus Thema und Modus."
   >
     {#snippet actions()}
       <button

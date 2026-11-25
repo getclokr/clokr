@@ -14,6 +14,7 @@
   import Pagination from "$components/ui/Pagination.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Spinner from "$components/ui/Spinner.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
   import { leaveTypeColor } from "$lib/leave/leave-colors";
@@ -324,7 +325,23 @@
 <section class="settings-group" aria-labelledby="vacation-overview-title">
   <div class="vac-head">
     <div>
-      <h2 class="settings-group-title" id="vacation-overview-title">Urlaubsübersicht</h2>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="vacation-overview-title">Urlaubsübersicht</h2>
+        {#if filterActive}
+          <InfoHint
+            testId="vacation-salon-note"
+            text={`${SALON_PERIOD_END_PERSONS_NOTE} · ${PERSON_VALUES_NOT_SPLIT_LABEL}`}
+            label={hintLabel("Urlaubsübersicht")}
+          />
+        {/if}
+        {#if vacation !== null && yearRows.length > 0 && visible.length > 0}
+          <InfoHint
+            testId="vacation-values-hint"
+            text="Alle Werte in Arbeitstagen. Verfügbar = Anspruch + wirksamer Übertrag. Resturlaub = Verfügbar − Genommen − Genehmigt. Beantragte Tage werden nicht abgezogen."
+            label={hintLabel("Werte der Urlaubsübersicht")}
+          />
+        {/if}
+      </div>
       {#if activeYear !== null}
         <p class="settings-group-desc vac-label">Urlaubsjahr {activeYear}</p>
       {/if}
@@ -346,12 +363,6 @@
   <!-- #843 D-843-07: a refresh over an existing answer announces itself through the Skeleton, not text -->
   {#if loading && vacation !== null}
     <Skeleton inline width={8} />
-  {/if}
-
-  {#if filterActive}
-    <div data-testid="vacation-salon-note">
-      <Note tone="brand">{SALON_PERIOD_END_PERSONS_NOTE} · {PERSON_VALUES_NOT_SPLIT_LABEL}</Note>
-    </div>
   {/if}
 
   {#if vacation === null}
@@ -400,10 +411,6 @@
     </DataTable>
 
     {#if visible.length > 0}
-      <p class="settings-group-desc vac-hint">
-        Alle Werte in Arbeitstagen. Verfügbar = Anspruch + wirksamer Übertrag. Resturlaub =
-        Verfügbar − Genommen − Genehmigt. Beantragte Tage werden nicht abgezogen.
-      </p>
       <Pagination
         total={visible.length}
         bind:page
@@ -452,10 +459,6 @@
 
   .vac-label {
     margin-top: var(--s-1);
-  }
-
-  .vac-hint {
-    margin-top: 0;
   }
 
   .strong {

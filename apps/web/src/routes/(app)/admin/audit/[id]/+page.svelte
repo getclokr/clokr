@@ -101,7 +101,7 @@
     </div>
     <a class="btn btn-secondary" href={backHref}>Zurück zum Protokoll</a>
   {:else}
-    <PageHead {title} sub="Was in diesem Eintrag festgehalten wurde.">
+    <PageHead {title} hint="Was in diesem Eintrag festgehalten wurde.">
       {#snippet actions()}
         <!-- The crumb leads to the plain list; this link keeps the filters the entry was opened from. -->
         <a class="btn btn-secondary" href={backHref} data-testid="admin-audit-back"

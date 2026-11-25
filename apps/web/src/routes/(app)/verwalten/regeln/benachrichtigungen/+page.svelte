@@ -133,7 +133,7 @@
 
 <PageHead
   title={pageLabel("/verwalten/regeln/benachrichtigungen")}
-  sub="Hier legst du fest, worüber Clokr per E-Mail benachrichtigt und woran es erinnert. Den Mailserver richtest du unter System › Integrationen ein."
+  hint="Hier legst du fest, worüber Clokr per E-Mail benachrichtigt und woran es erinnert. Den Mailserver richtest du unter System › Integrationen ein."
 />
 
 {#if loading}

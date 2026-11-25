@@ -80,6 +80,7 @@
     type SlotLayers,
   } from "$lib/employees/overrides-form";
   import { countChanges, pickSection, sectionErrors } from "$lib/settings/section-state";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     employeeId: string;
@@ -353,7 +354,7 @@
 <SettingsGroup
   id="vertrag-berufsschultage"
   title="Berufsschultage"
-  description="Wiederkehrende Berufsschultage und Block-Wochen für die Freistellung nach § 15 BBiG."
+  hint="Wiederkehrende Berufsschultage und Block-Wochen für die Freistellung nach § 15 BBiG."
   changes={canManagePattern ? patternChanges : 0}
   errors={patternErrors}
   saving={savingPatterns}
@@ -396,16 +397,22 @@
               (days) => (draft.daysOfWeek = fromPickerDays(days))
             }
             legend="Wochentage"
-            help="Wähle die Wochentage, an denen die Person zur Berufsschule geht."
+            hint="Wähle die Wochentage, an denen die Person zur Berufsschule geht."
             error={shown?.days}
             disabled={!canManagePattern || savingPatterns}
           />
         {:else}
           <div class="bs-weeks">
             <div class="bs-weeks-head">
-              <span class="bs-weeks-label">
-                Block-Wochen{draft.blockWeeks.length > 0 ? ` (${draft.blockWeeks.length})` : ""}
-              </span>
+              <div class="hint-row">
+                <span class="bs-weeks-label">
+                  Block-Wochen{draft.blockWeeks.length > 0 ? ` (${draft.blockWeeks.length})` : ""}
+                </span>
+                <InfoHint
+                  text="Markiere die Kalenderwochen mit Blockunterricht. Jeder Tag dieser Wochen zählt dann als Berufsschultag."
+                  label={hintLabel("Block-Wochen")}
+                />
+              </div>
               {#if draft.blockWeeks.length > 0 && canManagePattern}
                 <button
                   type="button"
@@ -435,10 +442,6 @@
             {#if shown?.weeks}
               <p class="bs-error">{shown.weeks}</p>
             {/if}
-            <p class="bs-help">
-              Markiere die Kalenderwochen mit Blockunterricht. Jeder Tag dieser Wochen zählt dann
-              als Berufsschultag.
-            </p>
           </div>
           <FormField label="Jahr" error={shown?.year}>
             {#snippet field({ id, describedBy, invalid })}
@@ -472,7 +475,7 @@
               />
             {/snippet}
           </FormField>
-          <FormField label="Gültig bis" help="Leer = unbefristet." error={shown?.validUntil}>
+          <FormField label="Gültig bis" hint="Leer = unbefristet." error={shown?.validUntil}>
             {#snippet field({ id, describedBy, invalid })}
               <DatePicker
                 bind:value={draft.validUntil}
@@ -489,13 +492,13 @@
         <ToggleField
           bind:checked={draft.respectSchoolHolidays}
           label="Schulferien beachten"
-          help="Pflegeschulen und Berufsakademien: ausschalten."
+          hint="Pflegeschulen und Berufsakademien: ausschalten."
           disabled={!canManagePattern || savingPatterns}
         />
 
         <FormField
           label="Bundesland der Berufsschule"
-          help="Nur bei Pendlern mit Schule in einem anderen Bundesland."
+          hint="Nur bei Pendlern mit Schule in einem anderen Bundesland."
         >
           {#snippet field({ id, describedBy })}
             <select
@@ -584,7 +587,7 @@
 <SettingsGroup
   id="vertrag-zeitgutschrift"
   title="Zeitgutschrift Berufsschule"
-  description="Überschreibt Muster- und Unternehmensvorgabe für diese Person (Person › Muster › Unternehmen › Tages-Soll). Leer = Wert aus der nächsten Ebene."
+  hint={`Überschreibt Muster- und Unternehmensvorgabe für diese Person (Person › Muster › Unternehmen › Tages-Soll). Leer = Wert aus der nächsten Ebene. Tages-Slots: ${BS_DAILY_BOUNDS.min}–${BS_DAILY_BOUNDS.max} Min (${BS_DAILY_BOUNDS.min / 60}–${BS_DAILY_BOUNDS.max / 60} h). Blockunterricht-Woche: ${BS_BLOCK_BOUNDS.min}–${BS_BLOCK_BOUNDS.max} Min (${BS_BLOCK_BOUNDS.min / 60}–${BS_BLOCK_BOUNDS.max / 60} h).`}
   changes={canEditSlots ? slotChanges : 0}
   errors={sectionErrors(slotShown)}
   saving={savingSlots}
@@ -592,12 +595,6 @@
   onSave={saveSlots}
   onDiscard={discardSlots}
 >
-  <p class="bs-help">
-    Tages-Slots: {BS_DAILY_BOUNDS.min}–{BS_DAILY_BOUNDS.max} Min ({BS_DAILY_BOUNDS.min /
-      60}–{BS_DAILY_BOUNDS.max / 60} h). Blockunterricht-Woche: {BS_BLOCK_BOUNDS.min}–{BS_BLOCK_BOUNDS.max}
-    Min ({BS_BLOCK_BOUNDS.min / 60}–{BS_BLOCK_BOUNDS.max / 60} h).
-  </p>
-
   {#if slotError}
     <div role="alert" data-testid="bs-slot-error"><Note tone="bad">{slotError}</Note></div>
   {/if}

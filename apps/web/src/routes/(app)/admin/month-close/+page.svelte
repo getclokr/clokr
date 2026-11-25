@@ -547,7 +547,7 @@
 <!-- Phase 73-05 (D-05): data-testid surface for the admin Monatsabschluss flows. `display: contents`
      keeps the page layout intact while exposing a stable page-root selector to the e2e specs. -->
 <div data-testid="month-close-page" style="display: contents;">
-  <PageHead title={pageLabel("/admin/month-close")} sub="Monat prüfen, korrigieren und sperren">
+  <PageHead title={pageLabel("/admin/month-close")} hint="Monat prüfen, korrigieren und sperren">
     {#snippet actions()}
       <button
         type="button"

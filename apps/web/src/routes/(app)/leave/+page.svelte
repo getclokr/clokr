@@ -83,6 +83,7 @@
   import { closedDaysFor } from "$lib/shifts/closed-days"; // Issue #563 (D-03), #840 (D-840-14)
   import { teamSalonViewSalon } from "$lib/dashboard/team-view"; // Issue #82/#558, #840 (D-840-16)
   import { deepLinkSalon } from "$lib/leave-plan/deep-link"; // Issue #835 (WR-07)
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   // The types the own calendar can paint, in legend order (#840, D-840-10). The legend names only
   // the ones present in the month in view (`calLegend` below).
@@ -1345,7 +1346,7 @@
   <!-- ── Header — Phase 851 (prototype „Ich › Abwesenheiten“): the two things a person files ─── -->
   <PageHeader
     title={pageLabel("/leave")}
-    subtitle="Urlaub, Krankmeldungen und deine Wünsche für die Urlaubsplanung"
+    hint="Urlaub, Krankmeldungen und deine Wünsche für die Urlaubsplanung"
   >
     {#snippet actions()}
       <!-- Issue #928: the former export box is a quiet button with a small popover (both .ics
@@ -1353,9 +1354,6 @@
       <details class="lv-pop" data-testid="leave-ical" ontoggle={placeMenu}>
         <summary class="btn btn-ghost btn-sm">Kalender exportieren</summary>
         <div class="lv-pop-panel" data-menu-panel role="group" aria-label="Kalender exportieren">
-          <p class="lv-pop-hint">
-            Als .ics-Datei für Outlook, Google Kalender oder Apple Kalender.
-          </p>
           <button
             type="button"
             class="btn btn-secondary btn-sm"
@@ -1384,6 +1382,10 @@
           </button>
         </div>
       </details>
+      <InfoHint
+        text="Als .ics-Datei für Outlook, Google Kalender oder Apple Kalender."
+        label={hintLabel("Kalender exportieren")}
+      />
       {#if !showForm}
         <button
           data-testid="leave-report-sick"
@@ -1452,7 +1454,10 @@
           <dt>{item.label}</dt>
           <dd>
             <strong>{factValue(item)} {item.unit ?? ""}</strong>
-            {#if item.explanation}<span class="lv-fact-note">{item.explanation}</span>{/if}
+            {#if item.explanation}<InfoHint
+                text={item.explanation}
+                label={hintLabel(item.label)}
+              />{/if}
           </dd>
         </div>
       {/each}
@@ -2437,11 +2442,6 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
-  .lv-fact-note {
-    color: var(--text-3);
-    font-size: var(--fs-xs);
-  }
-
   /* ── Head: the export popover (native details) ───────────────────────────────────────────── */
   .lv-pop {
     position: relative;
@@ -2465,12 +2465,6 @@
     border: 1px solid var(--line);
     border-radius: 12px;
     box-shadow: var(--shadow-pop);
-  }
-  .lv-pop-hint {
-    margin: 0;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
-    line-height: 1.45;
   }
 
   /* ── Kalender: the month and „Als Nächstes“ ──────────────────────────────────────────────── */

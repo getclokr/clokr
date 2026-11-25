@@ -67,7 +67,7 @@
 <SettingsGroup
   id="arbzg"
   title="ArbZG-Prüfung"
-  description="Arbeitszeitgesetz: Höchstarbeitszeit, Pausenpflicht und Ruhezeiten."
+  hint="Arbeitszeitgesetz: Höchstarbeitszeit, Pausenpflicht und Ruhezeiten."
   changes={changeCount}
   errors={0}
   {saving}
@@ -78,7 +78,7 @@
   <ToggleField
     bind:checked={values.arbzgEnabled}
     label="ArbZG-Verstöße anzeigen"
-    help="Prüft Höchstarbeitszeit, Pausen und Ruhezeiten (§§ 3-5 ArbZG). Die automatischen Pausen stellst du im Abschnitt „Pausen“ ein."
+    hint="Prüft Höchstarbeitszeit, Pausen und Ruhezeiten (§§ 3-5 ArbZG). Die automatischen Pausen stellst du im Abschnitt „Pausen“ ein."
     disabled={!canEdit || saving}
     testid="arbeitszeit-compliance-enabled"
   />

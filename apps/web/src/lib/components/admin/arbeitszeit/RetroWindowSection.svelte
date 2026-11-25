@@ -79,7 +79,7 @@
 
 <SettingsGroup
   title="Rückwirkende Einträge"
-  description="Frist für die eigenständige Bearbeitung vergangener Zeiteinträge."
+  hint="Frist für die eigenständige Bearbeitung vergangener Zeiteinträge."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -89,7 +89,7 @@
 >
   <FormField
     label="Selbstbearbeitungsfenster (Tage)"
-    help="Mitarbeitende können Einträge bis zu so vielen Tagen rückwirkend selbst bearbeiten. Ältere Einträge brauchen einen Antrag, den ein Manager genehmigt. Gesetzlicher Referenzwert (ArbZG-Referentenentwurf 2023): 7 Tage. Standard: 10 Tage."
+    hint="Mitarbeitende können Einträge bis zu so vielen Tagen rückwirkend selbst bearbeiten. Ältere Einträge brauchen einen Antrag, den ein Manager genehmigt. Gesetzlicher Referenzwert (ArbZG-Referentenentwurf 2023): 7 Tage. Standard: 10 Tage."
     error={messages.retroEntryWindowDays}
   >
     {#snippet field({ id, describedBy, invalid })}

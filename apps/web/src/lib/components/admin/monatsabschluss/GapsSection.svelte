@@ -74,7 +74,7 @@
 
 <SettingsGroup
   title="Monatsabschluss mit Lücken"
-  description="Ob ein Monat abgeschlossen werden darf, obwohl an Arbeitstagen Zeiteinträge fehlen."
+  hint="Ob ein Monat abgeschlossen werden darf, obwohl an Arbeitstagen Zeiteinträge fehlen."
   changes={changeCount}
   errors={0}
   {saving}
@@ -85,7 +85,7 @@
   <ToggleField
     bind:checked={values.closeMonthWithGapsAllowed}
     label="Abschluss trotz fehlender Einträge erlauben"
-    help="Ist das eingeschaltet, kannst du Monate auch abschließen, wenn Arbeitstage ohne Zeiterfassung vorliegen. Fehlende Tage zählen mit 0 Stunden gegen das volle Soll."
+    hint="Ist das eingeschaltet, kannst du Monate auch abschließen, wenn Arbeitstage ohne Zeiterfassung vorliegen. Fehlende Tage zählen mit 0 Stunden gegen das volle Soll."
     disabled={!canEdit || saving}
     testid="monatsabschluss-closeMonthWithGapsAllowed"
   />

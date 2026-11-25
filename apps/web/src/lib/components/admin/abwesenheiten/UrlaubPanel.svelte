@@ -268,7 +268,7 @@
 
 <SettingsGroup
   title="Urlaubsanspruch"
-  description="Jahresurlaub und gesetzlicher Mindesturlaub (BUrlG)."
+  hint="Jahresurlaub und gesetzlicher Mindesturlaub (BUrlG)."
   changes={anspruchChanges}
   errors={messageCount(anspruchMsg)}
   saving={anspruchSaving}
@@ -278,7 +278,7 @@
 >
   <FormField
     label="Jahresurlaub (Basis 5-Tage-Woche)"
-    help={`Teilzeit anteilig (4-Tage-Woche → ${partTimeDays(anspruch.defaultVacationDays)} Tage).`}
+    hint={`Teilzeit anteilig (4-Tage-Woche → ${partTimeDays(anspruch.defaultVacationDays)} Tage).`}
     error={anspruchMsg.defaultVacationDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -299,7 +299,7 @@
   </FormField>
   <FormField
     label="Urlaubstage Azubis (Basis 5-Tage-Woche)"
-    help="Gilt für Auszubildende ohne eigenen Wert und wird beim Anlegen vorgeschlagen. Wirkt auf künftig angelegte Urlaubsjahre; bestehende Ansprüche bleiben unverändert. Mindestens 20 Tage (§ 3 BUrlG); Jugendliche erhalten automatisch den höheren Mindesturlaub nach § 19 JArbSchG."
+    hint="Gilt für Auszubildende ohne eigenen Wert und wird beim Anlegen vorgeschlagen. Wirkt auf künftig angelegte Urlaubsjahre; bestehende Ansprüche bleiben unverändert. Mindestens 20 Tage (§ 3 BUrlG); Jugendliche erhalten automatisch den höheren Mindesturlaub nach § 19 JArbSchG."
     error={anspruchMsg.defaultApprenticeVacationDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -321,7 +321,7 @@
   <ToggleField
     bind:checked={anspruch.autoCalcPartTimeVacation}
     label="Teilzeit-Urlaub automatisch anteilig berechnen"
-    help="Pro-rata-Berechnung nach BUrlG anhand der Arbeitstage pro Woche."
+    hint="Pro-rata-Berechnung nach BUrlG anhand der Arbeitstage pro Woche."
     disabled={anspruchSaving}
     testid="abwesenheiten-anspruch-parttime"
   />
@@ -345,7 +345,7 @@
   <ToggleField
     bind:checked={anspruch.enforceMinVacation}
     label="Gesetzlichen Mindesturlaub durchsetzen"
-    help="Warnung, wenn der Mindesturlaub (§ 7 BUrlG) nicht genommen wurde."
+    hint="Warnung, wenn der Mindesturlaub (§ 7 BUrlG) nicht genommen wurde."
     disabled={anspruchSaving}
     testid="abwesenheiten-anspruch-minimum"
   />
@@ -353,7 +353,7 @@
 
 <SettingsGroup
   title="Urlaubsanträge"
-  description="Wie früh und wie weit im Voraus Urlaub beantragt werden kann."
+  hint="Wie früh und wie weit im Voraus Urlaub beantragt werden kann."
   changes={antraegeChanges}
   errors={messageCount(antraegeMsg)}
   saving={antraegeSaving}
@@ -363,7 +363,7 @@
 >
   <FormField
     label="Vorlaufzeit (Tage)"
-    help="0 = keine Vorlaufzeit. Gilt nicht für Krankmeldungen."
+    hint="0 = keine Vorlaufzeit. Gilt nicht für Krankmeldungen."
     error={antraegeMsg.vacationLeadTimeDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -384,7 +384,7 @@
   </FormField>
   <FormField
     label="Maximale Vorausbuchung (Monate)"
-    help="0 = unbegrenzt."
+    hint="0 = unbegrenzt."
     error={antraegeMsg.vacationMaxAdvanceMonths}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -412,7 +412,7 @@
   <ToggleField
     bind:checked={antraege.leavePlanDeadlineLocksWishes}
     label="Planungsfrist sperrt eigene Änderungen"
-    help="Ist eine Planungsfrist gesetzt, können Mitarbeitende ihre eigenen Wünsche danach nicht mehr ändern. Planungsberechtigte können weiter ändern."
+    hint="Ist eine Planungsfrist gesetzt, können Mitarbeitende ihre eigenen Wünsche danach nicht mehr ändern. Planungsberechtigte können weiter ändern."
     disabled={antraegeSaving}
     testid="abwesenheiten-antraege-plan-lock"
   />
@@ -420,7 +420,7 @@
 
 <SettingsGroup
   title="Krankmeldung"
-  description="Wer eine Krankmeldung einträgt und ab wann ein Nachweis dokumentiert wird (EFZG)."
+  hint="Wer eine Krankmeldung einträgt und ab wann ein Nachweis dokumentiert wird (EFZG)."
   changes={krankheitChanges}
   errors={messageCount(krankheitMsg)}
   saving={krankheitSaving}
@@ -436,7 +436,7 @@
   />
   <FormField
     label="Nachweispflicht nach (Kalendertagen)"
-    help="§ 5 Abs. 1 EFZG – „länger als drei Kalendertage“. Standard: 3. 0 = ab dem ersten Tag. Gilt nur für die Nachweis-Dokumentation. Auf die Urlaubsgutschrift bei Krankheit im Urlaub (§ 9 BUrlG) hat dieser Wert keinen Einfluss – dort ist immer ein ärztliches Zeugnis erforderlich."
+    hint="§ 5 Abs. 1 EFZG – „länger als drei Kalendertage“. Standard: 3. 0 = ab dem ersten Tag. Gilt nur für die Nachweis-Dokumentation. Auf die Urlaubsgutschrift bei Krankheit im Urlaub (§ 9 BUrlG) hat dieser Wert keinen Einfluss – dort ist immer ein ärztliches Zeugnis erforderlich."
     error={krankheitMsg.sickNoteRequiredAfterDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -459,7 +459,7 @@
 
 <SettingsGroup
   title="Heiligabend und Silvester"
-  description="Ob der 24. und der 31. Dezember als Arbeitstag gelten oder ganz oder halb frei sind."
+  hint="Ob der 24. und der 31. Dezember als Arbeitstag gelten oder ganz oder halb frei sind."
   changes={feiertageChanges}
   errors={messageCount(feiertageMsg)}
   saving={feiertageSaving}

@@ -18,6 +18,7 @@
   import Note from "$components/ui/Note.svelte";
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   type ImportMode = "employees" | "time-entries";
 
@@ -194,7 +195,7 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
 <div data-testid="admin-import-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/import")}
-    sub="Hier übernimmst du Personen oder Zeiten aus einer CSV-Datei."
+    hint="Hier übernimmst du Personen oder Zeiten aus einer CSV-Datei."
   />
 
   {#if modeOptions.length > 1}
@@ -211,8 +212,13 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
   {/if}
 
   <section class="settings-group" aria-labelledby="import-csv-title">
-    <h2 class="settings-group-title" id="import-csv-title">CSV-Daten</h2>
-    <p class="settings-group-desc">Wähle eine Datei oder füge den Inhalt unten ein.</p>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="import-csv-title">CSV-Daten</h2>
+      <InfoHint
+        text="Wähle eine Datei oder füge den Inhalt unten ein."
+        label={hintLabel("CSV-Daten")}
+      />
+    </div>
 
     <div class="import-actions">
       <button
@@ -253,16 +259,18 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
       {/snippet}
     </FormField>
 
-    <details class="example-hint">
-      <summary class="example-summary">Beispielformat anzeigen</summary>
-      <pre class="example-pre">{exampleText}</pre>
+    <div class="example-row">
+      <details class="example-hint">
+        <summary class="example-summary">Beispielformat anzeigen</summary>
+        <pre class="example-pre">{exampleText}</pre>
+      </details>
       {#if mode === "employees"}
-        <p class="example-note">
-          Die Spalte „salonId“ (Stammsalon) enthält die ID des Salons. Bei mehreren aktiven Salons
-          ist sie in jeder Zeile nötig; bei genau einem aktiven Salon darf sie leer bleiben.
-        </p>
+        <InfoHint
+          text="Die Spalte „salonId“ (Stammsalon) enthält die ID des Salons. Bei mehreren aktiven Salons ist sie in jeder Zeile nötig; bei genau einem aktiven Salon darf sie leer bleiben."
+          label={hintLabel("Beispielformat")}
+        />
       {/if}
-    </details>
+    </div>
 
     <div class="import-actions">
       <button
@@ -383,10 +391,10 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
     cursor: pointer;
   }
 
-  .example-note {
-    margin: var(--s-2) 0 0;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
+  .example-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-1);
   }
 
   .example-pre {

@@ -20,6 +20,7 @@
   import { applyPreferences } from "$stores/apply-preferences";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
 
   // #842 D-842-22: three themes, each previewed in light and dark. The previews are elements that
@@ -62,12 +63,22 @@
 
 <PageHead
   title={pageLabel("/settings/erscheinungsbild")}
-  sub="Dein Erscheinungsbild: Es wird für dein Konto gespeichert und gilt auf all deinen Geräten."
+  hint="Dein Erscheinungsbild: Es wird für dein Konto gespeichert und gilt auf all deinen Geräten."
 />
 
-<section class="settings-group" aria-labelledby="themes-farbwelt-title">
-  <h2 class="settings-group-title" id="themes-farbwelt-title">Farbwelt</h2>
-  <p class="settings-group-desc">Wähle die Farbwelt, jeweils in Hell und Dunkel gezeigt.</p>
+<section
+  class="settings-group"
+  aria-labelledby="themes-farbwelt-title"
+  aria-describedby="themes-farbwelt-hint"
+>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="themes-farbwelt-title">Farbwelt</h2>
+    <InfoHint
+      text="Wähle die Farbwelt, jeweils in Hell und Dunkel gezeigt."
+      label={hintLabel("Farbwelt")}
+      textId="themes-farbwelt-hint"
+    />
+  </div>
   <div class="theme-grid" role="group" aria-label="Farbwelt auswählen">
     {#each themes as t (t.id)}
       {@const active = themeActive(t.id, $themeChoice, $theme)}
@@ -129,9 +140,19 @@
   </div>
 </section>
 
-<section class="settings-group" aria-labelledby="themes-modus-title">
-  <h2 class="settings-group-title" id="themes-modus-title">Modus</h2>
-  <p class="settings-group-desc">Hell, dunkel oder wie dein Gerät, unabhängig von der Farbwelt.</p>
+<section
+  class="settings-group"
+  aria-labelledby="themes-modus-title"
+  aria-describedby="themes-modus-hint"
+>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="themes-modus-title">Modus</h2>
+    <InfoHint
+      text="Hell, dunkel oder wie dein Gerät, unabhängig von der Farbwelt."
+      label={hintLabel("Modus")}
+      textId="themes-modus-hint"
+    />
+  </div>
   <!-- A block wrapper keeps the control as wide as its options (the group stretches its children). -->
   <div>
     <SegmentedControl

@@ -83,7 +83,7 @@
 <SettingsGroup
   id="aufbewahrung"
   title="Aufbewahrung"
-  description="Wie lange Daten aufbewahrt werden. Standard sind 10 Jahre (GoBD, § 147 AO)."
+  hint="Wie lange Daten aufbewahrt werden. Standard sind 10 Jahre (GoBD, § 147 AO)."
   changes={changeCount}
   errors={0}
   {saving}

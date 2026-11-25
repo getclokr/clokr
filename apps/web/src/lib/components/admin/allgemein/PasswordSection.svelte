@@ -84,7 +84,7 @@
 <SettingsGroup
   id="passwort"
   title="Passwort-Richtlinie"
-  description="Welche Passwörter Clokr akzeptiert (Empfehlung des BSI)."
+  hint="Welche Passwörter Clokr akzeptiert (Empfehlung des BSI)."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -94,7 +94,7 @@
 >
   <FormField
     label="Mindestlänge (Zeichen)"
-    help="Das BSI empfiehlt mindestens 12 Zeichen."
+    hint="Das BSI empfiehlt mindestens 12 Zeichen."
     error={messages.passwordMinLength}
   >
     {#snippet field({ id, describedBy, invalid })}

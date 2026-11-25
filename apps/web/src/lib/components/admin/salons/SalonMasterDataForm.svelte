@@ -50,6 +50,7 @@
     type SalonDto,
     type SalonFormErrors,
   } from "$lib/salons/salon-form";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     salon: SalonDto | null;
@@ -201,10 +202,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="salon-master-title">
-  <h2 class="settings-group-title" id="salon-master-title">Stammdaten</h2>
-  <p class="settings-group-desc">
-    Name, Adresse und Bundesland. Das Bundesland bestimmt die gesetzlichen Feiertage des Salons.
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="salon-master-title">Stammdaten</h2>
+    <InfoHint
+      text="Name, Adresse und Bundesland. Das Bundesland bestimmt die gesetzlichen Feiertage des Salons."
+      label={hintLabel("Stammdaten")}
+    />
+  </div>
 
   <div class="salon-fields">
     <FormField label="Name" required error={shown.name}>

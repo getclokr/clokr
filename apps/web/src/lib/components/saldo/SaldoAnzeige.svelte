@@ -37,6 +37,7 @@
   // forecast block ONLY — the confirmed figure is what this component promises
   // is stable, so it never carries either affordance.
   import Icon from "$components/Icon.svelte";
+  import InfoHint from "$components/ui/InfoHint.svelte"; // Issue #1058: the one info symbol
   import { fmtBalance } from "$lib/utils/format-minutes"; // Issue #588
   import { forecastLabel as forecastLabelFor } from "$lib/saldo/forecast-label"; // Issue #588
 
@@ -120,12 +121,6 @@
     noSchedule = false,
     noSollTarget = false,
   }: SaldoAnzeigeProps = $props();
-
-  // Unique DOM id for the toggletip panel — several SaldoAnzeige instances coexist on one
-  // page (e.g. /reports), so a fixed literal id would collide. $props.id() is Svelte's
-  // SSR/hydration-safe per-instance id generator (must be its own top-level `const`).
-  const tooltipUid = $props.id();
-  const tooltipId = `saldo-tooltip-${tooltipUid}`;
 
   // 97-UI-SPEC.md → Tooltip: exact three-sentence German copy, do not reword. The SAME
   // string serves the default case (states B/D) and state C (rosterIncomplete) — the third
@@ -213,23 +208,16 @@
 
 <div class={classes} data-testid="saldo-anzeige">
   {#snippet infoTrigger(iconSize: number)}
-    <!-- 97-UI-SPEC → Tooltip trigger mechanics: real button + aria-describedby, panel
-         ALWAYS in the DOM, revealed purely by CSS (:hover / :focus-visible / :focus-within
-         on the trigger) — no JS state, no role="tooltip". Rendered on the forecast block
-         only (never the confirmed block). -->
-    <span class="saldo-info-wrap">
-      <button
-        type="button"
-        class="saldo-info-trigger"
-        data-testid="saldo-info-trigger"
-        aria-describedby={tooltipId}
-      >
-        <Icon name="info" size={iconSize} title="Warum ändert sich diese Zahl?" />
-      </button>
-      <div id={tooltipId} class="saldo-tooltip" data-testid="saldo-tooltip">
-        {TOOLTIP_TEXT}
-      </div>
-    </span>
+    <!-- 97-UI-SPEC → toggletip copy; since Issue #1058 the mechanics are the shared InfoHint (hover,
+         keyboard focus, tap, Escape; the text is always in the DOM and described-by). Rendered on
+         the forecast block only (never the confirmed block). -->
+    <InfoHint
+      text={TOOLTIP_TEXT}
+      label="Warum ändert sich diese Zahl?"
+      testId="saldo-tooltip"
+      triggerTestId="saldo-info-trigger"
+      size={iconSize}
+    />
   {/snippet}
 
   <!-- Code-review fix — the label used to be suppressed entirely in compact mode
@@ -545,59 +533,6 @@
   }
   .saldo__split--compact .saldo__confirmed-caption {
     font-size: 12px;
-  }
-
-  /* ── Phase 97-03 — toggletip trigger + panel ──────────────────────────────
-     Always-in-DOM panel per 97-UI-SPEC → Tooltip trigger mechanics: CSS-only
-     reveal via :hover / :focus-visible / :focus-within on the trigger, no JS
-     state, no role="tooltip" (aria-describedby already exposes the text
-     regardless of visual state). The global :focus-visible outline (app.css
-     COMP-06) is untouched here — only the panel's opacity/pointer-events are
-     toggled, never the trigger's own outline. */
-  .saldo-info-wrap {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-  }
-  .saldo-info-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-2);
-  }
-  .saldo-info-trigger:hover {
-    color: var(--text);
-  }
-  .saldo-tooltip {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 20;
-    width: max-content;
-    max-width: 280px;
-    padding: var(--s-3) var(--s-4);
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: var(--r-control);
-    box-shadow: var(--shadow);
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--text);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease;
-  }
-  .saldo-info-trigger:hover ~ .saldo-tooltip,
-  .saldo-info-trigger:focus-visible ~ .saldo-tooltip,
-  .saldo-info-trigger:focus-within ~ .saldo-tooltip {
-    opacity: 1;
-    pointer-events: auto;
   }
 
   /* ── Phase 97-03 — forecast label/value rows (host the trigger + badge) ── */

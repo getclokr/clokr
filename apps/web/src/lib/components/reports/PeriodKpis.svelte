@@ -11,7 +11,7 @@
   // no saldo beside it, so they never meet Soll.
   // Issue #985 (D-01): a running-month answer names its Stichtag (Soll, Ist and saldo through yesterday).
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
-  import Note from "$components/ui/Note.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Skeleton from "$components/ui/Skeleton.svelte";
   import type { PeriodKpis } from "$lib/reports/period-report";
   import { fmtDateDe, fmtDaysDe, fmtHoursDe, runningMonthNote } from "$lib/reports/period-format";
@@ -161,9 +161,27 @@
       <p class="period-figure-note" data-testid="period-kpis-running-month">{runningNote}</p>
     {/if}
 
-    <p class="period-figure-note" data-testid="period-kpis-persons">
-      {personsNote}{#if saldoNote}<br />{saldoNote}{/if}
-    </p>
+    <!-- Issue #1058: what the figures sum over, and under a salon filter how persons are assigned,
+         are explanations: info symbols under the strip they belong to. -->
+    <div class="hint-row period-figure-hints">
+      <InfoHint
+        testId="period-kpis-persons"
+        text={saldoNote ? [personsNote ?? "", saldoNote] : (personsNote ?? "")}
+        label={hintLabel("Zeiten und Konten")}
+      />
+      {#if filterActive}
+        <InfoHint
+          testId="period-kpis-salon-note"
+          text={[
+            `${PERSON_SALDO_BY_HOME_SALON_LABEL}. ${HOME_SALON_CHANGE_NOTE}`,
+            ...(withoutHomeSalonCount !== null && withoutHomeSalonCount > 0
+              ? [withoutHomeSalonNote(withoutHomeSalonCount)]
+              : []),
+          ]}
+          label={hintLabel("Personen nach Stammsalon")}
+        />
+      {/if}
+    </div>
 
     <KpiStrip items={vacationItems} ariaLabel="Urlaub und Krankheit im Zeitraum" />
 
@@ -177,18 +195,6 @@
       <p class="period-figure-note" data-testid="period-kpis-forecast-note">
         Offene Monate sind eine Prognose und ändern sich bis zum Monatsabschluss.
       </p>
-    {/if}
-    {#if filterActive}
-      <div data-testid="period-kpis-salon-note">
-        <Note tone="brand">
-          {PERSON_SALDO_BY_HOME_SALON_LABEL}. {HOME_SALON_CHANGE_NOTE}
-          {#if withoutHomeSalonCount !== null && withoutHomeSalonCount > 0}
-            <br /><span data-testid="period-kpis-without-home-salon"
-              >{withoutHomeSalonNote(withoutHomeSalonCount)}</span
-            >
-          {/if}
-        </Note>
-      </div>
     {/if}
   {/if}
 </div>
@@ -213,6 +219,10 @@
     .figures-skeleton :global(.skeleton-region) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
+
+  .period-figure-hints {
+    gap: var(--s-2);
   }
 
   .period-figure-note {

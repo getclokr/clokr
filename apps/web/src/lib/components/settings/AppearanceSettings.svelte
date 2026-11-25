@@ -39,7 +39,7 @@
   }
 </script>
 
-<Section title="Darstellung" sub="Gilt für dein Konto auf all deinen Geräten.">
+<Section title="Darstellung" hint="Gilt für dein Konto auf all deinen Geräten.">
   <div class="appearance-rows">
     <div class="appearance-row">
       <span class="appearance-label" id="appearance-theme">Farbwelt</span>

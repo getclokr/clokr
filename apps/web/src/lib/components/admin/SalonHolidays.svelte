@@ -28,6 +28,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   /** One item of `GET /holidays`; `isManual` separates the two lists, the id is real only if manual. */
   export type SalonHolidayDto = {
@@ -176,11 +177,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="salon-holidays-title">
-  <h2 class="settings-group-title" id="salon-holidays-title">Feiertage</h2>
-  <Note tone="info"
-    >Die gesetzlichen Feiertage ergeben sich aus dem Bundesland des Salons. Hier pflegst du
-    zusätzliche Feiertage, die nur für diesen Salon gelten.</Note
-  >
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="salon-holidays-title">Feiertage</h2>
+    <InfoHint
+      text="Die gesetzlichen Feiertage ergeben sich aus dem Bundesland des Salons. Hier pflegst du zusätzliche Feiertage, die nur für diesen Salon gelten."
+      label={hintLabel("Feiertage")}
+    />
+  </div>
 
   <div class="sh-bar">
     <div class="sh-year">

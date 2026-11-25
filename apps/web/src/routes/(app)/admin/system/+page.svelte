@@ -105,7 +105,7 @@
 <div data-testid="admin-system-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/system")}
-    sub="Hier legst du den Namen, die Region, die Standard-Farbwelt und die Sicherheit der Anmeldung für das ganze Unternehmen fest."
+    hint="Hier legst du den Namen, die Region, die Standard-Farbwelt und die Sicherheit der Anmeldung für das ganze Unternehmen fest."
   />
 
   {#if loading}

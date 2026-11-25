@@ -27,6 +27,7 @@
     type ShutdownEmployee,
     type ShutdownException,
   } from "$lib/settings/betriebsurlaub";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   // ── Loading state ──────────────────────────────────────────────────────────
   let loading = $state(true);
@@ -289,7 +290,7 @@
     <!-- ── Zeitraum und Einstellungen ───────────────────────────────────────── -->
     <SettingsGroup
       title="Zeitraum und Einstellungen"
-      description="Bezeichnung, Zeitraum und ob der Betriebsurlaub vom Urlaubskonto abgezogen wird."
+      hint="Bezeichnung, Zeitraum und ob der Betriebsurlaub vom Urlaubskonto abgezogen wird."
       changes={shutdownChanges}
       errors={shutdownErrors}
       {saving}
@@ -346,7 +347,7 @@
       <ToggleField
         bind:checked={formDeducts}
         label="Vom Urlaubskonto abziehen"
-        help="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
+        hint="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
         disabled={saving}
         testid="shutdown-deducts"
       />
@@ -371,11 +372,13 @@
 
     <!-- ── Ausnahmen ──────────────────────────────────────────────────────────── -->
     <section class="settings-group" aria-labelledby="shutdown-exceptions-title">
-      <h2 class="settings-group-title" id="shutdown-exceptions-title">Ausnahmen</h2>
-      <p class="settings-group-desc">
-        Mitarbeitende in dieser Liste sind vom Betriebsurlaub ausgenommen; ihr Urlaubskonto wird
-        nicht belastet.
-      </p>
+      <div class="hint-row">
+        <h2 class="settings-group-title" id="shutdown-exceptions-title">Ausnahmen</h2>
+        <InfoHint
+          text="Mitarbeitende in dieser Liste sind vom Betriebsurlaub ausgenommen; ihr Urlaubskonto wird nicht belastet."
+          label={hintLabel("Ausnahmen")}
+        />
+      </div>
       <div class="sd-bar">
         <button type="button" class="btn btn-primary" onclick={openExceptions}>
           Ausnahme hinzufügen
@@ -466,7 +469,7 @@
       <FormField
         label="Mitarbeitende"
         required
-        help="Wer hier ausgenommen wird, bekommt den Betriebsurlaub nicht vom Urlaubskonto abgezogen."
+        hint="Wer hier ausgenommen wird, bekommt den Betriebsurlaub nicht vom Urlaubskonto abgezogen."
       >
         {#snippet field({ id, describedBy })}
           <select

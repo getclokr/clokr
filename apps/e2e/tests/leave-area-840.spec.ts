@@ -102,7 +102,9 @@ const PLAN_YEAR = new Date().getFullYear() + 1;
 // Issue #851: the Abwesenheiten page's own fixed wording for the caller's own sick days. Any other
 // „Krank…“ text on the page would name a colleague's type and fails the privacy checks below.
 const OTHER_KRANK_TEXT = /Krank(?!heitstage|meldungen| melden)/;
-const OWN_KRANK_ATTRIBUTES = ["Urlaub und Krankheitstage"];
+// Issue #1058: the own KPI „Krankheitstage“ carries an InfoHint whose trigger is labelled
+// „Erklärung zu „Krankheitstage““ - it names the reader's OWN figure, never a colleague's type.
+const OWN_KRANK_ATTRIBUTES = ["Erklärung zu „Krankheitstage“", "Urlaub und Krankheitstage"];
 
 /** Every title/aria-label on the page that contains „Krank“, de-duplicated and sorted. */
 async function krankAttributes(page: Page): Promise<string[]> {

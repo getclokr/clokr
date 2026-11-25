@@ -36,6 +36,7 @@
   import type { EmployeeStatus, MonthStatus } from "$lib/month-close/types";
   import { localCalendarDay } from "$lib/employees/employment-state";
   import { MONTH_STATUS_LABEL, notEndedMonthLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     year: number;
@@ -181,8 +182,13 @@
 </script>
 
 <section class="settings-group" aria-labelledby="mst-months-title">
-  <h2 class="settings-group-title" id="mst-months-title">Monate {year}</h2>
-  <p class="settings-group-desc">Wähle einen Monat, um die Personen und ihren Stand zu sehen.</p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="mst-months-title">Monate {year}</h2>
+    <InfoHint
+      text="Wähle einen Monat, um die Personen und ihren Stand zu sehen."
+      label={hintLabel(`Monate ${year}`)}
+    />
+  </div>
   <DataTable
     columns={monthColumns}
     rows={visibleMonths}

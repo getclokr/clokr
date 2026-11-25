@@ -155,7 +155,7 @@
     <FormField
       label="Begründung"
       required
-      help="Was soll korrigiert werden und warum? Zum Beispiel: Kasse hat beim Ausstempeln gehakt."
+      hint="Was soll korrigiert werden und warum? Zum Beispiel: Kasse hat beim Ausstempeln gehakt."
       error={reasonError}
     >
       {#snippet field({ id, describedBy, invalid })}

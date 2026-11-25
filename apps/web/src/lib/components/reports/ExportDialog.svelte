@@ -19,6 +19,7 @@
   import Note from "$components/ui/Note.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { monthNameDe } from "$lib/reports/period-format";
   import type { YearMonth } from "$lib/reports/period-report";
   import { addMonths, monthsBetween } from "$lib/reports/period-state";
@@ -150,7 +151,7 @@
     <div class="export-month">
       <FormField
         label="Monat für Monatsexport und DATEV"
-        help="Monatsexport und DATEV gelten für einen Monat."
+        hint="Monatsexport und DATEV gelten für einen Monat."
       >
         {#snippet field({ id, describedBy })}
           <select
@@ -179,25 +180,32 @@
           subtitle="Lesbare Fassung des DATEV-Exports – alle Personen eines Monats, ohne Tagesliste."
         >
           {#snippet trailing()}
-            <button
-              type="button"
-              class="btn btn-outline"
-              data-autofocus={months.length === 1 ? "" : undefined}
-              aria-label="Monatsexport herunterladen"
-              disabled={busy.monthly}
-              onclick={() => run("monthly", () => onMonthlyExport(selected.year, selected.month))}
-            >
-              {#if busy.monthly}<Spinner size={13} />{:else}<Icon name="download" size={14} />{/if}
-              Herunterladen
-            </button>
+            <span class="export-trailing">
+              {#if filterActive}
+                <InfoHint
+                  testId="export-salon-persons-note"
+                  text={`${SALON_EXPORT_PERSONS_NOTE} · ${PERSON_SALDO_NOT_SPLIT_LABEL}. ${EXPORT_NO_STAMMSALON_NOTE}`}
+                  label={hintLabel("Monatsexport (PDF)")}
+                />
+              {/if}
+              <button
+                type="button"
+                class="btn btn-outline"
+                data-autofocus={months.length === 1 ? "" : undefined}
+                aria-label="Monatsexport herunterladen"
+                disabled={busy.monthly}
+                onclick={() => run("monthly", () => onMonthlyExport(selected.year, selected.month))}
+              >
+                {#if busy.monthly}<Spinner size={13} />{:else}<Icon
+                    name="download"
+                    size={14}
+                  />{/if}
+                Herunterladen
+              </button>
+            </span>
           {/snippet}
         </ListRow>
       </List>
-      {#if filterActive}
-        <p class="form-hint" data-testid="export-salon-persons-note">
-          {SALON_EXPORT_PERSONS_NOTE} · {PERSON_SALDO_NOT_SPLIT_LABEL}. {EXPORT_NO_STAMMSALON_NOTE}
-        </p>
-      {/if}
       {#if note}
         <div data-testid="report-section9-note">
           <Note tone="brand">{note}</Note>
@@ -214,18 +222,24 @@
           subtitle="Den DATEV-Export findest du unter Daten › Export – mit diesem Monat vorbelegt."
         >
           {#snippet trailing()}
-            <a
-              class="btn btn-outline"
-              data-testid="export-datev-link"
-              href={`/verwalten/daten/export?year=${selected.year}&month=${selected.month}`}
-              >Zu Daten › Export</a
-            >
+            <span class="export-trailing">
+              {#if filterActive}
+                <InfoHint
+                  testId="datev-all-salons-note"
+                  text={DATEV_ALL_SALONS_NOTE}
+                  label={hintLabel("DATEV-Lohnexport")}
+                />
+              {/if}
+              <a
+                class="btn btn-outline"
+                data-testid="export-datev-link"
+                href={`/verwalten/daten/export?year=${selected.year}&month=${selected.month}`}
+                >Zu Daten › Export</a
+              >
+            </span>
           {/snippet}
         </ListRow>
       </List>
-      {#if filterActive}
-        <p class="form-hint" data-testid="datev-all-salons-note">{DATEV_ALL_SALONS_NOTE}</p>
-      {/if}
     </div>
 
     <div class="export-block" data-export-block="csv">
@@ -237,23 +251,29 @@
           subtitle="Die Tabelle „Zeiten & Konten“ für den ganzen Zeitraum, Semikolon-getrennt, für Excel."
         >
           {#snippet trailing()}
-            <button
-              type="button"
-              class="btn btn-outline"
-              aria-label="CSV-Datei herunterladen"
-              disabled={busy.csv}
-              onclick={() => run("csv", () => onCsv())}
-            >
-              {#if busy.csv}<Spinner size={13} />{:else}<Icon name="download" size={14} />{/if}
-              Herunterladen
-            </button>
+            <span class="export-trailing">
+              {#if filterActive}
+                <!-- Issue #714 (D-09): who the file lists under a salon filter. -->
+                <InfoHint
+                  testId="export-csv-salon-note"
+                  text={SALON_CSV_PERSONS_NOTE}
+                  label={hintLabel("Tabelle als CSV")}
+                />
+              {/if}
+              <button
+                type="button"
+                class="btn btn-outline"
+                aria-label="CSV-Datei herunterladen"
+                disabled={busy.csv}
+                onclick={() => run("csv", () => onCsv())}
+              >
+                {#if busy.csv}<Spinner size={13} />{:else}<Icon name="download" size={14} />{/if}
+                Herunterladen
+              </button>
+            </span>
           {/snippet}
         </ListRow>
       </List>
-      {#if filterActive}
-        <!-- Issue #714 (D-09): who the file lists under a salon filter. -->
-        <p class="form-hint" data-testid="export-csv-salon-note">{SALON_CSV_PERSONS_NOTE}</p>
-      {/if}
     </div>
 
     <div class="export-block" data-export-block="absences-csv">
@@ -265,25 +285,32 @@
           subtitle="Die Tabelle „Abwesenheiten je Person“ für den ganzen Zeitraum, alle Spalten, Semikolon-getrennt, für Excel."
         >
           {#snippet trailing()}
-            <button
-              type="button"
-              class="btn btn-outline"
-              aria-label="Abwesenheiten-CSV herunterladen"
-              disabled={busy.absences}
-              onclick={() => run("absences", () => onAbsenceCsv())}
-            >
-              {#if busy.absences}<Spinner size={13} />{:else}<Icon name="download" size={14} />{/if}
-              Herunterladen
-            </button>
+            <span class="export-trailing">
+              {#if filterActive}
+                <!-- Issue #713 (D-11): the same persons as the times CSV under a salon filter. -->
+                <InfoHint
+                  testId="export-absences-csv-salon-note"
+                  text={SALON_CSV_PERSONS_NOTE}
+                  label={hintLabel("Abwesenheiten als CSV")}
+                />
+              {/if}
+              <button
+                type="button"
+                class="btn btn-outline"
+                aria-label="Abwesenheiten-CSV herunterladen"
+                disabled={busy.absences}
+                onclick={() => run("absences", () => onAbsenceCsv())}
+              >
+                {#if busy.absences}<Spinner size={13} />{:else}<Icon
+                    name="download"
+                    size={14}
+                  />{/if}
+                Herunterladen
+              </button>
+            </span>
           {/snippet}
         </ListRow>
       </List>
-      {#if filterActive}
-        <!-- Issue #713 (D-11): the same persons as the times CSV under a salon filter. -->
-        <p class="form-hint" data-testid="export-absences-csv-salon-note">
-          {SALON_CSV_PERSONS_NOTE}
-        </p>
-      {/if}
     </div>
   </div>
 
@@ -297,6 +324,13 @@
 </Dialog>
 
 <style>
+  /* The info symbol of a salon-filter note sits beside the row's action (Issue #1058). */
+  .export-trailing {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
   .export-month {
     margin-bottom: var(--s-4);
   }

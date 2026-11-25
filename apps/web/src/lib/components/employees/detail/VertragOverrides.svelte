@@ -172,7 +172,7 @@
   <SettingsGroup
     id="vertrag-pausendauer"
     title="Pausendauer"
-    description={`Überschreibt den Unternehmensstandard für diese Person. Leer = Standard (${default6h}/${default9h} Min).`}
+    hint={`Überschreibt den Unternehmensstandard für diese Person. Leer = Standard (${default6h}/${default9h} Min).`}
     changes={canEdit ? pauseChanges : 0}
     errors={sectionErrors(pauseShown)}
     saving={savingPause}
@@ -259,7 +259,7 @@
   <SettingsGroup
     id="vertrag-phorest-puffer"
     title="Phorest Vor- und Nachbereitung"
-    description={`Überschreibt den Unternehmensstandard für diese Person. Leer = Standard (${defaultPrep}/${defaultWrapup} Min).`}
+    hint={`Überschreibt den Unternehmensstandard für diese Person. Leer = Standard (${defaultPrep}/${defaultWrapup} Min).`}
     changes={canEdit ? phorestChanges : 0}
     errors={sectionErrors(phorestShown)}
     saving={savingPhorest}

@@ -7,6 +7,7 @@
   import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from "chart.js";
   import Card from "$components/ui/Card.svelte";
   import CardHeader from "$components/ui/CardHeader.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { chartAriaLabel, getChartTheme } from "$lib/utils/chart-theme";
   import { TEAM_SALDO_BARS_CHART, teamSaldoBarsChartConfig } from "$lib/dashboard/team-charts";
   import { fmtBalance } from "$lib/utils/format-minutes";
@@ -84,14 +85,24 @@
     <p class="saldo-empty">Keine Salden in deiner Reichweite</p>
   {:else}
     <div data-testid="team-saldo-values">
-      <p class="saldo-median" data-testid="team-saldo-median">
-        Team-Median:
-        <strong>{figures.medianMinutes === null ? "—" : fmtBalance(figures.medianMinutes)}</strong>
-        {#if figures.counted > 0}
-          · {figures.counted}
-          {figures.counted === 1 ? "Person" : "Personen"}
+      <div class="hint-row saldo-median-row">
+        <p class="saldo-median" data-testid="team-saldo-median">
+          Team-Median:
+          <strong>{figures.medianMinutes === null ? "—" : fmtBalance(figures.medianMinutes)}</strong
+          >
+          {#if figures.counted > 0}
+            · {figures.counted}
+            {figures.counted === 1 ? "Person" : "Personen"}
+          {/if}
+        </p>
+        {#if salonFiltered}
+          <InfoHint
+            testId="team-saldo-salon-note"
+            text={`${SALON_HOME_PERSONS_NOTE} · ${PERSON_SALDO_NOT_SPLIT_LABEL}`}
+            label={hintLabel("Team-Median")}
+          />
         {/if}
-      </p>
+      </div>
 
       {#if figures.diverging.length > 0}
         <div class="saldo-body">
@@ -141,14 +152,15 @@
       {/if}
     </div>
   {/if}
-  {#if salonFiltered}
-    <p class="form-hint saldo-note">{SALON_HOME_PERSONS_NOTE} · {PERSON_SALDO_NOT_SPLIT_LABEL}</p>
-  {/if}
 </Card>
 
 <style>
-  .saldo-median {
+  .saldo-median-row {
     margin: 0 0 0.75rem;
+  }
+
+  .saldo-median {
+    margin: 0;
     font-size: 0.875rem;
     color: var(--text-2);
   }
@@ -243,10 +255,6 @@
 
   .saldo-more {
     margin: 0.25rem 0 0;
-  }
-
-  .saldo-note {
-    margin: 0.75rem 0 0;
   }
 
   .saldo-skeleton {

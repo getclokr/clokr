@@ -42,6 +42,7 @@
   import { closedDaysFor } from "$lib/shifts/closed-days";
   import { neutralOwnPlanner } from "$lib/leave-plan/neutral";
   import { isSalonFilterRejected } from "$lib/salons/page-scope";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { createWish, getPlan, listPlans, removeWish, updateWish } from "$lib/leave-plan/api";
   import { planErrorMessage } from "$lib/leave-plan/errors";
   import {
@@ -485,17 +486,21 @@
           Nach der Frist kannst du deine eigenen Wünsche nicht mehr ändern.
         </p>
       {/if}
-      <div data-testid="leave-plan-legend">
+      <div class="plan-legend-row" data-testid="leave-plan-legend">
         <LeaveLegend
           typeCodes={legend.typeCodes}
           styles={legend.styles}
           markings={legend.markings}
         />
         {#if loadRow && !isMobile}
-          <p class="form-hint plan-legend-hint" data-testid="leave-plan-load-help">
-            <strong>„{loadRow.label}“</strong>: {loadRow.hint}. Wunsch: im Quartal und im Monat
-            verschiebbar und in der Länge änderbar, solange die Planung offen ist.
-          </p>
+          <!-- Issue #1058: the explanation of the load row is an info symbol beside the legend. -->
+          <span class="plan-legend-hint">
+            <InfoHint
+              testId="leave-plan-load-help"
+              label={hintLabel(loadRow.label)}
+              text={`„${loadRow.label}“: ${loadRow.hint}. Wunsch: im Quartal und im Monat verschiebbar und in der Länge änderbar, solange die Planung offen ist.`}
+            />
+          </span>
         {/if}
       </div>
       {#if isMobile}
@@ -577,8 +582,12 @@
   .plan-notice {
     margin: var(--s-3) 1.25rem;
   }
+  .plan-legend-row {
+    display: flex;
+    align-items: center;
+  }
   .plan-legend-hint {
-    margin: 0 0 var(--s-3);
-    padding: 0 1.25rem;
+    flex: none;
+    margin-right: 1.25rem;
   }
 </style>

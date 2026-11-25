@@ -222,7 +222,7 @@
 {#if show.hours}
   <SettingsGroup
     title="Schichten und Öffnungszeiten"
-    description="Wie streng Schichten an die Öffnungszeiten des jeweiligen Salons gebunden werden. Die Öffnungszeiten selbst pflegst du je Salon unter Verwalten › Salons."
+    hint="Wie streng Schichten an die Öffnungszeiten des jeweiligen Salons gebunden werden. Die Öffnungszeiten selbst pflegst du je Salon unter Verwalten › Salons."
     changes={hoursChanges}
     errors={0}
     saving={hoursSaving}
@@ -254,7 +254,7 @@
 {#if show.availability}
   <SettingsGroup
     title="Verfügbarkeiten"
-    description="Ob Mitarbeitende ihre Verfügbarkeit selbst pflegen und der Dienstplan sie berücksichtigt."
+    hint="Ob Mitarbeitende ihre Verfügbarkeit selbst pflegen und der Dienstplan sie berücksichtigt."
     changes={availabilityChanges}
     errors={0}
     saving={availabilitySaving}
@@ -277,7 +277,7 @@
 {#if show.vocational}
   <SettingsGroup
     title="Berufsschule und Schichten"
-    description="Was mit geplanten Schichten passiert, wenn auf denselben Tag ein Berufsschultag fällt."
+    hint="Was mit geplanten Schichten passiert, wenn auf denselben Tag ein Berufsschultag fällt."
     changes={vocationalChanges}
     errors={0}
     saving={vocationalSaving}
@@ -305,7 +305,7 @@
 {#if show.reminders}
   <SettingsGroup
     title="Schicht-Erinnerungen"
-    description="Erinnerungen an Personen mit einer geplanten Schicht."
+    hint="Erinnerungen an Personen mit einer geplanten Schicht. Erinnert werden nur Personen mit einer geplanten Schicht. Clokr stempelt nie selbst – die Person bestätigt das Stempeln in der App."
     changes={remindersChanges}
     errors={0}
     saving={remindersSaving}
@@ -333,7 +333,7 @@
     />
     <FormField
       label="Erinnern nach (Minuten)"
-      help={`Gilt für den Schichtbeginn und das Schichtende (${REMINDER_OFFSET_MIN} bis ${REMINDER_OFFSET_MAX} Minuten).`}
+      hint={`Gilt für den Schichtbeginn und das Schichtende (${REMINDER_OFFSET_MIN} bis ${REMINDER_OFFSET_MAX} Minuten).`}
     >
       {#snippet field({ id, describedBy })}
         <input
@@ -352,7 +352,7 @@
     </FormField>
     <FormField
       label="Uhrzeit der Abend-Erinnerung"
-      help="Schichten, die nach dieser Uhrzeit enden, bekommen an diesem Tag keine Abend-Erinnerung. Wähle eine Uhrzeit nach deinem spätesten Schichtende."
+      hint="Schichten, die nach dieser Uhrzeit enden, bekommen an diesem Tag keine Abend-Erinnerung. Wähle eine Uhrzeit nach deinem spätesten Schichtende."
     >
       {#snippet field({ id, describedBy })}
         <input
@@ -366,10 +366,6 @@
         />
       {/snippet}
     </FormField>
-    <p class="form-hint">
-      Erinnert werden nur Personen mit einer geplanten Schicht. Clokr stempelt nie selbst – die
-      Person bestätigt das Stempeln in der App.
-    </p>
   </SettingsGroup>
 {/if}
 

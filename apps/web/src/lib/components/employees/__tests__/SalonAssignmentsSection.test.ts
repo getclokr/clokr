@@ -149,7 +149,8 @@ describe("SalonAssignmentsSection - read (Issue #86, AC-86-5)", () => {
     answer();
     renderWithTheme(SalonAssignmentsSection, { employeeId: E, canEdit: false });
     await settle();
-    expect(document.querySelectorAll("button").length).toBe(0);
+    // The section heading carries an info symbol (Issue #1058); it is a button but no action.
+    expect(document.querySelectorAll("button:not(.ih-trigger)").length).toBe(0);
   });
 
   it("falls back to 'Unbekannter Salon' with a neutral hint when the salon list is refused", async () => {

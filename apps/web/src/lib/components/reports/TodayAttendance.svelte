@@ -15,6 +15,7 @@
   import { DAY_STATUS_LABEL, attendanceStatusText } from "$lib/dashboard/day-status-label"; // Issue #587
   import { teamDayHref, teamLeaveCreateHref } from "$lib/dashboard/team-day-links"; // Issue #587
   import { fmtDateDe } from "$lib/reports/period-format";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import type { TodayAttendanceData, TodayEmployee } from "$lib/reports/today-attendance";
 
   interface Props {
@@ -84,11 +85,19 @@
 </script>
 
 <section class="settings-group" aria-labelledby="today-attendance-title">
-  <h2 class="settings-group-title" id="today-attendance-title">Heutige Anwesenheit</h2>
-  <p class="settings-group-desc">
-    Stand heute, unabhängig vom Zeitraum
-    {#if attendance}<span class="attendance-date">{fmtDateDe(attendance.date)}</span>{/if}
-  </p>
+  <div class="hint-row">
+    <h2 class="settings-group-title" id="today-attendance-title">Heutige Anwesenheit</h2>
+    <InfoHint
+      text="Stand heute, unabhängig vom Zeitraum"
+      label={hintLabel("Heutige Anwesenheit")}
+    />
+  </div>
+  <!-- The date is data, not explanation (Issue #1058): it stays visible. -->
+  {#if attendance}
+    <p class="settings-group-desc">
+      <span class="attendance-date">{fmtDateDe(attendance.date)}</span>
+    </p>
+  {/if}
 
   {#if loading}
     <Skeleton shape="row" count={4} />
@@ -144,7 +153,6 @@
 
 <style>
   .attendance-date {
-    margin-left: var(--s-2);
     color: var(--text);
     font-weight: 600;
   }

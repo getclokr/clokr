@@ -62,7 +62,7 @@
     bind:checked={twoFaEnabled}
     onchange={toggleTwoFa}
     label="Zwei-Faktor-Authentifizierung per E-Mail verlangen"
-    help="Nach der Anmeldung schickt Clokr einen 6-stelligen Code per E-Mail."
+    hint="Nach der Anmeldung schickt Clokr einen 6-stelligen Code per E-Mail."
     disabled={!canEdit || twoFaSaving}
     testid="admin-system-sicherheit-twoFaEnabled"
   />

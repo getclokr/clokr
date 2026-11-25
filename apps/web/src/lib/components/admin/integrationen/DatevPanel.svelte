@@ -157,7 +157,7 @@
 <SettingsGroup
   id="datev-einrichtung"
   title="DATEV"
-  description="Berater-Nr., Mandantennummer und die Lohnarten für DATEV LODAS. Die Nummern gelten für jede erzeugte Datei."
+  hint="Berater-Nr., Mandantennummer und die Lohnarten für DATEV LODAS. Die Nummern gelten für jede erzeugte Datei."
   changes={datevChanges}
   errors={datevErrorCount}
   saving={datevSaving}
@@ -177,7 +177,7 @@
     {/if}
     <FormField
       label="Berater-Nr."
-      help="Nummer der Steuerkanzlei im DATEV-Kopf. Ohne sie wird der Export abgelehnt."
+      hint="Nummer der Steuerkanzlei im DATEV-Kopf. Ohne sie wird der Export abgelehnt."
       error={datevProblems.datevBeraterNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -197,7 +197,7 @@
     </FormField>
     <FormField
       label="Mandantennummer"
-      help="Nummer dieses Unternehmens bei der Kanzlei. Ohne sie lässt sich die Datei keinem Unternehmen zuordnen."
+      hint="Nummer dieses Unternehmens bei der Kanzlei. Ohne sie lässt sich die Datei keinem Unternehmen zuordnen."
       error={datevProblems.datevMandantenNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -217,7 +217,7 @@
     </FormField>
     <FormField
       label="Normalstunden"
-      help="Lohnart für reguläre Arbeitsstunden."
+      hint="Lohnart für reguläre Arbeitsstunden."
       error={datevProblems.datevNormalstundenNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -237,7 +237,7 @@
     </FormField>
     <FormField
       label="Urlaub"
-      help="Lohnart für genommene Urlaubstage."
+      hint="Lohnart für genommene Urlaubstage."
       error={datevProblems.datevUrlaubNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -257,7 +257,7 @@
     </FormField>
     <FormField
       label="Krank / AU"
-      help="Lohnart für entgeltfortzahlungspflichtige Krankheitstage."
+      hint="Lohnart für entgeltfortzahlungspflichtige Krankheitstage."
       error={datevProblems.datevKrankNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
@@ -277,7 +277,7 @@
     </FormField>
     <FormField
       label="Sonderurlaub"
-      help="Lohnart für Sonderurlaub nach § 616 BGB oder Tarif."
+      hint="Lohnart für Sonderurlaub nach § 616 BGB oder Tarif."
       error={datevProblems.datevSonderurlaubNr ?? undefined}
     >
       {#snippet field({ id, describedBy, invalid })}

@@ -82,6 +82,7 @@
     usualWorkDaysShortfall,
     type ContractHistoryRow,
   } from "$lib/utils/work-schedule";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   interface Props {
     employeeId: string;
@@ -397,7 +398,10 @@
 
 <div class="vertrag-tab detail-form">
   <section class="settings-group vt-section" id="vertrag-aktuell" aria-labelledby="vt-model-title">
-    <h2 class="settings-group-title" id="vt-model-title">Arbeitszeitmodell</h2>
+    <div class="hint-row">
+      <h2 class="settings-group-title" id="vt-model-title">Arbeitszeitmodell</h2>
+      <InfoHint text={SCHEDULE_TYPE_HELP[type]} label={hintLabel("Arbeitszeitmodell")} />
+    </div>
 
     {#if saveError}
       <div role="alert" data-testid="vertrag-save-error">
@@ -416,7 +420,6 @@
           disabled={!canEdit}
         />
       </div>
-      <p class="vt-help">{SCHEDULE_TYPE_HELP[type]}</p>
     </div>
 
     {#if type === "FIXED_SCHEDULE"}
@@ -445,7 +448,7 @@
       <div class="vt-pair">
         <FormField
           label="Wochenstunden-Soll"
-          help="Stunden pro Woche, frei auf die Arbeitstage verteilt."
+          hint="Stunden pro Woche, frei auf die Arbeitstage verteilt."
           error={shown.weeklyHours}
         >
           {#snippet field({ id, describedBy, invalid })}
@@ -467,7 +470,7 @@
       <WeekdayPicker
         bind:value={values.workDays}
         legend="Arbeitstage"
-        help="Die vertraglich festgelegten Arbeitstage steuern Urlaubsverbrauch und Soll-Verteilung."
+        hint="Die vertraglich festgelegten Arbeitstage steuern Urlaubsverbrauch und Soll-Verteilung."
         disabled={!canEdit}
         testidPrefix="vertrag-workday"
       />
@@ -500,7 +503,7 @@
       <WeekdayPicker
         bind:value={values.coreDays}
         legend="Kerntage (optional)"
-        help="Nur zur Information – wirkt sich weder auf das Soll noch auf den Urlaub aus. Leer lassen für reine Gleitzeit ohne Kernzeit."
+        hint="Nur zur Information – wirkt sich weder auf das Soll noch auf den Urlaub aus. Leer lassen für reine Gleitzeit ohne Kernzeit."
         disabled={!canEdit}
         testidPrefix="vertrag-core-day"
       />
@@ -508,7 +511,7 @@
       <div class="vt-pair">
         <FormField
           label="Stunden pro Monat"
-          help="Das Soll wird monatlich berechnet, es gibt keine Tagesziele. Leer oder 0: die Zeiten werden nur erfasst."
+          hint="Das Soll wird monatlich berechnet, es gibt keine Tagesziele. Leer oder 0: die Zeiten werden nur erfasst."
           error={shown.monthlyHours}
         >
           {#snippet field({ id, describedBy, invalid })}
@@ -537,7 +540,7 @@
       <WeekdayPicker
         bind:value={values.monthlyWorkDays}
         legend="Arbeitstage"
-        help="Die vertraglich festgelegten Arbeitstage steuern Urlaubsverbrauch und Urlaubsanspruch."
+        hint="Die vertraglich festgelegten Arbeitstage steuern Urlaubsverbrauch und Urlaubsanspruch."
         disabled={!canEdit}
         testidPrefix="vertrag-workday"
       />
@@ -545,7 +548,7 @@
       <div class="vt-pair">
         <FormField
           label="Wochenstunden-Soll"
-          help="Der Schichtplan ist führend; das Soll wird wöchentlich als Gesamtstunden erfasst."
+          hint="Der Schichtplan ist führend; das Soll wird wöchentlich als Gesamtstunden erfasst."
           required
           error={shown.weeklyHours}
         >
@@ -566,7 +569,7 @@
         </FormField>
         <FormField
           label="Arbeitstage pro Woche"
-          help="Vertragliche Anzahl Arbeitstage pro Woche. Welche Wochentage das konkret sind, bestimmt der Schichtplan – nicht dieses Feld."
+          hint="Vertragliche Anzahl Arbeitstage pro Woche. Welche Wochentage das konkret sind, bestimmt der Schichtplan – nicht dieses Feld."
           error={shown.contractWorkDays}
         >
           {#snippet field({ id, describedBy, invalid })}
@@ -599,7 +602,7 @@
       <FormField
         label="Gültig ab"
         required
-        help="Vertragswechsel gelten ab dem Monatsersten."
+        hint="Vertragswechsel gelten ab dem Monatsersten."
         error={shown.validFrom}
       >
         {#snippet field({ id, describedBy, invalid })}
@@ -619,7 +622,7 @@
       </FormField>
       <FormField
         label="Überstunden-Warnschwelle"
-        help="Stunden, ab denen das Überstundenkonto eine Warnung zeigt."
+        hint="Stunden, ab denen das Überstundenkonto eine Warnung zeigt."
         error={shown.overtimeThreshold}
       >
         {#snippet field({ id, describedBy, invalid })}
@@ -702,7 +705,7 @@
     <SettingsGroup
       id="vertrag-nachtrag"
       title="Übliche Arbeitstage nachtragen"
-      description="Schichtbetrieb-Verträge ohne Angabe"
+      hint="Schichtbetrieb-Verträge ohne Angabe"
       changes={canEdit ? backfillChanges : 0}
       errors={backfillErrors}
       saving={backfillSaving}
@@ -818,12 +821,6 @@
   /* The model segments wrap onto further rows on a phone (SegmentedControl, #945) instead of scrolling. */
   .vt-model-field {
     min-width: 0;
-  }
-
-  .vt-help {
-    margin: 0;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
   }
 
   /* Two fields side by side (prototype form row), one column on a phone. */

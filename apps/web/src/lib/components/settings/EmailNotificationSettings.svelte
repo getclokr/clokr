@@ -63,7 +63,10 @@
 
 <Section
   title="Benachrichtigungen"
-  sub="Welche E-Mails du bekommst. In Clokr siehst du jede Benachrichtigung weiterhin."
+  hint={[
+    "Welche E-Mails du bekommst. In Clokr siehst du jede Benachrichtigung weiterhin.",
+    "Hinweise zur Sicherheit deines Kontos und gesetzliche Hinweise, etwa zu verfallendem Urlaub, bekommst du immer. E-Mails gehen nur raus, wenn dein Betrieb sie für diese Art eingeschaltet hat.",
+  ]}
 >
   {#if loading}
     <Skeleton shape="row" count={4} />
@@ -89,11 +92,6 @@
         </li>
       {/each}
     </ul>
-    <p class="mail-hint">
-      Hinweise zur Sicherheit deines Kontos und gesetzliche Hinweise, etwa zu verfallendem Urlaub,
-      bekommst du immer. E-Mails gehen nur raus, wenn dein Betrieb sie für diese Art eingeschaltet
-      hat.
-    </p>
   {/if}
 </Section>
 
@@ -159,10 +157,5 @@
   .mail-switch:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
-  }
-  .mail-hint {
-    margin: var(--s-3) 0 0;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
   }
 </style>

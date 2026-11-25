@@ -35,6 +35,7 @@
   } from "$lib/me/konto";
   import { freeDaysLabel, showFreeDays, OVERTIME_COMP_REQUEST_HREF } from "$lib/me/free-days";
   import { downloadStundennachweis } from "$lib/me/stundennachweis";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import { MONTH_STATUS_LABEL } from "$lib/saldo/month-status"; // Issue #598: one status wording
 
   interface OvertimeAnswer {
@@ -232,7 +233,7 @@
 
 <PageHeader
   title={pageLabel("/ich/konto")}
-  subtitle="Stundenkonto, Urlaubskonto und deine Monatsnachweise"
+  hint="Stundenkonto, Urlaubskonto und deine Monatsnachweise"
 />
 
 {#if loading}
@@ -256,7 +257,16 @@
 
     <section class="konto-sec" aria-labelledby="konto-herleitung">
       <!-- Owner 13.11.2026: newest month first, like the Monatsnachweise below -->
-      <h2 id="konto-herleitung" class="konto-h2">So setzt sich dein Stundenkonto zusammen</h2>
+      <div class="hint-row">
+        <h2 id="konto-herleitung" class="konto-h2">So setzt sich dein Stundenkonto zusammen</h2>
+        <InfoHint
+          text={[
+            ...(hireDate ? [`Eintritt am ${hireDate.toLocaleDateString("de-DE")}.`] : []),
+            "Tippe auf einen Monat, um seine Tage mit Soll, Ist und Differenz zu sehen. Das Stundenkonto zählt bis gestern; der heutige Tag kommt morgen dazu.",
+          ]}
+          label={hintLabel("So setzt sich dein Stundenkonto zusammen")}
+        />
+      </div>
       <DataTable
         caption="Herleitung des Stundenkontos nach Monaten"
         columns={COLUMNS}
@@ -329,27 +339,21 @@
           </div>
         {/snippet}
       </DataTable>
-      {#if hireDate}
-        <p class="konto-hint">Eintritt am {hireDate.toLocaleDateString("de-DE")}.</p>
-      {/if}
       {#if overtime && showFreeDays(overtime)}
-        <Note tone="info">
-          <span data-testid="konto-free-days"
-            >Aus deinem bestätigten Guthaben sind das {freeDaysLabel(
-              overtime.freeDaysEquivalent ?? 0,
-            )}.</span
-          >
+        <!-- The action stays visible; only the sentence about the free days became an info symbol. -->
+        <div class="hint-row">
           <a
             class="btn btn-outline btn-sm"
             data-testid="konto-comp-request"
             href={OVERTIME_COMP_REQUEST_HREF}>Freizeitausgleich beantragen</a
           >
-        </Note>
+          <InfoHint
+            testId="konto-free-days"
+            text={`Aus deinem bestätigten Guthaben sind das ${freeDaysLabel(overtime.freeDaysEquivalent ?? 0)}.`}
+            label={hintLabel("Freizeitausgleich beantragen")}
+          />
+        </div>
       {/if}
-      <p class="konto-hint">
-        Tippe auf einen Monat, um seine Tage mit Soll, Ist und Differenz zu sehen. Das Stundenkonto
-        zählt bis gestern; der heutige Tag kommt morgen dazu.
-      </p>
     </section>
 
     <div class="konto-wrap">

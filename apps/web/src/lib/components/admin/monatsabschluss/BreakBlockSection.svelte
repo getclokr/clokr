@@ -84,7 +84,7 @@
 
 <SettingsGroup
   title="Offene Pausenbefunde"
-  description="Ob ein Monat abgeschlossen werden kann, solange Tage mit unbestätigten Pausen offen sind."
+  hint="Ob ein Monat abgeschlossen werden kann, solange Tage mit unbestätigten Pausen offen sind."
   changes={changeCount}
   errors={0}
   {saving}
@@ -105,7 +105,7 @@
   <ToggleField
     bind:checked={values.blockMonthCloseOnUnconfirmedBreak}
     label="Abschluss bei offenen Pausenbefunden sperren"
-    help="Ist das ausgeschaltet, erscheint bei offenen Pausenbefunden nur eine Warnung."
+    hint="Ist das ausgeschaltet, erscheint bei offenen Pausenbefunden nur eine Warnung."
     disabled={!canEdit || saving || !confirmationOn}
     testid="monatsabschluss-blockMonthCloseOnUnconfirmedBreak"
   />
