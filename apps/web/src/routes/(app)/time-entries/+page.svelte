@@ -44,6 +44,8 @@
   } from "$lib/breaks/day-break-preview";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
+  import { tenantFeatures } from "$stores/tenant-features"; // Issue #1072
+  import { dayAnchor, tenantDay } from "$lib/utils/tenant-day"; // Issue #1072
   import { salonContext, showSalonOptions } from "$stores/salon-context"; // Issue #70, D-12
   import {
     addActionForDay,
@@ -293,14 +295,27 @@
   // (the retired per-tenant holiday-deduction switch, D-04, is gone).
   let defaultWorkDays: number[] | null = $state(null);
 
-  const today = new Date();
-  const todayStr = format(today, "yyyy-MM-dd");
-  let calMonth = $state(new Date(today.getFullYear(), today.getMonth(), 1));
-  let fromDate = format(startOfMonth(today), "yyyy-MM-dd");
-  let toDate = format(endOfMonth(today), "yyyy-MM-dd");
+  // Issue #1072 — "today" is the TENANT day, never the device or UTC day: the server files every
+  // stamp under the tenant's day. The zone is the store's (DEFAULT_TIMEZONE until the layout's read
+  // settles); onMount awaits the settled zone and re-anchors before the first request.
+  const initialDay = tenantDay(new Date(), $tenantFeatures.timezone);
+  let todayStr = $state(initialDay);
+  // The tenant day as a calendar anchor, for date-fns week arithmetic only (never an instant).
+  const todayAnchor = $derived(dayAnchor(todayStr));
+  let calMonth = $state(startOfMonth(dayAnchor(initialDay)));
+  let fromDate = format(startOfMonth(dayAnchor(initialDay)), "yyyy-MM-dd");
+  let toDate = format(endOfMonth(dayAnchor(initialDay)), "yyyy-MM-dd");
 
   // Ausgewählter Tag
-  let selectedDate = $state(todayStr);
+  let selectedDate = $state(initialDay);
+
+  /** Moves the calendar onto a tenant day: its month, the request range and the selection. */
+  function anchorOnDay(day: string) {
+    calMonth = startOfMonth(dayAnchor(day));
+    fromDate = format(startOfMonth(calMonth), "yyyy-MM-dd");
+    toDate = format(endOfMonth(calMonth), "yyyy-MM-dd");
+    selectedDate = day;
+  }
 
   // Phase 112 — the row the arriving deep link points at (?highlight=<entryId>, or the first
   // entry of ?date=<day>). Null when the page was not deep-linked or the target is not loaded.
@@ -377,7 +392,7 @@
   // Modal
   let modalOpen = $state(false);
   let editEntry = $state<TimeEntry | null>(null);
-  let formDate = $state(todayStr);
+  let formDate = $state(initialDay);
   let formStart = $state("09:00");
   let formEnd = $state("17:00");
   let formHasEnd = $state(true);
@@ -501,9 +516,18 @@
     // cannot point at a single entry, so an entry-targeted arrival opens the list.
     if (highlightParam) teView = "list";
 
+    // Issue #1072 (R-A): the first request carries a month derived from now, so the tenant's zone is
+    // awaited first (a child's onMount runs before the layout's read settles).
+    todayStr = tenantDay(new Date(), await tenantFeatures.loadTimezone());
+
     // The calendar is anchored on the 1st of the linked month; the linked day stays selectedDate
     // (quick 261009-bsb, Issue #80).
     const dayParam = normalizeDateParam(page.url.searchParams.get("date"));
+    if (!dayParam) {
+      anchorOnDay(todayStr);
+      formDate = todayStr;
+      pickerYear = Number(todayStr.slice(0, 4));
+    }
     if (dayParam) {
       selectedDate = dayParam;
       calMonth = monthAnchorFromDay(dayParam);
@@ -717,7 +741,7 @@
   }
 
   let showMonthPicker = $state(false);
-  let pickerYear = $state(new Date().getFullYear());
+  let pickerYear = $state(Number(initialDay.slice(0, 4)));
 
   async function gotoMonth(dir: 1 | -1) {
     calMonth = dir === 1 ? addMonths(calMonth, 1) : subMonths(calMonth, 1);
@@ -737,11 +761,8 @@
   }
 
   async function gotoToday() {
-    const now = new Date();
-    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    fromDate = format(startOfMonth(calMonth), "yyyy-MM-dd");
-    toDate = format(endOfMonth(calMonth), "yyyy-MM-dd");
-    selectedDate = format(now, "yyyy-MM-dd");
+    todayStr = tenantDay(new Date(), $tenantFeatures.timezone);
+    anchorOnDay(todayStr);
     showMonthPicker = false;
     await loadAll();
   }
@@ -1872,8 +1893,8 @@
   // Phase 49.1 — FLEXTIME weekly diff: sum this week's worked vs expected, through yesterday,
   // the same cutoff as the month figures (issue #438)
   let weekWorkedMin = $derived.by((): number => {
-    const weekStart = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
-    const weekEnd = format(endOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const weekStart = format(startOfWeek(todayAnchor, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const weekEnd = format(endOfWeek(todayAnchor, { weekStartsOn: 1 }), "yyyy-MM-dd");
     return entries
       .filter((e) => {
         if (!e.endTime || e.isInvalid) return false;
@@ -1889,8 +1910,8 @@
       );
   });
   let weekExpectedMin = $derived.by((): number => {
-    const weekStart = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
-    const weekEnd = format(endOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const weekStart = format(startOfWeek(todayAnchor, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const weekEnd = format(endOfWeek(todayAnchor, { weekStartsOn: 1 }), "yyyy-MM-dd");
     return calendarDays
       .filter((d) => d.dateStr >= weekStart && d.dateStr <= weekEnd && d.dateStr < todayStr)
       .reduce((s, d) => s + d.expectedMin, 0);

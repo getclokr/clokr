@@ -8,6 +8,18 @@
  *
  * The zone comes from the tenant settings (`$stores/tenant-features`). An empty or unknown zone
  * falls back to `DEFAULT_TIMEZONE`, the server's own default - never to the zone of the browser.
+ *
+ * Issue #1072: this is the ONLY module that turns an instant into a tenant calendar reading (day,
+ * year, anchor). Two rules for callers:
+ * - A first request whose URL carries a day, month or year derived from now awaits
+ *   `tenantFeatures.loadTimezone()` before computing it (a child page's `onMount` runs before the
+ *   layout's read settles).
+ * - Render values, `$derived`s and event handlers read `$tenantFeatures.timezone` directly.
+ *
+ * A calendar ANCHOR (`dayAnchor`, `tenantDayAnchor`) is a Date at 12:00 device-local time whose
+ * local fields (`getFullYear`, `getMonth`, `getDate`, `getDay`) are the tenant day. It exists for
+ * date-fns month/week arithmetic and the local-accessor helpers; it is never sent or compared as
+ * an instant. Noon, not midnight, because some zones skip local midnight on their DST day.
  */
 import { DEFAULT_TIMEZONE } from "$lib/settings/allgemein";
 
@@ -57,4 +69,23 @@ export function tenantDay(now: Date, timeZone: string): string {
 export function tenantTimeOfDay(now: Date, timeZone: string): string {
   const p = partsOf(now, timeZone);
   return `${p.hour}:${p.minute}`;
+}
+
+/** The calendar year of `now` in the tenant's zone. */
+export function tenantYear(now: Date, timeZone: string): number {
+  return Number(partsOf(now, timeZone).year);
+}
+
+/**
+ * A calendar anchor for a `YYYY-MM-DD` day: a Date at 12:00 device-local time whose local fields
+ * are that day. For calendar arithmetic only, never an instant.
+ */
+export function dayAnchor(isoDay: string): Date {
+  const [y, m, d] = isoDay.split("-").map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
+/** The calendar anchor of the tenant day of `now` (see `dayAnchor`). */
+export function tenantDayAnchor(now: Date, timeZone: string): Date {
+  return dayAnchor(tenantDay(now, timeZone));
 }
