@@ -19,6 +19,11 @@
  * A soft-deleted shutdown is listed only where something generated is still active (closed months
  * keep their rows by design). A totals line follows.
  *
+ * Issue #1079: a Betriebsurlaub that names salons is judged by the Stammsalon per day - the same
+ * pure rule the booking uses (`company-shutdown/affected-days.ts`): a person never homed in the named
+ * salons yields no line; a person homed there for part of a month yields one line for that month,
+ * BOOKED when every affected segment of the month is covered by an active absence of the shutdown.
+ *
  * READ-ONLY. ZERO mutations: only Prisma reads run, there is no write flag, and none may ever be
  * added. Ids, dates, codes and counts only - no name, no mail address; the script never selects
  * those columns.
@@ -41,7 +46,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { reportPopulationWhere } from "../src/contexts/platform";
+import { homeSalonsForDays, reportPopulationWhere } from "../src/contexts/platform";
+import {
+  shutdownAffectedRuns,
+  shutdownBookingSegments,
+} from "../src/contexts/absence/company-shutdown/affected-days";
 import {
   dateStrInTz,
   dayRangeUtc,
@@ -90,6 +99,8 @@ export type ShutdownRow = {
   deductsFromVacation: boolean;
   deleted: boolean;
   exceptedEmployeeIds: readonly string[];
+  /** Issue #1079: the salons the shutdown names; absent or empty = the whole Unternehmen. */
+  salonIds?: readonly string[];
 };
 
 export type PersonRow = {
@@ -177,6 +188,8 @@ export function classifyShutdownBookings(input: {
   requests: readonly RequestRow[];
   absences: readonly AbsenceRow[];
   closedMonths: ReadonlySet<string>;
+  /** Issue #1079: per person the Stammsalon of every day (`homeSalonsForDays`); only salon-scoped shutdowns read it. */
+  homeSalonDays?: ReadonlyMap<string, ReadonlyMap<string, string | null>>;
 }): BookingLine[] {
   const lines: BookingLine[] = [];
   for (const shutdown of input.shutdowns) {
@@ -185,21 +198,47 @@ export function classifyShutdownBookings(input: {
       const from = maxDay(shutdown.startDay, person.hireDay);
       const to = person.exitDay ? minDay(shutdown.endDay, person.exitDay) : shutdown.endDay;
       if (from > to) continue;
-      for (const segment of monthSegments(from, to)) {
-        const month = segment.start.slice(0, 7);
-        const activeAbsences = input.absences.filter(
+      // Issue #1079 (D-06): the affected days come from the ONE pure rule; without salons it is the
+      // single run from..to, so the segments are exactly the month split of #1069.
+      const segments = shutdownBookingSegments(
+        shutdownAffectedRuns({
+          from,
+          to,
+          salonIds: shutdown.salonIds ?? [],
+          homeSalonByDay: input.homeSalonDays?.get(person.id),
+        }),
+      );
+      const segmentsByMonth = new Map<string, Array<{ start: string; end: string }>>();
+      for (const segment of segments) {
+        const key = segment.start.slice(0, 7);
+        const list = segmentsByMonth.get(key);
+        if (list) list.push(segment);
+        else segmentsByMonth.set(key, [segment]);
+      }
+      for (const [month, monthSegmentList] of segmentsByMonth) {
+        const inMonth = (rowStart: string, rowEnd: string) =>
+          monthSegmentList.some((segment) =>
+            overlaps(rowStart, rowEnd, segment.start, segment.end),
+          );
+        const absencesOfShutdown = input.absences.filter(
           (a) =>
             a.employeeId === person.id &&
             a.companyShutdownId === shutdown.id &&
             a.type === "COMPANY_SHUTDOWN" &&
-            !a.deleted &&
+            !a.deleted,
+        );
+        const activeAbsences = absencesOfShutdown.filter((a) => inMonth(a.startDay, a.endDay));
+        // BOOKED only when EVERY affected segment of the month is covered by an active absence.
+        const everySegmentBooked = monthSegmentList.every((segment) =>
+          absencesOfShutdown.some((a) =>
             overlaps(a.startDay, a.endDay, segment.start, segment.end),
+          ),
         );
         const generated = input.requests.filter(
           (r) =>
             r.employeeId === person.id &&
             r.companyShutdownId === shutdown.id &&
-            overlaps(r.startDay, r.endDay, segment.start, segment.end),
+            inMonth(r.startDay, r.endDay),
         );
         const generatedRequests: Record<string, number> = {};
         for (const request of generated) {
@@ -209,7 +248,7 @@ export function classifyShutdownBookings(input: {
 
         let state: BookingState;
         if (excepted.has(person.id)) state = "EXCEPTED";
-        else if (activeAbsences.length > 0) state = "BOOKED";
+        else if (everySegmentBooked) state = "BOOKED";
         else if (input.closedMonths.has(`${person.id}|${month}`)) state = "CLOSED_MONTH";
         else state = "MISSING";
 
@@ -228,10 +267,12 @@ export function classifyShutdownBookings(input: {
           ) {
             continue;
           }
-          const start = maxDay(request.startDay, segment.start);
-          const end = minDay(request.endDay, segment.end);
-          for (let t = Date.parse(start); t <= Date.parse(end); t += DAY_MS) {
-            held.add(new Date(t).toISOString().slice(0, 10));
+          for (const segment of monthSegmentList) {
+            const start = maxDay(request.startDay, segment.start);
+            const end = minDay(request.endDay, segment.end);
+            for (let t = Date.parse(start); t <= Date.parse(end); t += DAY_MS) {
+              held.add(new Date(t).toISOString().slice(0, 10));
+            }
           }
         }
 
@@ -298,6 +339,7 @@ export async function main(argv: string[], injectedPrisma?: PrismaClient): Promi
         deductsFromVacation: true,
         deletedAt: true,
         exceptions: { select: { employeeId: true } },
+        salons: { select: { salonId: true } },
       },
       orderBy: [{ tenantId: "asc" }, { startDate: "asc" }, { id: "asc" }],
     });
@@ -393,7 +435,13 @@ export async function main(argv: string[], injectedPrisma?: PrismaClient): Promi
         deductsFromVacation: s.deductsFromVacation,
         deleted: s.deletedAt !== null,
         exceptedEmployeeIds: s.exceptions.map((e) => e.employeeId),
+        salonIds: s.salons.map((row) => row.salonId),
       }));
+
+      // Issue #1079: the Stammsalon per day, read once per tenant and only when a shutdown names salons.
+      const homeSalonDays = shutdownRows.some((row) => (row.salonIds ?? []).length > 0)
+        ? await homeSalonsForDays(prisma, tenantId, personIds, day(first), day(last))
+        : undefined;
 
       // Closed months, by the one rule of the application (#595 windows inside `isMonthClosed`),
       // asked only for the (person, month) pairs that matter.
@@ -403,6 +451,7 @@ export async function main(argv: string[], injectedPrisma?: PrismaClient): Promi
         requests,
         absences,
         closedMonths: new Set<string>(),
+        homeSalonDays,
       });
       const closedMonths = new Set<string>();
       for (const key of new Set(wanted.map((l) => `${l.employeeId}|${l.month}`))) {
@@ -421,6 +470,7 @@ export async function main(argv: string[], injectedPrisma?: PrismaClient): Promi
           requests,
           absences,
           closedMonths,
+          homeSalonDays,
         }),
       );
     }

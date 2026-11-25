@@ -170,3 +170,99 @@ describe("Issue #1069 — read-only Betriebsurlaub Bestand list", () => {
     expect(() => parseCli(["--dry-run"])).toThrow();
   });
 });
+
+describe("Issue #1079 — a salon-scoped Betriebsurlaub is judged by the Stammsalon per day", () => {
+  const homeDays = (entries: Array<[string, string | null]>) => new Map(entries);
+  const allDays = (salonId: string | null, from: string, to: string) => {
+    const days: Array<[string, string | null]> = [];
+    for (let t = Date.parse(from); t <= Date.parse(to); t += 24 * 60 * 60 * 1000) {
+      days.push([new Date(t).toISOString().slice(0, 10), salonId]);
+    }
+    return days;
+  };
+  const scoped = (over: Partial<ShutdownRow> = {}) => shutdown({ salonIds: ["a"], ...over });
+
+  function classifyScoped(over: {
+    shutdowns?: ShutdownRow[];
+    home: Map<string, Map<string, string | null>>;
+    absences?: AbsenceRow[];
+    closedMonths?: string[];
+  }) {
+    return classifyShutdownBookings({
+      shutdowns: over.shutdowns ?? [scoped()],
+      persons: [person()],
+      requests: [],
+      absences: over.absences ?? [],
+      closedMonths: new Set(over.closedMonths ?? []),
+      homeSalonDays: over.home,
+    });
+  }
+
+  it("a person never homed in the named salons yields no line", () => {
+    const lines = classifyScoped({
+      home: new Map([["e1", homeDays(allDays("b", "2027-03-29", "2027-04-02"))]]),
+    });
+    expect(lines).toEqual([]);
+  });
+
+  it("a person without any Stammsalon day yields no line", () => {
+    expect(classifyScoped({ home: new Map() })).toEqual([]);
+  });
+
+  it("a person homed there for part of a month gets one line for that month, BOOKED only when every affected segment is covered", () => {
+    const days = [
+      ...allDays("a", "2027-03-29", "2027-03-30"),
+      ...allDays("b", "2027-03-31", "2027-03-31"),
+      ...allDays("a", "2027-04-01", "2027-04-02"),
+    ];
+    const home = new Map([["e1", homeDays(days)]]);
+
+    const missing = classifyScoped({ home });
+    expect(missing.map((l) => [l.month, l.state])).toEqual([
+      ["2027-03", "MISSING"],
+      ["2027-04", "MISSING"],
+    ]);
+
+    const booked = classifyScoped({
+      home,
+      absences: [
+        absence({ startDay: "2027-03-29", endDay: "2027-03-30" }),
+        absence({ startDay: "2027-04-01", endDay: "2027-04-02" }),
+      ],
+    });
+    expect(booked.map((l) => [l.month, l.state])).toEqual([
+      ["2027-03", "BOOKED"],
+      ["2027-04", "BOOKED"],
+    ]);
+
+    // Two segments in one month, only the first covered: not BOOKED.
+    const twoRuns = new Map([
+      [
+        "e1",
+        homeDays([
+          ...allDays("a", "2027-03-29", "2027-03-29"),
+          ...allDays("b", "2027-03-30", "2027-03-30"),
+          ...allDays("a", "2027-03-31", "2027-03-31"),
+        ]),
+      ],
+    ]);
+    const partial = classifyScoped({
+      home: twoRuns,
+      absences: [absence({ startDay: "2027-03-29", endDay: "2027-03-29" })],
+    });
+    expect(partial.map((l) => [l.month, l.state])).toEqual([["2027-03", "MISSING"]]);
+  });
+
+  it("an unternehmensweit shutdown yields the identical lines with or without day maps", () => {
+    const without = classify({ absences: [absence()] });
+    const withMaps = classifyShutdownBookings({
+      shutdowns: [shutdown()],
+      persons: [person()],
+      requests: [],
+      absences: [absence()],
+      closedMonths: new Set(),
+      homeSalonDays: new Map([["e1", homeDays(allDays("b", "2027-03-29", "2027-04-02"))]]),
+    });
+    expect(withMaps).toEqual(without);
+  });
+});

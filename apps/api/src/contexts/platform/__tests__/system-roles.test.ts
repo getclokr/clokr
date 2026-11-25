@@ -422,6 +422,7 @@ describe("Phase 76b — system-role templates (Issue #76)", () => {
     "leave-entitlement:read:ZUGEWIESEN",
     "leave-limit:manage:ZUGEWIESEN",
     "leave-plan:manage:ZUGEWIESEN",
+    "company-shutdown:manage:ZUGEWIESEN", // Issue #1079, owner decision 25.11.2026
     "vocational-school:read:ZUGEWIESEN",
     "month-correction:read:ZUGEWIESEN", // #599
     "month-correction:create:ZUGEWIESEN", // #599
@@ -462,8 +463,8 @@ describe("Phase 76b — system-role templates (Issue #76)", () => {
     "shift:read:ZUGEWIESEN",
   ];
 
-  it("(D-05) Salonmanager equals the hand-written literal list, 29 entries", () => {
-    expect(SALON_MANAGER_EXPECTED).toHaveLength(29);
+  it("(D-05) Salonmanager equals the hand-written literal list, 30 entries", () => {
+    expect(SALON_MANAGER_EXPECTED).toHaveLength(30);
     expect([...SYSTEM_ROLE_PERMISSIONS.SALON_MANAGER]).toEqual(SALON_MANAGER_EXPECTED);
   });
 

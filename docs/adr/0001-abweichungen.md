@@ -8394,3 +8394,96 @@ eines Betriebsurlaubs in der DATEV-LODAS-Datei und im Monatsexport. Ohne sie än
 Abwesenheiten: eine neue Lesefunktion `paidReleaseDaysByEmployee`, keine Schreibpfade, kein neuer Code. Schichtplanung: keine.
 Arbeitszeitkonto: keine (die Sollentlastung eines Freistellungstags bleibt im Saldo-Kern). Unterbau: das Feld
 `TenantConfig.datevFreistellungNr` (Erweiterung). Kompositionsschicht: DATEV-Export (beide Routen) und Monatsexport.
+
+## AM — Betriebsurlaub je Salon (Phase 1079, Issue #1079)
+
+**Ausgangslage.** Seit #1069 bucht ein Betriebsurlaub für das ganze Unternehmen (Eintrag AL). Eine Kette schließt aber einzelne Salons
+(Renovierung, Inventur, Brückentag eines Salons); das ließ sich nur ausdrücken, indem alle gebucht wurden. Ziel des Tickets: Ein
+Betriebsurlaub kann auf einen oder mehrere Salons beschränkt werden, betroffen sind die Personen mit diesem Stammsalon am jeweiligen
+Tag, die Buchung aus #1069 wird wiederverwendet, und wer einen Salon verwaltet, darf einen salonbezogenen Betriebsurlaub anlegen.
+
+**Entscheidung.**
+
+- **D-01 Modell.** „Ein oder mehrere Salons“ ist keine nullable Spalte, sondern die Verknüpfungstabelle `CompanyShutdownSalon`
+  (Abwesenheiten; `shutdownId` → `CompanyShutdown` `ON DELETE CASCADE`, `salonId` → `Salon` `ON DELETE RESTRICT`, Primärschlüssel
+  `(shutdownId, salonId)`, Index auf `salonId`). Keine Zeilen = ganzes Unternehmen: jeder Bestand, kein Backfill. Die Zeile des
+  Betriebsurlaubs wird nie hart gelöscht (#1069 D-10), der Cascade dient nur dem Test-Aufräumen; ein Salon wird nie gelöscht, daher
+  `Restrict`. Gleicher Mandant: die Routen prüfen jeden genannten Salon über `resolveSalonInReach`, kein Datenbank-Trigger.
+- **D-02 Betroffen** ist, wessen Stammsalon (HOME-Zuordnung des mandantenlokalen Tags, `homeSalonsForDays`) einer der genannten Salons
+  ist, nicht `salonForDay` (das den Einsatzsalon zuerst beantwortet): Betriebsferien binden die Belegschaft der geschlossenen
+  Einheit (§ 7 Abs. 1 BUrlG), im Stammsalon wird über Urlaub entschieden; Urlaubsplan (#835), Urlaubsgrenzen (#836) und Dashboard (#84)
+  lesen dieselbe HOME-Zeile. Beschäftigt am Tag, nie anonymisiert, nicht auf der Ausnahmeliste bleibt wie in #1069. Eine Person ohne
+  HOME-Zeile an einem Tag ist von einem salonbezogenen Betriebsurlaub nie betroffen.
+- **D-03 Wechsel mitten im Zeitraum.** Die Auswertung ist je Tag. Die Buchungseinheit ist ein zusammenhängender Lauf betroffener
+  Tage, an Monatsgrenzen geteilt; ohne Salons ist das genau das Monatssegment von #1069 (byte-gleich, durch die unveränderten
+  #1069-Tests und einen Äquivalenztest belegt).
+- **D-04 Springer.** Wer in einem offenen Salon beheimatet und im geschlossenen eingesetzt ist, ist nicht betroffen (Direktionsrecht,
+  § 106 GewO). Wer im geschlossenen Salon beheimatet und anderswo eingesetzt ist, wird für jeden Tag der Schließung gebucht; wird sie
+  gebraucht, kommt sie auf die Ausnahmeliste oder ihr erzeugter Urlaub wird über die bestehende Korrektur gekürzt (#94). Keine Ausnahme je Tag.
+- **D-05 Überschneidung** (ändert #1069 D-11): Zwei aktive Betriebsurlaube kollidieren, wenn sie einen Tag teilen UND ihre Bereiche sich
+  treffen (einer ohne Salons, oder gemeinsamer Salon); sonst 409 `COMPANY_SHUTDOWN_OVERLAP`. Weil eine Person je Tag genau einen
+  Stammsalon hat, hält das die Invariante „eine Person bekommt für einen Tag nie zwei Abwesenheiten oder zwei Urlaubsversuche“.
+- **D-06 Eine Regel, drei Leser.** `company-shutdown/affected-days.ts` (rein, ohne Import) ist die einzige Stelle, die die betroffenen
+  Tage ableitet: Buchung, Urlaubsplaner-Lesen (`leave-plan/planner-read.ts`) und das Bestandsskript
+  `scripts/audit-1069-company-shutdown-bookings.ts`. DATEV (#1082), Stundennachweis, iCal und Berichte lesen die
+  `COMPANY_SHUTDOWN`-Abwesenheiten und folgen automatisch.
+- **D-07 Späterer Stammsalon-Wechsel.** `POST /employees/:id/salon-assignments/home` ruft nach dem Commit die reaktive Dekoration
+  `app.companyShutdownHomeSalon` (ADR 0002 Entscheidung 10; `app.ts` importiert das Plugin direkt, wie das Plugin für Neueinstellungen aus #1069). Sie
+  vergleicht je salonbezogenem Betriebsurlaub die erwarteten betroffenen Tage der Person (offene Monate, ab dem neuen `validFrom`) mit
+  ihren gebuchten; nur wo sie abweichen, storniert sie zuerst die erzeugten Zeilen offener Monate (Grund `HOME_SALON_CHANGED`, der
+  Stornokern aus #1069) für ALLE abweichenden Betriebsurlaube und bucht danach jeden neu (zwei Phasen). Geschlossene Monate bleiben
+  unberührt. Nicht angebunden: Änderung des Eintrittsdatums (Grenze aus #1069 D-18), CSV-Import (legt an, der Einstellungs-Hook greift).
+  Auch die Buchung für eine neu angelegte Person überspringt Betriebsurlaube fremder Salons.
+- **D-08 Reichweite der Routen** (Muster #836): `company-shutdown:manage:ZUGEWIESEN`. Ohne Salon braucht es Reichweite Unternehmen
+  (403 `COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN`); jeder genannte Salon geht durch `resolveSalonInReach` (ein 404-Text „Salon nicht
+  gefunden“ für fremd, unbekannt, deaktiviert und außerhalb der Reichweite); eine bestehende Zeile ist nur verwaltbar, wenn die
+  Reichweite alle ihre Salons deckt (sonst derselbe 404 der Route, für einen unternehmensweiten 403). Beim Ändern werden nur HINZUGEFÜGTE
+  Salons neu geprüft. Eine Ausnahme einer Salon-Leitung darf nur eine Person nennen, die an einem Tag des Zeitraums in einem der Salons
+  beheimatet ist, sonst die Antwort „Mitarbeiter nicht gefunden“ (Art. 5 Abs. 1 lit. c DSGVO). Gesamte-Unternehmen-Aufrufer und API-Schlüssel
+  bleiben byte-gleich.
+- **D-09 Lesen.** `GET /company-shutdowns` behält Array und `requireAuth`; jede Zeile bekommt `salons` und `canManage`. Neu
+  `GET /company-shutdowns/scope` (`requirePermission`): `{ canManageAllSalons, salons }`, die Quelle des Auswahlfeldes im Web.
+- **D-10 Bereichsänderung und Audit.** Eine geänderte Salonmenge (Reihenfolge und Duplikate egal) bucht offene Monate wie eine
+  geänderte Zeitspanne neu; die Verknüpfungszeilen werden im Update ersetzt, Zeitverlauf in den Audit-Zeilen (`salonIds`, sortiert, alt
+  und neu bei CREATE, UPDATE, DELETE).
+- **D-11 Akteur und Vier-Augen** unverändert (#1069 D-06): Ein Antrag entsteht nur in der `leave-request:create`-Reichweite, genehmigt
+  wird nur in der `leave-request:approve`-Reichweite und nie der eigene; die Salonmanager-Vorlage hat keinen EIGENE-Schlüssel, ihre
+  eigene Zeile bekommt nur die Abwesenheit.
+- **D-12 DATEV (#1082) und Berichte** unberührt: sie zählen `COMPANY_SHUTDOWN`-Abwesenheiten, die nach #1079 nur für betroffene
+  Personen existieren; DATEV bleibt ungefiltert (§ 41 EStG), Soll und Saldo werden nie nach Salon geteilt.
+- **D-13 Oberfläche.** Die Spalte „Gilt für“ (Chips), das Auswahlfeld im Anlegen-Dialog und auf der Detailseite gibt es nur in einem
+  Unternehmen mit mehreren Salons (#64); nicht verwaltbare Zeilen sind schreibgeschützt.
+
+**Nachtrag Owner-Entscheidung 25.11.2026 (Unterbau-Semantikänderung, AC2).** Gewählt: Option A2 (Kommentar auf #1079): (1) Die Ressource
+`company-shutdown` wechselt die Relation von Mandant auf Person (wie #835/#836): eine salonbezogene Zuweisung mit dem Schlüssel wirkt
+für ihre Salons, auch eine Kundenkopie einer Rolle. (2) Die Vorlage **Salonmanager** bekommt `company-shutdown:manage:ZUGEWIESEN`
+(`20261125200000_company_shutdown_template_grant`, reine Datenmigration, idempotent, genau eine Zeile, Vorlagenkette erweitert). (3)
+Einschränkung, am 25.11.2026 im Sinne des Owners geschärft: Ein Betriebsurlaub **ohne Urlaubsabzug** (bezahlte Freistellung,
+§ 615 BGB, eine Lohnkosten-Entscheidung) darf nur anlegen, darauf umstellen UND jede weitere Schreibaktion darauf ausführen (ändern von
+Zeitraum, Salons oder Bezeichnung, löschen, Ausnahme hinzufügen oder entfernen), wer Reichweite Unternehmen hat (403
+`COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, vor jedem Schreiben, kein Audit-Eintrag); für eine Salonleitung ist `canManage` an so einer Zeile
+`false`, die Oberfläche zeigt sie schreibgeschützt. Ein Betriebsurlaub mit
+Urlaubsabzug bucht nichts, was die Urlaubsrechte der Salonleitung nicht ohnehin erlauben. Das ändert T-1069-09: dort wurde das Risiko nur
+angenommen, weil der Schlüssel nur Mandanten-Inhaber hielten. Die Neutralitätsmatrix blieb unverändert (kein Zellwechsel); der Persona-Test
+des Web nennt jetzt „Betriebsurlaub“ für den Salonmanager.
+
+**Neue Abhängigkeit auf den Unterbau (ADR 0002 Entscheidung 4).** `CompanyShutdownSalon.salonId` → `Salon`, `onDelete: Restrict`,
+Erweiterung (kein bestehender Leser ändert sich), genehmigt durch „Ready“ von #1079, plus eine reine Prisma-Rückbeziehung auf `Salon`
+(keine Spalte).
+
+**Bekannte Grenzen.**
+
+- Keine Ausnahme je Tag für eine Springerin des geschlossenen Salons (D-04).
+- Eine Änderung des Eintrittsdatums bucht nicht neu (Grenze aus #1069 D-18); das Bestandsskript zeigt Lücken.
+- `GET /company-shutdowns` zeigt jedem angemeldeten Konto die Namen der Ausnahmelisten aller Betriebsurlaube (seit #854/#1069,
+  unverändert gelassen, damit Neutralitätszellen nicht wandern); eine Datensparsamkeits-Verbesserung ist als Folge-Ticket vorgeschlagen.
+- Der Urlaubsplaner zeigt eine Zeile nur innerhalb des Planjahres; ein salonbezogener Betriebsurlaub über den Jahreswechsel erscheint dort
+  mit den Tagen des Planjahres.
+
+**Auswirkung auf die Kontexte.** Zeiterfassung: keine. Abwesenheiten: Verknüpfungstabelle, bereichsbewusste Buchung und Überschneidung,
+`affected-days.ts`, Routen, Urlaubsplaner-Lesen, Bestandsskript, Neu-Buchung bei Stammsalon-Wechsel. Schichtplanung: keine.
+Arbeitszeitkonto: keine (die Sollentlastung bleibt in den bestehenden Abwesenheiten, `calcLeaveAbsenceMinutesTz` unverändert).
+Unterbau: neue FK `CompanyShutdownSalon` → `Salon` (Erweiterung) und die Prisma-Rückbeziehung; die Stammsalon-Route ruft eine Dekoration
+(reaktiv, Antwort unverändert); Semantikänderung durch Owner-Entscheidung: Relation `company-shutdown` Mandant → Person und
+Salonmanager-Vorlage. Kompositionsschicht: `app.ts` registriert die Dekoration; DATEV/Monatsexport unverändert (#1082 zählt die
+Abwesenheiten).

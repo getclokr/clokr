@@ -3,7 +3,10 @@
   the blocks of #843; the data and the endpoints are those of the pre-#854 list). A management section without
   configuration keys of its own (registry section `abwesenheiten-betriebsurlaub`).
 
-  Loads `GET /company-shutdowns?year=` itself, the first time the tab is shown and again when the year changes.
+  Loads `GET /company-shutdowns?year=` itself, the first time the tab is shown and again when the year changes,
+  together with `GET /company-shutdowns/scope` (Issue #1079): what the caller may name (the whole Unternehmen
+  and/or which salons). In a Unternehmen with several salons the list shows „Gilt für“ as chips and the create
+  dialog offers the scope; a row the caller's reach does not cover (`canManage` false) has no delete action.
   Writes are `POST /company-shutdowns` (a Dialog) and `DELETE /company-shutdowns/:id` (behind a ConfirmDialog);
   each acts at once and answers with a toast (docs/ADMIN_STRUCTURE.md §3.2.1: a list action saves instantly,
   there is no section button). A row opens the shutdown's detail sub-route, where period, notes and exceptions
@@ -19,6 +22,7 @@
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { salonContext, shutdownScopeApplies } from "$stores/salon-context";
   import { tenantYear } from "$lib/utils/tenant-day";
   import Chip from "$components/ui/Chip.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
@@ -35,12 +39,20 @@
     dayCountLabel,
     exceptionCountLabel,
     formatShutdownDate,
+    initialShutdownScope,
+    isScopeFixed,
     SHUTDOWN_NAME_MAX,
     BOOKING_TOAST_MS,
     bookingToast,
     shutdownFormMessage,
+    shutdownSalonIds,
+    shutdownSalonLabel,
+    shutdownScopeMessage,
     shutdownYears,
+    WHOLE_COMPANY_LABEL,
     type CompanyShutdown,
+    type ScopeSelection,
+    type ShutdownScope,
   } from "$lib/settings/betriebsurlaub";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
@@ -50,13 +62,16 @@
 
   let { active }: Props = $props();
 
-  const columns: DataTableColumn[] = [
+  // The scope column only exists in a Unternehmen with several salons (#64).
+  const multiSalon = $derived(shutdownScopeApplies($salonContext));
+  const columns = $derived<DataTableColumn[]>([
     { key: "name", label: "Bezeichnung", primary: true },
     { key: "period", label: "Zeitraum" },
+    ...(multiSalon ? [{ key: "scope", label: "Gilt für" }] : []),
     { key: "deduction", label: "Urlaubskonto" },
     { key: "exceptions", label: "Ausnahmen" },
-    { key: "actions", label: "Aktionen", align: "end" },
-  ];
+    { key: "actions", label: "Aktionen", align: "end" as const },
+  ]);
 
   // The tenant's year (Issue #1072), not the device's.
   const years = $derived(shutdownYears(tenantYear(new Date(), $tenantFeatures.timezone)));
@@ -66,6 +81,8 @@
   let filterYear = $state(initialYear);
 
   let shutdowns = $state<CompanyShutdown[]>([]);
+  // What the caller may name (Issue #1079); null until the first load answered.
+  let scope = $state<ShutdownScope | null>(null);
   let loading = $state(false);
   let loadError = $state("");
   let loaded = false;
@@ -74,6 +91,8 @@
     loading = true;
     loadError = "";
     try {
+      // The scope is asked first so the list is the last request (and the year the last query).
+      scope = await api.get<ShutdownScope>("/company-shutdowns/scope");
       shutdowns = await api.get<CompanyShutdown[]>(`/company-shutdowns?year=${filterYear}`);
     } catch (err) {
       console.error(err);
@@ -104,8 +123,22 @@
   let notes = $state("");
   let formError = $state("");
   let saving = $state(false);
+  let scopeSelection = $state<ScopeSelection>({ mode: "ALL", salonIds: [] });
+  // A caller with exactly one reachable salon and no whole-tenant reach cannot choose.
+  const scopeFixed = $derived(scope !== null && isScopeFixed(scope));
+  const scopeControlShown = $derived(multiSalon && scope !== null);
+
+  function toggleSalon(id: string, checked: boolean) {
+    scopeSelection = {
+      mode: "SALONS",
+      salonIds: checked
+        ? [...scopeSelection.salonIds, id]
+        : scopeSelection.salonIds.filter((salonId) => salonId !== id),
+    };
+  }
 
   function openCreate() {
+    scopeSelection = scope ? initialShutdownScope(scope) : { mode: "ALL", salonIds: [] };
     name = "";
     startDate = "";
     endDate = "";
@@ -117,7 +150,9 @@
 
   // Runs inside the Dialog's form: a refusal keeps the dialog open with its text.
   async function saveNew() {
-    const message = shutdownFormMessage({ name, startDate, endDate });
+    const message =
+      shutdownFormMessage({ name, startDate, endDate }) ??
+      (scopeControlShown ? shutdownScopeMessage(scopeSelection) : null);
     if (message !== null) {
       formError = message;
       return;
@@ -127,7 +162,14 @@
     try {
       const created = await api.post<CompanyShutdown>(
         "/company-shutdowns",
-        createShutdownBody({ name, startDate, endDate, deductsFromVacation, notes }),
+        createShutdownBody({
+          name,
+          startDate,
+          endDate,
+          deductsFromVacation,
+          notes,
+          salonIds: scope ? shutdownSalonIds(scopeSelection, scope, multiSalon) : undefined,
+        }),
       );
       const toast = bookingToast(created, "Betriebsurlaub angelegt.");
       toasts.success(toast.message, toast.duration);
@@ -180,7 +222,7 @@
   <div class="hint-row">
     <h2 class="settings-group-title" id="abwesenheiten-betriebsurlaub-title">Betriebsurlaub</h2>
     <InfoHint
-      text="Zeiträume, in denen der ganze Betrieb geschlossen hat. Beim Anlegen wird für alle Mitarbeitenden Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage und alle Tage ohne Urlaubsabzug sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Einzelne Personen nimmst du in der Ansicht des Betriebsurlaubs aus."
+      text="Zeiträume, in denen das Unternehmen oder ausgewählte Salons geschlossen haben. Betroffen ist, wer an dem Tag dort seinen Stammsalon hat. Beim Anlegen wird für diese Mitarbeitenden Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage und alle Tage ohne Urlaubsabzug sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Einzelne Personen nimmst du in der Ansicht des Betriebsurlaubs aus."
       label={hintLabel("Betriebsurlaub")}
     />
   </div>
@@ -232,6 +274,16 @@
         {#if column.key === "period"}
           {formatShutdownDate(row.startDate)} – {formatShutdownDate(row.endDate)}
           <span class="bu-days">{dayCountLabel(row.startDate, row.endDate)}</span>
+        {:else if column.key === "scope"}
+          {#if row.salons.length === 0}
+            <Chip tone="neutral">{WHOLE_COMPANY_LABEL}</Chip>
+          {:else}
+            <span class="bu-chips">
+              {#each row.salons as salon (salon.id)}
+                <Chip tone={salon.isActive ? "info" : "neutral"}>{shutdownSalonLabel(salon)}</Chip>
+              {/each}
+            </span>
+          {/if}
         {:else if column.key === "deduction"}
           <Chip tone={row.deductsFromVacation ? "warn" : "neutral"}>
             {row.deductsFromVacation ? "Zieht vom Urlaubskonto ab" : "Kein Urlaubsabzug"}
@@ -243,13 +295,15 @@
             –
           {/if}
         {:else if column.key === "actions"}
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm btn-danger"
-            onclick={() => askDelete(row)}
-          >
-            Löschen
-          </button>
+          {#if row.canManage}
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm btn-danger"
+              onclick={() => askDelete(row)}
+            >
+              Löschen
+            </button>
+          {/if}
         {:else}
           {row.name}
           {#if row.notes}
@@ -314,6 +368,53 @@
         {/snippet}
       </FormField>
     </div>
+    {#if scopeControlShown && scope}
+      <fieldset class="bu-scope">
+        <legend class="bu-scope-legend">Gilt für</legend>
+        {#if scopeFixed}
+          <p class="bu-scope-fixed" data-testid="abwesenheiten-betriebsurlaub-scope-fixed">
+            {scope.salons[0].name}
+          </p>
+        {:else}
+          {#if scope.canManageAllSalons}
+            <label class="bu-scope-option">
+              <input
+                type="radio"
+                name="bu-scope"
+                checked={scopeSelection.mode === "ALL"}
+                onchange={() => (scopeSelection = { mode: "ALL", salonIds: [] })}
+                data-testid="abwesenheiten-betriebsurlaub-scope-all"
+              />
+              {WHOLE_COMPANY_LABEL}
+            </label>
+          {/if}
+          <label class="bu-scope-option">
+            <input
+              type="radio"
+              name="bu-scope"
+              checked={scopeSelection.mode === "SALONS"}
+              onchange={() => (scopeSelection = { ...scopeSelection, mode: "SALONS" })}
+              data-testid="abwesenheiten-betriebsurlaub-scope-salons"
+            />
+            Ausgewählte Salons
+          </label>
+          {#if scopeSelection.mode === "SALONS"}
+            <div class="bu-scope-salons">
+              {#each scope.salons as salon (salon.id)}
+                <label class="bu-scope-option">
+                  <input
+                    type="checkbox"
+                    checked={scopeSelection.salonIds.includes(salon.id)}
+                    onchange={(event) => toggleSalon(salon.id, event.currentTarget.checked)}
+                  />
+                  {salon.name}
+                </label>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </fieldset>
+    {/if}
     <ToggleField
       bind:checked={deductsFromVacation}
       label="Vom Urlaubskonto abziehen"
@@ -385,6 +486,44 @@
     margin-top: var(--s-1);
     font-size: var(--fs-sm);
     color: var(--text-2);
+  }
+
+  .bu-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+  }
+
+  .bu-scope {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .bu-scope-legend {
+    padding: 0;
+    margin-bottom: var(--s-1);
+    font-weight: 600;
+  }
+
+  .bu-scope-option {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  .bu-scope-salons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    padding-left: var(--s-6);
+  }
+
+  .bu-scope-fixed {
+    margin: 0;
   }
 
   .bu-form {

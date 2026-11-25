@@ -6,6 +6,7 @@
 // The server stays the authority (the Zod schema of `/company-shutdowns`, the overlap refusal and the booking
 // itself); the checks here only save a round trip.
 
+import { SCOPE_TENANT_LABEL } from "$lib/roles/assignment-label";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { countWord, personsLabel } from "../utils/count-word";
@@ -46,6 +47,18 @@ export type ShutdownBooking = {
   reversedAbsences: number;
 };
 
+/** A salon a Betriebsurlaub is limited to (Issue #1079); `isActive` false marks a since-deactivated salon. */
+export type ShutdownSalon = { id: string; name: string; isActive: boolean };
+
+/**
+ * `GET /company-shutdowns/scope` (Issue #1079): what the caller may name. `canManageAllSalons` is the
+ * whole-tenant reach (a Betriebsurlaub for the whole Unternehmen); `salons` are the active salons inside the reach.
+ */
+export type ShutdownScope = {
+  canManageAllSalons: boolean;
+  salons: Array<{ id: string; name: string }>;
+};
+
 export type CompanyShutdown = {
   id: string;
   name: string;
@@ -54,6 +67,10 @@ export type CompanyShutdown = {
   deductsFromVacation: boolean;
   notes: string | null;
   exceptions: ShutdownException[];
+  /** Issue #1079: the named salons, empty = the whole Unternehmen. */
+  salons: ShutdownSalon[];
+  /** Issue #1079: whether the caller's reach covers every salon of this row (false = read-only). */
+  canManage: boolean;
   /** Only in the answer of `POST` and `PATCH`. */
   booking?: ShutdownBooking;
 };
@@ -168,11 +185,12 @@ export function shutdownFieldMessages(form: ShutdownForm): Record<keyof Shutdown
   };
 }
 
-/** The body of `POST /company-shutdowns`. */
+/** The body of `POST /company-shutdowns`; `salonIds` is left out for a Betriebsurlaub for the whole Unternehmen. */
 export function createShutdownBody(
   form: ShutdownForm & {
     deductsFromVacation: boolean;
     notes: string;
+    salonIds?: readonly string[];
   },
 ) {
   return {
@@ -181,7 +199,78 @@ export function createShutdownBody(
     endDate: form.endDate,
     deductsFromVacation: form.deductsFromVacation,
     notes: form.notes || undefined,
+    ...(form.salonIds && form.salonIds.length > 0 ? { salonIds: [...form.salonIds] } : {}),
   };
+}
+
+// ── Scope (Issue #1079) ───────────────────────────────────────────────────────────────────────────
+
+/** The label of the whole-Unternehmen scope: the one wording of `lib/roles/assignment-label.ts` (#580). */
+export const WHOLE_COMPANY_LABEL = SCOPE_TENANT_LABEL;
+
+/** The scope control's state: the whole Unternehmen, or a choice of salons. */
+export type ScopeSelection = { mode: "ALL" | "SALONS"; salonIds: string[] };
+
+/** The name of a salon as shown in a chip; a deactivated salon says so. */
+export function shutdownSalonLabel(salon: Pick<ShutdownSalon, "name" | "isActive">): string {
+  return salon.isActive ? salon.name : `${salon.name} (deaktiviert)`;
+}
+
+/** What the „Gilt für“ column shows: the whole-Unternehmen label for no salons, else the salon names. */
+export function shutdownScopeLabel(salons: readonly ShutdownSalon[]): string {
+  return salons.length === 0 ? WHOLE_COMPANY_LABEL : salons.map(shutdownSalonLabel).join(", ");
+}
+
+/**
+ * True when the caller has no choice: a single reachable salon and no whole-tenant reach. The salon is then
+ * fixed and shown as text.
+ */
+export function isScopeFixed(scope: ShutdownScope): boolean {
+  return !scope.canManageAllSalons && scope.salons.length === 1;
+}
+
+/**
+ * The control's initial state for a NEW Betriebsurlaub: a whole-tenant caller starts with the whole Unternehmen;
+ * a scoped caller with one salon has it fixed, with several none is chosen yet.
+ */
+export function initialShutdownScope(scope: ShutdownScope): ScopeSelection {
+  if (scope.canManageAllSalons) return { mode: "ALL", salonIds: [] };
+  return { mode: "SALONS", salonIds: isScopeFixed(scope) ? [scope.salons[0].id] : [] };
+}
+
+/** The state of the control for a stored row. */
+export function scopeSelectionOf(salons: readonly ShutdownSalon[]): ScopeSelection {
+  return salons.length === 0
+    ? { mode: "ALL", salonIds: [] }
+    : { mode: "SALONS", salonIds: salons.map((salon) => salon.id) };
+}
+
+/** The form message of the scope, or null: a chosen salon scope needs at least one salon. */
+export function shutdownScopeMessage(selection: ScopeSelection): string | null {
+  return selection.mode === "SALONS" && selection.salonIds.length === 0
+    ? "Wähle mindestens einen Salon."
+    : null;
+}
+
+/**
+ * The `salonIds` of a request body, or undefined when the whole Unternehmen is meant. In a single-salon
+ * Unternehmen there is no control: a whole-tenant caller sends none, a scoped caller its one salon.
+ */
+export function shutdownSalonIds(
+  selection: ScopeSelection,
+  scope: ShutdownScope,
+  multiSalon: boolean,
+): string[] | undefined {
+  if (!multiSalon) return scope.canManageAllSalons ? undefined : scope.salons.map((s) => s.id);
+  return selection.mode === "ALL" ? undefined : [...selection.salonIds];
+}
+
+/** True when two selections name the same scope (order is irrelevant). */
+export function sameScope(a: ScopeSelection, b: ScopeSelection): boolean {
+  if (a.mode !== b.mode) return false;
+  if (a.salonIds.length !== b.salonIds.length) return false;
+  const named = new Set(a.salonIds);
+  return b.salonIds.every((id) => named.has(id));
 }
 
 /** The years offered by the list filter: last year to two years ahead. */

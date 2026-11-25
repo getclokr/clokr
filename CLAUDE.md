@@ -800,6 +800,8 @@ BUrlG §3/§7, EuGH carry-over rules, cross-year splitting, dynamic recalc, FIFO
   hard-delete path (`hardDeleteLeavePlanWishesForEmployee` before `hardDeleteLeaveRequestsForEmployee`, `Restrict` FKs). ADR
   `docs/adr/0001-abweichungen.md`, Eintrag AH.
 
+- **A Betriebsurlaub for single salons (Issue #1079)** books through the one #1069 module; who is affected is decided by
+  `contexts/absence/company-shutdown/affected-days.ts` only - see § Multi-Tenancy Convention, „A Betriebsurlaub can name salons“.
 - **The leave area has one timeline and one approval place (Issue #840).** `AbsenceTimeline` is the only
   person-by-day absence grid (`leave-one-timeline-840.test.ts`) and `apps/web/src/lib/leave/leave-colors.ts` the only
   leave colour source (`leave-colors-one-place-840.test.ts`). `GET /leave/calendar` decides the detail level per person
@@ -1462,6 +1464,21 @@ Clokr is a German-language, audit-proof time tracking and leave management SaaS 
   checks a changed `templateId` against the tenant. #647 added no key to the `/week` response (#589 later added `contractWorkDaysByEmp` and per-day `closed` / `contractEmployeeIds`); `/admin/shifts` offers
   the salon only under `showSalonOptions()` and stays exempt from the header filter. Details: ADR
   `docs/adr/0001-abweichungen.md`, section P, Nachtrag Phase 647.
+- **A Betriebsurlaub can name salons (Issue #1079).** `CompanyShutdownSalon` (join table, FK onto `Salon`
+  `onDelete: Restrict`, a Shared-Kernel dependency named on #1079) lists the salons of a Betriebsurlaub; NO rows = the
+  whole Unternehmen (every pre-#1079 row, no backfill). Who is affected on a day is the Stammsalon of that tenant-local day
+  (`homeSalonsForDays`, HOME rows only - never `salonForDay`, a Springer homed in an open salon is not booked), and the ONE place
+  that rule lives is the pure `contexts/absence/company-shutdown/affected-days.ts` (`shutdownAffectedRuns`,
+  `shutdownBookingSegments`, `shutdownScopesConflict`): the #1069 booking (`booking.ts`), the leave planner read and the Bestand script
+  all read it - never a second derivation. Without salons it yields exactly the #1069 month segments. Two active Betriebsurlaube
+  conflict (409 `COMPANY_SHUTDOWN_OVERLAP`) only when they share a day AND their scopes meet. The routes admit by the reach of
+  `company-shutdown:manage`: no salon needs whole-tenant reach (403 `COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN`), every named salon goes
+  through `resolveSalonInReach` (one 404 body), an existing row is manageable only when the reach covers all its salons; „Kein
+  Urlaubsabzug“ (create, switch to it, and every later write: edit, delete, exceptions) needs whole-tenant reach (403
+  `COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, `canManage` false for a scoped caller, owner decision 25.11.2026).
+  A later Stammsalon change re-books the moved person through the reactive decoration `app.companyShutdownHomeSalon` (open months only,
+  cancel first, then book). `GET /company-shutdowns/scope` is the source of the web's scope control. Details and the Semantikänderung
+  (relation `company-shutdown` Mandant -> Person, Salonmanager template): `docs/adr/0001-abweichungen.md`, Eintrag AM.
 - **The roster lists every person and counts contract presence (Issue #589, owner decision 19.10.2026).**
   `GET /shifts/week` lists every plannable person EMPLOYED in the displayed week (the #613 `reportPopulationWhere`
   with the week's instants, whatever the Arbeitszeitmodell); the web keeps those with a contract or a shift as rows

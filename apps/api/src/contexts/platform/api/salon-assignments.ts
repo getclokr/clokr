@@ -367,6 +367,17 @@ export async function salonAssignmentRoutes(app: FastifyInstance) {
         return result;
       });
 
+      // Issue #1079 (D-07): the Stammsalon is committed; a salon-scoped Betriebsurlaub follows the
+      // person from the new day on. Reactive - it never throws and never changes the answer.
+      if (outcome.status === "OK_HOME_CHANGED") {
+        await app.companyShutdownHomeSalon.rebookForHomeSalonChange({
+          tenantId,
+          employeeId: id,
+          fromDay: body.validFrom,
+          req,
+        });
+      }
+
       switch (outcome.status) {
         case "OK_HOME_CHANGED":
           return reply.code(201).send({

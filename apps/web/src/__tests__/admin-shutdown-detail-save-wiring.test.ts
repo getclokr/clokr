@@ -105,6 +105,16 @@ describe("saveShutdown payload census — the field list plan 109-13 must snapsh
     );
   });
 
+  it("Issue #1079: salonIds joins the body only through the scope-changed spread, never as a fixed key", () => {
+    const start = PAGE.indexOf("async function saveShutdown");
+    const end = PAGE.indexOf("function discardShutdown", start);
+    const body = PAGE.slice(start, end);
+    expect(body).toContain("...(scopeChanged");
+    const spread = body.indexOf("...(scopeChanged");
+    expect(body.indexOf("salonIds:")).toBeGreaterThan(spread);
+    expect(body.slice(0, spread)).not.toContain("salonIds:");
+  });
+
   it("all five $state declarations exist", () => {
     expect(PAGE).toContain('let formName = $state("")');
     expect(PAGE).toContain('let formStart = $state("")');

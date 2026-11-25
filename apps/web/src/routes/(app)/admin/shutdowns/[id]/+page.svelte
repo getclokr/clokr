@@ -4,6 +4,7 @@
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
+  import { salonContext, shutdownScopeApplies } from "$stores/salon-context";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount } from "svelte";
@@ -25,9 +26,16 @@
     shutdownFieldMessages,
     BOOKING_TOAST_MS,
     bookingToast,
+    sameScope,
+    scopeSelectionOf,
+    shutdownSalonLabel,
+    shutdownScopeMessage,
+    WHOLE_COMPANY_LABEL,
     type CompanyShutdown,
+    type ScopeSelection,
     type ShutdownEmployee,
     type ShutdownException,
+    type ShutdownScope,
   } from "$lib/settings/betriebsurlaub";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
@@ -40,6 +48,11 @@
   // The shutdown's name closes the top bar's path (#854: pages carry no breadcrumb of their own).
   $effect(() => showDetailCrumb(shutdown?.name ?? null));
   let allEmployees = $state<ShutdownEmployee[]>([]);
+  // What the caller may name (Issue #1079); loaded only for a row the caller can manage.
+  let scope = $state<ShutdownScope | null>(null);
+  // A row the caller's reach does not cover is shown read-only (Issue #1079).
+  const readOnly = $derived(shutdown !== null && !shutdown.canManage);
+  const multiSalon = $derived(shutdownScopeApplies($salonContext));
 
   const shutdownId = $derived(page.params.id);
 
@@ -47,9 +60,10 @@
     loading = true;
     loadError = "";
     try {
-      const [shutdownsRes, employeesRes] = await Promise.allSettled([
+      const [shutdownsRes, employeesRes, scopeRes] = await Promise.allSettled([
         api.get<CompanyShutdown[]>("/company-shutdowns"),
         api.get<{ employees?: ShutdownEmployee[] } | ShutdownEmployee[]>("/employees?limit=500"),
+        api.get<ShutdownScope>("/company-shutdowns/scope"),
       ]);
 
       if (shutdownsRes.status === "rejected") {
@@ -67,8 +81,10 @@
       formEnd = found.endDate.slice(0, 10);
       formDeducts = found.deductsFromVacation;
       formNotes = found.notes ?? "";
+      formScope = scopeSelectionOf(found.salons);
+      if (scopeRes.status === "fulfilled" && found.canManage) scope = scopeRes.value;
 
-      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes);
+      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes, formScope);
       snapshotsReady = true;
 
       if (employeesRes.status === "fulfilled") {
@@ -92,6 +108,16 @@
   let formEnd = $state("");
   let formDeducts = $state(false);
   let formNotes = $state("");
+  let formScope = $state<ScopeSelection>({ mode: "ALL", salonIds: [] });
+
+  function toggleScopeSalon(id: string, checked: boolean) {
+    formScope = {
+      mode: "SALONS",
+      salonIds: checked
+        ? [...formScope.salonIds, id]
+        : formScope.salonIds.filter((salonId) => salonId !== id),
+    };
+  }
 
   // ── Unsaved-section tracking (Phase 109, D-11/D-12 · AK-06/AK-07) ──────────────
   // Snapshot comparison rather than per-field oninput flags - same idiom as admin/system.
@@ -101,22 +127,29 @@
 
   let shutdownSnapshot = $state("");
   let shutdownDirty = $derived(
-    snap(formName, formStart, formEnd, formDeducts, formNotes) !== shutdownSnapshot,
+    snap(formName, formStart, formEnd, formDeducts, formNotes, formScope) !== shutdownSnapshot,
   );
 
   // The number of fields that differ from the snapshot (the SaveBar's "N Änderungen").
   const shutdownChanges = $derived.by(() => {
     if (shutdownSnapshot === "") return 0;
     const stored = JSON.parse(shutdownSnapshot) as unknown[];
-    return [formName, formStart, formEnd, formDeducts, formNotes].filter(
-      (value, index) => value !== stored[index],
+    return [formName, formStart, formEnd, formDeducts, formNotes, formScope].filter(
+      (value, index) =>
+        index === 5
+          ? !sameScope(value as ScopeSelection, stored[5] as ScopeSelection)
+          : value !== stored[index],
     ).length;
   });
 
   const messages = $derived(
     shutdownFieldMessages({ name: formName, startDate: formStart, endDate: formEnd }),
   );
-  const shutdownErrors = $derived(Object.values(messages).filter((m) => m !== "").length);
+  // The salon scope needs at least one salon once „Ausgewählte Salons“ is chosen.
+  const scopeMessage = $derived(scope ? shutdownScopeMessage(formScope) : null);
+  const shutdownErrors = $derived(
+    Object.values(messages).filter((m) => m !== "").length + (scopeMessage ? 1 : 0),
+  );
 
   // Gate the registration on "the baseline has been taken" (WR-01). onMount returns early on a
   // failed load AND on a not-found id, both before any field is hydrated - registering an ungated
@@ -172,21 +205,27 @@
     saving = true;
     saveError = "";
     try {
+      // Only a changed scope sends `salonIds` (an empty list means the whole Unternehmen).
+      const scopeChanged = !sameScope(formScope, scopeSelectionOf(shutdown.salons));
       const updated = await api.patch<CompanyShutdown>(`/company-shutdowns/${shutdown.id}`, {
         name: formName.trim(),
         startDate: formStart,
         endDate: formEnd,
         deductsFromVacation: formDeducts,
         notes: formNotes,
+        ...(scopeChanged
+          ? { salonIds: formScope.mode === "ALL" ? [] : [...formScope.salonIds] }
+          : {}),
       });
       // Only a changed period or deduction books again; for a name or note the API answers empty counts,
       // which must not read as "nobody is affected".
       const rebooked =
         formStart !== shutdown.startDate.slice(0, 10) ||
         formEnd !== shutdown.endDate.slice(0, 10) ||
-        formDeducts !== shutdown.deductsFromVacation;
+        formDeducts !== shutdown.deductsFromVacation ||
+        scopeChanged;
       shutdown = updated;
-      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes); // the section is clean again
+      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes, formScope); // the section is clean again
       const toast = bookingToast(rebooked ? updated : {}, "Betriebsurlaub gespeichert.");
       toasts.success(toast.message, toast.duration);
     } catch (err) {
@@ -201,8 +240,15 @@
   }
 
   function discardShutdown() {
-    const stored = JSON.parse(shutdownSnapshot) as [string, string, string, boolean, string];
-    [formName, formStart, formEnd, formDeducts, formNotes] = stored;
+    const stored = JSON.parse(shutdownSnapshot) as [
+      string,
+      string,
+      string,
+      boolean,
+      string,
+      ScopeSelection,
+    ];
+    [formName, formStart, formEnd, formDeducts, formNotes, formScope] = stored;
     saveError = "";
   }
 
@@ -216,7 +262,7 @@
         BOOKING_TOAST_MS,
       );
       // The shutdown is gone: leave without the unsaved guard asking about the form.
-      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes);
+      shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes, formScope);
       await goto("/verwalten/regeln/abwesenheiten#betriebsurlaub");
     } catch {
       toasts.error("Löschen fehlgeschlagen. Versuche es noch einmal.");
@@ -298,6 +344,15 @@
     sub={`${formatShutdownDate(shownShutdown.startDate)} – ${formatShutdownDate(shownShutdown.endDate)} (${dayCountLabel(shownShutdown.startDate, shownShutdown.endDate)})`}
   >
     {#snippet actions()}
+      {#if multiSalon}
+        {#if shownShutdown.salons.length === 0}
+          <Chip tone="neutral">{WHOLE_COMPANY_LABEL}</Chip>
+        {:else}
+          {#each shownShutdown.salons as salon (salon.id)}
+            <Chip tone={salon.isActive ? "info" : "neutral"}>{shutdownSalonLabel(salon)}</Chip>
+          {/each}
+        {/if}
+      {/if}
       <Chip tone={shownShutdown.deductsFromVacation ? "warn" : "neutral"}>
         {shownShutdown.deductsFromVacation ? "Zieht vom Urlaubskonto ab" : "Kein Urlaubsabzug"}
       </Chip>
@@ -305,6 +360,13 @@
   </PageHead>
 
   <div class="sd-stack">
+    {#if readOnly}
+      <Note tone="info">
+        Diesen Betriebsurlaub verwaltet, wer für alle seine Salons oder für das ganze Unternehmen
+        zuständig ist; ohne Urlaubsabzug (bezahlte Freistellung) nur, wer für das ganze Unternehmen
+        zuständig ist. Du kannst ihn ansehen, aber nicht ändern.
+      </Note>
+    {/if}
     <!-- ── Zeitraum und Einstellungen ───────────────────────────────────────── -->
     <SettingsGroup
       title="Zeitraum und Einstellungen"
@@ -325,7 +387,7 @@
             maxlength={SHUTDOWN_NAME_MAX}
             placeholder="z. B. Weihnachtsschließung 2026"
             bind:value={formName}
-            disabled={saving}
+            disabled={saving || readOnly}
             data-testid="shutdown-name"
             aria-invalid={invalid ? "true" : undefined}
             aria-describedby={describedBy}
@@ -340,7 +402,7 @@
               class="form-input"
               type="date"
               bind:value={formStart}
-              disabled={saving}
+              disabled={saving || readOnly}
               data-testid="shutdown-start"
               aria-invalid={invalid ? "true" : undefined}
               aria-describedby={describedBy}
@@ -354,7 +416,7 @@
               class="form-input"
               type="date"
               bind:value={formEnd}
-              disabled={saving}
+              disabled={saving || readOnly}
               data-testid="shutdown-end"
               aria-invalid={invalid ? "true" : undefined}
               aria-describedby={describedBy}
@@ -362,11 +424,71 @@
           {/snippet}
         </FormField>
       </div>
+      {#if multiSalon && scope && !readOnly}
+        <fieldset class="sd-scope" data-testid="shutdown-scope">
+          <legend class="sd-scope-legend">Gilt für</legend>
+          {#if scope.canManageAllSalons}
+            <label class="sd-scope-option">
+              <input
+                type="radio"
+                name="sd-scope"
+                checked={formScope.mode === "ALL"}
+                disabled={saving}
+                onchange={() => (formScope = { mode: "ALL", salonIds: [] })}
+              />
+              {WHOLE_COMPANY_LABEL}
+            </label>
+          {/if}
+          <label class="sd-scope-option">
+            <input
+              type="radio"
+              name="sd-scope"
+              checked={formScope.mode === "SALONS"}
+              disabled={saving}
+              onchange={() => (formScope = { ...formScope, mode: "SALONS" })}
+            />
+            Ausgewählte Salons
+          </label>
+          {#if formScope.mode === "SALONS"}
+            <div class="sd-scope-salons">
+              {#each scope.salons as salon (salon.id)}
+                <label class="sd-scope-option">
+                  <input
+                    type="checkbox"
+                    checked={formScope.salonIds.includes(salon.id)}
+                    disabled={saving}
+                    onchange={(event) => toggleScopeSalon(salon.id, event.currentTarget.checked)}
+                  />
+                  {salon.name}
+                </label>
+              {/each}
+              {#each shownShutdown.salons.filter((salon) => !scope!.salons.some((s) => s.id === salon.id)) as kept (kept.id)}
+                <!-- A stored salon outside the choice (deactivated) stays in the scope as it is. -->
+                <label class="sd-scope-option">
+                  <input
+                    type="checkbox"
+                    checked={formScope.salonIds.includes(kept.id)}
+                    disabled={saving}
+                    onchange={(event) => toggleScopeSalon(kept.id, event.currentTarget.checked)}
+                  />
+                  {shutdownSalonLabel(kept)}
+                </label>
+              {/each}
+            </div>
+          {/if}
+          {#if scopeMessage}
+            <div role="alert"><Note tone="bad">{scopeMessage}</Note></div>
+          {/if}
+          <p class="sd-scope-hint">
+            Wechselst du die Auswahl, werden die offenen Monate neu gebucht.
+          </p>
+        </fieldset>
+      {/if}
       <ToggleField
         bind:checked={formDeducts}
         label="Vom Urlaubskonto abziehen"
         hint="Mit Urlaubsabzug wird für jede Person Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Ohne Urlaubsabzug sind alle Tage bezahlte Freistellung. Ausgenommene Personen bleiben außen vor."
-        disabled={saving}
+        disabled={saving || readOnly}
         testid="shutdown-deducts"
       />
       <FormField label="Notiz">
@@ -377,7 +499,7 @@
             rows="3"
             placeholder="Interne Anmerkung (optional)"
             bind:value={formNotes}
-            disabled={saving}
+            disabled={saving || readOnly}
             data-testid="shutdown-notes"
             aria-describedby={describedBy}
           ></textarea>
@@ -401,16 +523,20 @@
           label={hintLabel("Ausnahmen")}
         />
       </div>
-      <div class="sd-bar">
-        <button type="button" class="btn btn-primary" onclick={openExceptions}>
-          Ausnahme hinzufügen
-        </button>
-      </div>
+      {#if !readOnly}
+        <div class="sd-bar">
+          <button type="button" class="btn btn-primary" onclick={openExceptions}>
+            Ausnahme hinzufügen
+          </button>
+        </div>
+      {/if}
       {#if shownShutdown.exceptions.length === 0}
         <EmptyState
           icon="users"
           title="Noch keine Ausnahmen"
-          description="Alle Mitarbeitenden sind vom Betriebsurlaub betroffen."
+          description={shownShutdown.salons.length === 0
+            ? "Alle Mitarbeitenden sind vom Betriebsurlaub betroffen."
+            : "Betroffen ist, wer an dem Tag seinen Stammsalon in einem der gewählten Salons hat."}
         />
       {:else}
         <DataTable
@@ -426,13 +552,15 @@
             {:else if column.key === "reason"}
               {row.reason ?? "–"}
             {:else if column.key === "actions"}
-              <button
-                type="button"
-                class="btn btn-secondary btn-sm btn-danger"
-                onclick={() => askRemoveException(row)}
-              >
-                Entfernen
-              </button>
+              {#if !readOnly}
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm btn-danger"
+                  onclick={() => askRemoveException(row)}
+                >
+                  Entfernen
+                </button>
+              {/if}
             {:else}
               {row.employee.firstName}
               {row.employee.lastName}
@@ -443,23 +571,25 @@
     </section>
 
     <!-- ── Löschen ───────────────────────────────────────────────────────────── -->
-    <section class="settings-group" aria-labelledby="shutdown-delete-title">
-      <h2 class="settings-group-title" id="shutdown-delete-title">Betriebsurlaub löschen</h2>
-      <p class="settings-group-desc">
-        Gebuchte Urlaubstage in offenen Monaten werden storniert und der Urlaub wird zurückgebucht,
-        abgeschlossene Monate bleiben unverändert. Der Betriebsurlaub verschwindet aus der Liste,
-        seine Ausnahmen gehen mit.
-      </p>
-      <div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-danger"
-          onclick={() => (deleteConfirmOpen = true)}
-        >
-          Betriebsurlaub löschen
-        </button>
-      </div>
-    </section>
+    {#if !readOnly}
+      <section class="settings-group" aria-labelledby="shutdown-delete-title">
+        <h2 class="settings-group-title" id="shutdown-delete-title">Betriebsurlaub löschen</h2>
+        <p class="settings-group-desc">
+          Gebuchte Urlaubstage in offenen Monaten werden storniert und der Urlaub wird
+          zurückgebucht, abgeschlossene Monate bleiben unverändert. Der Betriebsurlaub verschwindet
+          aus der Liste, seine Ausnahmen gehen mit.
+        </p>
+        <div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-danger"
+            onclick={() => (deleteConfirmOpen = true)}
+          >
+            Betriebsurlaub löschen
+          </button>
+        </div>
+      </section>
+    {/if}
   </div>
 
   <ConfirmDialog
@@ -556,6 +686,40 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     gap: var(--s-4);
+  }
+
+  .sd-scope {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .sd-scope-legend {
+    padding: 0;
+    margin-bottom: var(--s-1);
+    font-weight: 600;
+  }
+
+  .sd-scope-hint {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+
+  .sd-scope-option {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  .sd-scope-salons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    padding-left: var(--s-6);
   }
 
   .sd-bar {

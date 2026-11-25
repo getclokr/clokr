@@ -387,6 +387,13 @@ const OWNER_PERMISSION_KEYS = [
  * Issue #835: holds `leave-plan:manage` so each salon opens its own leave plan and takes the wishes
  * over (reach SALONS: only the salons of the assignment). Owner decision 06.11.2026. Shipped by
  * the data-only migration `20261106201828_leave_plan_template_grant`.
+ *
+ * Issue #1079: holds `company-shutdown:manage` so each salon manages the Betriebsurlaub of her own
+ * salons (reach SALONS: only a Betriebsurlaub that names salons all inside the assignment; one for the
+ * whole Unternehmen needs whole-tenant reach, and so does every write to a Betriebsurlaub with „Kein Urlaubsabzug“, the
+ * paid release without Urlaub - a wage-cost decision, § 615 BGB). Owner decision 25.11.2026 (A2); the resource
+ * `company-shutdown` changed its relation from MANDANT to PERSON for it. Shipped by the data-only
+ * migration `20261125200000_company_shutdown_template_grant`.
  */
 const SALON_MANAGER_PERMISSION_KEYS = [
   "employee:read:ZUGEWIESEN",
@@ -409,6 +416,7 @@ const SALON_MANAGER_PERMISSION_KEYS = [
   "leave-entitlement:read:ZUGEWIESEN",
   "leave-limit:manage:ZUGEWIESEN",
   "leave-plan:manage:ZUGEWIESEN", // Issue #835, owner decision 06.11.2026
+  "company-shutdown:manage:ZUGEWIESEN", // Issue #1079, owner decision 25.11.2026
   "vocational-school:read:ZUGEWIESEN",
   "month-correction:read:ZUGEWIESEN",
   "month-correction:create:ZUGEWIESEN",

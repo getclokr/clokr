@@ -185,6 +185,30 @@ const HOME_SALON_REGISTER: readonly HomeSalonCaller[] = [
     reason: "attributes the monthly report's sick and § 9 days to a salon filter (Issue #542)",
   },
   {
+    file: "contexts/absence/api/company-shutdowns.ts",
+    region: "post /:id/exceptions",
+    reason:
+      "checks that a scoped caller adds an exception only for a person homed in the shutdown's salons (Issue #1079, D-08); a home-salon read, never a leave count",
+  },
+  {
+    file: "contexts/absence/company-shutdown/booking.ts",
+    region: "function bookCompanyShutdownsForHire",
+    reason:
+      "books a new hire only into the salon-scoped Betriebsurlaube of salons the person is homed in (Issue #1079); a home-salon read, never a leave count",
+  },
+  {
+    file: "contexts/absence/company-shutdown/booking.ts",
+    region: "function rebookCompanyShutdownsForHomeSalonChange",
+    reason:
+      "re-books a person in open months after a Stammsalon change by the affected days of each salon-scoped Betriebsurlaub (Issue #1079, D-07); a home-salon read, never a leave count",
+  },
+  {
+    file: "contexts/absence/company-shutdown/booking.ts",
+    region: "function runBooking",
+    reason:
+      "resolves who a salon-scoped Betriebsurlaub affects per day by Stammsalon, in one batched read (Issue #1079, D-02); a home-salon read, never a leave count",
+  },
+  {
     file: "composition/salon-hours.ts",
     region: "function assembleSalonHours",
     reason:

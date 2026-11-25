@@ -333,6 +333,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/leave-correction.ts": "abwesenheiten", // Issue #614 — correction core extracted from the /correct route (plan/apply/finish behind an audit port); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-calendar-masking.ts": "abwesenheiten", // Issue #840 (D-840-19) - pure masking kernel of the leave calendar and the planner read (zero runtime imports); reads no model
   "src/contexts/absence/company-shutdown/constants.ts": "abwesenheiten", // Issue #1069 - Betriebsurlaub booking codes, texts and audit markers (pure, writes nothing)
+  "src/contexts/absence/company-shutdown/affected-days.ts": "abwesenheiten", // Issue #1079 - the one rule of who a Betriebsurlaub affects on which day (pure, writes nothing)
   "src/contexts/absence/company-shutdown/booking.ts": "abwesenheiten", // Issue #1069 - the one place a Betriebsurlaub becomes bookings; writes Absence (COMPANY_SHUTDOWN) and, through the leave cores, LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-request-create.ts": "abwesenheiten", // Issue #835 (D-835-12) — create core extracted from POST /leave/requests (refusals as data, hook inside the locked create transaction); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-decision.ts": "abwesenheiten", // Issue #835 (D-835-12) — decision core extracted from PATCH /leave/requests/:id/review (approve/reject a PENDING request); writes LeaveRequest/LeaveEntitlement/Section9Credit
@@ -388,6 +389,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/hire-date-entitlements.ts": "abwesenheiten", // Issue #961 — the reaction to a changed hire date, writes LeaveEntitlement
   "src/contexts/absence/plugins/hire-date-entitlements-decorate.ts": "abwesenheiten", // Issue #961 — decoration handing the hire-date rule to the Unterbau route
   "src/contexts/absence/plugins/company-shutdown-hire-decorate.ts": "abwesenheiten", // Issue #1069 (D-18) — decoration handing the Betriebsurlaub hire booking to the Unterbau employee routes
+  "src/contexts/absence/plugins/company-shutdown-home-salon-decorate.ts": "abwesenheiten", // Issue #1079 (D-07) — decoration handing the salon-scoped Betriebsurlaub re-booking to the Unterbau Stammsalon route
 
   "src/contexts/absence/leave-self-heal.ts": "abwesenheiten", // LeaveEntitlement/LeaveRequest/LeaveType self-heal
   "src/contexts/absence/leave-type.ts": "abwesenheiten", // LeaveTypeCode -> German display-name registry

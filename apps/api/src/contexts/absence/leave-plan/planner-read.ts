@@ -27,6 +27,7 @@ import type { LeavePlan, LeavePlanWish } from "@clokr/db";
 import { formatInTimeZone } from "date-fns-tz";
 import { findSalon, holidaysForSalon, resolveSalonInReach, type AccessReach } from "../../platform";
 import { getTenantTimezone } from "../../working-time-account";
+import { shutdownAffectedRuns } from "../company-shutdown/affected-days";
 import { getAbsencesOverlapping } from "../facade/absences";
 import { getCalendarLeaveOverlapping } from "../facade/leave-requests";
 import { clipDayRange, mergeDayRanges } from "../leave-calendar-masking";
@@ -302,6 +303,7 @@ export async function readPlanner(
               startDate: true,
               endDate: true,
               exceptions: { select: { employeeId: true } },
+              salons: { select: { salonId: true } },
             },
           }),
           holidaysForSalon(db, tenantId, plan.salonId, firstDay, lastDay),
@@ -399,16 +401,28 @@ export async function readPlanner(
   }
   for (const shutdown of shutdowns) {
     const excepted = new Set(shutdown.exceptions.map((e) => e.employeeId));
+    const salonIds = shutdown.salons.map((row) => row.salonId);
     for (const id of personIds) {
       if (excepted.has(id)) continue;
-      pushRow(id, {
-        kind: "COMPANY_SHUTDOWN",
-        state: "GESETZT",
-        startDate: dayOf(shutdown.startDate),
-        endDate: dayOf(shutdown.endDate),
-        halfDay: false,
-        typeCode: null,
+      // Issue #1079 (D-06): the one rule of who a Betriebsurlaub affects on which day - without
+      // salons the whole period (as before), with salons the runs of days whose Stammsalon is a
+      // named salon. The planner shows ranges, so the runs are not split at month boundaries.
+      const runs = shutdownAffectedRuns({
+        from: dayOf(shutdown.startDate),
+        to: dayOf(shutdown.endDate),
+        salonIds,
+        homeSalonByDay: population.homeByPerson.get(id),
       });
+      for (const run of runs) {
+        pushRow(id, {
+          kind: "COMPANY_SHUTDOWN",
+          state: "GESETZT",
+          startDate: run.start,
+          endDate: run.end,
+          halfDay: false,
+          typeCode: null,
+        });
+      }
     }
   }
 

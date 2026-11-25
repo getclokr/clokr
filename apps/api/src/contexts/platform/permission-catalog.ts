@@ -94,7 +94,11 @@ export const PERMISSION_RESOURCES = {
   // Issue #835: relation PERSON for the same reason as leave-limit - a leave plan belongs to a salon
   // and a SALONS-scoped Salonmanager must be able to hold the key.
   "leave-plan": { context: "absence", relation: "PERSON" },
-  "company-shutdown": { context: "absence", relation: "MANDANT" },
+  // Issue #1079 (owner decision 25.11.2026, A2): relation PERSON - a salon's Betriebsurlaub is data of a
+  // salon, so a SALONS-scoped Salonmanager must be able to hold the key and it then takes effect for her
+  // salons. The Betriebsurlaub for the whole Unternehmen stays gated by whole-tenant reach in the route,
+  // not by the relation.
+  "company-shutdown": { context: "absence", relation: "PERSON" },
   "vocational-school": { context: "absence", relation: "PERSON" },
   // ── Arbeitszeitkonto ──
   overtime: { context: "working-time-account", relation: "PERSON" },

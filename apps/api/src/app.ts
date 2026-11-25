@@ -55,6 +55,7 @@ import { vacationBalanceDecoratePlugin } from "./contexts/absence/plugins/vacati
 import { employmentExitDecoratePlugin } from "./contexts/absence/plugins/employment-exit-decorate"; // Issue #614 (D-02) — composition-root exception; see that file's module header
 import { hireDateEntitlementsDecoratePlugin } from "./contexts/absence/plugins/hire-date-entitlements-decorate"; // Issue #961 — composition-root exception; see that file's module header
 import { companyShutdownHireDecoratePlugin } from "./contexts/absence/plugins/company-shutdown-hire-decorate"; // Issue #1069 (D-18) — composition-root exception; see that file's module header
+import { companyShutdownHomeSalonDecoratePlugin } from "./contexts/absence/plugins/company-shutdown-home-salon-decorate"; // Issue #1079 (D-07) — composition-root exception; see that file's module header
 import { dataRetentionPlugin } from "./composition/data-retention";
 import { tokenCleanupPlugin } from "./contexts/platform/plugins/token-cleanup";
 import { vocationalSchoolGeneratorPlugin } from "./contexts/absence/plugins/vocational-school-generator";
@@ -408,6 +409,7 @@ export async function buildApp() {
   await app.register(employmentExitDecoratePlugin);
   await app.register(hireDateEntitlementsDecoratePlugin); // Issue #961
   await app.register(companyShutdownHireDecoratePlugin); // Issue #1069 (D-18)
+  await app.register(companyShutdownHomeSalonDecoratePlugin); // Issue #1079 (D-07)
   await app.register(dataRetentionPlugin);
   await app.register(tokenCleanupPlugin);
   await app.register(vocationalSchoolGeneratorPlugin);

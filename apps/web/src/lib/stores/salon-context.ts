@@ -121,6 +121,16 @@ export function salonViewApplies(state: Pick<SalonContextState, "isMultiSalon">)
 }
 
 /**
+ * Issue #1079: whether a Betriebsurlaub offers the salon scope („Gilt für“). The tenant part of the
+ * #64 rule - only with more than one active salon in the tenant; a Salonleitung of one salon still
+ * sees her salon named. Sibling of `salonViewApplies`; display only, never an access boundary (the
+ * API validates every salon itself).
+ */
+export function shutdownScopeApplies(state: Pick<SalonContextState, "isMultiSalon">): boolean {
+  return state.isMultiSalon;
+}
+
+/**
  * Whether the tenant booked a module: true/false, or null while the packages are unknown. A teaser
  * shows only on `=== false`; unknown never hides a create control — the server answers 409 for an
  * unbooked module anyway (Phase 566, D-12). Display only, never an access boundary.

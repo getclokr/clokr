@@ -149,6 +149,7 @@ export type PrismaModelName =
   | "salonCoupling"
   | "companyShutdown"
   | "companyShutdownException"
+  | "companyShutdownSalon"
   | "notification"
   | "shiftTemplate"
   | "coverageRule"
@@ -197,13 +198,14 @@ export const MODEL_OWNER: Readonly<Record<PrismaModelName, OwnerArea>> = {
   presenceSource: "time-tracking",
   terminalApiKey: "time-tracking",
   retroEntryRequest: "time-tracking",
-  // absence — 13 (Issue #468: + ParentalLeaveReduction, 9 -> 10; Issue #836: + LeaveLimitRule, 10 -> 11; Issue #835: + LeavePlan, LeavePlanWish, 11 -> 13)
+  // absence — 13 (Issue #468: + ParentalLeaveReduction, 9 -> 10; Issue #836: + LeaveLimitRule, 10 -> 11; Issue #835: + LeavePlan, LeavePlanWish, 11 -> 13; Issue #1079: + CompanyShutdownSalon, 13 -> 14)
   leaveRequest: "absence",
   leaveType: "absence",
   leaveEntitlement: "absence",
   absence: "absence",
   companyShutdown: "absence",
   companyShutdownException: "absence",
+  companyShutdownSalon: "absence", // Issue #1079 — the salons a Betriebsurlaub is limited to (FK onto the Unterbau Salon)
   specialLeaveRule: "absence",
   employeeVocationalSchoolPattern: "absence",
   section9Credit: "absence",
