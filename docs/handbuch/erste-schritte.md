@@ -73,6 +73,7 @@ Unter **Ich › Profil** findest du alles, was nur dich betrifft.
 
 - **Foto ändern**: Du lädst ein Bild als JPG, PNG oder WebP hoch.
 - **Meine Arbeit**: dein Stammsalon, dein Arbeitszeitmodell, dein Umfang, deine Arbeitstage und dein Urlaub pro Jahr. Ändern kann das deine Salonleitung.
+- **Wer sieht meine Zeiten?**: welche Rollen deine Zeiteinträge lesen können, wie weit sie reichen und wofür – ohne Namen. Darunter öffnest du „Warum stempeln?“ jederzeit wieder.
 - **Benachrichtigungen**: Hier schaltest du ein, zu welchen Anlässen du E-Mails bekommst. Hinweise zur Sicherheit deines Kontos und gesetzliche Hinweise bekommst du immer.
 - **Push-Benachrichtigungen** und **Erinnerungen**: siehe [Dienstplan](ich/dienstplan.md).
 - **Darstellung**: Farbwelt und Modus. Mehr dazu unten.

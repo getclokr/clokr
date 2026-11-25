@@ -313,6 +313,12 @@ export default defineConfig({
       //     turns into the closed entry, inside the window saving the end closes it); tenant fixture
       //     plus an API-created second salon, person and open entries, no seed
       //
+      // Issue #606 added a further file:
+      //   - who-sees-my-times-visibility-606.spec.ts (the Visibility-Durchlauf of „Warum stempeln?“ on Mein
+      //     Tag and of „Wer sieht meine Zeiten?“ in Ich > Profil: the toast and the next heading after
+      //     „Verstanden“, the Salonmanager row and the reopened dialog lie in the viewport); tenant
+      //     fixture plus an API-created Salonmanager, no date dependency, no sleeps
+      //
       // This is the ONLY place the CI selection is listed — do not add files here
       // without also updating that registry, and do not let the CI job pass a file
       // list of its own (D-04: one visible place, cannot grow silently).
@@ -332,6 +338,7 @@ export default defineConfig({
         /reports-period\.spec\.ts/,
         /role-editor-visibility-710\.spec\.ts/,
         /list-block-visibility-1028\.spec\.ts/,
+        /who-sees-my-times-visibility-606\.spec\.ts/,
         /push-pwa\.spec\.ts/,
         /leave-area-840\.spec\.ts/,
         /navigation-v2\.spec\.ts/,

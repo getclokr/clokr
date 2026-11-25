@@ -346,6 +346,14 @@ export async function seedDeterministicTenant(
     }
   }
 
+  // Issue #606: the baselines show a returning user's Mein Tag. A fresh admin would otherwise see the
+  // first-sign-in card „Warum stempeln?“, whose pixels must not enter the baselines (same reasoning as
+  // the release-notes marker above). The server accepts only `true`.
+  await request.put(`${apiBaseUrl}/api/v1/me/preferences`, {
+    headers: authHeaders,
+    data: { whyClockIntroSeen: true },
+  });
+
   // 3. Create the 4 deterministic employees. The createEmployeeSchema is FLAT
   //    (no nested workSchedule); the API creates a WorkSchedule row internally
   //    from `weeklyHours` + tenant defaults.
