@@ -35,6 +35,7 @@ function cells(minutes: number[], states: Record<string, Partial<SalonHoursCell>
     elsewhere: [],
     elsewhereHidden: false,
     absent: false,
+    open: false,
     ...states[date],
   }));
 }
@@ -48,7 +49,7 @@ const DATA: SalonHoursResponse = {
   to: "2026-11-29",
   days: DAYS,
   countedThrough: "2026-11-24",
-  kpis: { salonWorkedMinutes: 1234, stammteamMinutes: 1000, aushilfenMinutes: 234 },
+  kpis: { salonWorkedMinutes: 1234, stammteamMinutes: 1000, aushilfenMinutes: 234, openCount: 2 },
   stammteam: {
     rows: [
       {
@@ -95,6 +96,28 @@ const DATA: SalonHoursResponse = {
     ],
     dayTotals: [321, 0, 0, 0, 0, 0, 0],
     totalMinutes: 234,
+  },
+  open: [
+    { employeeId: "e1", employeeName: "Anna Berg", date: "2026-11-23", startTime: "09:00" },
+    { employeeId: "e2", employeeName: "Bernd Adler", date: "2026-11-24", startTime: "08:30" },
+  ],
+  exchange: {
+    // The minutes are the server's; 150 + 90 deliberately differ from the helper block total.
+    fromOtherSalons: [
+      {
+        salonId: "s2",
+        salonName: "Salon Süd",
+        persons: 1,
+        minutes: 150,
+        people: [
+          { employeeId: "h1", employeeName: "Carla Gast", employeeNumber: null, minutes: 150 },
+        ],
+      },
+      { salonId: null, salonName: null, persons: 1, minutes: 90, people: [] },
+    ],
+    ownTeamElsewhere: [
+      { salonId: "s2", salonName: "Salon Süd", persons: 2, minutes: 600, people: [] },
+    ],
   },
 };
 
@@ -312,5 +335,111 @@ describe("SalonHoursView - cell click", () => {
     expect(
       screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody button"),
     ).toHaveLength(0);
+  });
+});
+
+describe("SalonHoursView - open items (Issue #1030)", () => {
+  it("shows the KPI Offen with the server's count", () => {
+    render();
+    const kpi = screen.getByTestId("salon-hours-kpi-open");
+    expect(kpi.textContent).toContain("Offen");
+    expect(kpi.textContent).toContain("2");
+  });
+
+  it("marks the cell of a missing clock-out with the chip „offen“", () => {
+    const marked = {
+      ...DATA,
+      stammteam: {
+        ...DATA.stammteam,
+        rows: DATA.stammteam.rows.map((row) =>
+          row.employeeId === "e1"
+            ? {
+                ...row,
+                cells: row.cells.map((c) => (c.date === "2026-11-23" ? { ...c, open: true } : c)),
+              }
+            : row,
+        ),
+      },
+    };
+    render({ data: marked });
+    const anna = screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody tr")[0];
+    expect(anna.querySelectorAll("td")[1].textContent).toContain("offen");
+  });
+
+  it("lists each open item with the day and the start time under the heading", () => {
+    render();
+    expect(screen.getByRole("heading", { name: "Offen in diesem Salon" })).toBeTruthy();
+    const list = screen.getByTestId("salon-hours-open-list");
+    const items = list.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain("Anna Berg");
+    expect(items[0].textContent).toContain("Mo, 23.11. · seit 09:00");
+    expect(items[1].textContent).toContain("Bernd Adler");
+    expect(items[1].textContent).toContain("Di, 24.11. · seit 08:30");
+  });
+
+  it("opens the person's day from an item of a clickable person only", async () => {
+    const onCellOpen = vi.fn();
+    render({ clickableIds: new Set(["e1"]), onCellOpen });
+    const list = screen.getByTestId("salon-hours-open-list");
+    const buttons = list.querySelectorAll("button");
+    expect(buttons).toHaveLength(1);
+    await fireEvent.click(buttons[0]);
+    expect(onCellOpen).toHaveBeenCalledWith("e1", "2026-11-23");
+  });
+
+  it("links to the Aufgaben only when the caller may open them", () => {
+    const first = render();
+    expect(first.queryByText("Zu den Aufgaben")).toBeNull();
+    cleanup();
+    render({ aufgabenHref: "/team/aufgaben?typ=ausstempeln" });
+    const link = screen.getByText("Zu den Aufgaben") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/team/aufgaben?typ=ausstempeln");
+  });
+
+  it("says so when nothing is open, and renders no list", () => {
+    render({
+      data: { ...DATA, open: [], kpis: { ...DATA.kpis, openCount: 0 } },
+    });
+    expect(screen.getByTestId("salon-hours-no-open").textContent).toContain(
+      "Nichts offen in diesem Zeitraum.",
+    );
+    expect(screen.queryByTestId("salon-hours-open-list")).toBeNull();
+  });
+});
+
+describe("SalonHoursView - exchange card (Issue #1030)", () => {
+  it("shows the heading, its hint and both directions with the server's minutes", () => {
+    render();
+    expect(screen.getByRole("heading", { name: "Austausch mit anderen Salons" })).toBeTruthy();
+    expect(screen.getByTestId("salon-hours-exchange-hint").textContent).toBe(
+      "Gezählt werden geschlossene, gültige Arbeitszeiten bis zum Stichtag. Eine Aushilfe zählt zu ihrem Stammsalon am Ende des Zeitraums.",
+    );
+    const from = screen.getByTestId("salon-hours-exchange-from");
+    expect(from.textContent).toContain("Salon Süd");
+    expect(from.textContent).toContain("2:30");
+    expect(from.textContent).toContain("ohne Stammsalon");
+    expect(from.textContent).toContain("1:30");
+    const own = screen.getByTestId("salon-hours-exchange-own");
+    expect(own.textContent).toContain("Salon Süd");
+    expect(own.textContent).toContain("10:00");
+  });
+
+  it("offers the CSV download only with the export right, and calls onExport", async () => {
+    const first = render();
+    expect(first.queryByRole("button", { name: "Als CSV herunterladen" })).toBeNull();
+    cleanup();
+    const onExport = vi.fn();
+    render({ canExport: true, onExport });
+    await fireEvent.click(screen.getByRole("button", { name: "Als CSV herunterladen" }));
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when no hours were exchanged in a direction", () => {
+    render({
+      data: { ...DATA, exchange: { fromOtherSalons: [], ownTeamElsewhere: [] } },
+    });
+    expect(screen.getAllByText("Keine Stunden in diesem Zeitraum.")).toHaveLength(2);
+    expect(screen.queryByTestId("salon-hours-exchange-from")).toBeNull();
   });
 });

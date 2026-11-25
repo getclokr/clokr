@@ -20,6 +20,7 @@ import {
   dayRangeUtc,
   weekRangeUtc,
   monthRangeUtc,
+  timeStrInTz,
 } from "../contexts/working-time-account";
 import {
   getRecordedWorkEntriesInRange,
@@ -29,8 +30,11 @@ import { getActiveLeaveOverlapping, getAbsencesOverlapping } from "../contexts/a
 import { resolveWindowReachIds, windowReachDay, type ReachWindow } from "./reach-day";
 import { SALON_VIEW_NOT_FOUND, salonHelperIds } from "./salon-view";
 import { distinctEmployeeIds, outOfScopeValidCounts } from "./team-entry-scope";
+import { salonHoursCsv, salonHoursCsvFilename, salonHoursCsvLineCount } from "./salon-hours-csv";
 import {
   absentDaysOf,
+  buildExchange,
+  buildOpenItems,
   buildSalonHoursBlock,
   entryDayKey,
   type SalonHoursEntryRow,
@@ -311,6 +315,27 @@ export async function assembleSalonHours(
     withholdNumbers: reach.kind === "scoped",
   });
 
+  // The missing clock-outs of this salon (P-08), from the rows already read - so a scoped caller
+  // sees only in-scope entries. Nothing is created: the list links into the existing correction path.
+  const open = buildOpenItems({
+    salonId,
+    yesterday,
+    persons: population.map(toPerson),
+    rowsByPerson,
+    timeOf: (instant) => timeStrInTz(instant, tz),
+  });
+  // The exchange card (P-04), built from the blocks: for a whole-tenant caller salon A's Aushilfen
+  // from B and salon B's Stammteam in A are the same hours.
+  const exchange = buildExchange({
+    salonId,
+    yesterday,
+    countedThrough,
+    salonNames,
+    helpers: aushilfen.rows,
+    stammteamPersons: stammPersons.map(toPerson),
+    rowsByPerson,
+  });
+
   return {
     salonId,
     salonName,
@@ -323,9 +348,12 @@ export async function assembleSalonHours(
       salonWorkedMinutes: stammteam.totalMinutes + aushilfen.totalMinutes,
       stammteamMinutes: stammteam.totalMinutes,
       aushilfenMinutes: aushilfen.totalMinutes,
+      openCount: open.length,
     },
     stammteam,
     aushilfen,
+    open,
+    exchange,
   };
 }
 
@@ -352,6 +380,67 @@ export async function salonHoursRoutes(app: FastifyInstance) {
         }
         throw err;
       }
+    },
+  });
+
+  // GET /api/v1/salon-hours/csv?salonId=&period=week|month&date=YYYY-MM-DD
+  // The exchange card as a spreadsheet file. It is an export of personal data: it needs the view
+  // (`team-overview:read`) AND `report:export`, is assembled with the VIEW's reach (never more than
+  // the page shows), and every successful download is audited BEFORE the bytes leave - ids and the
+  // period, never a name. A refusal (400/404) throws out of the assembly and writes nothing.
+  app.get("/csv", {
+    schema: {
+      tags: ["Dashboard"],
+      security: [{ bearerAuth: [] }],
+      description:
+        "CSV export of the exchange card of the Salonansicht: per person the hours of the Aushilfen from other salons and of the Stammteam in other salons through tenant-local yesterday, decimal comma, UTF-8 with BOM, semicolon separated. Same assembly and reach as GET /salon-hours; requires team-overview:read and report:export. Audited as EXPORT (salon id, period and employee ids, no names) before the file is sent.",
+    },
+    preHandler: [
+      requirePermission("team-overview:read:ZUGEWIESEN"),
+      requirePermission("report:export:ZUGEWIESEN"),
+    ],
+    handler: async (req, reply) => {
+      const query = salonHoursQuerySchema.parse(req.query);
+      let answer: Awaited<ReturnType<typeof assembleSalonHours>>;
+      try {
+        answer = await assembleSalonHours(app, req, query, "team-overview:read:ZUGEWIESEN");
+      } catch (err) {
+        if (err instanceof SalonHoursNotFoundError) {
+          return reply.code(404).send(SALON_VIEW_NOT_FOUND);
+        }
+        if (err instanceof SalonHoursRangeError) {
+          return reply.code(400).send({ error: "Der Zeitraum darf nicht in der Zukunft liegen." });
+        }
+        throw err;
+      }
+      const employeeIds = [
+        ...new Set(
+          [...answer.exchange.fromOtherSalons, ...answer.exchange.ownTeamElsewhere].flatMap((g) =>
+            g.people.map((p) => p.employeeId),
+          ),
+        ),
+      ].sort();
+      await app.audit({
+        userId: req.user.sub,
+        action: "EXPORT",
+        entity: "Report",
+        newValue: {
+          type: "SALON_HOURS_CSV",
+          salonId: answer.salonId,
+          period: answer.period,
+          from: answer.from,
+          to: answer.to,
+          countedThrough: answer.countedThrough,
+          employeeIds,
+          lineCount: salonHoursCsvLineCount(answer),
+        },
+      });
+      reply.header("Content-Type", "text/csv; charset=utf-8");
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="${salonHoursCsvFilename(answer.from, answer.to)}"`,
+      );
+      return reply.send(salonHoursCsv(answer));
     },
   });
 }

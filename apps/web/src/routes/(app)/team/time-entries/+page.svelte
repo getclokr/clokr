@@ -89,9 +89,11 @@
     type SalonPeriod,
     defaultSalonPeriod,
     periodAfterSalonChange,
+    salonHoursCsvPath,
     salonHoursRequestPath,
     teamModeFor,
   } from "$lib/team/salon-hours";
+  import { downloadFromApi } from "$lib/api/download";
   import DayBreakPanel from "$lib/components/breaks/DayBreakPanel.svelte"; // Issue #80
   import DayCheckLine from "$lib/components/breaks/DayCheckLine.svelte"; // Issue #1029
   import { dayBreakPanelVisible } from "$lib/breaks/day-check-line";
@@ -589,6 +591,21 @@
     selectedEmployeeRecord = person;
     await loadAll();
     openDaySheet(day);
+  }
+
+  // The CSV of the exchange card: the very salon and period on screen. The API writes the audit row
+  // before the bytes and refuses a caller without report:export; the button exists only with it.
+  async function exportSalonHours() {
+    const salonId = salonViewSalonId;
+    if (salonId === null) return;
+    try {
+      await downloadFromApi(salonHoursCsvPath(salonId, salonPeriod), "salon-austausch.csv");
+      toasts.success("Der Austausch mit anderen Salons wurde als CSV heruntergeladen.");
+    } catch {
+      toasts.error(
+        "Der Austausch mit anderen Salons konnte nicht exportiert werden. Bitte versuch es noch einmal.",
+      );
+    }
   }
 
   async function setTeamMode(mode: "person" | "salon") {
@@ -2191,6 +2208,11 @@
         errorMessage={salonViewError || undefined}
         clickableIds={salonClickableIds}
         onCellOpen={(employeeId, day) => void openPersonDay(employeeId, day)}
+        aufgabenHref={mayOpenTeamPage("/team/aufgaben", $authStore.user)
+          ? "/team/aufgaben?typ=ausstempeln"
+          : null}
+        canExport={salonHoursRights($authStore.user).export}
+        onExport={() => void exportSalonHours()}
         onPeriodChange={(next) => (salonPeriod = next)}
         onRetry={() => void loadSalonView(salonViewSalonId, salonPeriod)}
       />

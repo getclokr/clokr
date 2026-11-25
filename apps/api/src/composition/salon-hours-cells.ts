@@ -55,6 +55,8 @@ export interface SalonHoursCell {
   elsewhereHidden: boolean;
   /** The person's Stammsalon is this salon on that day and leave or an absence covers it. */
   absent: boolean;
+  /** An open (not clocked out) WORK row of this salon on a counted day: a missing clock-out (P-08). */
+  open: boolean;
 }
 
 export interface SalonHoursRow {
@@ -172,6 +174,7 @@ export function buildSalonHoursBlock(input: SalonHoursBlockInput): SalonHoursBlo
       else byDay.set(key, [row]);
     }
     const absentDays = input.absentByPerson?.get(person.id);
+    const allRows = rowsByPerson.get(person.id) ?? [];
     let totalMinutes = 0;
     const cells = days.map((date, index): SalonHoursCell => {
       const counted = countedThrough !== null && date <= countedThrough;
@@ -197,6 +200,11 @@ export function buildSalonHoursBlock(input: SalonHoursBlockInput): SalonHoursBlo
         elsewhereHidden:
           counted && (input.hiddenValidCounts?.get(personDayKey(person.id, date)) ?? 0) > 0,
         absent: absentDays?.has(date) ?? false,
+        open:
+          counted &&
+          allRows.some(
+            (r) => r.endTime === null && r.salonId === salonId && entryDayKey(r) === date,
+          ),
       };
     });
     const row: SalonHoursRow = {
@@ -213,4 +221,177 @@ export function buildSalonHoursBlock(input: SalonHoursBlockInput): SalonHoursBlo
     return row;
   });
   return { rows, dayTotals, totalMinutes: dayTotals.reduce((sum, m) => sum + m, 0) };
+}
+
+// ── Open items (P-08) ───────────────────────────────────────────────────────────────────────────
+
+export interface SalonHoursOpenItem {
+  employeeId: string;
+  employeeName: string;
+  /** Calendar day of the open entry, `YYYY-MM-DD`. */
+  date: string;
+  /** Tenant-local `HH:MM` the entry started. */
+  startTime: string;
+}
+
+export interface OpenItemsInput {
+  salonId: string;
+  /** Tenant-local yesterday as a UTC-midnight calendar day: the last day an open row can be "missing". */
+  yesterday: Date;
+  persons: readonly SalonHoursPerson[];
+  rowsByPerson: ReadonlyMap<string, readonly SalonHoursEntryRow[]>;
+  /** Formats an instant as the tenant-local `HH:MM` (injected: this module reads no time zone). */
+  timeOf: (instant: Date) => string;
+}
+
+/**
+ * The missing clock-outs of this salon: open WORK rows recorded here and dated before tenant-local
+ * today - the definition of `findMissingClockOutEntries` / the Aufgaben "Ausstempeln fehlt" (#853),
+ * computed from the rows already read (and already narrowed to the caller's reach). A running row of
+ * today is not "offen". Ordered by day, start time, name, id; nothing is created or written.
+ */
+export function buildOpenItems(input: OpenItemsInput): SalonHoursOpenItem[] {
+  const items: Array<SalonHoursOpenItem & { sortStart: number }> = [];
+  for (const person of input.persons) {
+    for (const r of input.rowsByPerson.get(person.id) ?? []) {
+      if (r.endTime !== null || r.salonId !== input.salonId || r.date > input.yesterday) continue;
+      items.push({
+        employeeId: person.id,
+        employeeName: `${person.firstName} ${person.lastName}`,
+        date: entryDayKey(r),
+        startTime: input.timeOf(r.startTime),
+        sortStart: r.startTime.getTime(),
+      });
+    }
+  }
+  items.sort(
+    (a, b) =>
+      byText(a.date, b.date) ||
+      a.sortStart - b.sortStart ||
+      byText(a.employeeName, b.employeeName) ||
+      byText(a.employeeId, b.employeeId),
+  );
+  return items.map(({ sortStart: _sortStart, ...item }) => item);
+}
+
+// ── Exchange with other salons (P-04) ───────────────────────────────────────────────────────────
+
+export interface SalonHoursExchangePerson {
+  employeeId: string;
+  employeeName: string;
+  employeeNumber: string | null;
+  minutes: number;
+}
+
+export interface SalonHoursExchangeGroup {
+  /** The counterpart salon; `null` = a helper without a Stammsalon. */
+  salonId: string | null;
+  salonName: string | null;
+  persons: number;
+  minutes: number;
+  people: SalonHoursExchangePerson[];
+}
+
+export interface SalonHoursExchange {
+  /** The Aushilfen of this salon, grouped by their Stammsalon. */
+  fromOtherSalons: SalonHoursExchangeGroup[];
+  /** The Stammteam's time in other salons (inside the caller's reach), grouped by entry salon. */
+  ownTeamElsewhere: SalonHoursExchangeGroup[];
+}
+
+export interface ExchangeInput {
+  salonId: string;
+  yesterday: Date;
+  countedThrough: string | null;
+  salonNames: ReadonlyMap<string, string>;
+  /** The Aushilfen rows of the block (hours already derived, Stammsalon on the Stichtag). */
+  helpers: readonly SalonHoursRow[];
+  stammteamPersons: readonly SalonHoursPerson[];
+  rowsByPerson: ReadonlyMap<string, readonly SalonHoursEntryRow[]>;
+}
+
+/** Groups sorted by salon name, the group without a salon last. */
+function sortGroups(groups: SalonHoursExchangeGroup[]): SalonHoursExchangeGroup[] {
+  return groups.sort((a, b) => {
+    if (a.salonId === null || b.salonId === null) {
+      return a.salonId === b.salonId ? 0 : a.salonId === null ? 1 : -1;
+    }
+    return byText(a.salonName ?? "", b.salonName ?? "") || byText(a.salonId, b.salonId);
+  });
+}
+
+function sortedPeople(people: SalonHoursExchangePerson[]): SalonHoursExchangePerson[] {
+  return people.sort(
+    (a, b) => byText(a.employeeName, b.employeeName) || byText(a.employeeId, b.employeeId),
+  );
+}
+
+/**
+ * The card "Austausch mit anderen Salons", built from rows already read. The Aushilfen direction is
+ * the helper block itself, so its minutes are the block's by construction; the other direction sums
+ * the Stammteam's counted days in each other salon through `salonWorkedMinutesOf` - the one minutes
+ * derivation - never a second one.
+ */
+export function buildExchange(input: ExchangeInput): SalonHoursExchange {
+  const from = new Map<string | null, SalonHoursExchangeGroup>();
+  for (const helper of input.helpers) {
+    const key = helper.homeSalonId ?? null;
+    const group = from.get(key) ?? {
+      salonId: key,
+      salonName: key === null ? null : (input.salonNames.get(key) ?? helper.homeSalonName ?? null),
+      persons: 0,
+      minutes: 0,
+      people: [],
+    };
+    group.persons += 1;
+    group.minutes += helper.totalMinutes;
+    group.people.push({
+      employeeId: helper.employeeId,
+      employeeName: helper.employeeName,
+      employeeNumber: helper.employeeNumber,
+      minutes: helper.totalMinutes,
+    });
+    from.set(key, group);
+  }
+
+  const elsewhere = new Map<string, SalonHoursExchangeGroup>();
+  if (input.countedThrough !== null) {
+    for (const person of input.stammteamPersons) {
+      const byOtherSalon = new Map<string, Map<string, SalonHoursEntryRow[]>>();
+      for (const r of countableRows(input.rowsByPerson.get(person.id) ?? [])) {
+        const day = entryDayKey(r);
+        if (r.salonId === input.salonId || day > input.countedThrough) continue;
+        const days = byOtherSalon.get(r.salonId) ?? new Map<string, SalonHoursEntryRow[]>();
+        days.set(day, [...(days.get(day) ?? []), r]);
+        byOtherSalon.set(r.salonId, days);
+      }
+      for (const [otherSalonId, days] of byOtherSalon) {
+        let minutes = 0;
+        for (const dayRows of days.values()) {
+          minutes += salonWorkedMinutesOf(dayRows, otherSalonId, input.yesterday);
+        }
+        if (minutes <= 0) continue;
+        const group = elsewhere.get(otherSalonId) ?? {
+          salonId: otherSalonId,
+          salonName: input.salonNames.get(otherSalonId) ?? "",
+          persons: 0,
+          minutes: 0,
+          people: [],
+        };
+        group.persons += 1;
+        group.minutes += minutes;
+        group.people.push({
+          employeeId: person.id,
+          employeeName: `${person.firstName} ${person.lastName}`,
+          employeeNumber: person.employeeNumber,
+          minutes,
+        });
+        elsewhere.set(otherSalonId, group);
+      }
+    }
+  }
+
+  const finish = (groups: Iterable<SalonHoursExchangeGroup>) =>
+    sortGroups([...groups]).map((g) => ({ ...g, people: sortedPeople(g.people) }));
+  return { fromOtherSalons: finish(from.values()), ownTeamElsewhere: finish(elsewhere.values()) };
 }

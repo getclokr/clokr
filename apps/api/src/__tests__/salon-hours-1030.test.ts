@@ -27,6 +27,7 @@ import {
   closeTestApp,
   seedTestData,
   cleanupTestData,
+  soleAuditRow,
   createTestSalon,
   reissueTokenNow,
   numericEmployeeNumber,
@@ -49,7 +50,21 @@ type Cell = {
   elsewhere: Array<{ salonId: string; salonName: string }>;
   elsewhereHidden: boolean;
   absent: boolean;
+  open: boolean;
 };
+type ExchangeGroup = {
+  salonId: string | null;
+  salonName: string | null;
+  persons: number;
+  minutes: number;
+  people: Array<{
+    employeeId: string;
+    employeeName: string;
+    employeeNumber: string | null;
+    minutes: number;
+  }>;
+};
+type OpenItem = { employeeId: string; employeeName: string; date: string; startTime: string };
 type Row = {
   employeeId: string;
   employeeName: string;
@@ -68,9 +83,16 @@ type Hours = {
   to: string;
   days: string[];
   countedThrough: string | null;
-  kpis: { salonWorkedMinutes: number; stammteamMinutes: number; aushilfenMinutes: number };
+  kpis: {
+    salonWorkedMinutes: number;
+    stammteamMinutes: number;
+    aushilfenMinutes: number;
+    openCount: number;
+  };
   stammteam: Block;
   aushilfen: HelperBlock;
+  open: OpenItem[];
+  exchange: { fromOtherSalons: ExchangeGroup[]; ownTeamElsewhere: ExchangeGroup[] };
 };
 
 type Tag = "P1" | "P2" | "Q1" | "TR" | "MV" | "NH";
@@ -85,7 +107,7 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
   let salonD: string;
   let tenantId: string;
   const ids = {} as Record<Tag, string>;
-  const tokens = { admin: "", emp: "", managerA: "", managerB: "" };
+  const tokens = { admin: "", emp: "", managerA: "", managerB: "", ownerA: "", ownerB: "" };
   let managerAEmail = "";
 
   function entry(
@@ -202,6 +224,9 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     await entry(ids.MV, salonB, "2026-03-05", { hours: 4 });
     await entry(ids.NH, salonA, "2026-03-03", { hours: 2 });
     await entry(ids.P2, salonB, "2026-03-03", { hours: 5 });
+    // Open rows: a missing clock-out in B (not A's), and a running entry of TODAY in A (not "offen").
+    await entry(ids.P2, salonB, "2026-03-13", { endTime: null });
+    await entry(ids.P2, salonA, "2026-03-18", { endTime: null });
     // A trip A -> B: the departure salon A is the one it counts for (#92).
     await app.prisma.timeEntry.create({
       data: {
@@ -276,9 +301,16 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     expect(login.statusCode, login.body).toBe(200);
     tokens.managerA = (JSON.parse(login.body) as { accessToken: string }).accessToken;
     tokens.managerB = await salonManager("B", [salonB]);
+    // An Inhaber whose assignment reaches salon A only: holds report:export, but at SALONS[A] scope.
+    tokens.ownerA = await salonManager("OA", [salonA], SYSTEM_ROLE_IDS.OWNER);
+    tokens.ownerB = await salonManager("OB", [salonB], SYSTEM_ROLE_IDS.OWNER);
   });
 
-  async function salonManager(label: string, salonIds: string[]): Promise<string> {
+  async function salonManager(
+    label: string,
+    salonIds: string[],
+    accessRoleId: string = SYSTEM_ROLE_IDS.SALON_MANAGER,
+  ): Promise<string> {
     const user = await app.prisma.user.create({
       data: {
         email: `mgr-1030-${label}-${Date.now().toString(36)}@example.invalid`,
@@ -300,7 +332,7 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
       data: {
         tenantId,
         userId: user.id,
-        accessRoleId: SYSTEM_ROLE_IDS.SALON_MANAGER,
+        accessRoleId,
         scopeType: "SALONS",
         salonIds,
         employeeIds: [],
@@ -771,5 +803,308 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
       expect(row.totalMinutes).toBe(sameDays);
     }
     expect(rowsOf(week).some((r) => r.totalMinutes > 0)).toBe(true);
+  });
+
+  // ── Task 3: open items ────────────────────────────────────────────────────────────────────
+
+  const WEEK3 = "period=week&date=2026-03-11";
+
+  it("lists an open WORK entry of this salon dated before today as 'offen' and as an open item with its tenant-local start", async () => {
+    const h = await hours(`salonId=${salonA}&${WEEK3}`);
+    expect(h.open).toEqual([
+      {
+        employeeId: ids.P2,
+        employeeName: expect.any(String),
+        date: "2026-03-11",
+        startTime: "09:00", // 08:00Z is 09:00 in Europe/Berlin in March
+      },
+    ]);
+    expect(h.kpis.openCount).toBe(1);
+    const cell = cellOf(rowOf(h, "P2"), "2026-03-11");
+    expect(cell.open).toBe(true);
+    expect(cell.minutes).toBe(0);
+    // An open row counts for no minute and an open cell exists only where an item exists.
+    const openCells = [...h.stammteam.rows, ...h.aushilfen.rows].flatMap((r) =>
+      r.cells.filter((c) => c.open),
+    );
+    expect(openCells).toHaveLength(1);
+  });
+
+  it("an open entry of another salon is listed in that salon only, never in A", async () => {
+    const a = await hours(`salonId=${salonA}&${WEEK3}`);
+    expect(cellOf(rowOf(a, "P2"), "2026-03-13").open).toBe(false);
+    const b = await hours(`salonId=${salonB}&${WEEK3}`);
+    expect(b.open.map((i) => [i.employeeId, i.date])).toEqual([[ids.P2, "2026-03-13"]]);
+    expect(b.kpis.openCount).toBe(1);
+  });
+
+  it("a running entry of today is not 'offen'", async () => {
+    const h = await hours(`salonId=${salonA}`); // the week of yesterday: 16.-22.3., today is 18.3.
+    expect(h.open).toEqual([]);
+    expect(h.kpis.openCount).toBe(0);
+    expect(cellOf(rowOf(h, "P2"), "2026-03-18").open).toBe(false);
+  });
+
+  it("the open list of the whole tenant is /tasks/open filtered to this salon and window", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/tasks/open",
+      headers: { authorization: `Bearer ${tokens.admin}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const tasks = (
+      JSON.parse(res.body) as {
+        tasks: Array<{ id: string; employeeId: string; day: string; startTime: string }>;
+      }
+    ).tasks;
+    const inSalon = await app.prisma.timeEntry.findMany({
+      where: { id: { in: tasks.map((t) => t.id) }, salonId: salonA },
+      select: { id: true },
+    });
+    const wanted = new Set(inSalon.map((e) => e.id));
+    const expected = tasks
+      .filter((t) => wanted.has(t.id) && t.day >= "2026-03-09" && t.day <= "2026-03-15")
+      .map((t) => [t.employeeId, t.day, t.startTime]);
+    expect(expected.length).toBeGreaterThan(0);
+    const h = await hours(`salonId=${salonA}&${WEEK3}`);
+    expect(h.open.map((i) => [i.employeeId, i.date, i.startTime])).toEqual(expected);
+  });
+
+  it("the scoped manager sees the open items of the salon in reach, and reading creates nothing", async () => {
+    const entries = await app.prisma.timeEntry.count({ where: { employee: { tenantId } } });
+    const audits = await app.prisma.auditLog.count();
+    const mine = await hours(`salonId=${salonB}&${WEEK3}`, tokens.managerB);
+    expect(mine.open.map((i) => [i.employeeId, i.date])).toEqual([[ids.P2, "2026-03-13"]]);
+    const whole = await hours(`salonId=${salonA}&${WEEK3}`);
+    const scoped = await hours(`salonId=${salonA}&${WEEK3}`, tokens.managerA);
+    expect(scoped.open).toEqual(whole.open);
+    expect(await app.prisma.timeEntry.count({ where: { employee: { tenantId } } })).toBe(entries);
+    expect(await app.prisma.auditLog.count()).toBe(audits);
+  });
+
+  // ── Task 3: the exchange with other salons ────────────────────────────────────────────────
+
+  const group = (groups: ExchangeGroup[], salonId: string | null): ExchangeGroup => {
+    const found = groups.find((g) => g.salonId === salonId);
+    if (!found) throw new Error(`exchange group ${String(salonId)} missing`);
+    return found;
+  };
+
+  it("sums the Aushilfen by Stammsalon and the Stammteam's time in other salons", async () => {
+    const a = await hours(`salonId=${salonA}&${WEEK2}`);
+    expect(a.exchange.fromOtherSalons.map((g) => [g.salonId, g.persons, g.minutes])).toEqual([
+      [salonB, 1, 180], // MV: homed in B on the window Stichtag, 3 h in A
+      [null, 1, 120], // NH: no Stammsalon, 2 h in A
+    ]);
+    expect(group(a.exchange.fromOtherSalons, salonB).salonName).toBe("SH1030 B");
+    expect(a.exchange.fromOtherSalons.reduce((s, g) => s + g.minutes, 0)).toBe(
+      a.aushilfen.totalMinutes,
+    );
+    expect(a.exchange.ownTeamElsewhere.map((g) => [g.salonId, g.persons, g.minutes])).toEqual([
+      [salonB, 1, 300], // P2: 5 h in B on Tue 3.3.
+    ]);
+    expect(a.exchange.ownTeamElsewhere[0].people.map((p) => p.employeeId)).toEqual([ids.P2]);
+  });
+
+  it("is symmetric for the whole tenant: A's Aushilfen from B are B's Stammteam in A", async () => {
+    const a = await hours(`salonId=${salonA}&${WEEK2}`);
+    const b = await hours(`salonId=${salonB}&${WEEK2}`);
+    const aFromB = group(a.exchange.fromOtherSalons, salonB).minutes;
+    const bInA = group(b.exchange.ownTeamElsewhere, salonA).minutes;
+    expect(aFromB).toBeGreaterThan(0);
+    expect(aFromB).toBe(bInA);
+    const bFromA = group(b.exchange.fromOtherSalons, salonA).minutes;
+    const aInB = group(a.exchange.ownTeamElsewhere, salonB).minutes;
+    expect(bFromA).toBeGreaterThan(0);
+    expect(bFromA).toBe(aInB);
+  });
+
+  it("never sums or names time outside the scoped caller's reach", async () => {
+    // The manager of A reaches P2 (homed in A) in every salon, so P2's 5 h in B are inside the reach.
+    const a = await hours(`salonId=${salonA}&${WEEK2}`, tokens.managerA);
+    expect(a.exchange.ownTeamElsewhere.map((g) => [g.salonId, g.minutes])).toEqual([[salonB, 300]]);
+    // The Aushilfen direction is the block itself; a helper's Personalnummer stays withheld.
+    expect(
+      a.exchange.fromOtherSalons.flatMap((g) => g.people).every((p) => p.employeeNumber === null),
+    ).toBe(true);
+    // The manager of B does not reach MV's Monday in A (MV was homed in A that day): 3 h that must
+    // appear neither as a group nor as a minute, while P2's hours in B are theirs to see.
+    const b = await hours(`salonId=${salonB}&${WEEK2}`, tokens.managerB);
+    expect(b.exchange.ownTeamElsewhere).toEqual([]);
+    expect(b.exchange.fromOtherSalons.map((g) => [g.salonId, g.minutes])).toEqual([[salonA, 300]]);
+    const whole = await hours(`salonId=${salonB}&${WEEK2}`);
+    expect(whole.exchange.ownTeamElsewhere.map((g) => [g.salonId, g.minutes])).toEqual([
+      [salonA, 180],
+    ]);
+  });
+
+  // ── Task 3: the audited CSV ───────────────────────────────────────────────────────────────
+
+  const csvGet = (query: string, token = tokens.admin) =>
+    app.inject({
+      method: "GET",
+      url: `/api/v1/salon-hours/csv?${query}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  const csvAuditWhere = (from: string, userId: string) => ({
+    action: "EXPORT",
+    entity: "Report",
+    userId,
+    AND: [
+      { newValue: { path: ["type"], equals: "SALON_HOURS_CSV" } },
+      { newValue: { path: ["from"], equals: from } },
+    ],
+  });
+  const csvAuditCount = () =>
+    app.prisma.auditLog.count({
+      where: { entity: "Report", newValue: { path: ["type"], equals: "SALON_HOURS_CSV" } },
+    });
+
+  it("an Inhaber at tenant scope downloads the exchange as a CSV and exactly one EXPORT audit row precedes it", async () => {
+    const res = await csvGet(`salonId=${salonA}&${WEEK2}`);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.headers["content-type"]).toBe("text/csv; charset=utf-8");
+    expect(res.headers["content-disposition"]).toBe(
+      'attachment; filename="salon-austausch-2026-03-02-2026-03-08.csv"',
+    );
+    const bytes = res.rawPayload;
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const lines = bytes.subarray(3).toString("utf8").split("\r\n");
+    expect(lines[0]).toBe("Von;Bis;Gezählt bis;Richtung;Salon;Person;Personalnummer;Stunden");
+    expect(lines.at(-1)).toBe("");
+    const rows = lines.slice(1, -1).map((l) => l.split(";"));
+    expect(rows.map((r) => [r[0], r[1], r[2], r[3], r[4], r[7]])).toEqual([
+      ["2026-03-02", "2026-03-08", "2026-03-08", "Aushilfe aus anderem Salon", "SH1030 B", "3"],
+      [
+        "2026-03-02",
+        "2026-03-08",
+        "2026-03-08",
+        "Aushilfe aus anderem Salon",
+        "ohne Stammsalon",
+        "2",
+      ],
+      ["2026-03-02", "2026-03-08", "2026-03-08", "Stammteam in anderem Salon", "SH1030 B", "5"],
+    ]);
+
+    const audit = await soleAuditRow(app.prisma, {
+      where: csvAuditWhere("2026-03-02", data.adminUser.id),
+    });
+    const expectedIds = [ids.MV, ids.NH, ids.P2].sort();
+    expect(audit.newValue).toEqual({
+      type: "SALON_HOURS_CSV",
+      salonId: salonA,
+      period: "week",
+      from: "2026-03-02",
+      to: "2026-03-08",
+      countedThrough: "2026-03-08",
+      employeeIds: expectedIds,
+      lineCount: 3,
+    });
+    // Ids and period only: no person name travels into the audit row.
+    const people = await app.prisma.employee.findMany({
+      where: { id: { in: expectedIds } },
+      select: { firstName: true, lastName: true },
+    });
+    const stored = JSON.stringify(audit.newValue);
+    for (const p of people) {
+      expect(stored).not.toContain(p.firstName);
+      expect(stored).not.toContain(p.lastName);
+    }
+  });
+
+  it("an Inhaber at a SALONS scope exports only what their view shows", async () => {
+    const lineCount = async (query: string, token: string): Promise<[number, string]> => {
+      const res = await csvGet(query, token);
+      expect(res.statusCode, res.body).toBe(200);
+      const text = res.rawPayload.subarray(3).toString("utf8");
+      return [text.split("\r\n").slice(1, -1).length, text];
+    };
+    const view = await hours(`salonId=${salonB}&${WEEK2}`, tokens.ownerB);
+    const shown = [...view.exchange.fromOtherSalons, ...view.exchange.ownTeamElsewhere].flatMap(
+      (g) => g.people,
+    );
+    // MV's Monday in A is outside the Inhaber of B's reach: the view and the file hold P2 only,
+    // while the whole-tenant file also lists MV's 3 h in A.
+    expect(view.exchange.ownTeamElsewhere).toEqual([]);
+    expect(shown.map((p) => p.employeeId)).toEqual([ids.P2]);
+    const [scopedLines, scopedText] = await lineCount(`salonId=${salonB}&${WEEK2}`, tokens.ownerB);
+    expect(scopedLines).toBe(shown.length);
+    expect(scopedText).not.toContain("Stammteam in anderem Salon");
+    const [wholeLines, wholeText] = await lineCount(`salonId=${salonB}&${WEEK2}`, tokens.admin);
+    expect(wholeLines).toBe(2);
+    expect(wholeText).toContain("Stammteam in anderem Salon");
+    // The Inhaber of A reaches P2 in B too, so the file there is complete.
+    const [ownerALines] = await lineCount(`salonId=${salonA}&${WEEK2}`, tokens.ownerA);
+    expect(ownerALines).toBe(3);
+  });
+
+  it("a Salonmanager and a plain employee are refused with 403 and nothing is audited", async () => {
+    const before = await csvAuditCount();
+    for (const token of [tokens.managerA, tokens.emp]) {
+      const res = await csvGet(`salonId=${salonA}&${WEEK2}`, token);
+      expect(res.statusCode).toBe(403);
+    }
+    expect(await csvAuditCount()).toBe(before);
+  });
+
+  it("an inadmissible salon answers the one 404 and a malformed request a 400, both without an audit row", async () => {
+    const before = await csvAuditCount();
+    const unknown = "00000000-0000-4000-8000-0000000000aa";
+    const foreignSalon = foreign.salonId;
+    const bodies = new Set<string>();
+    for (const [salon, token] of [
+      [unknown, tokens.admin],
+      [foreignSalon, tokens.admin],
+      [salonD, tokens.admin],
+      [salonB, tokens.ownerA], // outside the Inhaber's SALONS[A] reach
+    ] as const) {
+      const res = await csvGet(`salonId=${salon}&${WEEK2}`, token);
+      expect(res.statusCode).toBe(404);
+      bodies.add(res.body);
+    }
+    expect([...bodies]).toEqual([NOT_FOUND]);
+    expect((await csvGet(`salonId=${salonA}&period=week&date=2026-03-30`)).statusCode).toBe(400);
+    expect((await csvGet(`salonId=not-a-uuid&${WEEK2}`)).statusCode).toBe(400);
+    expect((await csvGet(`${WEEK2}`)).statusCode).toBe(400);
+    expect(await csvAuditCount()).toBe(before);
+  });
+
+  it("neutralises a person name that starts like a formula", async () => {
+    const original = await app.prisma.employee.findUniqueOrThrow({
+      where: { id: ids.NH },
+      select: { firstName: true },
+    });
+    await app.prisma.employee.update({ where: { id: ids.NH }, data: { firstName: "=cmd" } });
+    try {
+      const res = await csvGet(`salonId=${salonA}&period=week&date=2026-03-03`);
+      expect(res.statusCode, res.body).toBe(200);
+      const text = res.rawPayload.subarray(3).toString("utf8");
+      expect(text).toContain(";'=cmd ");
+      expect(text).not.toContain(";=cmd");
+    } finally {
+      await app.prisma.employee.update({
+        where: { id: ids.NH },
+        data: { firstName: original.firstName },
+      });
+    }
+  });
+
+  it("carries no Soll, saldo or overtime key anywhere in the open list or the exchange", async () => {
+    const answer = await hours(`salonId=${salonA}&${WEEK2}`);
+    const keys = new Set<string>();
+    const walk = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value !== null && typeof value === "object") {
+        for (const [key, inner] of Object.entries(value)) {
+          keys.add(key);
+          walk(inner);
+        }
+      }
+    };
+    walk(answer.exchange);
+    walk((await hours(`salonId=${salonA}&${WEEK3}`)).open);
+    expect(keys).toContain("minutes");
+    expect(keys).toContain("startTime");
+    for (const key of keys) expect(key).not.toMatch(/soll|saldo|balance|overtime|expected|should/i);
   });
 });

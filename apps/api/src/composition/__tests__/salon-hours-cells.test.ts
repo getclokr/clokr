@@ -5,6 +5,8 @@
 import { describe, it, expect } from "vitest";
 import {
   absentDaysOf,
+  buildExchange,
+  buildOpenItems,
   buildSalonHoursBlock,
   type SalonHoursBlockInput,
   type SalonHoursEntryRow,
@@ -283,5 +285,144 @@ describe("absentDaysOf (Issue #1030)", () => {
       covers: [period("p9", "2026-03-09", "2026-03-13"), period("p1", "2026-04-01", "2026-04-02")],
     });
     expect(result.size).toBe(0);
+  });
+});
+
+describe("open cells and open items (Issue #1030, P-08)", () => {
+  const open = (id: string, date: string, opts: Partial<SalonHoursEntryRow> = {}) =>
+    row(id, date, { endTime: null, ...opts });
+  const byPerson = (rows: SalonHoursEntryRow[]) => {
+    const m = new Map<string, SalonHoursEntryRow[]>();
+    for (const r of rows) m.set(r.employeeId, [...(m.get(r.employeeId) ?? []), r]);
+    return m;
+  };
+  const label = (d: Date) => `T${d.toISOString().slice(11, 16)}`;
+
+  it("marks the cell of a past day with an open WORK row in this salon, never minutes", () => {
+    const block = build([person("p1", "Aa")], [open("p1", "2026-03-10"), row("p1", "2026-03-09")]);
+    expect(block.rows[0].cells.map((c) => c.open)).toEqual([false, true, false, false, false]);
+    expect(block.rows[0].cells[1].minutes).toBe(0);
+    expect(block.rows[0].totalMinutes).toBe(480);
+  });
+
+  it("an open row in another salon does not open this salon's cell", () => {
+    const block = build([person("p1", "Aa")], [open("p1", "2026-03-10", { salonId: OTHER })]);
+    expect(block.rows[0].cells.every((c) => !c.open)).toBe(true);
+  });
+
+  it("an open row of a day that is not counted yet is no open cell", () => {
+    const block = build([person("p1", "Aa")], [open("p1", "2026-03-13")]);
+    expect(block.rows[0].cells.every((c) => !c.open)).toBe(true);
+  });
+
+  it("lists the open rows of this salon dated through yesterday, ordered by date, start, name", () => {
+    const rows = [
+      open("p2", "2026-03-11"),
+      open("p1", "2026-03-11", { startTime: new Date("2026-03-11T06:00:00Z") }),
+      open("p1", "2026-03-09"),
+      open("p1", "2026-03-12", { salonId: OTHER }), // another salon
+      open("p2", "2026-03-13"), // after yesterday
+      row("p1", "2026-03-10"), // closed
+    ];
+    const items = buildOpenItems({
+      salonId: SALON,
+      yesterday: YESTERDAY,
+      persons: [person("p1", "Aa", "Zed"), person("p2", "Bb", "Amy")],
+      rowsByPerson: byPerson(rows),
+      timeOf: label,
+    });
+    expect(items).toEqual([
+      { employeeId: "p1", employeeName: "Zed Aa", date: "2026-03-09", startTime: "T08:00" },
+      { employeeId: "p1", employeeName: "Zed Aa", date: "2026-03-11", startTime: "T06:00" },
+      { employeeId: "p2", employeeName: "Amy Bb", date: "2026-03-11", startTime: "T08:00" },
+    ]);
+  });
+});
+
+describe("buildExchange (Issue #1030, P-04)", () => {
+  const helper = (id: string, last: string, homeSalonId: string | null, minutes: number) => ({
+    employeeId: id,
+    employeeName: `Pp ${last}`,
+    employeeNumber: `N-${id}`,
+    totalMinutes: minutes,
+    cells: [],
+    homeSalonId,
+    homeSalonName: homeSalonId === null ? null : (NAMES.get(homeSalonId) ?? null),
+  });
+  const byPerson = (rows: SalonHoursEntryRow[]) => {
+    const m = new Map<string, SalonHoursEntryRow[]>();
+    for (const r of rows) m.set(r.employeeId, [...(m.get(r.employeeId) ?? []), r]);
+    return m;
+  };
+
+  it("groups the Aushilfen by Stammsalon with persons and minutes, null last, sorted by salon name", () => {
+    const exchange = buildExchange({
+      salonId: SALON,
+      yesterday: YESTERDAY,
+      countedThrough: "2026-03-12",
+      salonNames: NAMES,
+      helpers: [
+        helper("h1", "Aa", OTHER, 120),
+        helper("h2", "Bb", null, 60),
+        helper("h3", "Cc", THIRD, 30),
+        helper("h4", "Dd", OTHER, 15),
+      ],
+      stammteamPersons: [],
+      rowsByPerson: new Map(),
+    });
+    expect(
+      exchange.fromOtherSalons.map((g) => [g.salonId, g.salonName, g.persons, g.minutes]),
+    ).toEqual([
+      [THIRD, "Ost", 1, 30],
+      [OTHER, "Süd", 2, 135],
+      [null, null, 1, 60],
+    ]);
+    expect(exchange.fromOtherSalons[1].people.map((p) => p.employeeId)).toEqual(["h1", "h4"]);
+    expect(exchange.ownTeamElsewhere).toEqual([]);
+  });
+
+  it("sums the Stammteam's closed valid counted time in other salons by entry salon", () => {
+    const rows = [
+      row("p1", "2026-03-09", { salonId: OTHER, hours: 4 }),
+      row("p1", "2026-03-10", { salonId: OTHER, hours: 2 }),
+      row("p1", "2026-03-10", { salonId: THIRD, hours: 1 }),
+      row("p2", "2026-03-11", { salonId: OTHER, hours: 3 }),
+      row("p1", "2026-03-11", { salonId: OTHER, endTime: null }), // open: no minutes
+      row("p1", "2026-03-11", { salonId: THIRD, isInvalid: true }), // invalid
+      row("p1", "2026-03-13", { salonId: OTHER }), // after the Stichtag
+      row("p1", "2026-03-12", { salonId: SALON }), // this salon
+    ];
+    const exchange = buildExchange({
+      salonId: SALON,
+      yesterday: YESTERDAY,
+      countedThrough: "2026-03-12",
+      salonNames: NAMES,
+      helpers: [],
+      stammteamPersons: [person("p1", "Aa"), person("p2", "Bb")],
+      rowsByPerson: byPerson(rows),
+    });
+    expect(
+      exchange.ownTeamElsewhere.map((g) => [g.salonId, g.salonName, g.persons, g.minutes]),
+    ).toEqual([
+      [THIRD, "Ost", 1, 60],
+      [OTHER, "Süd", 2, 540],
+    ]);
+    expect(exchange.ownTeamElsewhere[1].people.map((p) => [p.employeeId, p.minutes])).toEqual([
+      ["p1", 360],
+      ["p2", 180],
+    ]);
+  });
+
+  it("counts nothing when no day is counted yet", () => {
+    const exchange = buildExchange({
+      salonId: SALON,
+      yesterday: YESTERDAY,
+      countedThrough: null,
+      salonNames: NAMES,
+      helpers: [],
+      stammteamPersons: [person("p1", "Aa")],
+      rowsByPerson: byPerson([row("p1", "2026-03-09", { salonId: OTHER })]),
+    });
+    expect(exchange.ownTeamElsewhere).toEqual([]);
   });
 });

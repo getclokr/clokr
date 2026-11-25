@@ -8,7 +8,9 @@ import {
   dayFullLabel,
   defaultSalonPeriod,
   elsewhereChipText,
+  openItemSubtitle,
   periodAfterSalonChange,
+  salonHoursCsvPath,
   salonHoursRequestPath,
   salonPeriodEnd,
   salonPeriodLabel,
@@ -149,6 +151,7 @@ function cell(over: Partial<SalonHoursCell> = {}): SalonHoursCell {
     elsewhere: [],
     elsewhereHidden: false,
     absent: false,
+    open: false,
     ...over,
   };
 }
@@ -204,6 +207,43 @@ describe("cellDisplay", () => {
       }),
     );
     expect(d.chips.map((c) => c.text)).toEqual(["abwesend", "in Süd", "anderer Salon"]);
+  });
+});
+
+describe("cellDisplay - open (Issue #1030, P-08)", () => {
+  it("marks a missing clock-out with the chip „offen“ (warn) and no hours", () => {
+    const d = cellDisplay(cell({ open: true }), "Pat Test");
+    expect(d.text).toBe("–");
+    expect(d.chips).toEqual([{ text: "offen", tone: "warn" }]);
+    expect(d.label).toBe("Pat Test, Montag, 23.11.2026: keine Stunden im Salon, offen");
+  });
+
+  it("puts „offen“ before the other states", () => {
+    const d = cellDisplay(cell({ open: true, absent: true, minutes: 60 }));
+    expect(d.chips.map((c) => c.text)).toEqual(["offen", "abwesend"]);
+    expect(d.text).toBe("1:00");
+  });
+});
+
+describe("salonHoursCsvPath and openItemSubtitle", () => {
+  it("builds the CSV request of the very period the raster shows", () => {
+    expect(salonHoursCsvPath("s 1", WEEK("2026-11-23"))).toBe(
+      "/salon-hours/csv?salonId=s%201&period=week&date=2026-11-23",
+    );
+    expect(salonHoursCsvPath("s1", MONTH("2026-11-01"))).toBe(
+      "/salon-hours/csv?salonId=s1&period=month&date=2026-11-01",
+    );
+  });
+
+  it("words an open item as weekday, day and start time", () => {
+    expect(
+      openItemSubtitle({
+        employeeId: "e1",
+        employeeName: "Pat Test",
+        date: "2026-11-23",
+        startTime: "09:00",
+      }),
+    ).toBe("Mo, 23.11. · seit 09:00");
   });
 });
 

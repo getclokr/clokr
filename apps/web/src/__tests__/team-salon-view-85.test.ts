@@ -191,6 +191,25 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(PAGE).toContain("clickableIds={salonClickableIds}");
   });
 
+  // Issue #1030 (P-03): the CSV button exists only for a caller holding report:export next to the
+  // view, the download goes through the authorised client with the very period on screen, and a
+  // failure names what failed instead of failing silently.
+  it("[#1030] the CSV button follows salonHoursRights().export and downloads the shown period", () => {
+    expect(PAGE).toContain("canExport={salonHoursRights($authStore.user).export}");
+    expect(PAGE).toContain("onExport={() => void exportSalonHours()}");
+    const body = functionBody("exportSalonHours");
+    expect(body).toContain("downloadFromApi(");
+    expect(body).toContain("salonHoursCsvPath(salonId, salonPeriod)");
+    expect(body).toContain("toasts.success(");
+    expect(body).toContain("toasts.error(");
+  });
+
+  it("[#1030] the Aufgaben link exists only where the caller may open that page", () => {
+    expect(PAGE.replace(/\s+/g, " ")).toContain(
+      'aufgabenHref={mayOpenTeamPage("/team/aufgaben", $authStore.user) ? "/team/aufgaben?typ=ausstempeln" : null}',
+    );
+  });
+
   it("[#1030] the master-data list is requested once, and a failure only leaves no clickable cell", () => {
     const body = functionBody("loadSalonMasterData");
     expect(body).toContain("if (salonMasterRequested) return;");

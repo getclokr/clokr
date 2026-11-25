@@ -9,6 +9,8 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
+  import List from "$components/ui/List.svelte";
+  import ListRow from "$components/ui/ListRow.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { fmtMin } from "$lib/utils/format-minutes";
@@ -18,12 +20,14 @@
     countedThroughLabel,
     dayColumnLabel,
     dayFullLabel,
+    openItemSubtitle,
     defaultSalonPeriod,
     salonPeriodLabel,
     salonPeriodNextDisabled,
     salonPeriodWithZoom,
     shiftSalonPeriod,
     type SalonHoursBlock,
+    type SalonHoursExchangeGroup,
     type SalonHoursHelperBlock,
     type SalonHoursHelperRow,
     type SalonHoursResponse,
@@ -47,6 +51,11 @@
     clickableIds?: ReadonlySet<string>;
     /** A click on the cell of a clickable person: opens that person's day. */
     onCellOpen?: (employeeId: string, day: string) => void;
+    /** The Aufgaben „Ausstempeln fehlt“ for callers who may open that page, else null (no link). */
+    aufgabenHref?: string | null;
+    /** The caller holds the export right: the exchange card offers the CSV download. */
+    canExport?: boolean;
+    onExport?: () => void;
   }
 
   let {
@@ -60,6 +69,9 @@
     onRetry,
     clickableIds = new Set<string>(),
     onCellOpen,
+    aufgabenHref = null,
+    canExport = false,
+    onExport,
   }: Props = $props();
 
   // A type alias, because DataTable's row generic wants an object type.
@@ -91,6 +103,12 @@
             label: "Aushilfen",
             value: fmtMin(data.kpis.aushilfenMinutes),
             testId: "salon-hours-kpi-aushilfen",
+          },
+          {
+            label: "Offen",
+            value: data.kpis.openCount,
+            explanation: "fehlende Ausstempelungen",
+            testId: "salon-hours-kpi-open",
           },
         ]
       : [],
@@ -132,6 +150,18 @@
   /** A server total as H:MM; a counted day without hours reads „–“, a day not counted yet is empty. */
   function totalText(minutes: number, counted: boolean): string {
     return minutes > 0 ? fmtMin(minutes) : counted ? "–" : "";
+  }
+
+  // The exchange card: one row per counterpart salon, the server's persons and minutes.
+  type ExchangeRow = { id: string; group: SalonHoursExchangeGroup };
+  const EXCHANGE_COLUMNS: DataTableColumn[] = [
+    { key: "salon", label: "Salon", primary: true },
+    { key: "persons", label: "Personen", align: "end" },
+    { key: "minutes", label: "Stunden", align: "end" },
+  ];
+
+  function exchangeRows(groups: SalonHoursExchangeGroup[]): ExchangeRow[] {
+    return groups.map((group) => ({ id: group.salonId ?? "none", group }));
   }
 
   function goToday() {
@@ -202,6 +232,35 @@
   </div>
 {/snippet}
 
+{#snippet exchangeCell(row: ExchangeRow, column: DataTableColumn)}
+  {#if column.key === "salon"}
+    {row.group.salonName ?? "ohne Stammsalon"}
+  {:else if column.key === "persons"}
+    {row.group.persons}
+  {:else}
+    {fmtMin(row.group.minutes)}
+  {/if}
+{/snippet}
+
+{#snippet exchange(title: string, groups: SalonHoursExchangeGroup[], testId: string)}
+  <div class="salon-hours-exchange-part">
+    <h3 class="salon-hours-exchange-title">{title}</h3>
+    {#if groups.length === 0}
+      <p class="salon-hours-calm">Keine Stunden in diesem Zeitraum.</p>
+    {:else}
+      <div data-testid={testId}>
+        <DataTable
+          columns={EXCHANGE_COLUMNS}
+          rows={exchangeRows(groups)}
+          rowKey={(row) => row.id}
+          cell={exchangeCell}
+          caption={title}
+        />
+      </div>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="salon-hours" data-testid="salon-hours-view">
   {#if status === "prompt"}
     <div class="callout brand" role="status">
@@ -262,6 +321,58 @@
           "salon-hours-aushilfen",
         )}
       {/if}
+
+      <h2 class="salon-hours-sub">Offen in diesem Salon</h2>
+      {#if data.open.length === 0}
+        <p class="salon-hours-calm" data-testid="salon-hours-no-open">
+          Nichts offen in diesem Zeitraum.
+        </p>
+      {:else}
+        <List ariaLabel="Offen in diesem Salon" testId="salon-hours-open-list">
+          {#each data.open as item (`${item.employeeId}:${item.date}:${item.startTime}`)}
+            <ListRow
+              title={item.employeeName}
+              subtitle={openItemSubtitle(item)}
+              onPrimary={clickableIds.has(item.employeeId) && onCellOpen
+                ? () => onCellOpen(item.employeeId, item.date)
+                : undefined}
+            />
+          {/each}
+        </List>
+      {/if}
+      {#if aufgabenHref}
+        <a class="salon-hours-link" href={aufgabenHref}>Zu den Aufgaben</a>
+      {/if}
+
+      <section class="card">
+        <div class="hint-row">
+          <h2 class="salon-hours-sub">Austausch mit anderen Salons</h2>
+          <InfoHint
+            text="Gezählt werden geschlossene, gültige Arbeitszeiten bis zum Stichtag. Eine Aushilfe zählt zu ihrem Stammsalon am Ende des Zeitraums."
+            label={hintLabel("Austausch mit anderen Salons")}
+            testId="salon-hours-exchange-hint"
+          />
+        </div>
+        <div class="salon-hours-exchange">
+          {@render exchange(
+            "Aushilfen nach Stammsalon",
+            data.exchange.fromOtherSalons,
+            "salon-hours-exchange-from",
+          )}
+          {@render exchange(
+            "Stammteam in anderen Salons",
+            data.exchange.ownTeamElsewhere,
+            "salon-hours-exchange-own",
+          )}
+        </div>
+        {#if canExport}
+          <div class="salon-hours-export">
+            <button type="button" class="btn btn-outline" onclick={() => onExport?.()}>
+              Als CSV herunterladen
+            </button>
+          </div>
+        {/if}
+      </section>
     {/if}
   {/if}
 </div>
@@ -329,6 +440,38 @@
   .salon-hours-cell-button:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
+  }
+
+  .salon-hours-exchange {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: var(--s-4);
+  }
+
+  .salon-hours-exchange-part {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    min-width: 0;
+  }
+
+  .salon-hours-exchange-title {
+    margin: 0;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .salon-hours-export {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--s-4);
+  }
+
+  .salon-hours-link {
+    align-self: flex-start;
+    font-size: var(--fs-sm);
+    color: var(--brand);
   }
 
   .salon-hours-calm {

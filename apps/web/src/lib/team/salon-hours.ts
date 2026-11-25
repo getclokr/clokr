@@ -24,6 +24,41 @@ export interface SalonHoursCell {
   elsewhereHidden: boolean;
   /** Leave or an absence covers the day (the kind is never sent). */
   absent: boolean;
+  /** A missing clock-out of this salon on that day (an open WORK entry before today). */
+  open: boolean;
+}
+
+/** A missing clock-out of this salon: the person, the day and the tenant-local start time. */
+export interface SalonHoursOpenItem {
+  employeeId: string;
+  employeeName: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  /** Tenant-local `HH:MM`. */
+  startTime: string;
+}
+
+export interface SalonHoursExchangePerson {
+  employeeId: string;
+  employeeName: string;
+  employeeNumber: string | null;
+  minutes: number;
+}
+
+/** The hours exchanged with ONE other salon (or with no Stammsalon: `salonId` null). */
+export interface SalonHoursExchangeGroup {
+  salonId: string | null;
+  salonName: string | null;
+  persons: number;
+  minutes: number;
+  people: SalonHoursExchangePerson[];
+}
+
+export interface SalonHoursExchange {
+  /** The Aushilfen of this salon by their Stammsalon. */
+  fromOtherSalons: SalonHoursExchangeGroup[];
+  /** The Stammteam's hours in other salons by the salon of the entry. */
+  ownTeamElsewhere: SalonHoursExchangeGroup[];
 }
 
 export interface SalonHoursRow {
@@ -62,9 +97,17 @@ export interface SalonHoursResponse {
   days: string[];
   /** The last counted day, null when nothing is counted yet. */
   countedThrough: string | null;
-  kpis: { salonWorkedMinutes: number; stammteamMinutes: number; aushilfenMinutes: number };
+  kpis: {
+    salonWorkedMinutes: number;
+    stammteamMinutes: number;
+    aushilfenMinutes: number;
+    openCount: number;
+  };
   stammteam: SalonHoursBlock;
   aushilfen: SalonHoursHelperBlock;
+  /** The missing clock-outs of this salon in the window. */
+  open: SalonHoursOpenItem[];
+  exchange: SalonHoursExchange;
 }
 
 /** What the Salonansicht currently shows (the page decides, the component renders). */
@@ -193,6 +236,17 @@ export function salonHoursRequestPath(salonId: string, period: SalonPeriod): str
   return `/salon-hours?salonId=${encodeURIComponent(salonId)}&period=${kind}&date=${period.anchor}`;
 }
 
+/** `GET /salon-hours/csv`: the exchange card of the very period the raster shows. */
+export function salonHoursCsvPath(salonId: string, period: SalonPeriod): string {
+  return salonHoursRequestPath(salonId, period).replace("/salon-hours?", "/salon-hours/csv?");
+}
+
+/** „Mo, 23.11. · seit 09:00“ - the second line of an open item. */
+export function openItemSubtitle(item: SalonHoursOpenItem): string {
+  const d = localNoon(item.date);
+  return `${format(d, "EEEEEE", { locale: de })}, ${format(d, "dd.MM.")} · seit ${item.startTime}`;
+}
+
 /** „bis Di, 24.11.2026“ - the Stichtag of the counted hours, or „noch nichts gezählt“. */
 export function countedThroughLabel(countedThrough: string | null): string {
   if (countedThrough === null) return "noch nichts gezählt";
@@ -241,13 +295,13 @@ export function periodAfterSalonChange(
 
 export interface SalonCellChip {
   text: string;
-  tone: "neutral" | "info";
+  tone: "neutral" | "info" | "warn";
 }
 
 export interface SalonCellDisplay {
   /** The cell text: H:MM, „–“ on a counted day without hours, empty on a day not counted yet. */
   text: string;
-  /** The state chips of the cell: „abwesend“, „in <Salon>“, „anderer Salon“. */
+  /** The state chips of the cell: „offen“, „abwesend“, „in <Salon>“, „anderer Salon“. */
   chips: SalonCellChip[];
   /** The accessible name of the cell. */
   label: string;
@@ -267,6 +321,8 @@ export function elsewhereChipText(names: readonly string[]): string {
 export function cellDisplay(cell: SalonHoursCell, personName = ""): SalonCellDisplay {
   const text = cell.minutes > 0 ? fmtMin(cell.minutes) : cell.counted ? "–" : "";
   const chips: SalonCellChip[] = [];
+  // A missing clock-out is the one state that asks for action, so it reads first.
+  if (cell.open) chips.push({ text: "offen", tone: "warn" });
   if (cell.absent) chips.push({ text: "abwesend", tone: "info" });
   if (cell.elsewhere.length > 0) {
     chips.push({
