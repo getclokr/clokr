@@ -22,6 +22,7 @@
  */
 import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
+import { leaveFormCancel, leaveFormSubmit } from "../helpers/leave-form"; // #991: the buttons sit in the dialog footer
 
 // Same default as fixtures/tenant.ts: the tenant these tests use is bootstrapped on the TEST stack
 // (4001). A 4000 default sends the calls to a developer's dev API, which answers 401 for its token.
@@ -169,8 +170,8 @@ test.describe("Leave (Urlaub) UI flow", () => {
     await expect(form.getByTestId("leave-form-to")).toBeVisible();
     await expect(form.getByTestId("leave-form-note")).toBeVisible();
     await expect(form.getByTestId("leave-form-half-day")).toBeAttached();
-    await expect(form.getByTestId("leave-form-submit")).toBeVisible();
-    await expect(form.getByTestId("leave-form-cancel")).toBeVisible();
+    await expect(leaveFormSubmit(page)).toBeVisible();
+    await expect(leaveFormCancel(page)).toBeVisible();
   });
 
   test("submits a SICK leave request via the testid form and verifies via API", async ({
@@ -199,7 +200,7 @@ test.describe("Leave (Urlaub) UI flow", () => {
     const createResponse = page.waitForResponse(
       (r) => r.url().includes("/api/v1/leave/requests") && r.request().method() === "POST",
     );
-    await form.getByTestId("leave-form-submit").click();
+    await leaveFormSubmit(page).click();
     const response = await createResponse;
     expect(response.status()).toBe(201);
 
