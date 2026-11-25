@@ -87,13 +87,13 @@
 
   const changes = $derived(dirty ? countChanges(currentSnapshot, lastSnapshot) : 0);
 
-  // Issue #597 (Phase 851, prototype): „Nächste 14 Tage“ first; the own availability is the second
+  // Issue #597 (Phase 851, prototype): „Nächste Wochen“ first; the own availability is the second
   // tab, offered only while the tenant uses the availability system.
   // Issue #1017: the tab appears only once the tenant flag is actually read — the store starts
   // optimistic (fail-open) and would flash the tab for a tenant that switched availability off.
   const availabilityOn = $derived($tenantFeatures.loaded && $tenantFeatures.availabilityEnabled);
   const TABS = $derived([
-    { value: "plan", label: "Nächste 14 Tage" },
+    { value: "plan", label: "Nächste Wochen" },
     ...(availabilityOn ? [{ value: "verfuegbarkeit", label: "Meine Verfügbarkeit" }] : []),
   ]);
   let availabilityView = $state<"recurring" | "oneoff">("recurring");
