@@ -15,8 +15,8 @@
  *   and re-attributes hours, because presence and holidays use ALL of a person's entries (D-15).
  *
  * The team-upcoming-leave describe proves the list the dashboard card now reads instead of the
- * general leave list: calendar-day correct "today" (a leave ending today is listed), at most eight
- * approved requests, the Stammsalon of the remaining days under a filter, and the same reach rule
+ * general leave list: calendar-day correct "today" (a leave ending today is listed), every
+ * approved request (no cut since #1028), the Stammsalon of the remaining days under a filter, and the same reach rule
  * as the other team endpoints.
  *
  * No person names in fixtures. Fake clock Thu 2026-06-11T10:00:00Z (Date only), installed before
@@ -535,20 +535,29 @@ describe("Issue #84 — dashboard team views with a salon filter", () => {
       expect((await upcoming(null)).statusCode).toBe(401);
     });
 
-    it("answers at most eight items, the eight earliest, after the filter", async () => {
+    // Issue #1028 (P-06) changes this case on purpose: the answer is no longer cut at eight (the size of
+    // the old dashboard card, not a rule). The web list widget pages and filters every item, so the route
+    // answers every upcoming item, in start order, after the salon filter. The fixture is unchanged.
+    it("answers every upcoming item in start order, after the filter", async () => {
       const vacation = data.vacationType.id;
+      const before = await items(data.adminToken);
+      const beforeFiltered = await items(data.adminToken, salonA);
       // Ten further requests of X (Stammsalon A) in September, one day each.
       for (let day = 1; day <= 10; day++) {
         const d = `2026-09-${String(day).padStart(2, "0")}`;
         await leave(xEmployee, vacation, d, d);
       }
       const all = await items(data.adminToken);
-      expect(all.items).toHaveLength(8);
+      // Every row, none cut: the base rows plus the ten seeded ones (more than the former eight).
+      expect(all.items).toHaveLength(before.items.length + 10);
+      expect(all.items.length).toBeGreaterThan(8);
       const starts = all.items.map((i) => i.startDate);
       expect(starts).toEqual([...starts].sort());
       expect(all.items.map((i) => i.id).slice(0, 4)).toEqual([xToday, yId, zId, xJuly]);
       const filtered = await items(data.adminToken, salonA);
-      expect(filtered.items).toHaveLength(8);
+      expect(filtered.items).toHaveLength(beforeFiltered.items.length + 10);
+      const filteredStarts = filtered.items.map((i) => i.startDate);
+      expect(filteredStarts).toEqual([...filteredStarts].sort());
       expect(filtered.items.map((i) => i.id).slice(0, 3)).toEqual([xToday, zId, xJuly]);
       expect(
         filtered.items.every((i) => i.employeeId === xEmployee || i.employeeId === zEmployee),

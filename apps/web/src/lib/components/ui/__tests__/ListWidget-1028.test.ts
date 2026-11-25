@@ -177,6 +177,20 @@ describe("ListWidget (Issue #1028)", () => {
     expect(get(listPrefs)["team.heute.aufgaben"]?.filter).toBe("nachtrag");
   });
 
+  it("a new URL filter beats an earlier chip click of this visit", async () => {
+    const { rerender } = renderWithTheme(ListWidget, base({ filters: CHIPS }));
+    await fireEvent.click(screen.getByRole("radio", { name: /^Nachtrag/ }));
+    expect(screen.getByRole("radio", { name: /^Nachtrag/ }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    await rerender(base({ filters: CHIPS, initialFilter: "urlaub" }));
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /^Urlaub/ }).getAttribute("aria-checked")).toBe(
+        "true",
+      ),
+    );
+  });
+
   it("a stored filter that no chip offers shows „Alle“ and keeps the stored value", () => {
     setListPrefsFromServer({ "team.heute.aufgaben": { filter: "zeitkorrektur" } });
     renderWithTheme(ListWidget, base({ filters: CHIPS }));

@@ -61,15 +61,22 @@ import { authStore } from "$stores/auth";
 import { salonContext } from "$stores/salon-context";
 import { resetListPrefs } from "$stores/list-prefs";
 import { ApiError } from "$api/client";
-vi.mock("$app/state", () => ({
-  page: { url: new URL("http://localhost/team/heute"), params: {}, state: {} },
+import { replaceState } from "$app/navigation";
+const pageMock = vi.hoisted(() => ({
+  url: new URL("http://localhost/team/heute") as URL,
+  params: {},
+  state: {},
 }));
+vi.mock("$app/state", () => ({ page: pageMock }));
 import DashboardPage from "../routes/(app)/dashboard/+page.svelte";
 import {
   attendanceBand,
   attendanceFilterOf,
+  attendanceFilterCounts,
   filterAttendance,
+  leaveTypeLabel,
   openTeamLeaveTasks,
+  upcomingTypeFilters,
 } from "$lib/dashboard/heute-im-salon";
 
 const WEEK_DAYS = [
@@ -153,6 +160,7 @@ let openTasksAnswer: { types: string[]; tasks: unknown[] } = { types: ["ausstemp
 let leaveAnswer: unknown[] = PENDING;
 let section9Answer: unknown[] = [];
 let notificationsAnswer: unknown[] = [];
+let upcomingAnswer: unknown[] = [];
 
 function answer(path: string): Promise<unknown> {
   if (path === "/me/context") {
@@ -193,7 +201,8 @@ function answer(path: string): Promise<unknown> {
       ],
     });
   }
-  if (path.startsWith("/dashboard/team-upcoming-leave")) return Promise.resolve({ items: [] });
+  if (path.startsWith("/dashboard/team-upcoming-leave"))
+    return Promise.resolve({ salonId: null, items: upcomingAnswer });
   if (path.startsWith("/leave/requests")) return Promise.resolve(leaveAnswer);
   if (path === "/leave/section9") return Promise.resolve(section9Answer);
   if (path === "/notifications") return Promise.resolve({ notifications: notificationsAnswer });
@@ -229,6 +238,8 @@ beforeEach(async () => {
   leaveAnswer = PENDING;
   section9Answer = [];
   notificationsAnswer = [];
+  upcomingAnswer = [];
+  pageMock.url = new URL("http://localhost/team/heute");
   // A chip choice of an earlier test is a stored list choice of this session; start every test clean.
   resetListPrefs();
   apiGet.mockReset();
@@ -293,10 +304,16 @@ describe("Heute im Salon — the Kennzahlen-Band (D-01)", () => {
     expect(screen.queryByText(/weitere Aufgabe/)).toBeNull();
   });
 
-  it("lists the missing person with the shift start, never the person without a day", async () => {
+  it("lists the missing person with the shift start under „Erwartet“, never the person without a day", async () => {
     asManager();
     renderWithTheme(DashboardPage, {});
+    const filter = await screen.findByTestId("attendance-filter");
+    // Issue #1028 (P-05): the default is „Da“ (clocked in now), so the missing person is not listed yet.
+    expect(screen.queryByText("Schicht seit 09:00 · nicht eingestempelt")).toBeNull();
+    await fireEvent.click(within(filter).getByRole("radio", { name: /^Erwartet/ }));
     expect(await screen.findByText("Schicht seit 09:00 · nicht eingestempelt")).toBeTruthy();
+    await fireEvent.click(within(filter).getByRole("radio", { name: /^Alle/ }));
+    await screen.findByText("Dora");
     expect(screen.queryByText("Finn")).toBeNull();
   });
 });
@@ -326,19 +343,20 @@ describe("Heute im Salon — the team week (D-02)", () => {
   it("shows no pagination up to 25 persons", async () => {
     asManager();
     teamSize = 25;
-    const { container } = renderWithTheme(DashboardPage, {});
+    renderWithTheme(DashboardPage, {});
     await screen.findByTestId("team-week");
-    expect(container.querySelector(".pag-range")).toBeNull();
+    expect(screen.queryByTestId("team-week-widget-pager")).toBeNull();
   });
 
   it("pages from 26 persons on and counts „1–25 von 30“ (regression „1 – 18 von 14“)", async () => {
     asManager();
     teamSize = 30;
-    const { container } = renderWithTheme(DashboardPage, {});
+    renderWithTheme(DashboardPage, {});
     await screen.findByTestId("team-week");
-    await waitFor(() => expect(container.querySelector(".pag-range")).not.toBeNull());
-    const range = container.querySelector(".pag-range")?.textContent?.replace(/\s+/g, " ").trim();
-    expect(range).toMatch(/^1–25 von 30\b/);
+    const pager = await screen.findByTestId("team-week-widget-pager");
+    // #1028: the same Pager as every list; the team week is a table-kind list (25 · 50 · 100).
+    expect(within(pager).getByTestId("pager-range").textContent?.trim()).toBe("1–25 von 30");
+    expect(screen.getByTestId("team-week").querySelectorAll("tbody tr")).toHaveLength(25);
   });
 });
 
@@ -457,7 +475,7 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     await waitFor(() =>
       expect(screen.getByTestId("kpi-tasks").textContent).toMatch(/Aufgaben\s*7/),
     );
-    const chips = await screen.findAllByRole("radio");
+    const chips = within(await screen.findByTestId("team-tasks-filter")).getAllByRole("radio");
     const shown = chips.map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim());
     expect(shown[0]).toBe("Alle 7");
     const kpi = kpiBreakdown().map(([label, n]) => `${label} ${n}`);
@@ -476,7 +494,7 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     everyKindPresent();
     asManagerWithSection9();
     renderWithTheme(DashboardPage, {});
-    await screen.findAllByRole("radio");
+    await screen.findByTestId("team-tasks-filter");
     expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(5);
     const range = () =>
       (
@@ -490,7 +508,9 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(2);
     expect(range()).toBe("6–7 von 7");
 
-    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    await fireEvent.click(
+      within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Urlaub/ }),
+    );
     await waitFor(() => expect(screen.getAllByTestId(/^task-row-/)).toHaveLength(2));
     for (const row of screen.getAllByTestId(/^task-row-/)) {
       expect(row.getAttribute("data-kind")).toBe("urlaub");
@@ -502,8 +522,10 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     everyKindPresent();
     asManagerWithSection9();
     renderWithTheme(DashboardPage, {});
-    await screen.findAllByRole("radio");
-    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    await screen.findByTestId("team-tasks-filter");
+    await fireEvent.click(
+      within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Urlaub/ }),
+    );
     const row = await screen.findByTestId("task-row-urlaub-lr1");
     expect(row.classList.contains("list-row--actions-end")).toBe(true);
     const actions = row.querySelector(".list-actions") as HTMLElement;
@@ -517,14 +539,18 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     everyKindPresent();
     asManagerWithSection9();
     renderWithTheme(DashboardPage, {});
-    await screen.findAllByRole("radio");
-    await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+    await screen.findByTestId("team-tasks-filter");
+    await fireEvent.click(
+      within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Urlaub/ }),
+    );
     const cancel = await screen.findByTestId("task-row-urlaub-lr2");
     const link = within(cancel).getByRole("link", { name: "Öffnen" });
     expect(link.getAttribute("href")).toBe("/team/aufgaben?typ=urlaub");
     expect(within(cancel).queryByRole("button", { name: "Genehmigen" })).toBeNull();
 
-    await fireEvent.click(screen.getByRole("radio", { name: /^Nachtrag/ }));
+    await fireEvent.click(
+      within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Nachtrag/ }),
+    );
     const retro = await screen.findByTestId("task-row-nachtrag-rr1");
     expect(within(retro).getByRole("link", { name: "Öffnen" }).getAttribute("href")).toBe(
       "/team/aufgaben?typ=nachtrag",
@@ -549,8 +575,140 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     );
     renderWithTheme(DashboardPage, {});
     expect(await screen.findByText("Nichts zu entscheiden.")).toBeTruthy();
-    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByTestId("team-tasks-filter")).toBeNull();
     expect(screen.queryByTestId("team-tasks-pager")).toBeNull();
+  });
+});
+
+describe("Heute im Salon — Jetzt im Salon on the shared list block (Issue #1028, P-05)", () => {
+  const chips = async () =>
+    within(await screen.findByTestId("attendance-filter")).getAllByRole("radio");
+  const names = () =>
+    within(screen.getByTestId("team-now"))
+      .queryAllByRole("listitem")
+      .map((li) => li.querySelector(".list-title")?.textContent);
+
+  it("offers Da · Erwartet · Abwesend · Alle; the counts are the Kennzahlen-Band's own numbers", async () => {
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    const shown = (await chips()).map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim());
+    expect(shown).toEqual(["Da 2", "Erwartet 1", "Abwesend 1", "Alle 5"]);
+    // Da / Erwartet / Abwesend equal the cells Anwesend / Erwartet / Abwesend.
+    const cell = (id: string) =>
+      (screen.getByTestId(id).querySelector(".kpi-value")?.textContent ?? "").trim();
+    expect(cell("kpi-present")).toMatch(/^2(\D|$)/);
+    expect(cell("kpi-expected")).toMatch(/^1(\D|$)/);
+    expect(cell("kpi-absent")).toMatch(/^1(\D|$)/);
+  });
+
+  it("the default is „Da“: only the persons clocked in now", async () => {
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    await chips();
+    expect(
+      within(screen.getByTestId("attendance-filter"))
+        .getByRole("radio", { name: /^Da/ })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    await waitFor(() => expect(names()).toEqual(["Anna", "Ben"]));
+  });
+
+  it("?status=erwartet in the URL shows „Erwartet“ for that visit without storing it", async () => {
+    pageMock.url = new URL("http://localhost/team/heute?status=erwartet#jetzt");
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    await chips();
+    await waitFor(() => expect(names()).toEqual(["Dora"]));
+    expect(
+      within(screen.getByTestId("attendance-filter"))
+        .getByRole("radio", { name: /^Erwartet/ })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("a chip click removes ?status= from the URL, so URL and chip never disagree", async () => {
+    pageMock.url = new URL("http://localhost/team/heute?status=erwartet#jetzt");
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    await chips();
+    await fireEvent.click(
+      within(screen.getByTestId("attendance-filter")).getByRole("radio", { name: /^Abwesend/ }),
+    );
+    await waitFor(() => expect(names()).toEqual(["Emil"]));
+    expect(replaceState).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(replaceState).mock.calls[0][0]).toBe("/team/heute#jetzt");
+  });
+
+  it("the Kennzahl links keep their URL values (#846 D-01)", async () => {
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    await screen.findByTestId("kpi-present");
+    expect(screen.getByTestId("kpi-present").querySelector("a")?.getAttribute("href")).toBe(
+      "/team/heute?status=anwesend#jetzt",
+    );
+  });
+});
+
+describe("Heute im Salon — Demnächst abwesend on the shared list block (Issue #1028, P-06)", () => {
+  const item = (id: string, name: string, code: string, label: string, start: string) => ({
+    id,
+    employeeId: `p-${id}`,
+    employeeName: name,
+    startDate: start,
+    endDate: start,
+    days: 1,
+    leaveTypeName: label,
+    leaveTypeCode: code,
+  });
+
+  it("chips by leave type code with the counts of the rows loaded; a chip filters the rows", async () => {
+    upcomingAnswer = [
+      item("u1", "Person Eins", "VACATION", "Urlaub", "2026-11-20"),
+      item("u2", "Person Zwei", "SICK", "Krank", "2026-11-21"),
+      item("u3", "Person Drei", "VACATION", "Urlaub", "2026-11-22"),
+    ];
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    const group = await screen.findByTestId("team-upcoming-filter");
+    const shown = within(group)
+      .getAllByRole("radio")
+      .map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim());
+    expect(shown).toEqual([
+      "Alle 3",
+      `${leaveTypeLabel("VACATION")} 2`,
+      `${leaveTypeLabel("SICK")} 1`,
+    ]);
+    await fireEvent.click(
+      within(group).getByRole("radio", { name: new RegExp(`^${leaveTypeLabel("SICK")}`) }),
+    );
+    await waitFor(() =>
+      expect(within(screen.getByTestId("team-upcoming")).getAllByRole("listitem")).toHaveLength(1),
+    );
+    expect(screen.getByText(/Person Zwei/)).toBeTruthy();
+    expect(screen.queryByText(/Person Eins/)).toBeNull();
+  });
+
+  it("the head link „Kalender“ is a link to the full page", async () => {
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    const link = await screen.findByRole("link", { name: "Kalender" });
+    expect(link.getAttribute("href")).toBe("/team/abwesenheiten");
+  });
+
+  it("every item of the answer is listed through the pager (no cut at eight)", async () => {
+    upcomingAnswer = Array.from({ length: 13 }, (_, i) =>
+      item(
+        `u${i}`,
+        `Person ${i}`,
+        "VACATION",
+        "Urlaub",
+        `2026-12-${String(i + 1).padStart(2, "0")}`,
+      ),
+    );
+    asManager();
+    renderWithTheme(DashboardPage, {});
+    const pager = await screen.findByTestId("team-upcoming-pager");
+    expect(within(pager).getByTestId("pager-range").textContent?.trim()).toBe("1–5 von 13");
   });
 });
 
@@ -568,6 +726,38 @@ describe("heute-im-salon helpers", () => {
     const rows = ATTENDANCE.employees as never[];
     expect(filterAttendance(rows, "alle").map((r: { id: string }) => r.id)).not.toContain("e6");
     expect(filterAttendance(rows, "abwesend").map((r: { id: string }) => r.id)).toEqual(["e5"]);
+  });
+
+  it("„Da“ is exactly the clocked-in persons (Issue #1028, P-05); the counts are the band's own", () => {
+    const rows = ATTENDANCE.employees as never[];
+    expect(filterAttendance(rows, "anwesend").map((r: { id: string }) => r.id)).toEqual([
+      "e1",
+      "e2",
+    ]);
+    const band = attendanceBand(ATTENDANCE as never);
+    expect(attendanceFilterCounts(band, rows)).toEqual({
+      anwesend: band.present,
+      erwartet: band.missing + band.scheduled,
+      abwesend: band.absent,
+      alle: 5,
+    });
+  });
+
+  it("upcomingTypeFilters counts by type code in the order of the requestable list", () => {
+    expect(upcomingTypeFilters([])).toEqual([{ value: "alle", label: "Alle", count: 0 }]);
+    const chips = upcomingTypeFilters([
+      { typeCode: "SICK" },
+      { typeCode: "VACATION" },
+      { typeCode: "ZZ_UNKNOWN" },
+      { typeCode: "VACATION" },
+    ]);
+    expect(chips.map((c) => [c.value, c.count])).toEqual([
+      ["alle", 4],
+      ["VACATION", 2],
+      ["SICK", 1],
+      ["ZZ_UNKNOWN", 1],
+    ]);
+    expect(chips[1].label).toBe(leaveTypeLabel("VACATION"));
   });
 
   it("never offers the caller's own request for a decision", () => {

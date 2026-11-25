@@ -9,13 +9,12 @@
  * - `ATTENDANCE_FILTERS`   — the list filter a Kennzahl links to (D-01: every figure opens its list).
  * - `openTeamLeaveTasks()` — the open leave requests this person may decide (never the own one: the
  *   four-eyes rule of the review route, mirrored so no impossible decision is offered).
- * - `TEAM_WEEK_PAGE_SIZE`  — D-02: the team week pages only from 25 persons on.
+ * - `attendanceFilterCounts()` / `upcomingTypeFilters()` — the chip counts of the list widgets
+ *   (Issue #1028): the attendance counts are the Kennzahlen-Band's own numbers, never a second count.
  */
 import type { TodayAttendanceData, TodayEmployee } from "$lib/reports/today-attendance";
 import type { LeaveReviewRequest } from "$lib/leave/leave-review";
 import { LEAVE_TYPE_OPTIONS } from "$lib/leave/team-calendar-visibility";
-
-export const TEAM_WEEK_PAGE_SIZE = 25;
 
 /** Statuses that mean the person is expected in the salon today. */
 const EXPECTED_TODAY: ReadonlySet<TodayEmployee["status"]> = new Set([
@@ -60,10 +59,16 @@ export function attendanceBand(data: TodayAttendanceData | null): AttendanceBand
   return band;
 }
 
-/** The filters of the „Jetzt im Salon“ list; the key is the URL value (`?status=`). */
+/**
+ * The filters of the „Jetzt im Salon“ list; the key is the URL value (`?status=`).
+ *
+ * Issue #1028 (P-05): „Da“ is exactly who is clocked in now - the Kennzahl „Anwesend“ counts exactly
+ * `clocked_in`, so figure and list agree; someone who already worked and left today is not „da“ and stays
+ * reachable under „Alle“. The URL key `anwesend` keeps its value (the Kennzahl links, #846 D-01).
+ */
 export const ATTENDANCE_FILTERS = {
   alle: { label: "Alle", statuses: null },
-  anwesend: { label: "Anwesend", statuses: ["clocked_in", "present"] },
+  anwesend: { label: "Da", statuses: ["clocked_in"] },
   erwartet: { label: "Erwartet", statuses: ["missing", "scheduled"] },
   abwesend: { label: "Abwesend", statuses: ["absent"] },
 } as const satisfies Record<
@@ -88,6 +93,51 @@ export function filterAttendance(
   const statuses = ATTENDANCE_FILTERS[filter].statuses as readonly string[] | null;
   if (statuses === null) return rows.filter((r) => r.status !== "none");
   return rows.filter((r) => statuses.includes(r.status));
+}
+
+/**
+ * The chip counts of „Jetzt im Salon“ (Issue #1028, AC4): Da, Erwartet and Abwesend ARE the numbers of the
+ * Kennzahlen-Band (`attendanceBand()`), so a chip can never disagree with its cell; only „Alle“ is the
+ * size of the list under that filter (everyone with something today).
+ */
+export function attendanceFilterCounts(
+  band: AttendanceBand,
+  rows: readonly TodayEmployee[],
+): Record<AttendanceFilter, number> {
+  return {
+    anwesend: band.present,
+    erwartet: band.missing + band.scheduled,
+    abwesend: band.absent,
+    alle: filterAttendance(rows, "alle").length,
+  };
+}
+
+/** One chip of a list widget: a control value, its German label and the rows it holds. */
+export interface CountedFilter {
+  value: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * The chips of „Demnächst abwesend“ (Issue #1028): „Alle“ plus one chip per leave type code that is
+ * present in the loaded rows, with the number of rows of that code. The code is the control value and the
+ * label comes from `leaveTypeLabel()`, never from the display name (`leaveType.name`). Known codes keep the
+ * order of the requestable list, unknown ones follow alphabetically.
+ */
+export function upcomingTypeFilters(rows: ReadonlyArray<{ typeCode: string }>): CountedFilter[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.typeCode, (counts.get(row.typeCode) ?? 0) + 1);
+  const known = LEAVE_TYPE_OPTIONS.map((t) => t.code as string).filter((c) => counts.has(c));
+  const unknown = [...counts.keys()].filter((c) => !known.includes(c)).sort();
+  return [
+    { value: "alle", label: "Alle", count: rows.length },
+    ...[...known, ...unknown].map((code) => ({
+      value: code,
+      label: leaveTypeLabel(code),
+      count: counts.get(code) ?? 0,
+    })),
+  ];
 }
 
 /** A row of `GET /leave/requests?status=PENDING`, the shape the shared review dialog takes. */
@@ -204,20 +254,4 @@ export function missingDaysOfMonth(
   return [...byPerson.entries()]
     .map(([id, v]) => ({ id, name: v.name, days: [...v.days].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id));
-}
-
-/**
- * Issue #987 (owner 16.11.2026): Mein Tag's „Für dich“ names at most this many missing days; the rest is
- * one summary row that opens Zeiten. The newest days are shown (the ones still easy to remember); the
- * order stays chronological.
- */
-export const FOR_YOU_MISSING_DAYS_SHOWN = 5;
-
-export function capMissingDays(
-  dates: readonly string[],
-  max: number = FOR_YOU_MISSING_DAYS_SHOWN,
-): { shown: string[]; more: number } {
-  const sorted = [...new Set(dates)].sort();
-  const shown = sorted.slice(Math.max(0, sorted.length - max));
-  return { shown, more: sorted.length - shown.length };
 }

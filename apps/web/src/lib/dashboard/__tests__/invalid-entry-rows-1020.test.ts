@@ -72,7 +72,10 @@ describe("invalidEntryRows (Issue #1020)", () => {
     expect(rows[0].href).toBe(endEntryHref({ id: "open", day: "2026-09-30" }));
   });
 
-  it("names the five newest days chronologically and sums up the rest", () => {
+  // Issue #1028 (P-07) changes the two cap cases below on purpose: Mein Tag's list widget pages every
+  // day, so the cap of five days and its summary row „N weitere Tage zu prüfen“ are gone. The cases are
+  // not loosened - they now prove that NO day is lost: every day is a row, newest first.
+  it("names EVERY day as a row, newest first, with no summary row", () => {
     const days = [1, 2, 3, 4, 5, 6, 7].map((d) => ({
       date: `2026-09-0${d}`,
       entryId: `e${d}`,
@@ -80,26 +83,26 @@ describe("invalidEntryRows (Issue #1020)", () => {
     }));
     const rows = invalidEntryRows({ invalidEntries: 7, invalidEntryDays: days }, dayShort);
     expect(rows.map((r) => r.key)).toEqual([
-      "invalid-2026-09-03",
-      "invalid-2026-09-04",
-      "invalid-2026-09-05",
-      "invalid-2026-09-06",
       "invalid-2026-09-07",
-      "invalid-more",
+      "invalid-2026-09-06",
+      "invalid-2026-09-05",
+      "invalid-2026-09-04",
+      "invalid-2026-09-03",
+      "invalid-2026-09-02",
+      "invalid-2026-09-01",
     ]);
-    const more = rows[5];
-    expect(more.title).toBe("2 weitere Tage zu prüfen");
-    expect(more.href).toBe("/ich/zeiten?view=list");
-    expect(more.testId).toBe("dashboard-invalid-more");
+    expect(rows.some((r) => /weitere/.test(r.title))).toBe(false);
+    expect(rows.some((r) => r.testId === "dashboard-invalid-more")).toBe(false);
   });
 
-  it("uses the singular for exactly one day beyond the cap", () => {
+  it("a day beyond the former cap is still a row with its own link", () => {
     const days = [1, 2, 3, 4, 5, 6].map((d) => ({
       date: `2026-09-0${d}`,
       entryId: `e${d}`,
       open: false,
     }));
     const rows = invalidEntryRows({ invalidEntries: 6, invalidEntryDays: days }, dayShort);
-    expect(rows[rows.length - 1].title).toBe("1 weiterer Tag zu prüfen");
+    expect(rows).toHaveLength(6);
+    expect(rows[5].href).toBe("/ich/zeiten?view=list&date=2026-09-01");
   });
 });

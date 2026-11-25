@@ -435,6 +435,8 @@ describe("upcomingFromResponse", () => {
         endDate: "2026-07-05",
         days: 3,
         type: "Urlaub",
+        // Issue #1028: the code is the control value of the type filter chips
+        typeCode: "VACATION",
       },
     ]);
   });

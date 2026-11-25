@@ -294,7 +294,10 @@ export interface UpcomingLeaveCard {
   startDate: string;
   endDate: string;
   days: number;
+  /** The display name of the leave type (shown, never a control value). */
   type: string;
+  /** Issue #1028: the leave type CODE, the control value of the type filter chips. */
+  typeCode: string;
 }
 
 /** Maps the server items of `team-upcoming-leave` to the card's shape. */
@@ -306,6 +309,7 @@ export function upcomingFromResponse(items: TeamUpcomingLeaveItem[]): UpcomingLe
     endDate: item.endDate,
     days: item.days,
     type: item.leaveTypeName,
+    typeCode: item.leaveTypeCode,
   }));
 }
 

@@ -2,14 +2,16 @@
  * Issue #1020 — the ONE place Mein Tag turns the open-items invalid entries into „Für dich“ rows.
  *
  * `GET /dashboard/open-items` names each own invalid or still-open entry by day (`invalidEntryDays`,
- * the same rows as the `invalidEntries` count). This module words one row per day, capped like the
- * missing days (`capMissingDays`, Issue #987), and links into the place that fixes it: an open entry
- * into the „Ende eintragen“ flow of Zeiten, any other invalid day into the day's list.
+ * the same rows as the `invalidEntries` count). This module words one row per day and links into the
+ * place that fixes it: an open entry into the „Ende eintragen“ flow of Zeiten, any other invalid day
+ * into the day's list.
+ *
+ * Issue #1028 (P-07): every day is a row, newest first - the cap of five days and its summary row
+ * „N weitere Tage zu prüfen“ are gone; the list widget pages them.
  *
  * No figure is computed: an invalid entry counts nowhere until it is fixed. An older API answer
  * without the day list keeps today's single count row.
  */
-import { capMissingDays } from "$lib/dashboard/heute-im-salon";
 import { endEntryHref } from "$lib/time-entries/open-earlier-entry";
 import { countWord } from "$lib/utils/count-word";
 
@@ -59,9 +61,9 @@ export function invalidEntryRows(
     ];
   }
 
-  const { shown, more } = capMissingDays(days.map((d) => d.date));
+  const distinctDays = [...new Set(days.map((d) => d.date))].sort().reverse();
   const rows: InvalidEntryRow[] = [];
-  for (const day of shown) {
+  for (const day of distinctDays) {
     const open = days.find((d) => d.date === day && d.open);
     if (open) {
       rows.push({
@@ -84,18 +86,6 @@ export function invalidEntryRows(
         action: "Öffnen",
       });
     }
-  }
-  if (more > 0) {
-    rows.push({
-      key: "invalid-more",
-      title: countWord(more, "weiterer Tag", "weitere Tage") + " zu prüfen",
-      subtitle: "Alle Einträge zum Prüfen siehst du unter Zeiten.",
-      chip: "Prüfen",
-      tone: "warn",
-      href: "/ich/zeiten?view=list",
-      action: "Ansehen",
-      testId: "dashboard-invalid-more",
-    });
   }
   return rows;
 }

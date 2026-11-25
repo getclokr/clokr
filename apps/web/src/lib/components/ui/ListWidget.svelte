@@ -39,6 +39,8 @@
     /** The id of the register; it names the stored size and filter. */
     listId: ListId;
     title: string;
+    /** A short muted text after the title (a week, a period). Display text only. */
+    meta?: string;
     /** Every row of the list (after the filter), not only the shown page. */
     items: readonly T[];
     /** A unique key per row. */
@@ -73,6 +75,7 @@
   let {
     listId,
     title,
+    meta,
     items,
     itemKey,
     filters,
@@ -102,6 +105,10 @@
   // A chip click (or a URL filter) of this visit; until then the stored choice decides.
   let picked = $state<string | null>(null);
   const wanted = $derived(picked ?? initialFilter ?? resolved.filter ?? "alle");
+  // A new URL filter (a Kennzahl link clicked on the same page) beats an earlier chip click of this visit.
+  $effect(() => {
+    if (initialFilter !== undefined) picked = null;
+  });
 
   /**
    * The effective filter: the wanted one when a chip offers it, else „alle“ - without touching the
@@ -166,7 +173,9 @@
 
 <section class="lw" aria-labelledby="{uid}-title" data-testid={testId}>
   <header class="lw-head">
-    <h2 id="{uid}-title" class="lw-title">{title}</h2>
+    <h2 id="{uid}-title" class="lw-title">
+      {title}{#if meta}<span class="lw-meta">{meta}</span>{/if}
+    </h2>
     {#if moreHref}
       <a class="lw-more" href={moreHref}>{moreLabel}</a>
     {/if}
@@ -241,6 +250,13 @@
     margin: 0;
     font-size: var(--fs-h2);
     font-weight: 600;
+  }
+  .lw-meta {
+    margin-inline-start: var(--s-2);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
   }
   .lw-more {
     font-size: var(--fs-sm);
