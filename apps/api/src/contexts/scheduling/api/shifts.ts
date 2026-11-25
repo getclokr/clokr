@@ -770,7 +770,7 @@ async function writeForcedShiftAudits(
           request,
         });
       }
-    } else if (finding.rule === "storeHours") {
+    } else if (finding.rule === "openingHours") {
       await app.audit({
         userId: req.user.sub,
         action: "SHIFT_FORCED_OUTSIDE_HOURS",

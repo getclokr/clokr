@@ -7,7 +7,7 @@
  *
  *   1. contract      a WorkSchedule row of the person valid on the day (Issue #589)
  *   2. pastDay       the day is not before the TENANT's calendar day (Phase 47.2, Issue #1075 GD-6)
- *   3. storeHours    the salon's opening hours (Phase 47.5), overridable on a single write
+ *   3. openingHours  the salon's opening hours (Phase 47.5), overridable on a single write
  *   4. minorLimits   § 8 / § 12 JArbSchG for a person under 18 (Issue #1057, minor-shift-limits.ts)
  *   5. dailyMax      § 3 ArbZG: at most 10:00 net Arbeitszeit a day — the SUM of the person's shifts
  *   6. restPeriod    § 5 ArbZG: 11 h to the previous day's last shift AND to the next day's first shift
@@ -44,7 +44,7 @@ import { shiftBruttoMinutes, shiftNettoMinutes } from "./shift-netto";
 export const SHIFT_WRITE_RULES = [
   "contract",
   "pastDay",
-  "storeHours",
+  "openingHours",
   "minorLimits",
   "dailyMax",
   "restPeriod",
@@ -55,7 +55,7 @@ export type ShiftWriteRule = (typeof SHIFT_WRITE_RULES)[number];
 export const SHIFT_WRITE_SKIP_REASON = {
   contract: "no-contract",
   pastDay: "past",
-  storeHours: "outside-store-hours",
+  openingHours: "outside-store-hours",
   minorLimits: "jarbschg",
   dailyMax: "arbzg-daily-max",
   restPeriod: "arbzg-rest-period",
@@ -352,7 +352,7 @@ function pastDayRule(ctx: ShiftWriteContext, change: ShiftWriteChange): ShiftWri
  * comparisons unchanged. Cross-midnight shifts (end < start) are NOT supported by the STRICT check —
  * they always fail because they leave the day's open/close window; users override via force=true.
  */
-function storeHoursRule(
+function openingHoursRule(
   ctx: ShiftWriteContext,
   change: ShiftWriteChange,
 ): ShiftWriteFinding | null {
@@ -373,7 +373,7 @@ function storeHoursRule(
   const entry = rows.find((r) => r.day === dow);
   if (!entry) return null;
   const finding = (message: string): ShiftWriteFinding => ({
-    rule: "storeHours",
+    rule: "openingHours",
     code: "SHIFT_OUTSIDE_STORE_HOURS",
     message,
     status: 409,
@@ -564,7 +564,7 @@ export function checkShiftWrite(
   const steps: Array<() => ShiftWriteFinding | null> = [
     () => contractRule(ctx, change),
     () => pastDayRule(ctx, change),
-    () => storeHoursRule(ctx, change),
+    () => openingHoursRule(ctx, change),
     () => minorLimitsRule(ctx, change),
     () => dailyMaxRule(ctx, change),
     () => restPeriodRule(ctx, change),
@@ -599,7 +599,7 @@ export function shiftWriteReplyBody(
       return { error: titles.contract, code: finding.code, message: finding.message };
     case "pastDay":
       return { error: titles.past, code: finding.code, message: finding.message };
-    case "storeHours":
+    case "openingHours":
       return {
         error: "Schicht außerhalb Öffnungszeiten",
         code: finding.code,

@@ -87,7 +87,7 @@ describe("checkShiftWrite — rule order and shape", () => {
     expect([...SHIFT_WRITE_RULES]).toEqual([
       "contract",
       "pastDay",
-      "storeHours",
+      "openingHours",
       "minorLimits",
       "dailyMax",
       "restPeriod",
@@ -95,7 +95,7 @@ describe("checkShiftWrite — rule order and shape", () => {
     expect(SHIFT_WRITE_SKIP_REASON).toEqual({
       contract: "no-contract",
       pastDay: "past",
-      storeHours: "outside-store-hours",
+      openingHours: "outside-store-hours",
       minorLimits: "jarbschg",
       dailyMax: "arbzg-daily-max",
       restPeriod: "arbzg-rest-period",
@@ -164,7 +164,7 @@ describe("opening hours", () => {
   it("a Sunday is a 409, overridable; force moves it to `forced` and the walk goes on", () => {
     const blocked = run(mkCtx(), draft(SUNDAY, "08:00", "16:00"));
     expect(blocked.blocking).toMatchObject({
-      rule: "storeHours",
+      rule: "openingHours",
       code: "SHIFT_OUTSIDE_STORE_HOURS",
       status: 409,
       overridable: true,
@@ -172,7 +172,7 @@ describe("opening hours", () => {
     expect(blocked.blocking?.message).toContain("geschlossen");
     const forced = run(mkCtx(), draft(SUNDAY, "08:00", "16:00"), { force: true });
     expect(forced.blocking).toBeNull();
-    expect(forced.forced.map((f) => f.rule)).toEqual(["storeHours"]);
+    expect(forced.forced.map((f) => f.rule)).toEqual(["openingHours"]);
   });
 
   it("mode OFF, missing hours and a missing TenantConfig row check nothing", () => {
