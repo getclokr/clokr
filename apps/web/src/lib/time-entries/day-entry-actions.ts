@@ -33,6 +33,8 @@ export interface DayEntryRow {
   salonId?: string | null;
   /** Display name of that salon, served by `GET /time-entries` since 70b-06. */
   salonName?: string | null;
+  /** A row of a closed month: it can no longer be ended or edited. */
+  isLocked?: boolean | null;
 }
 
 export interface SalonOption {
@@ -76,6 +78,26 @@ function hhmmOf(minutes: number): string {
 }
 
 /**
+ * The own entry of a day that is still OPEN (no end), the one whose end a person has to enter:
+ * a row of a closed month cannot be ended and is skipped; a trip is always closed. `null` when the
+ * day has none. With several (impossible since the database allows one open entry per day) the
+ * first in the served order wins.
+ */
+export function openEntryOfDay<T extends DayEntryRow>(dayEntries: readonly T[]): T | null {
+  return dayEntries.find((entry) => entry.endTime === null && entry.isLocked !== true) ?? null;
+}
+
+export interface AddActionOptions {
+  /**
+   * Issue #1085: a day with an open entry never gets a second entry from an add action - the open
+   * entry opens instead, so its end is entered (inside the retro window) or requested as a
+   * correction (outside it). Set by the own time page. Left off by the manager's team page, which
+   * keeps the pre-#1085 rule: there the server answers an overlap with the open entry.
+   */
+  endOpenEntryFirst?: boolean;
+}
+
+/**
  * What "Neuer Eintrag" (and "Weiteren Eintrag an diesem Tag") opens for a day.
  *
  * Without salon options (`multiEntryUi` false, D-12) the page behaves as it always did: a day with
@@ -84,11 +106,20 @@ function hhmmOf(minutes: number): string {
  * second entry begins where the last one stopped) and whose end is an hour later, at most 23:59.
  * An entry still running has no end and sets nothing; a day with only a running entry falls back
  * to the default (the server refuses an overlap with it anyway).
+ *
+ * Issue #1085: with `endOpenEntryFirst` the open entry of the day wins over all of that, in both
+ * modes - the form of a NEW entry on such a day could only end in the overlap refusal, and outside
+ * the retro window its Zeitnachtrag would never reach the correction path that closes the entry.
  */
 export function addActionForDay<T extends DayEntryRow>(
   dayEntries: readonly T[],
   multiEntryUi: boolean,
+  options: AddActionOptions = {},
 ): AddAction<T> {
+  if (options.endOpenEntryFirst) {
+    const open = openEntryOfDay(dayEntries);
+    if (open) return { kind: "edit", entry: open };
+  }
   if (!multiEntryUi && dayEntries.length > 0) return { kind: "edit", entry: dayEntries[0] };
   let latestEnd: string | null = null;
   for (const entry of dayEntries) {
