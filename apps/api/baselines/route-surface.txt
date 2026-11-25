@@ -134,6 +134,7 @@
 │   ├── /range (GET, HEAD)
 │   ├── /read-all (PATCH)
 │   ├── /role-names (GET, HEAD)
+│   ├── /scope (GET, HEAD)
 │   ├── /scopes (GET, HEAD)
 │   ├── /static/index.html (GET, HEAD)
 │   ├── /static/swagger-initializer.js (GET, HEAD)
