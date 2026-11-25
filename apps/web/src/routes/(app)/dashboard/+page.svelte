@@ -37,6 +37,8 @@
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features"; // Issue #1066: the tenant's zone
+  import { tenantDay } from "$lib/utils/tenant-day"; // Issue #1066
   import Pagination from "$components/ui/Pagination.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import PageHead from "$lib/components/layout/PageHead.svelte";
@@ -492,10 +494,18 @@
     stopPoll?.();
   });
 
+  // Issue #1066: the server files a clock stamp under the TENANT day, so "today" for every read of
+  // today's rows is the tenant day. A device whose zone is on another calendar day must ask for the
+  // same day. The zone is awaited, not read from the store: this page's onMount runs before the
+  // (app) layout's, so its first request would otherwise still see the default zone.
+  async function tenantToday(): Promise<string> {
+    return tenantDay(new Date(), await tenantFeatures.loadTimezone());
+  }
+
   async function loadData() {
     loading = true;
     try {
-      const today = format(new Date(), "yyyy-MM-dd");
+      const today = await tenantToday();
 
       // Parallel laden — allSettled so a stats failure doesn't break clock state
       const [entriesResult, statsResult, clockStateResult] = await Promise.allSettled([
@@ -721,7 +731,7 @@
     }
     // Also refresh clock-in status
     try {
-      const today = format(new Date(), "yyyy-MM-dd");
+      const today = await tenantToday();
       const [rows, state] = await Promise.all([
         api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`),
         loadClockState(),
@@ -1313,17 +1323,14 @@
           ? breakStarted(clockTime(res.breakStartedAt ?? now))
           : breakEnded(clockTime(now)),
       );
-      todayEntries = await api.get<ClockDayEntry[]>(
-        `/time-entries?from=${format(now, "yyyy-MM-dd")}&to=${format(now, "yyyy-MM-dd")}`,
-      );
+      const today = await tenantToday();
+      todayEntries = await api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`);
     } catch (err) {
       toasts.error(err instanceof Error ? err.message : "Pause fehlgeschlagen");
       // another device may have changed the state: re-read it
       try {
-        const now = new Date();
-        todayEntries = await api.get<ClockDayEntry[]>(
-          `/time-entries?from=${format(now, "yyyy-MM-dd")}&to=${format(now, "yyyy-MM-dd")}`,
-        );
+        const today = await tenantToday();
+        todayEntries = await api.get<ClockDayEntry[]>(`/time-entries?from=${today}&to=${today}`);
       } catch {
         /* keep the shown state */
       }
