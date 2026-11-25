@@ -1,17 +1,42 @@
 # Deployment
 
+## Voraussetzungen
+
+- Ein Linux-Host mit **Docker** und dem **Docker-Compose-Plugin**
+- Ein Reverse Proxy vor dem Host für TLS (nginx, Caddy, Traefik, HAProxy)
+- Als Richtwert genügen 2 vCPU und 2 GB RAM für ein kleines Team
+
+Für den Betrieb ist kein Quellcode-Checkout nötig: Die Compose-Datei lädt fertige Images (`ghcr.io/getclokr/clokr-api` und `ghcr.io/getclokr/clokr-web`).
+
 ## Docker Compose (Empfohlen)
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Gestartet werden: PostgreSQL, Redis, MinIO, API, Web.
+Gestartet werden: PostgreSQL, Redis, MinIO, API, Web und ein `backup`-Dienst (siehe Backup). Der `fritzbox-adapter` ist ein optionaler Dienst für die WLAN-Anwesenheit. Redis ist im Stack enthalten, die API nutzt es derzeit nicht.
+
+### Ports
+
+| Dienst     | Port        | Beschreibung                           |
+| ---------- | ----------- | -------------------------------------- |
+| `web`      | `3000`      | SvelteKit-Oberfläche                   |
+| `api`      | `4000`      | Fastify-Backend, Swagger unter `/docs` |
+| `postgres` | `5432`      | PostgreSQL 18                          |
+| `redis`    | `6379`      | Redis 7                                |
+| `minio`    | `9000/9001` | MinIO S3-API und Konsole               |
+
+In einem gehärteten Betrieb sollte nur `web` (3000) erreichbar sein, meist nur für den Reverse Proxy. Datenbank, Redis und Objektspeicher gehören ins interne Docker-Netz.
+
+### Health-Checks
+
+Die API beantwortet `GET /health` auf Port 4000, der Web-Dienst die Startseite auf Port 3000. Die Compose-Datei definiert Health-Checks für alle Dienste und startet die API erst, wenn die Datenbank bereit ist.
 
 ## Umgebungsvariablen
 
 | Variable                                        | Pflicht | Beschreibung                                                                                                                                                                                           |
 | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POSTGRES_PASSWORD`                             | ✓       | Passwort des Datenbank-Benutzers; Compose baut daraus `DATABASE_URL` der API                                                                                                                           |
 | `JWT_SECRET`                                    | ✓       | Zufälliger String, min. 32 Zeichen                                                                                                                                                                     |
 | `JWT_REFRESH_SECRET`                            | ✓       | Zufälliger String, min. 32 Zeichen                                                                                                                                                                     |
 | `ENCRYPTION_KEY`                                | ✓       | Zufälliger String, min. 32 Zeichen                                                                                                                                                                     |
@@ -60,15 +85,17 @@ server {
 }
 ```
 
-HSTS wird von Clokr selbst gesetzt, sobald `NODE_ENV=production`.
+Clokr terminiert TLS nicht selbst. Der Reverse Proxy übernimmt Zertifikate und leitet an den `web`-Dienst auf Port 3000 weiter. HSTS und die weiteren Security-Header setzt Clokr selbst, sobald `NODE_ENV=production`. `CORS_ORIGIN` und `APP_URL` müssen zur öffentlichen HTTPS-Adresse passen, sonst scheitern API-Aufrufe und die Links in E-Mails.
 
 ## Backup
 
-Die wichtigsten Daten liegen in PostgreSQL. Tägliches Backup:
+Die wichtigsten Daten liegen in PostgreSQL, hochgeladene Dateien in MinIO. Sichere beides. Tägliches Backup der Datenbank:
 
 ```bash
 docker exec clokr-db pg_dump -U clokr clokr > backup-$(date +%F).sql
 ```
+
+Die mitgelieferte Compose-Datei enthält außerdem einen `backup`-Dienst. Er legt täglich einen `pg_dump` in `./backups` ab und löscht Dumps, die älter als 7 Tage sind. Bewahre mindestens eine Kopie außerhalb des Hosts auf.
 
 MinIO-Daten (Dokumente, Avatare) separat sichern:
 
@@ -83,7 +110,11 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Datenbankmigrationen laufen automatisch beim Start.
+Datenbankmigrationen laufen automatisch beim Start (`prisma migrate deploy` im Entrypoint der API, siehe [Migrationen](./migrations.md)). Nimm vor jedem Update ein Datenbank-Backup.
+
+### Wiederherstellen
+
+Stoppe den Stack, spiele den PostgreSQL-Dump in eine leere Datenbank `clokr` ein, stelle das MinIO-Volume wieder her und starte den Stack. Stammt der Dump aus einer älteren Version, bringt `migrate deploy` beim Start das Schema auf den aktuellen Stand.
 
 ## Version pinnen
 
@@ -95,3 +126,13 @@ CLOKR_WEB_IMAGE=ghcr.io/getclokr/clokr-web:1.12.0
 
 Tags werden ohne führendes `v` geschrieben; beide Variablen sind Pflicht, `docker compose`
 bricht mit einer Fehlermeldung ab, wenn eine fehlt.
+
+## Checkliste für den Betrieb
+
+- `NODE_ENV=production` setzen (HSTS und die vollständigen Security-Header).
+- Die Ports von `postgres`, `redis` und `minio` nicht ins Internet veröffentlichen. Nur `web` ist erreichbar, hinter einem Reverse Proxy mit TLS.
+- Starke, jeweils eigene Werte für `JWT_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY` sowie für die Datenbank- und MinIO-Passwörter verwenden (mindestens 32 Zeichen bei den Geheimnissen).
+- Keine Demo-Daten und keine Demo-Konten in Produktion.
+- Regelmäßige Backups von PostgreSQL **und** MinIO, mindestens eine Kopie außerhalb des Hosts.
+- Beide Images auf einen festen Release-Tag pinnen und vor einem Update die Release-Notes lesen (`docs/release-notes`).
+- Schwachstellen in Abhängigkeiten behandelt der Prozess in [CVE-Handling](./cve-handling.md).

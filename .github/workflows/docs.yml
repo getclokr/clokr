@@ -1,0 +1,109 @@
+name: Docs
+
+# Issue #1064. Builds the documentation site (apps/docs renders the repository's docs/ in place)
+# and publishes it to GitHub Pages at https://getclokr.github.io/clokr/.
+#
+#   - Pull request touching the docs: typecheck, build (VitePress fails on a dead internal link)
+#     and the post-build gate `check:complete` (page set, denylist, links, anchors, sidebar
+#     completeness). Nothing is deployed.
+#   - Push to main touching the docs, or a manual run (`workflow_dispatch`, which redeploys without
+#     a docs change): the same build, then the deploy job publishes the artifact.
+#
+# Path-filtered and deliberately NOT a required check (owner decision OD-5): a required check
+# would need a `merge_group` trigger and an unfiltered run. The Handbuch glossary lint
+# (`lint:docs-terms`) is not repeated here; ci.yml runs it on every PR.
+#
+# Prerequisite for the first deploy: GitHub Pages must be enabled for the repository with the
+# build source "GitHub Actions" (Settings → Pages). Until then the deploy job fails and the build
+# job still proves the site builds.
+#
+# Only the deploy job holds `pages: write` and `id-token: write`; the build job runs with
+# `contents: read`. No `pull_request_target`, no secrets.
+
+on:
+  pull_request:
+    # The two path lists are identical on purpose (no YAML anchor: the workflow test compares them).
+    paths:
+      - "docs/**"
+      - "apps/docs/**"
+      - "apps/web/src/tokens.css"
+      - "apps/web/static/fonts/**"
+      - "apps/web/static/brand/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "apps/docs/**"
+      - "apps/web/src/tokens.css"
+      - "apps/web/static/fonts/**"
+      - "apps/web/static/brand/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the docs package
+        run: pnpm --filter @clokr/docs typecheck
+
+      - name: Build the site
+        # VitePress fails the build on a dead internal link.
+        run: pnpm --filter @clokr/docs build
+
+      - name: Check the built site
+        # Page set equals the published Markdown, no denylisted literal in any output file,
+        # every internal link, anchor and asset resolves, every page sits in a sidebar group and
+        # every planned Handbuch page exists.
+        run: pnpm --filter @clokr/docs check:complete
+
+      - name: Upload the Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'getclokr/clokr'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'getclokr/clokr'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

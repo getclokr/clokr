@@ -16,6 +16,7 @@
     "test:coverage": "turbo run test:coverage",
     "test:scripts": "vitest run --config vitest.config.mjs",
     "lint:comment-language": "node scripts/lint-comment-language.mjs",
+    "lint:docs-terms": "node scripts/lint-docs-terms.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -79,7 +80,21 @@
       "undici": ">=8.12.2",
       "body-parser": ">=2.4.0",
       "query-string@7>decode-uri-component": ">=0.5.1",
-      "effect": "^3.22.1"
+      "effect": "^3.22.1",
+      "vitepress>vue": "3.5.45",
+      "vitepress>@vitejs/plugin-vue": "6.0.10",
+      "vitepress>@vueuse/core": "15.0.0",
+      "vitepress>@vueuse/integrations": "15.0.0",
+      "vitepress>@iconify-json/simple-icons": "1.2.102",
+      "vitepress>focus-trap": "8.2.4",
+      "vitepress>@vue/shared": "3.5.45",
+      "@vue/compiler-core>@babel/parser": "7.29.13",
+      "@vue/compiler-sfc>@babel/parser": "7.29.13",
+      "@babel/parser@7.29.13>@babel/types": "7.29.11",
+      "@babel/types@7.29.11>@babel/helper-string-parser": "7.29.11",
+      "@shikijs/core>hast-util-to-html": "9.0.6",
+      "hast-util-to-html>mdast-util-to-hast": "13.2.1",
+      "hast-util-to-html>stringify-entities": "4.0.4"
     }
   }
 }

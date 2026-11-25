@@ -1,0 +1,19 @@
+{
+  "name": "@clokr/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "typecheck": "tsc --noEmit",
+    "check": "node scripts/check-site.mjs",
+    "check:complete": "node scripts/check-site.mjs --complete"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitepress": "2.0.0-alpha.21",
+    "vue": "3.5.45"
+  }
+}

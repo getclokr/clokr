@@ -25,40 +25,53 @@ snapshot of the schema as it existed when migrations were introduced. It contain
 
 ## Everyday dev workflow
 
-Create and apply a migration locally:
+### Creating a migration — do NOT use `prisma migrate dev`
+
+**`migrate dev` is not the workflow on this project.** When it finds drift it resets the target
+database — drops it, recreates it, replays every migration — and in a non-interactive shell (i.e.
+any agent run) that happens **without a confirmation prompt**. It did exactly that on 2026-08-19 and
+destroyed all local fixture/demo data (the timestamp also carried by the
+`20260819094159_add_opening_balance` migration folder). This dev database has long-standing
+pre-existing index drift, so it is reset-prone on repeat, not just that once.
+
+Create migrations the way phases 85-01, 91-01, 96-01 and 104's quick tasks did — generate the SQL
+against a throwaway shadow DB, read it, then apply it:
 
 ```bash
-pnpm --filter @clokr/db exec prisma migrate dev --name <short-description>
+# 1. throwaway shadow DB
+psql ... -c 'DROP DATABASE IF EXISTS clokr_shadow;' -c 'CREATE DATABASE clokr_shadow;'
+# 2. hand-create packages/db/prisma/migrations/$(date +%Y%m%d%H%M%S)_<snake_name>/
+# 3. generate the SQL — Prisma 7 takes the shadow URL from the ENV VAR, there is no CLI flag
+#    (see packages/db/prisma.config.ts and the drift check in .github/workflows/ci.yml)
+SHADOW_DATABASE_URL="postgresql://.../clokr_shadow" pnpm --filter @clokr/db exec prisma migrate diff \
+  --from-migrations ./prisma/migrations --to-schema ./prisma/schema.prisma --script \
+  > packages/db/prisma/migrations/<dir>/migration.sql
+# 4. READ migration.sql. Anything beyond your intended change is drift leaking in — stop, don't hand-edit.
+# 5. apply to dev AND clokr_test, then verify
+pnpm --filter @clokr/db exec prisma migrate deploy
+pnpm --filter @clokr/api run test:setup
+pnpm --filter @clokr/db exec prisma migrate status   # must report no drift
+# 6. drop clokr_shadow, run prisma generate
 ```
 
-This:
+Flags that older Prisma docs use and that **fail** here: `--to-schema-datamodel` (removed, use
+`--to-schema`), `--shadow-database-url` (never a CLI flag in Prisma 7 — use `SHADOW_DATABASE_URL`).
 
-1. generates a new timestamped migration folder under
-   `packages/db/prisma/migrations/`,
-2. applies it to your local dev database,
-3. regenerates the Prisma client.
+**Commit the generated migration folder.** Every environment then applies pending migrations
+automatically via `prisma migrate deploy` (run by the container entrypoint,
+`apps/api/docker-entrypoint.sh`). `migrate deploy` does **not** regenerate the Prisma client (unlike
+`migrate dev`), so run `pnpm --filter @clokr/db exec prisma generate` after it (step 6).
 
-**Commit the generated migration folder.** Every environment then applies pending
-migrations automatically via `prisma migrate deploy` (run by the container entrypoint,
-`apps/api/docker-entrypoint.sh`).
+Apply pending migrations manually (normally the entrypoint does this):
 
-> `migrate dev` needs a **shadow database** (Prisma creates and drops a temporary DB on
-> the same server). The local docker `clokr` superuser can do this out of the box.
-> `migrate dev` is **dev-only** — never run it against int/prod.
+```bash
+pnpm --filter @clokr/db exec prisma migrate deploy
+```
 
-### ⚠️ `migrate dev` can reset your local dev database — dump first
+### Back up the local dev database before touching it
 
-`migrate dev` is not purely additive: when it detects drift between the live database and
-the migration history (or a previously-failed migration), Prisma's own remedy is to
-**reset the target database** — drop and recreate it, then replay every migration from
-scratch. On local dev this happens **without a confirmation prompt** in a non-interactive
-shell. This is not hypothetical: it happened on this project on 2026-08-19 (the timestamp
-also carried by the `20260819094159_add_opening_balance` migration folder) and took every
-piece of accumulated local fixture/demo data with it — no local backup existed at the
-time.
-
-**Take a dump before running `migrate dev` against local dev** (`backups/` is gitignored,
-see `.gitignore:71`):
+Anything that points a `packages/db` command at the dev database `clokr` puts local fixture and demo
+data at risk. `backups/` is gitignored (see `.gitignore:71`):
 
 ```bash
 docker compose exec -T postgres pg_dump -U clokr -Fc clokr > backups/clokr-dev-$(date +%F-%H%M).dump
@@ -70,25 +83,9 @@ Restore it with:
 docker compose exec -T postgres pg_restore --clean --if-exists -U clokr -d clokr < backups/clokr-dev-<timestamp>.dump
 ```
 
-**Since Phase 101, a test run no longer writes to the dev database** (see
-`docs/testing.md`) — `migrate dev` and other manual `packages/db` operations against a
-`DATABASE_URL` pointed at `clokr` are now the only things that put local dev data at risk.
-
-**In practice, this project mostly avoids `migrate dev` for exactly this reason.** Every
-recent schema-adding phase (STATE.md decisions 85-01, 91-01, 96-01) deliberately used
-`prisma migrate diff` against a throwaway shadow database (e.g. `clokr_shadow`) to generate
-the migration SQL, then applied it with `migrate deploy` — never `migrate dev` — because
-this project's local dev database has long-standing, pre-existing index drift that makes
-`migrate dev` reset-prone on repeat offense, not just on 2026-08-19. **Prefer `migrate
-diff` + `migrate deploy`** for any schema change once your local dev database has drifted
-even once; reserve plain `migrate dev` for a genuinely fresh, never-drifted local database,
-and take the dump above first regardless.
-
-Apply pending migrations manually (normally the entrypoint does this):
-
-```bash
-pnpm --filter @clokr/db exec prisma migrate deploy
-```
+Since Phase 101 a test run no longer writes to the dev database (see `docs/testing.md`), so manual
+`packages/db` operations against a `DATABASE_URL` pointed at `clokr` are the only thing that puts it
+at risk.
 
 ## Fresh / empty database (fresh dev, brand-new int)
 
@@ -160,7 +157,7 @@ Dev/test keep the `db push` fallback for iteration speed.
 ## CI drift check
 
 CI runs a drift guard that fails the build if `schema.prisma` has diverged from the
-committed migrations history (e.g. someone edited the schema without `migrate dev`, or
+committed migrations history (e.g. someone edited the schema without creating a migration, or
 regenerated `0_init`):
 
 ```bash
@@ -175,10 +172,24 @@ migrations into a **shadow database**, so this check needs a Postgres service an
 `SHADOW_DATABASE_URL` (wired up in `.github/workflows/ci.yml`; Prisma 7 reads the shadow
 URL from `packages/db/prisma.config.ts`). It is **not** a purely offline check.
 
+## Writing safe migrations
+
+Locked and finalized records must never be mutated silently, so prefer **additive**
+migrations:
+
+- Add new nullable columns, or columns with a safe default, instead of rewriting existing
+  ones.
+- Add indexes and new tables freely.
+- Avoid destructive `DROP` / `TRUNCATE` on tables that hold time entries, leave requests,
+  absences or audit logs. If a column truly has to go, deprecate it in one release and
+  remove it in a later one.
+- Never regenerate or edit `0_init`, and never edit a migration that has already shipped:
+  add a new one.
+
 ## Adding schema changes in later phases
 
-Phases that add columns/indexes (e.g. 76.19/76.20/76.21) create a **new** `migrate dev`
-migration on top of `0_init`. They **must never regenerate `0_init`** — that baseline is
+Phases that add columns/indexes (e.g. 76.19/76.20/76.21) create a **new** migration
+(see above) on top of `0_init`. They **must never regenerate `0_init`** — that baseline is
 frozen.
 
 ## Phase 97 — LeaveType.code (Rollout-Reihenfolge)
