@@ -10,7 +10,8 @@
  *                   (`<!-- SCREENSHOT file=… role=… url=… show="…" -->`) from docs/handbuch/**
  *                   via scripts/screenshot-notes.mjs, signs in as the note's `role`, opens its
  *                   v2 `url` at 1440 x 900 in LIGHT mode and screenshots the page's main content
- *                   landmark (`main#main-content`, i.e. without sidebar and top bar) into
+ *                   landmark (`main#main-content`, i.e. without sidebar and top bar; the sticky top bar,
+ *                   sidebar and tab bar are hidden first so they cannot cover the H1) into
  *                   docs/handbuch/bilder/<file name>. Pages under /login are shot logged out.
  *   --set readme    The README hero subset → images/screenshot-*.png, 1280 x 800, full page,
  *                   light mode, on the v2 paths (/ich/tag, /ich/zeiten, /ich/abwesenheiten,
@@ -329,6 +330,47 @@ async function discoverEmployeeDetailPath(page) {
   return href; // e.g. "/admin/employees/<id>" or null if list empty
 }
 
+/**
+ * App chrome that floats over `main#main-content` while Playwright scrolls through a tall element
+ * for an element screenshot: the sticky top bar (Topbar.svelte, `header.topbar`, `position: sticky`),
+ * the fixed sidebar and mobile tab bar (Sidebar.svelte / BottomTabBar.svelte), the "Was ist neu"
+ * drawer (WhatsNewPanel.svelte), the toast layer (ui/Toast.svelte) and the "Mehr" sheet
+ * (MobileMoreSheet.svelte). Without this the top bar covers the page's H1 in the shot
+ * (docs/handbuch/bilder/team-dienstplan-01.png of the first capture). `visibility: hidden` keeps the
+ * layout grid intact, so the page content does not shift.
+ */
+const CHROME_HIDE_CSS = `
+  header.topbar,
+  aside.sidebar,
+  nav.bottom-tab-bar,
+  aside.whats-new,
+  .toast-container,
+  [data-toast-root] {
+    visibility: hidden !important;
+  }
+  main#main-content .data-table thead tr {
+    position: static !important;
+  }
+`;
+
+/**
+ * Take the floating app chrome out of the way, neutralise any other sticky element inside main
+ * (it would be repainted at the viewport top while the element is scrolled) and scroll to the top.
+ * Call it after every navigation: a reload drops the injected style.
+ */
+async function prepareElementShot(page) {
+  await page.addStyleTag({ content: CHROME_HIDE_CSS });
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll("main#main-content *")) {
+      if (getComputedStyle(el).position === "sticky") {
+        el.style.setProperty("position", "static", "important");
+      }
+    }
+    window.scrollTo(0, 0);
+    document.querySelector("main#main-content")?.scrollTo?.(0, 0);
+  });
+}
+
 async function capture(page, absPath) {
   await page.screenshot({ path: absPath, fullPage: true });
 }
@@ -507,6 +549,7 @@ async function run() {
         const main = page.locator("main#main-content");
         await main.waitFor({ state: "visible", timeout: 10_000 });
         await settle(page);
+        await prepareElementShot(page);
         await main.screenshot({ path: join(HANDBUCH_DIR_ABS, note.file) });
         record("handbuch", note.file, "ok", `${note.url} as ${note.role}`);
       } catch (err) {
