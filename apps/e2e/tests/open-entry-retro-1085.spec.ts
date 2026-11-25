@@ -83,6 +83,13 @@ async function createSecondSalon(request: APIRequestContext, tenant: TestTenant)
 
 /** A second administrator with a direct sign-in: the person whose day carries the open entry. */
 async function createPerson(request: APIRequestContext, tenant: TestTenant): Promise<Person> {
+  // With two active salons the API requires a Stammsalon (400 otherwise); take the first salon.
+  const salonsRes = await request.get(`${API_BASE}/api/v1/salons`, {
+    headers: authHeaders(tenant),
+  });
+  expect(salonsRes.ok(), `list the salons (${await salonsRes.text()})`).toBe(true);
+  const { salons } = (await salonsRes.json()) as { salons: Array<{ id: string; name: string }> };
+  const homeSalon = salons.find((s) => s.name !== SECOND_SALON_NAME) ?? salons[0];
   const stamp = Date.now();
   const email = `offen-${stamp}@${tenant.tenantId}.test`;
   const res = await request.post(`${API_BASE}/api/v1/employees`, {
@@ -96,6 +103,7 @@ async function createPerson(request: APIRequestContext, tenant: TestTenant): Pro
       hireDate: new Date("2024-01-01T00:00:00.000Z").toISOString(),
       role: "ADMIN",
       password: PERSON_PASSWORD,
+      homeSalonId: homeSalon.id,
     },
   });
   expect(res.status(), `create the person (${await res.text()})`).toBeLessThan(300);
