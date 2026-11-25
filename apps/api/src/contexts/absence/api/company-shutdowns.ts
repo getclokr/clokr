@@ -3,7 +3,12 @@ import { z } from "zod";
 import { Prisma } from "@clokr/db";
 import { requireAuth } from "../../../middleware/auth";
 import { requirePermission } from "../../platform";
-import { bookCompanyShutdown, resolveShutdownActor } from "../company-shutdown/booking";
+import {
+  bookCompanyShutdown,
+  findOverlappingShutdown,
+  resolveShutdownActor,
+} from "../company-shutdown/booking";
+import { COMPANY_SHUTDOWN_MESSAGES, COMPANY_SHUTDOWN_OVERLAP } from "../company-shutdown/constants";
 
 const shutdownBodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -58,6 +63,14 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: "startDate muss vor endDate liegen" });
       }
 
+      // Issue #1069 (D-11): two active Betriebsurlaube of one tenant may not share a day.
+      if (await findOverlappingShutdown(app, tenantId, body.startDate, body.endDate)) {
+        return reply.status(409).send({
+          error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_OVERLAP],
+          code: COMPANY_SHUTDOWN_OVERLAP,
+        });
+      }
+
       const shutdown = await app.prisma.companyShutdown.create({
         data: {
           tenantId,
@@ -93,6 +106,12 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
 
+      if (!booking.ok) {
+        return reply.status(409).send({
+          error: COMPANY_SHUTDOWN_MESSAGES[booking.code],
+          code: booking.code,
+        });
+      }
       return reply.status(201).send({ ...shutdown, booking: booking.counts });
     },
   );

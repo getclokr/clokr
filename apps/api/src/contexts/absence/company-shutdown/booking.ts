@@ -42,8 +42,24 @@ import {
   todayInTz,
   updateOvertimeAccount,
 } from "../../working-time-account";
+import { getWorkedEntriesInRange } from "../../time-tracking";
 import { findClosedMonthsInRange } from "../closed-month-guard";
-import { createLeaveRequestCore, notifyLeaveRequestApprovers } from "../leave-request-create";
+import { EFFECTIVE_LEAVE_STATUSES } from "../effective-leave-statuses";
+import { ensureLeaveType } from "../ensure-leave-type";
+import { getAbsencesOverlapping } from "../facade/absences";
+import { getVacationBalance } from "../facade/vacation-balance";
+import {
+  REGULAR_ENTITLEMENT_REASON_LEAVE_REQUEST,
+  daysDiffer,
+  ensureRegularVacationEntitlement,
+  getHolidayMap,
+  resolveLeaveDays,
+} from "../leave-days";
+import {
+  autoCarryOver,
+  createLeaveRequestCore,
+  notifyLeaveRequestApprovers,
+} from "../leave-request-create";
 import {
   approveLeaveRequestCore,
   leaveDecisionGuard,
@@ -52,7 +68,9 @@ import {
 } from "../leave-decision";
 import { absenceTypeFields } from "../leave-type";
 import {
+  COMPANY_SHUTDOWN_BOOKING_RUNNING,
   COMPANY_SHUTDOWN_TRIGGER,
+  companyShutdownLockName,
   limitExceptionReasonFor,
   type COMPANY_SHUTDOWN_BOOKED,
 } from "./constants";
@@ -62,6 +80,9 @@ import {
 const BOOKED_ACTION: typeof COMPANY_SHUTDOWN_BOOKED = "COMPANY_SHUTDOWN_BOOKED";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ONE_AND_HALF_MS_NS = 1_500_000n;
+
+/** How long one run may pin its lock connection (a run is many short transactions). */
+const BOOKING_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Who triggers a booking and how far they reach (D-06). Built once per request. */
 export type ShutdownActor = {
@@ -108,7 +129,9 @@ export function emptyBookingCounts(): ShutdownBookingCounts {
   };
 }
 
-export type BookOutcome = { ok: true; counts: ShutdownBookingCounts };
+export type BookOutcome =
+  | { ok: true; counts: ShutdownBookingCounts }
+  | { ok: false; code: typeof COMPANY_SHUTDOWN_BOOKING_RUNNING };
 
 /**
  * The actor of a booking, from the authenticated request: the same three reach resolutions the
@@ -165,6 +188,58 @@ function bump(record: Record<string, number>, key: string): void {
   record[key] = (record[key] ?? 0) + 1;
 }
 
+/**
+ * D-11: another ACTIVE Betriebsurlaub of the tenant that shares a day with `[start, end]`
+ * (`YYYY-MM-DD`, inclusive), or null. A day belongs to at most one shutdown, so one person never
+ * gets two absences or two Urlaub attempts for one day. `excludeId` is the shutdown being edited.
+ */
+export async function findOverlappingShutdown(
+  app: FastifyInstance,
+  tenantId: string,
+  start: string,
+  end: string,
+  excludeId?: string,
+): Promise<{ id: string } | null> {
+  return app.prisma.companyShutdown.findFirst({
+    where: {
+      tenantId,
+      deletedAt: null,
+      startDate: { lte: new Date(end) },
+      endDate: { gte: new Date(start) },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+}
+
+/** Every `YYYY-MM-DD` of the inclusive range `[start, end]`. */
+function eachDay(start: string, end: string): string[] {
+  const days: string[] = [];
+  for (let cursor = Date.parse(start); cursor <= Date.parse(end); cursor += DAY_MS) {
+    days.push(dayOf(new Date(cursor)));
+  }
+  return days;
+}
+
+/** Splits an ascending day list into runs of consecutive calendar days. */
+function contiguousRuns(days: readonly string[]): string[][] {
+  const runs: string[][] = [];
+  for (const day of days) {
+    const run = runs[runs.length - 1];
+    if (run && Date.parse(day) - Date.parse(run[run.length - 1]) === DAY_MS) run.push(day);
+    else runs.push([day]);
+  }
+  return runs;
+}
+
+/**
+ * Runs the booking of one Betriebsurlaub. One run per shutdown at a time (D-19): the lock is a
+ * transaction-scoped advisory lock held on a connection PINNED by this outer transaction for the
+ * whole run, while the run's own queries go through the pool (the pattern of
+ * `utils/with-advisory-lock.ts`: a session-level unlock could reach another pooled connection and
+ * leak the lock). A route-triggered run uses the try-lock and answers
+ * COMPANY_SHUTDOWN_BOOKING_RUNNING when another run holds it; a hire run waits.
+ */
 export async function bookCompanyShutdown(
   app: FastifyInstance,
   input: {
@@ -174,16 +249,49 @@ export async function bookCompanyShutdown(
     /** Narrows the run to these persons (later hire, exception removal); absent = everybody affected. */
     employeeIds?: readonly string[];
     request: AuditRequestMeta;
+    /** `try` (default): refuse while another run holds the lock. `wait`: queue behind it. */
+    lock?: "try" | "wait";
   },
 ): Promise<BookOutcome> {
+  const name = companyShutdownLockName(input.shutdownId);
+  return app.prisma.$transaction(
+    async (lockTx) => {
+      if (input.lock === "wait") {
+        await lockTx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${name}, 0))`;
+      } else {
+        const rows = await lockTx.$queryRaw<
+          Array<{ acquired: boolean }>
+        >`SELECT pg_try_advisory_xact_lock(hashtextextended(${name}, 0)) AS acquired`;
+        if (rows[0]?.acquired !== true) {
+          return { ok: false, code: COMPANY_SHUTDOWN_BOOKING_RUNNING } as const;
+        }
+      }
+      return { ok: true, counts: await runBooking(app, input) } as const;
+    },
+    { timeout: BOOKING_RUN_TIMEOUT_MS },
+  );
+}
+
+async function runBooking(
+  app: FastifyInstance,
+  input: {
+    tenantId: string;
+    shutdownId: string;
+    actor: ShutdownActor;
+    employeeIds?: readonly string[];
+    request: AuditRequestMeta;
+  },
+): Promise<ShutdownBookingCounts> {
   const { tenantId, actor } = input;
   const counts = emptyBookingCounts();
 
+  // Re-read after the lock: a run that waited behind a delete finds nothing to do.
   const shutdown = await app.prisma.companyShutdown.findFirst({
     where: { id: input.shutdownId, tenantId, deletedAt: null },
     include: { exceptions: { select: { employeeId: true } } },
   });
-  if (!shutdown) return { ok: true, counts };
+  if (!shutdown) return counts;
+  const shutdownId = shutdown.id;
 
   const tz = await getTenantTimezone(app.prisma, tenantId);
   const startDay = dayOf(shutdown.startDate);
@@ -192,6 +300,9 @@ export async function bookCompanyShutdown(
   const today = todayInTz(tz);
   const currentMonthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
   const limitReason = limitExceptionReasonFor(shutdown);
+  const leaveTypeId = shutdown.deductsFromVacation
+    ? await ensureLeaveType(app.prisma, app.log, tenantId, "VACATION")
+    : null;
 
   // D-01: affected = employed on a day of the shutdown (the #613 population), tenant-local days.
   const population = await app.prisma.employee.findMany({
@@ -207,6 +318,163 @@ export async function bookCompanyShutdown(
   const refreshEmployeeIds = new Set<string>();
   const touchedEmployeeIds: string[] = [];
 
+  /**
+   * The days of the segment that no other leave, recorded work or non-Berufsschule absence holds
+   * (D-03), and whether the person has any such other occupation (D-15). Requests generated by this
+   * very shutdown hold their days too, but are no "existing" leave.
+   */
+  async function freeDaysOf(
+    personId: string,
+    segment: { start: string; end: string },
+  ): Promise<{ free: string[]; hasExisting: boolean }> {
+    const from = new Date(segment.start);
+    const to = new Date(segment.end);
+    const occupied = new Set<string>();
+    let hasExisting = false;
+    const blocking = await app.prisma.leaveRequest.findMany({
+      where: {
+        employeeId: personId,
+        employee: { tenantId },
+        deletedAt: null,
+        status: { in: ["PENDING", ...EFFECTIVE_LEAVE_STATUSES] },
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      select: { startDate: true, endDate: true, companyShutdownId: true },
+    });
+    for (const request of blocking) {
+      if (request.companyShutdownId !== shutdownId) hasExisting = true;
+      for (const day of eachDay(dayOf(request.startDate), dayOf(request.endDate))) {
+        occupied.add(day);
+      }
+    }
+    const worked = await getWorkedEntriesInRange(
+      app.prisma,
+      { kind: "employee", employeeId: personId, tenantId },
+      from,
+      to,
+    );
+    for (const entry of worked) {
+      hasExisting = true;
+      occupied.add(dayOf(entry.date));
+    }
+    const absences = await getAbsencesOverlapping(
+      app.prisma,
+      { kind: "employee", employeeId: personId, tenantId },
+      from,
+      to,
+    );
+    for (const absence of absences) {
+      if (absence.type === "VOCATIONAL_SCHOOL" || absence.type === "COMPANY_SHUTDOWN") continue;
+      hasExisting = true;
+      for (const day of eachDay(dayOf(absence.startDate), dayOf(absence.endDate))) {
+        occupied.add(day);
+      }
+    }
+    return {
+      free: eachDay(segment.start, segment.end).filter((day) => !occupied.has(day)),
+      hasExisting,
+    };
+  }
+
+  /** The price of a whole-day VACATION request over the range, from the one pricing function. */
+  async function priceOf(personId: string, start: string, end: string) {
+    const holidays = new Set(
+      (await getHolidayMap(app.prisma, tenantId, personId, new Date(start), new Date(end))).keys(),
+    );
+    return resolveLeaveDays(
+      app.prisma,
+      personId,
+      tenantId,
+      new Date(start),
+      new Date(end),
+      false,
+      holidays,
+      { mode: "request", leaveTypeCode: "VACATION" },
+    );
+  }
+
+  /**
+   * Creates the request through the create core and approves it only inside the actor's approve
+   * reach (never the own request). Returns the stored price on success, `null` when the core
+   * refused (counted by its reason).
+   */
+  async function createAndApprove(
+    personId: string,
+    own: boolean,
+    range: { start: string; end: string },
+    willApprove: boolean,
+  ): Promise<boolean> {
+    const created = await createLeaveRequestCore(
+      app,
+      {
+        tenantId,
+        employeeId: personId,
+        actorUserId: actor.userId,
+        body: { type: "VACATION", startDate: range.start, endDate: range.end, halfDay: false },
+        isOnBehalfOf: !own,
+        auditExtra: { trigger: COMPANY_SHUTDOWN_TRIGGER, companyShutdownId: shutdownId },
+        notifyApprovers: !willApprove,
+        employerOrdered: true,
+      },
+      {
+        inTransaction: async (tx: Prisma.TransactionClient, row: { id: string }) => {
+          await tx.leaveRequest.updateMany({
+            where: { id: row.id, employee: { tenantId } },
+            data: { companyShutdownId: shutdownId },
+          });
+        },
+      },
+    );
+    if (!created.ok) {
+      bump(counts.refused, created.reason);
+      return false;
+    }
+    // D-835-27: the next create of this run must be stamped strictly after this row's createdAt.
+    await waitOneTick(process.hrtime.bigint());
+
+    if (!willApprove) {
+      counts.vacationPending += 1;
+      return true;
+    }
+    const existing = await loadLeaveRequestForReview(app, created.request.id);
+    const guard = existing
+      ? await leaveDecisionGuard(app, { existing, reviewerUserId: actor.userId })
+      : null;
+    const decided =
+      existing && !guard
+        ? await approveLeaveRequestCore(app, {
+            existing,
+            reviewerUserId: actor.userId,
+            // D-07: a staffing limit cannot apply while the business is closed - an explicit,
+            // audited exception, not a skipped check.
+            limitException: { reason: limitReason },
+            // The stored balance is refreshed once per person after the run.
+            deferOvertimeRecompute: true,
+            request: input.request,
+          })
+        : null;
+    if (decided?.ok) {
+      counts.vacationApproved += 1;
+      if (new Date(range.start).getTime() <= currentMonthEnd.getTime()) {
+        refreshEmployeeIds.add(personId);
+      }
+    } else {
+      // Stays PENDING for another approver; they are told, exactly like for any request.
+      counts.vacationPending += 1;
+      const reason = guard?.reason ?? (decided && !decided.ok ? decided.reason : "NOT_DECIDABLE");
+      bump(counts.refused, `APPROVAL_${reason}`);
+      await notifyLeaveRequestApprovers(app, {
+        tenantId,
+        request: created.request,
+        typeCode: "VACATION",
+        startDay: range.start,
+        endDay: range.end,
+      });
+    }
+    return true;
+  }
+
   for (const person of population) {
     if (excepted.has(person.id)) continue;
     const hireDay = dateStrInTz(person.hireDate, tz);
@@ -216,6 +484,11 @@ export async function bookCompanyShutdown(
     if (from > to) continue;
     counts.persons += 1;
     const own = actor.employeeId === person.id;
+    // What the person's free days cost in total and how much of it was charged as Urlaub.
+    let pricedFreeDays = 0;
+    let chargedDays = 0;
+    let booked = false;
+    let existingLeave = false;
 
     for (const segment of splitByMonth(from, to)) {
       const segmentStart = new Date(segment.start);
@@ -308,9 +581,10 @@ export async function bookCompanyShutdown(
         }
       });
       counts.absencesWritten += 1;
+      booked = true;
       touchedEmployeeIds.push(person.id);
 
-      if (!shutdown.deductsFromVacation) continue;
+      if (!shutdown.deductsFromVacation || leaveTypeId === null) continue;
 
       // D-06: a request is created only inside the actor's create reach.
       const mayCreate = own
@@ -326,85 +600,89 @@ export async function bookCompanyShutdown(
         counts.outsideCreateReach += 1;
         continue;
       }
-      const willApprove =
-        !own &&
-        (await isStammsalonScopeMatch(
+
+      // D-03: only the free days are candidates for Urlaub, run by run, oldest first.
+      const { free, hasExisting } = await freeDaysOf(person.id, segment);
+      if (hasExisting) existingLeave = true;
+      const year = segmentStart.getUTCFullYear();
+      let yearExhausted = false;
+
+      for (const run of contiguousRuns(free)) {
+        const runStart = run[0];
+        const runEnd = run[run.length - 1];
+        const full = await priceOf(person.id, runStart, runEnd);
+        pricedFreeDays += full.days;
+        // Nothing chargeable at all (holidays, days off): no request. A run of Berufsschultage only
+        // still goes to the core, which refuses it by its own rule (BS_ONLY).
+        if (full.days <= 0 && !full.vocationalSchoolOnly) continue;
+        if (yearExhausted) continue;
+
+        // D-04: the same preparations the create core runs, then the one Resturlaub function.
+        await autoCarryOver(app.prisma, tenantId, person.id, leaveTypeId, year);
+        await ensureRegularVacationEntitlement(
           app.prisma,
-          tenantId,
-          actor.approveReach,
           person.id,
-          segmentStart,
-        ));
-
-      const created = await createLeaveRequestCore(
-        app,
-        {
           tenantId,
-          employeeId: person.id,
-          actorUserId: actor.userId,
-          body: {
-            type: "VACATION",
-            startDate: segment.start,
-            endDate: segment.end,
-            halfDay: false,
-          },
-          isOnBehalfOf: !own,
-          auditExtra: { trigger: COMPANY_SHUTDOWN_TRIGGER, companyShutdownId: shutdown.id },
-          notifyApprovers: !willApprove,
-          employerOrdered: true,
-        },
-        {
-          inTransaction: async (tx: Prisma.TransactionClient, row: { id: string }) => {
-            await tx.leaveRequest.updateMany({
-              where: { id: row.id, employee: { tenantId } },
-              data: { companyShutdownId: shutdown.id },
-            });
-          },
-        },
-      );
-      if (!created.ok) {
-        bump(counts.refused, created.reason);
-        continue;
-      }
-      // D-835-27: the next create of this run must be stamped strictly after this row's createdAt.
-      await waitOneTick(process.hrtime.bigint());
-
-      if (!willApprove) {
-        counts.vacationPending += 1;
-        continue;
-      }
-      const existing = await loadLeaveRequestForReview(app, created.request.id);
-      const guard = existing
-        ? await leaveDecisionGuard(app, { existing, reviewerUserId: actor.userId })
-        : null;
-      const decided =
-        existing && !guard
-          ? await approveLeaveRequestCore(app, {
-              existing,
-              reviewerUserId: actor.userId,
-              // D-07: a staffing limit cannot apply while the business is closed - an explicit,
-              // audited exception, not a skipped check.
-              limitException: { reason: limitReason },
-              // The stored balance is refreshed once per person after the run.
-              deferOvertimeRecompute: true,
-              request: input.request,
-            })
-          : null;
-      if (decided?.ok) {
-        counts.vacationApproved += 1;
-        if (segmentStart.getTime() <= currentMonthEnd.getTime()) refreshEmployeeIds.add(person.id);
-      } else {
-        // Stays PENDING for another approver; they are told, exactly like for any request.
-        counts.vacationPending += 1;
-        const reason = guard?.reason ?? (decided && !decided.ok ? decided.reason : "NOT_DECIDABLE");
-        bump(counts.refused, `APPROVAL_${reason}`);
-        await notifyLeaveRequestApprovers(app, {
+          year,
+          leaveTypeId,
+          REGULAR_ENTITLEMENT_REASON_LEAVE_REQUEST,
+        );
+        const balance = await getVacationBalance(
+          app.prisma,
+          person.id,
           tenantId,
-          request: created.request,
-          typeCode: "VACATION",
-          startDay: segment.start,
-          endDay: segment.end,
-        });
+          year,
+          new Date(runStart),
+        );
+        const allowance = balance ? balance.remainingDays - balance.pendingDays : 0;
+        const fits = (price: number) => price < allowance || !daysDiffer(price, allowance);
+
+        let chargeEnd: string | null = null;
+        let charged = full.days;
+        if (fits(full.days)) {
+          chargeEnd = runEnd;
+        } else {
+          // The longest prefix whose price fits, whole days only; the rest stays paid release and
+          // so does every later run of this year.
+          yearExhausted = true;
+          for (let k = run.length - 2; k >= 0; k--) {
+            const prefix = await priceOf(person.id, runStart, run[k]);
+            if (prefix.days > 0 && fits(prefix.days)) {
+              chargeEnd = run[k];
+              charged = prefix.days;
+              break;
+            }
+          }
+        }
+        if (chargeEnd === null) continue;
+
+        const willApprove =
+          !own &&
+          (await isStammsalonScopeMatch(
+            app.prisma,
+            tenantId,
+            actor.approveReach,
+            person.id,
+            new Date(runStart),
+          ));
+        const requested = await createAndApprove(
+          person.id,
+          own,
+          { start: runStart, end: chargeEnd },
+          willApprove,
+        );
+        if (requested) chargedDays += charged;
+      }
+    }
+
+    if (existingLeave) counts.existingLeavePersons += 1;
+    if (!booked) continue;
+    if (!shutdown.deductsFromVacation) {
+      counts.paidReleaseOnly += 1;
+    } else if (pricedFreeDays > 0) {
+      if (chargedDays <= 0) counts.paidReleaseOnly += 1;
+      else if (daysDiffer(chargedDays, pricedFreeDays) && chargedDays < pricedFreeDays) {
+        counts.partlyPaidRelease += 1;
       }
     }
   }
@@ -430,5 +708,5 @@ export async function bookCompanyShutdown(
     request: input.request,
   });
 
-  return { ok: true, counts };
+  return counts;
 }
