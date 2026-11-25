@@ -658,8 +658,8 @@ schlägt fehl, wenn er oder ein Rollenvergleich zurückkommt (D-19).
 | `composition/reports-period.ts:1071`                       | `GET /period/csv`                               | A, M    | `report:export`                | ZUGEWIESEN                                   |
 | `composition/tasks-open.ts:56`                             | `GET /tasks/open`                               | A, M    | `time-entry:read`              | ZUGEWIESEN                                   |
 | `composition/salon-hours.ts:369`                           | `GET /`                                         | A, M    | `team-overview:read`           | ZUGEWIESEN                                   |
-| `composition/salon-hours.ts:399`                           | `GET /csv`                                      | A       | `team-overview:read`           | ZUGEWIESEN                                   |
-| `composition/salon-hours.ts:400`                           | `GET /csv`                                      | A       | `report:export`                | ZUGEWIESEN                                   |
+| `composition/salon-hours.ts:399`                           | `GET /csv`                                      | A, M    | `team-overview:read`           | ZUGEWIESEN                                   |
+| `composition/salon-hours.ts:400`                           | `GET /csv`                                      | A, M    | `report:export`                | ZUGEWIESEN                                   |
 | `contexts/absence/api/company-shutdowns.ts:65`             | `POST /`                                        | A       | `company-shutdown:manage`      | ZUGEWIESEN                                   |
 | `contexts/absence/api/company-shutdowns.ts:130`            | `PATCH /:id`                                    | A       | `company-shutdown:manage`      | ZUGEWIESEN                                   |
 | `contexts/absence/api/company-shutdowns.ts:235`            | `DELETE /:id`                                   | A       | `company-shutdown:manage`      | ZUGEWIESEN                                   |
