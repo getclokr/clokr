@@ -62,18 +62,34 @@ Ohne einen dokumentierten Hinweis verfällt Urlaub nicht von allein. Ist die Fri
 
 ## Betriebsurlaub
 
-Auf dem Reiter **Betriebsurlaub** hältst du Zeiträume fest, in denen der ganze Betrieb geschlossen hat, etwa eine Weihnachtsschließung.
-
-::: warning Achtung
-Clokr merkt sich einen Betriebsurlaub mit allen Angaben und zeigt ihn an, rechnet ihn aber noch nicht automatisch ab: Weder das Urlaubskonto noch das Stundenkonto ändert sich dadurch. Die automatische Verrechnung wird gerade gebaut. Bis sie da ist, verrechnest du die Schließung für die betroffenen Personen selbst und prüfst Urlaubskonto und Stundenkonto danach.
-:::
+Auf dem Reiter **Betriebsurlaub** hältst du Zeiträume fest, in denen der ganze Betrieb geschlossen hat, etwa eine Weihnachtsschließung. Ein Betriebsurlaub gilt für alle Mitarbeitenden des Unternehmens, die in dieser Zeit beschäftigt sind, außer für die Personen auf der Ausnahmeliste.
 
 1. Wähle oben das **Jahr** und klicke auf **Betriebsurlaub anlegen**.
 2. Trage **Bezeichnung**, **Startdatum** und **Enddatum** ein.
-3. Mit **Vom Urlaubskonto abziehen** hältst du fest, ob die Schließung den Jahresurlaub belasten soll. Die Einstellung wird gespeichert und wirkt, sobald die automatische Verrechnung da ist. Optional schreibst du eine interne **Notiz**.
-4. Speichere.
+3. Mit **Vom Urlaubskonto abziehen** legst du fest, ob die Schließung Urlaub verbraucht. Die Einstellung ist standardmäßig an. Optional schreibst du eine interne **Notiz**.
+4. Klicke auf **Anlegen**. Clokr bucht den Betriebsurlaub sofort und zeigt dir danach, was gebucht wurde.
 
-Ein Klick auf einen Betriebsurlaub öffnet seine Seite. Dort änderst du ihn mit **Betriebsurlaub speichern** oder löschst ihn. Unter **Ausnahmen** hältst du einzelne Personen fest, die von der Schließung ausgenommen sind, zum Beispiel wegen Notdienst: Klicke auf **Ausnahme hinzufügen**, wähle die Person und nenne optional einen **Grund**. Auch die Ausnahmen werden gespeichert und wirken erst mit der automatischen Verrechnung.
+### Was gebucht wird
+
+- **Mit Urlaubsabzug** bucht Clokr für jede betroffene Person Urlaub für ihre freien Arbeitstage in der Schließung, soweit Resturlaub da ist. Das Protokoll hält fest, dass der Betriebsurlaub die Anträge ausgelöst hat. Dein eigener Antrag und Anträge von Personen außerhalb deiner Genehmigungsreichweite werden nicht von dir genehmigt: Diese Anträge warten unter **Aufgaben** auf eine zweite Person.
+- **Reicht der Resturlaub nicht**, bucht Clokr nur die Tage, die noch zur Verfügung stehen, der Reihe nach und nur gegen das Jahr, in dem der Tag liegt. Die übrigen Tage sind bezahlte Freistellung: Das Urlaubskonto wird nie negativ und es entsteht kein Minus auf dem Stundenkonto.
+- **Ohne Urlaubsabzug** sind alle Tage der Schließung bezahlte Freistellung. Die Tage mindern die Sollzeit wie ein Feiertag, verbrauchen aber keinen Urlaub.
+- **Bereits vorhandene Anträge** in dieser Zeit ändert Clokr nicht. Tage mit Urlaub, Krankheit oder gearbeiteter Zeit werden nicht noch einmal belastet.
+- **Feiertage und Berufsschultage** zählen nur einmal: Ein Feiertag bleibt Feiertag, ein Berufsschultag bleibt Berufsschule.
+- **Abgeschlossene Monate** ändert Clokr nie. Eine Korrektur dort machst du über eine Monatskorrektur.
+- **Neue Mitarbeitende**, die später angelegt werden und in der Schließung beschäftigt sind, bekommen den Betriebsurlaub beim Anlegen gebucht.
+
+Ein Klick auf einen Betriebsurlaub öffnet seine Seite. Dort änderst du ihn mit **Betriebsurlaub speichern** oder löschst ihn. Ändern sich Zeitraum oder Urlaubsabzug, bucht Clokr die offenen Monate neu: Die bisherigen Anträge werden storniert, der Urlaub ist zurückgebucht, danach wird neu gebucht. Beim Löschen werden die gebuchten Tage der offenen Monate storniert. Der Betriebsurlaub verschwindet danach aus der Liste.
+
+Unter **Ausnahmen** hältst du einzelne Personen fest, die von der Schließung ausgenommen sind, zum Beispiel wegen Notdienst: Klicke auf **Ausnahme hinzufügen**, wähle die Person und nenne optional einen **Grund**. Die Person arbeitet normal und behält ihre Sollzeit. Schon gebuchte Tage in offenen Monaten werden storniert. Entfernst du die Ausnahme wieder, bucht Clokr den Betriebsurlaub für die Person neu.
+
+::: info Gut zu wissen
+
+- Hat eine Person einen halben Tag Urlaub an einem Tag der Schließung, bleibt dieser Tag bei ihrem Antrag. Die andere Hälfte wird nicht als Freistellung gebucht.
+- Ein früher genehmigter Urlaub in der Schließungszeit wird nicht automatisch zurückgebucht, auch wenn der Betriebsurlaub keinen Urlaubsabzug hat. Korrigiere ihn bei Bedarf am Antrag.
+- Ändert sich das Eintrittsdatum einer Person nachträglich, bucht Clokr den Betriebsurlaub nicht neu.
+- Zwei Betriebsurlaube dürfen sich nicht überschneiden.
+  :::
 
 ## Urlaubsgrenzen & Sperren
 

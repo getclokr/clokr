@@ -65,6 +65,7 @@ export const LEAVE_TYPE_LABELS = {
   PARENTAL: "Elternzeit",
   VOCATIONAL_SCHOOL: "Berufsschule",
   OTHER: "Sonstiges",
+  COMPANY_SHUTDOWN: "Betriebsurlaub",
 } as const;
 
 /** `AbsenceSource`. */

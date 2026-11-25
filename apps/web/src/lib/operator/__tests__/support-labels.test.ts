@@ -70,6 +70,7 @@ const ENUMS: Array<[string, Readonly<Record<string, string>>, string[]]> = [
       "PARENTAL",
       "VOCATIONAL_SCHOOL",
       "OTHER",
+      "COMPANY_SHUTDOWN",
     ],
   ],
   // enum AbsenceSource

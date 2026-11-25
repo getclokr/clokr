@@ -26,4 +26,4 @@ The site is rendered by the workspace package `apps/docs` (VitePress, exact vers
 
 The Handbuch describes only what the app does. Where the UI promises more than the code delivers, the Handbuch says so neutrally and the gap is tracked here.
 
-- **Betriebsurlaub does not deduct anything** ([#1069](https://github.com/getclokr/clokr/issues/1069)). `CompanyShutdown.deductsFromVacation` and `CompanyShutdownException` are stored and shown (`contexts/absence/api/company-shutdowns.ts`, read for display by `leave-plan/planner-read.ts`), but nothing books leave days or lowers the Soll, although the UI says „Zieht vom Urlaubskonto ab“. The Handbuch page [Abwesenheiten und Urlaub](../handbuch/verwalten/abwesenheiten-und-urlaub.md) states that the setting is recorded and the automatic deduction is being built. When #1069 ships, update that page and remove this entry.
+None at the moment. When a page of the app promises more than the code delivers, list it here and let the Handbuch say so neutrally until it is fixed.
