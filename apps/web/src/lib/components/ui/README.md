@@ -390,7 +390,7 @@ Usage:
 
 Source: `$components/ui/PeriodPicker.svelte`
 
-Issue #843 (D-843-01 block 2): the one period control. Controlled: prev / label / next with 44 px targets, optional „Heute“, optional zoom Segment (`zooms` in display order from `jahr`, `quartal`, `monat`, `woche`; shown from two levels on, `zoom` bindable, `onZoom`). It emits the legacy `.month-bar` DOM and the `{prefix}`, `{prefix}-prev|next|today|label` test ids; `MonthBar` and `PeriodSwitcher` render it and keep their props. `aside` takes content that is not the period (MonthBar's stats), `extra` trailing actions of the nav row, `onLabelClick` + `labelOverlay` turn the label into a button with an overlay (MonthBar's month grid).
+Issue #843 (D-843-01 block 2): the one period control. Controlled: prev / label / next with 44 px targets, optional „Heute“, optional zoom Segment (`zooms` in display order from `jahr`, `quartal`, `monat`, `woche`; shown from two levels on, `zoom` bindable, `onZoom`). It emits the legacy `.month-bar` DOM and the `{prefix}`, `{prefix}-prev|next|today|label` test ids; `MonthBar` and `PeriodSwitcher` render it and keep their props. `aside` takes content that is not the period (MonthBar's stats), `extra` trailing actions of the nav row, `onLabelClick` + `labelOverlay` turn the label into a button with an overlay (MonthBar's month grid). Up to 640 px „Heute“ and the `extra` slot share one row under the arrows (below 361 px the slot gets its own row again, Issue #991).
 
 ```ts
 interface Props {
@@ -398,6 +398,7 @@ interface Props {
   onPrev: () => void;
   onNext: () => void;
   onToday?: () => void;
+  todayLabel?: string; // default "Heute"; PeriodSwitcher passes "Dieses Jahr" on a year control (Issue #991)
   prevLabel?: string; // default "Vorheriger Zeitraum"
   nextLabel?: string; // default "Nächster Zeitraum"
   nextDisabled?: boolean;
@@ -413,7 +414,7 @@ interface Props {
 
 Source: `$components/ui/PeriodSwitcher.svelte`
 
-Phase 840 (Issue #840, D-840-13): one period control for all leave views; a wrapper around PeriodPicker (Issue #843), no new recipe. It renders ‹ label › Heute for a year, a quarter or a month and emits no markup or class of its own, so every `.month-bar` rule and the narrow-viewport proofs (Issue #553/#564) apply unchanged.
+Phase 840 (Issue #840, D-840-13): one period control for all leave views; a wrapper around PeriodPicker (Issue #843), no new recipe. It renders ‹ label › Heute for a quarter or a month („Dieses Jahr“ for a year, Issue #991) and emits no markup or class of its own, so every `.month-bar` rule and the narrow-viewport proofs (Issue #553/#564) apply unchanged.
 
 ```ts
 interface Props {

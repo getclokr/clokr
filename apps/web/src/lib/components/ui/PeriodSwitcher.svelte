@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * PeriodSwitcher — Issue #840 (D-840-13/31). The ONE period control of every absence view:
-   * ‹ label › Heute for a year, a quarter or a month. A thin wrapper around the `PeriodPicker`
+   * ‹ label › Heute for a year, a quarter or a month (a year reads „Dieses Jahr“, Issue #991 M-20). A thin wrapper around the `PeriodPicker`
    * block (Issue #843) that emits no markup or class of its own, so the `.month-bar`
    * narrow-viewport proofs (Issue #553/#564) stay valid for it.
    */
@@ -36,4 +36,5 @@
   onPrev={() => onShift(-1)}
   onNext={() => onShift(1)}
   {onToday}
+  todayLabel={period.zoom === "jahr" ? "Dieses Jahr" : undefined}
 />
