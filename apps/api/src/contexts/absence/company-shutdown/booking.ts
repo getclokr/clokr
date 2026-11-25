@@ -36,6 +36,7 @@ import type { Prisma } from "@clokr/db";
 import {
   accessContextFromRequest,
   hasPermission,
+  homeSalonsForDays,
   isStammsalonScopeMatch,
   reportPopulationWhere,
   resolveAccessReach,
@@ -79,6 +80,11 @@ import {
   type LeaveCancellationAuditPort,
   type LeaveCancellationMarker,
 } from "../leave-cancellation";
+import {
+  shutdownAffectedRuns,
+  shutdownBookingSegments,
+  shutdownScopesConflict,
+} from "./affected-days";
 import {
   COMPANY_SHUTDOWN_BOOKING_RUNNING,
   COMPANY_SHUTDOWN_REVERSED_TRIGGER,
@@ -178,19 +184,6 @@ function calendarDays(start: string, end: string): number {
   return Math.round((Date.parse(end) - Date.parse(start)) / DAY_MS) + 1;
 }
 
-/** Splits `[from, to]` (`YYYY-MM-DD`, inclusive) at calendar month boundaries. */
-function splitByMonth(from: string, to: string): Array<{ start: string; end: string }> {
-  const segments: Array<{ start: string; end: string }> = [];
-  let cursor = from;
-  while (cursor <= to) {
-    const [year, month] = cursor.split("-").map(Number);
-    const lastOfMonth = dayOf(new Date(Date.UTC(year, month, 0)));
-    segments.push({ start: cursor, end: lastOfMonth < to ? lastOfMonth : to });
-    cursor = dayOf(new Date(Date.UTC(year, month, 1)));
-  }
-  return segments;
-}
-
 /**
  * Resolves once at least 1.5 ms of MONOTONIC time have passed since `since`, so two creates of one
  * run carry strictly increasing `createdAt` (D-835-27: SHIFT_BASED sibling pricing sorts by it).
@@ -206,18 +199,21 @@ function bump(record: Record<string, number>, key: string): void {
 }
 
 /**
- * D-11: another ACTIVE Betriebsurlaub of the tenant that shares a day with `[start, end]`
- * (`YYYY-MM-DD`, inclusive), or null. A day belongs to at most one shutdown, so one person never
- * gets two absences or two Urlaub attempts for one day. `excludeId` is the shutdown being edited.
+ * D-05 (Issue #1079, revises #1069 D-11): another ACTIVE Betriebsurlaub of the tenant that shares a
+ * day with `[start, end]` (`YYYY-MM-DD`, inclusive) AND whose scope meets `salonIds` - either side
+ * has no salons (the whole Unternehmen) or the salon sets intersect - or null. Because a person has
+ * exactly one Stammsalon per day, disjoint scopes keep the invariant that one person never gets two
+ * absences or two Urlaub attempts for one day. `excludeId` is the shutdown being edited.
  */
 export async function findOverlappingShutdown(
   app: FastifyInstance,
   tenantId: string,
   start: string,
   end: string,
+  salonIds: readonly string[],
   excludeId?: string,
 ): Promise<{ id: string } | null> {
-  return app.prisma.companyShutdown.findFirst({
+  const candidates = await app.prisma.companyShutdown.findMany({
     where: {
       tenantId,
       deletedAt: null,
@@ -225,8 +221,25 @@ export async function findOverlappingShutdown(
       endDate: { gte: new Date(start) },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    select: { id: true },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      salons: { select: { salonId: true } },
+    },
+    orderBy: [{ startDate: "asc" }, { id: "asc" }],
   });
+  const hit = candidates.find((candidate) =>
+    shutdownScopesConflict(
+      { start, end, salonIds },
+      {
+        start: dayOf(candidate.startDate),
+        end: dayOf(candidate.endDate),
+        salonIds: candidate.salons.map((row) => row.salonId),
+      },
+    ),
+  );
+  return hit ? { id: hit.id } : null;
 }
 
 /** Every `YYYY-MM-DD` of the inclusive range `[start, end]`. */
@@ -324,10 +337,14 @@ async function runBooking(
   // Re-read after the lock: a run that waited behind a delete finds nothing to do.
   const shutdown = await app.prisma.companyShutdown.findFirst({
     where: { id: input.shutdownId, tenantId, deletedAt: null },
-    include: { exceptions: { select: { employeeId: true } } },
+    include: {
+      exceptions: { select: { employeeId: true } },
+      salons: { select: { salonId: true } },
+    },
   });
   if (!shutdown) return counts;
   const shutdownId = shutdown.id;
+  const salonIds = shutdown.salons.map((row) => row.salonId);
 
   const tz = await getTenantTimezone(app.prisma, tenantId);
   const startDay = dayOf(shutdown.startDate);
@@ -350,6 +367,19 @@ async function runBooking(
     select: { id: true, hireDate: true, exitDate: true },
     orderBy: [{ id: "asc" }],
   });
+
+  // D-02 (Issue #1079): a salon-scoped Betriebsurlaub affects a person on the days whose Stammsalon
+  // (HOME assignment of that tenant-local day) is a named salon - one batched read for everybody.
+  const homeSalonDays =
+    salonIds.length > 0
+      ? await homeSalonsForDays(
+          app.prisma,
+          tenantId,
+          population.map((person) => person.id),
+          startDay,
+          endDay,
+        )
+      : null;
 
   const refreshEmployeeIds = new Set<string>();
   const touchedEmployeeIds: string[] = [];
@@ -517,8 +547,16 @@ async function runBooking(
     const exitDay = person.exitDate ? dateStrInTz(person.exitDate, tz) : null;
     const from = hireDay > startDay ? hireDay : startDay;
     const to = exitDay !== null && exitDay < endDay ? exitDay : endDay;
-    if (from > to) continue;
+    // The one rule of who is affected on which day (AC3): the pure `affected-days` module.
+    const runs = shutdownAffectedRuns({
+      from,
+      to,
+      salonIds,
+      homeSalonByDay: homeSalonDays?.get(person.id),
+    });
+    if (runs.length === 0) continue;
     counts.persons += 1;
+    const closedMonthsSeen = new Set<string>();
     const own = actor.employeeId === person.id;
     // What the person's free days cost in total and how much of it was charged as Urlaub.
     let pricedFreeDays = 0;
@@ -526,7 +564,7 @@ async function runBooking(
     let booked = false;
     let existingLeave = false;
 
-    for (const segment of splitByMonth(from, to)) {
+    for (const segment of shutdownBookingSegments(runs)) {
       const segmentStart = new Date(segment.start);
       const segmentEnd = new Date(segment.end);
 
@@ -539,7 +577,12 @@ async function runBooking(
         segmentEnd,
       );
       if (closed.length > 0) {
-        counts.skippedClosedMonths += 1;
+        // Counted once per (person, month): two runs in one closed month are one skipped month.
+        const monthKey = segment.start.slice(0, 7);
+        if (!closedMonthsSeen.has(monthKey)) {
+          closedMonthsSeen.add(monthKey);
+          counts.skippedClosedMonths += 1;
+        }
         continue;
       }
 

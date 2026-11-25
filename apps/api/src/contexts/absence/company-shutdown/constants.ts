@@ -33,15 +33,27 @@ export const REVERSAL_AUDIT_REASONS: Readonly<Record<ShutdownReversalReason, str
   EXCEPTION_ADDED: "Ausnahme vom Betriebsurlaub",
 };
 
-/** Two active Betriebsurlaube of one tenant may not overlap (409). */
+/**
+ * Two active Betriebsurlaube may not share a day while their scopes meet (409): either applies to
+ * the whole Unternehmen or they name a common salon (Issue #1079, D-05).
+ */
 export const COMPANY_SHUTDOWN_OVERLAP = "COMPANY_SHUTDOWN_OVERLAP";
+
+/**
+ * A Betriebsurlaub for the whole Unternehmen (no salon) needs a whole-tenant reach of
+ * `company-shutdown:manage` (403, Issue #1079, D-08).
+ */
+export const COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN = "COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN";
 
 /** Another booking run of the same Betriebsurlaub holds the lock (409). */
 export const COMPANY_SHUTDOWN_BOOKING_RUNNING = "COMPANY_SHUTDOWN_BOOKING_RUNNING";
 
 /** German texts of the refusal codes above - display only. */
 export const COMPANY_SHUTDOWN_MESSAGES: Readonly<Record<string, string>> = {
-  [COMPANY_SHUTDOWN_OVERLAP]: "Der Zeitraum überschneidet sich mit einem anderen Betriebsurlaub.",
+  [COMPANY_SHUTDOWN_OVERLAP]:
+    "Der Zeitraum überschneidet sich mit einem anderen Betriebsurlaub für dieselben Salons oder das ganze Unternehmen.",
+  [COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN]:
+    "Einen Betriebsurlaub für das ganze Unternehmen kann nur verwalten, wer für das ganze Unternehmen zuständig ist.",
   [COMPANY_SHUTDOWN_BOOKING_RUNNING]:
     "Für diesen Betriebsurlaub läuft gerade eine Buchung. Bitte versuche es gleich noch einmal.",
 };
