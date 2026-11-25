@@ -2,7 +2,7 @@
 // the year is a PeriodPicker, the status filter lives in the URL, the month list and the persons of a
 // month are tables, closing and unlocking are Dialogs with their unchanged rules, and a reader without
 // time-entry reach sees counts instead of dates.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
 const get = vi.fn();
@@ -39,7 +39,10 @@ import { renderWithTheme } from "$tests/test-utils";
 import { authStore } from "$stores/auth";
 import Page from "../routes/(app)/admin/month-close/+page.svelte";
 
-const YEAR = new Date().getFullYear();
+// Issue #1072: the page reads "today" as the tenant day, so the clock is fixed (Date only, the
+// waits keep real timers) and the year is a constant instead of the year the suite happens to run in.
+const YEAR = 2026;
+const FIXED_NOW = new Date("2026-06-15T10:00:00Z");
 
 const months = [
   { month: 1, name: "Januar", status: "closed", closedCount: 3, totalCount: 3 },
@@ -72,6 +75,8 @@ let detail: unknown[] = [];
 let deferred: unknown = { employeeCount: 0, employees: [], severity: "NONE" };
 
 function route(url: string): unknown {
+  // The page waits for the tenant zone (Issue #1072) through the tenant-features store.
+  if (url === "/settings/work") return { timezone: "Europe/Berlin" };
   if (url.startsWith("/overtime/close-month/year-status")) {
     return { year: YEAR, months, autoCloseDeadline: 10, earliestYear: YEAR - 1 };
   }
@@ -133,7 +138,13 @@ describe("Monatsabschluss page (#854)", () => {
     expect(within(detailEl).queryByRole("button", { name: "Entsperren" })).toBeNull();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(FIXED_NOW);
     get.mockReset();
     post.mockReset();
     success.mockReset();

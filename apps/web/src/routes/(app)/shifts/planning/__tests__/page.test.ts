@@ -57,7 +57,7 @@ vi.mock("$stores/auth", async () => {
   };
 });
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import PlanningOverviewPage from "../+page.svelte";
@@ -78,13 +78,33 @@ function response(weekStart: string, weekEnd: string, employees: PlanningRow[]) 
   return { weekStart, weekEnd, employees };
 }
 
+// Issue #1072: the page waits for the tenant zone, so the tenant-features store also reads
+// `/settings/work` (once per file: the store is a singleton). The planning answers are therefore
+// queued and served by URL, and the request count is the count of planning requests.
+let queue: unknown[] = [];
+let tenantZone = "Europe/Berlin";
+function planning(answer: unknown) {
+  queue.push(answer);
+}
+function planningCalls() {
+  return apiGet.mock.calls.filter((c) => String(c[0]).startsWith("/shifts/planning-overview"));
+}
+
 beforeEach(() => {
   apiGet.mockReset();
+  queue = [];
+  apiGet.mockImplementation(async (url: string) =>
+    url === "/settings/work" ? { timezone: tenantZone } : queue.shift(),
+  );
+});
+afterEach(() => {
+  vi.useRealTimers();
+  tenantZone = "Europe/Berlin";
 });
 
 describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
   it("renders the owner's table shape — Person/Vertrag/Urlaub/noch einzuplanen, no geplant/Differenz when absent", async () => {
-    apiGet.mockResolvedValueOnce(
+    planning(
       response("2031-02-03", "2031-02-09", [
         {
           employeeId: "emp-1",
@@ -110,7 +130,7 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
   });
 
   it("shows geplant/Differenz columns once at least one row carries them", async () => {
-    apiGet.mockResolvedValueOnce(
+    planning(
       response("2031-02-03", "2031-02-09", [
         {
           employeeId: "emp-1",
@@ -133,7 +153,7 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
   });
 
   it("no leave this week -> renders 0, not '0 ()'", async () => {
-    apiGet.mockResolvedValueOnce(
+    planning(
       response("2031-02-03", "2031-02-09", [
         {
           employeeId: "emp-2",
@@ -155,17 +175,19 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
   });
 
   it("the week picker's next-week arrow re-fetches with a weekStart 7 days later", async () => {
-    apiGet.mockResolvedValueOnce(response("2031-02-03", "2031-02-09", []));
+    planning(response("2031-02-03", "2031-02-09", []));
     renderWithTheme(PlanningOverviewPage, {});
-    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1));
-    const firstUrl = apiGet.mock.calls[0][0] as string;
-    const firstWeekStart = new URL(firstUrl, "http://localhost").searchParams.get("weekStart")!;
+    await waitFor(() => expect(planningCalls()).toHaveLength(1));
+    // The arrow pages from the week the server answered (it normalises the requested day), so wait
+    // until the page shows that answer before paging.
+    await waitFor(() => expect(screen.getByText("KW 6 · 3.–9. Feb.")).toBeTruthy());
+    const firstWeekStart = "2031-02-03";
 
-    apiGet.mockResolvedValueOnce(response("x", "y", []));
+    planning(response("x", "y", []));
     await fireEvent.click(screen.getByRole("button", { name: "Nächste Woche" }));
 
-    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2));
-    const secondUrl = apiGet.mock.calls[1][0] as string;
+    await waitFor(() => expect(planningCalls()).toHaveLength(2));
+    const secondUrl = planningCalls()[1][0] as string;
     const secondWeekStart = new URL(secondUrl, "http://localhost").searchParams.get("weekStart")!;
 
     const diffDays =
@@ -177,23 +199,23 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
 
   it("labels the server's Monday–Sunday week as „KW 45 · 2.–8. Nov.“, never start = end (Issues #849, #850)", async () => {
     // The client asked for a Sunday (the old UTC slip); the server normalises to the Monday.
-    apiGet.mockResolvedValueOnce(response("2026-11-02", "2026-11-08", []));
+    planning(response("2026-11-02", "2026-11-08", []));
     renderWithTheme(PlanningOverviewPage, {});
     await waitFor(() => expect(screen.getByText("KW 45 · 2.–8. Nov.")).toBeTruthy());
     expect(screen.queryByText(/2026-11-08/)).toBeNull();
   });
 
   it("a single-salon context sends no salonId with the request (Issue #558)", async () => {
-    apiGet.mockResolvedValueOnce(response("2031-02-03", "2031-02-09", []));
+    planning(response("2031-02-03", "2031-02-09", []));
     renderWithTheme(PlanningOverviewPage, {});
-    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1));
-    const url = new URL(apiGet.mock.calls[0][0] as string, "http://localhost");
+    await waitFor(() => expect(planningCalls()).toHaveLength(1));
+    const url = new URL(planningCalls()[0][0] as string, "http://localhost");
     expect(url.pathname).toBe("/shifts/planning-overview");
     expect(url.searchParams.has("salonId")).toBe(false);
   });
 
   it("empty scope renders the empty-state row", async () => {
-    apiGet.mockResolvedValueOnce(response("2031-02-03", "2031-02-09", []));
+    planning(response("2031-02-03", "2031-02-09", []));
     renderWithTheme(PlanningOverviewPage, {});
     await waitFor(() =>
       expect(
@@ -203,7 +225,7 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
   });
 
   it("sits under the roster tabs with its own tab current, as a block table with a caption (Issue #853)", async () => {
-    apiGet.mockResolvedValueOnce(
+    planning(
       response("2031-02-03", "2031-02-09", [
         {
           employeeId: "emp-1",
@@ -227,5 +249,26 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
     expect(screen.getByRole("table", { name: "Planungsbedarf der Woche" })).toBeTruthy();
     // The text-link pager is gone: the week is moved by the picker's arrows only.
     expect(screen.queryByText("Nächste Woche →")).toBeNull();
+  });
+
+  it("a cold store: the first request names the TENANT's week, and it is still one request (Issue #1072)", async () => {
+    // Monday 30.11. 04:00 in Berlin (the start-up zone), but still Sunday 29.11. 22:00 in New York.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-30T03:00:00Z"));
+    tenantZone = "America/New_York";
+    planning(response("2026-11-23", "2026-11-29", []));
+    // A fresh module graph: the singleton store has never read /settings/work.
+    vi.resetModules();
+    const fresh = await import("@testing-library/svelte");
+    const { renderWithTheme: freshRender } = await import("$tests/test-utils");
+    const Page = (await import("../+page.svelte")).default;
+    freshRender(Page, {});
+    await waitFor(() => expect(planningCalls()).toHaveLength(1));
+    const url = new URL(planningCalls()[0][0] as string, "http://localhost");
+    expect(url.searchParams.get("weekStart")).toBe("2026-11-23");
+    // The re-anchored week must not start a second request.
+    await new Promise((r) => setTimeout(r, 60));
+    expect(planningCalls()).toHaveLength(1);
+    fresh.cleanup();
   });
 });

@@ -40,37 +40,6 @@ export const TENANT_DAY_EXCEPTIONS: ReadonlyArray<TenantDayException> = [
   { file: "lib/operator/support-audit.ts", rule: "device-default-param", reason: OPERATOR_REASON },
   { file: "lib/operator/support-audit.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
   // Temporary migration entries, removed by the task that fixes the file.
-  { file: "lib/audit/list-url-state.ts", rule: "device-default-param", reason: migration(5) },
-  { file: "lib/audit/list-url-state.ts", rule: "now-calendar-field", reason: migration(5) },
-  {
-    file: "lib/components/admin/dienstplan/WeekPatternsPanel.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(5),
-  },
-  {
-    file: "routes/(app)/admin/export/+page.svelte",
-    rule: "now-calendar-field",
-    reason: migration(5),
-  },
-  {
-    file: "routes/(app)/admin/month-close/+page.svelte",
-    rule: "now-calendar-field",
-    reason: migration(5),
-  },
-  { file: "routes/(app)/admin/shifts/+page.svelte", rule: "utc-day-of-now", reason: migration(5) },
-  { file: "routes/(app)/reports/+page.svelte", rule: "now-calendar-field", reason: migration(5) },
-  {
-    file: "routes/(app)/shifts/+page.svelte",
-    rule: "day-helper-on-device-clock",
-    reason: migration(5),
-  },
-  {
-    file: "routes/(app)/shifts/planning/+page.svelte",
-    rule: "day-helper-on-device-clock",
-    reason: migration(5),
-  },
-  { file: "routes/(app)/verwalten/+page.svelte", rule: "format-device-day", reason: migration(5) },
-  { file: "routes/(app)/verwalten/+page.svelte", rule: "now-calendar-field", reason: migration(5) },
   {
     file: "lib/components/availability/AvailabilityEditModal.svelte",
     rule: "utc-day-of-now",

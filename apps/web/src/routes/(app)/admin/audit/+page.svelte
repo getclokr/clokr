@@ -33,9 +33,10 @@
     effectiveFilters,
     exportProblem,
     listUrlSchema,
-    localDay,
     periodProblem,
   } from "$lib/audit/list-url-state";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import RetentionSection from "$lib/components/admin/protokoll/RetentionSection.svelte";
   import Chip, { type ChipTone } from "$components/ui/Chip.svelte";
@@ -87,8 +88,9 @@
   // ── The filters: the URL is the state ──
   const listUrl = urlState(listUrlSchema);
   const urlFilters = $derived(listUrl.read());
-  // Browser-local calendar day: the web has no tenant-local "today" helper (the API judges by the tenant zone).
-  const today = localDay();
+  // The tenant's calendar day (Issue #1072), the zone the API judges by; the filters follow it
+  // reactively once the (app) layout's read of the tenant zone settles.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
   const filters = $derived(effectiveFilters(urlFilters, today));
   const problem = $derived(periodProblem(filters));
   // „keine Treffer“ (not „noch nichts da“) whenever the person set a filter of their own.

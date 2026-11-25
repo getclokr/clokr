@@ -15,7 +15,6 @@ import {
   inclusiveDays,
   isRealDay,
   listUrlSchema,
-  localDay,
   periodProblem,
   type AuditListState,
 } from "../list-url-state";
@@ -103,10 +102,6 @@ describe("day helpers", () => {
     expect(addDays("2026-02-27", 2)).toBe("2026-03-01");
     expect(inclusiveDays("2026-03-01", "2026-03-01")).toBe(1);
     expect(inclusiveDays("2025-12-31", "2026-01-02")).toBe(3);
-  });
-
-  it("localDay formats the local calendar day", () => {
-    expect(localDay(new Date(2026, 2, 5, 23, 59))).toBe("2026-03-05");
   });
 });
 

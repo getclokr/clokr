@@ -5,6 +5,8 @@
   import { goto } from "$app/navigation";
   import { api, ApiError } from "$api/client";
   import { authStore } from "$stores/auth";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay, tenantDayAnchor } from "$lib/utils/tenant-day";
   import { salonContext, showSalonOptions } from "$stores/salon-context"; // Issues #542, #612
   import { get as getStore } from "svelte/store";
   import { reportRights } from "$lib/page-rights";
@@ -101,9 +103,11 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
 
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
+  // The current month and day are the TENANT's (Issue #1072): the device clock only says when now
+  // is; until the (app) layout's read of the tenant zone settles this is the default zone.
+  const tenantAnchor = $derived(tenantDayAnchor(new Date(), $tenantFeatures.timezone));
+  const currentYear = $derived(tenantAnchor.getFullYear());
+  const currentMonth = $derived(tenantAnchor.getMonth() + 1);
 
   // ── Role guard ─────────────────────────────────────────────────────────────
 
@@ -123,11 +127,11 @@
 
   // ── The period in the URL (Issue #612, D-612-1) ────────────────────────────
 
-  // The tenant-local current month is the browser's local month here; the API's 400 is the backstop
-  // (P-09). Everything the page shows about the period comes from this one parse of the URL:
+  // The default period is the tenant's current month; the API's 400 is the backstop (P-09).
+  // Everything the page shows about the period comes from this one parse of the URL:
   // `from`, `to`, `tab`, `person` and `salonId` are read ONLY through `parsePeriodState` and
   // written ONLY through `periodSearch` (replaceState; opening the drill-down is the one push).
-  const today: YearMonth = { year: currentYear, month: currentMonth };
+  const today: YearMonth = $derived({ year: currentYear, month: currentMonth });
   const urlState = $derived(parsePeriodState(page.url.searchParams, today, rights.periodTabs));
   const activeTab = $derived(urlState.tab);
   const periodTabActive = $derived(activeTab === "zeiten" || activeTab === "urlaub");
@@ -194,8 +198,8 @@
     if (row) openPerson(event, row);
   }
 
-  // The browser-local day: the gate of „Hinweis senden“ (a deadline of today or later); the API is the backstop.
-  const todayIso = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+  // The tenant day: the gate of „Hinweis senden“ (a deadline of today or later); the API is the backstop.
+  const todayIso = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
 
   // The carry-over notice of one entitlement (BUrlG § 7, EuGH C-684/16); the API dedups per day and
   // audits it. Never sends the header salon: a notice to one named person does not depend on it.
@@ -264,9 +268,12 @@
     empClosesLoading = true;
     empClosesError = "";
     try {
+      // The month of "now" is the tenant's: wait for the zone before reading it (Issue #1072).
+      await tenantFeatures.loadTimezone();
       const rows = await api.get<SnapshotAnswerRow[]>(`/overtime/snapshots/${myEmployeeId}`);
       // Issue #595 (D-02/D-03): the months and the closed state come from the server answer
-      // (snapshotMonthOf). Only "now" is the browser's clock - it is no stored date.
+      // (snapshotMonthOf). Only "now" is read from the device clock, in the tenant zone - it is no
+      // stored date.
       empMonthlyCloses = buildEmployeeMonthRows(rows, {
         year: currentYear,
         month: currentMonth,

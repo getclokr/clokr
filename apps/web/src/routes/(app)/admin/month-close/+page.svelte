@@ -15,6 +15,9 @@
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
   import { authStore } from "$stores/auth";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
+  import { page } from "$app/state";
   import { hasPermission } from "$lib/permissions";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Dialog from "$components/ui/Dialog.svelte";
@@ -42,9 +45,12 @@
   import { int, oneOf, urlState } from "$lib/table/url-state";
   import { MONTH_STATUS_LABEL } from "$lib/saldo/month-status"; // Issue #598: one status wording
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentDay = now.getDate();
+  // "Today" is the TENANT's day (Issue #1072). The values below start from the store's zone (the
+  // default zone until the (app) layout's read settles) and `onMount` re-reads them once it has.
+  const initAnchor = tenantDayAnchor(new Date(), $tenantFeatures.timezone);
+  const initYear = initAnchor.getFullYear();
+  let currentYear = $state(initYear);
+  let currentDay = $state(initAnchor.getDate());
 
   // ── Filters in the URL (Issue #854, D-854-03) ───────────────────────────────────────────────
   // `year` and `month` also carry the deep link of the Monatsabschluss notifications
@@ -52,7 +58,7 @@
   // Every value goes through an allow-list parser, other keys of the URL are left alone.
   const STATUS_FILTERS = ["all", "open", "closed", "actionable"] as const;
   const urlSchema = {
-    year: int({ min: 2000, max: 2999 }, currentYear),
+    year: int({ min: 2000, max: 2999 }, initYear),
     month: int({ min: 0, max: 12 }, 0),
     status: oneOf(STATUS_FILTERS, "all"),
   };
@@ -76,7 +82,7 @@
   let loaded = $state(false);
   let refreshing = $state(false);
   let monthStatuses: MonthStatus[] = $state([]);
-  let earliestYear = $state(currentYear);
+  let earliestYear = $state(initYear);
 
   // Phase 292 (issue #292): the deferred-Monatsabschluss state, shown as a note on the page an admin
   // opens for exactly this question. A failing side read never takes the page down.
@@ -551,9 +557,19 @@
 
   onMount(() => {
     void loadDeferred();
-    void loadYearStatus().then(() => {
+    void (async () => {
+      // The year of the first request is the tenant's (Issue #1072): wait for the zone, and only
+      // follow it while the URL named no year of its own.
+      const anchor = tenantDayAnchor(new Date(), await tenantFeatures.loadTimezone());
+      currentYear = anchor.getFullYear();
+      currentDay = anchor.getDate();
+      if (!page.url.searchParams.has("year") && selectedYear === initYear) {
+        selectedYear = currentYear;
+        if (earliestYear === initYear) earliestYear = currentYear;
+      }
+      await loadYearStatus();
       if (initialUrl.month >= 1 && loaded) void selectMonth(initialUrl.month);
-    });
+    })();
   });
 </script>
 

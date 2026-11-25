@@ -23,6 +23,7 @@
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay, tenantDayAnchor } from "$lib/utils/tenant-day";
   import { closedDaysFor, type SalonOpeningHoursEntry } from "$lib/shifts/closed-days";
   import { leaveTypeColor, ABSENT, type LeaveColor } from "$lib/leave/leave-colors"; // Issue #923
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
@@ -182,7 +183,10 @@
   }
 
   // ── State ──────────────────────────────────────────────────────────────────
-  let cursorMonday = $state(mondayOfWeek(new Date()));
+  // The week of "today" is the TENANT's (Issue #1072). It starts from the store's zone (the default
+  // zone until the (app) layout's read settles); the first `load()` re-anchors it once the tenant
+  // zone is known, without a second request (see `anchorOnTenantZone`).
+  let cursorMonday = $state(mondayOfWeek(tenantDayAnchor(new Date(), $tenantFeatures.timezone)));
   let week = $state<WeekData | null>(null);
   let templates: Template[] = $state([]);
   let loading = $state(true);
@@ -562,6 +566,23 @@
   });
 
   // ── Load ───────────────────────────────────────────────────────────────────
+  // Issue #1072: the first request names the tenant's current week, so it waits for the tenant zone
+  // (a child's onMount runs before the layout's read settles). If the zone puts "today" in another
+  // week than the start-up value, and the person has not navigated yet, the cursor moves there
+  // BEFORE the request is built. `prevCursorMondayTime` is moved with it, so the week-navigation
+  // effect sees no change and starts no second request (WR-03, #558). One shared promise: every
+  // load waits for it, only the first one does anything.
+  let cursorTouched = false;
+  let zoneAnchoring: Promise<void> | null = null;
+  async function anchorOnTenantZone(): Promise<void> {
+    const zone = await tenantFeatures.loadTimezone();
+    if (cursorTouched) return;
+    const monday = mondayOfWeek(tenantDayAnchor(new Date(), zone));
+    if (monday.getTime() === cursorMonday.getTime()) return;
+    prevCursorMondayTime = monday.getTime();
+    cursorMonday = monday;
+  }
+
   async function load() {
     if (gated) return;
     // Issue #558: read untracked, so the week-navigation effect that calls this function never
@@ -574,6 +595,8 @@
     dndCells = {};
     error = "";
     try {
+      await (zoneAnchoring ??= anchorOnTenantZone());
+      if (generation !== weekGeneration) return;
       const date = ymd(cursorMonday);
       const [w, t] = await Promise.all([
         api.get<WeekData>(withSalonId(`/shifts/week?date=${date}`, salonId)),
@@ -648,17 +671,20 @@
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   function prevWeek() {
+    cursorTouched = true;
     const d = new Date(cursorMonday);
     d.setDate(d.getDate() - 7);
     cursorMonday = d;
   }
   function nextWeek() {
+    cursorTouched = true;
     const d = new Date(cursorMonday);
     d.setDate(d.getDate() + 7);
     cursorMonday = d;
   }
   function goToToday() {
-    cursorMonday = mondayOfWeek(new Date());
+    cursorTouched = true;
+    cursorMonday = mondayOfWeek(tenantDayAnchor(new Date(), $tenantFeatures.timezone));
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -1124,13 +1150,14 @@
     const d = new Date(iso);
     return `${d.getDate()}.${d.getMonth() + 1}`;
   }
+  // "Today" is the tenant's day, read per call so a page left open across midnight moves on.
   function isToday(iso: string): boolean {
-    const today = ymd(new Date());
+    const today = tenantDay(new Date(), $tenantFeatures.timezone);
     return iso.slice(0, 10) === today;
   }
   // Phase 47.2 — Schichten in der Vergangenheit sind nicht änderbar
   function isPastDay(iso: string): boolean {
-    return iso.slice(0, 10) < ymd(new Date());
+    return iso.slice(0, 10) < tenantDay(new Date(), $tenantFeatures.timezone);
   }
   // Phase 47.5 / Issue #563 — which closed days the grid dims and for which salon: the week field
   // `salonOpeningHours` plus the header's salon choice, decided in `closedDaysFor()` (presentation

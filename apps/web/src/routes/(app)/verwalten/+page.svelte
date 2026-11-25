@@ -7,7 +7,6 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { format } from "date-fns";
   import HubPage from "$lib/components/layout/HubPage.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import List from "$components/ui/List.svelte";
@@ -17,6 +16,8 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay, tenantDayAnchor } from "$lib/utils/tenant-day";
   import { salonContext, moduleBooked } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions";
   import { pageLabel } from "$lib/nav/page-labels";
@@ -51,7 +52,7 @@
   let atRisk = $state<number | null>(null);
   let noEntitlement = $state<MissingEntitlementAnswer | null>(null);
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
 
   /** A read that the caller may not make, or that fails, is `null` — never a fabricated value. */
   async function readIf<T>(allowed: boolean, path: string): Promise<T | null> {
@@ -64,9 +65,11 @@
   }
 
   onMount(async () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    // The zone arrives with the (app) layout's read; the year and month of the requests below are
+    // the tenant's, so wait for it first.
+    const anchor = tenantDayAnchor(new Date(), await tenantFeatures.loadTimezone());
+    const year = anchor.getFullYear();
+    const month = anchor.getMonth() + 1;
     const years = month === 1 ? [year - 1, year] : [year];
     const canSettings = may("tenant-settings:read");
     const hardware = moduleBooked($salonContext, "HARDWARE_CLOCK");

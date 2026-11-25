@@ -11,6 +11,7 @@
   import { salonContext } from "$stores/salon-context";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import { pageLabel } from "$lib/nav/page-labels";
   import { rosterTabs } from "$lib/nav/routes";
@@ -47,7 +48,12 @@
     employees: PlanningRow[];
   }
 
-  let weekStart = $state(mondayOfWeek(new Date()));
+  // The week of "today" is the TENANT's (Issue #1072): the store's zone at start-up (the default
+  // zone until the (app) layout's read settles), re-anchored by the first `load()`.
+  let weekStart = $state(mondayOfWeek(tenantDayAnchor(new Date(), $tenantFeatures.timezone)));
+  // Plain `let`s: the effect below starts `load()` untracked and must not depend on them.
+  let weekTouched = false;
+  let zoneAnchoring: Promise<void> | null = null;
   let weekEnd = $state("");
   let employees = $state<PlanningRow[]>([]);
   let loading = $state(true);
@@ -99,12 +105,22 @@
     })),
   );
 
+  // The first request names the tenant's current week, so it waits for the tenant zone and moves
+  // the week there when the person has not paged yet. Still one request: the week is set before
+  // the URL is built. One shared promise; every load waits for it, only the first does anything.
+  async function anchorOnTenantZone(): Promise<void> {
+    const zone = await tenantFeatures.loadTimezone();
+    if (!weekTouched) weekStart = mondayOfWeek(tenantDayAnchor(new Date(), zone));
+  }
+
   async function load() {
     const salonId = pageSalonId;
     const generation = ++loadGeneration;
     loading = true;
     loadError = "";
     try {
+      await (zoneAnchoring ??= anchorOnTenantZone());
+      if (generation !== loadGeneration) return;
       const res = await api.get<PlanningOverviewResponse>(
         withSalonId(`/shifts/planning-overview?weekStart=${weekStart}`, salonId),
       );
@@ -130,6 +146,7 @@
   }
 
   function shiftWeek(days: number) {
+    weekTouched = true;
     const d = new Date(`${weekStart}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + days);
     weekStart = d.toISOString().slice(0, 10);
@@ -143,7 +160,8 @@
     shiftWeek(7);
   }
   function goToToday() {
-    weekStart = mondayOfWeek(new Date());
+    weekTouched = true;
+    weekStart = mondayOfWeek(tenantDayAnchor(new Date(), $tenantFeatures.timezone));
     load();
   }
 

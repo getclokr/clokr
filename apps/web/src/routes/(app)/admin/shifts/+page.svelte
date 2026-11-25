@@ -4,6 +4,8 @@
   import { page } from "$app/state";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import { markUnsaved } from "$stores/unsaved";
   import {
     shiftBasedEmployees,
@@ -75,7 +77,8 @@
   // Only what the person's tabs need: the shift lists answer 403 without the shift permissions, so a
   // person who holds only a settings permission must not trigger them (and see an error page).
   async function loadShiftData() {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // The week of the request is the tenant's today (Issue #1072): wait for the zone first.
+    const todayIso = tenantDay(new Date(), await tenantFeatures.loadTimezone());
     const [tpls, rules, week, tenantPatterns] = await Promise.all([
       api.get<ShiftTemplate[]>("/shifts/templates"),
       api.get<CoverageRule[]>("/shifts/coverage-rules"),

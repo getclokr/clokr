@@ -395,18 +395,26 @@ describe("WeekPatternsPanel", () => {
     expect(screen.getByText("Nicht gespeichert · 1 Änderung")).toBeTruthy();
   });
 
-  it("saves only the changed person, with all seven days and today as the start", async () => {
-    mount();
-    await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Muster speichern" }));
-    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+  it("saves only the changed person, with all seven days and the tenant's today as the start", async () => {
+    // Issue #1072: 22:30 UTC on 15.06. is already 16.06. in Europe/Berlin, the default tenant zone.
+    // Only Date is faked, so the waits below keep running on real timers.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-15T22:30:00Z"));
+    try {
+      mount();
+      await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
+      await fireEvent.click(screen.getByRole("button", { name: "Muster speichern" }));
+      await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    } finally {
+      vi.useRealTimers();
+    }
     const [url, body] = put.mock.calls[0] as [string, { patterns: Array<Record<string, unknown>> }];
     expect(url).toBe("/employees/emp-1/shift-patterns");
     expect(body.patterns).toHaveLength(7);
     expect(body.patterns[0]).toMatchObject({ dayOfWeek: 0, templateId: "tpl-early" });
     expect(body.patterns[1]).toMatchObject({ dayOfWeek: 1, templateId: "tpl-late" });
     expect(body.patterns[2]).toMatchObject({ dayOfWeek: 2, templateId: null });
-    expect(body.patterns[0].validFrom).toBe(new Date().toISOString().slice(0, 10));
+    expect(body.patterns[0].validFrom).toBe("2026-06-16");
     await waitFor(() =>
       expect(success).toHaveBeenCalledWith("Wochenmuster gespeichert (1 Person)."),
     );
