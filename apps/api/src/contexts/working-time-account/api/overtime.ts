@@ -1357,6 +1357,7 @@ export async function overtimeRoutes(app: FastifyInstance) {
           isTimeTrackingExempt: true, // Phase 76.7 (D-07, SALDO-V19-04a)
           breakOver6hOverride: true, // v1.8.9 — SHIFT_BASED netto saldo
           breakOver9hOverride: true, // v1.8.9 — SHIFT_BASED netto saldo
+          birthDate: true, // Issue #1056 — § 11 JArbSchG roster break per shift date; never echoed
         },
       });
       if (!employee) return reply.code(404).send({ error: "Mitarbeiter nicht gefunden" });
@@ -1637,6 +1638,7 @@ export async function overtimeRoutes(app: FastifyInstance) {
         isTimeTrackingExempt: false, // already short-circuited above
         breakOver6hOverride: employee.breakOver6hOverride ?? null,
         breakOver9hOverride: employee.breakOver9hOverride ?? null,
+        birthDate: employee.birthDate ?? null, // Issue #1056
         entries: closeEntries.map((e) => ({
           date: e.date,
           startTime: e.startTime,

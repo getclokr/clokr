@@ -38,13 +38,13 @@ import {
   closeEmployeeMonth,
   toCloseMonthApprovedLeave,
   resolveMonthContract, // Issue #780 — no contract yet at month end = no Soll
+  rosterShiftBreakMinutes, // Issue #1056 — the one roster-break rule of the Arbeitszeitkonto
 } from "./close-employee-month"; // SNAP-03 — Phase 76.27
 import { NO_CONTRACT_SCHEDULE } from "./month-contract"; // Issue #780
 import { isTrackOnlySchedule } from "./track-only-schedule"; // Issue #494 — the one track-only rule
 import { getTenantTimezone, dateStrInTz, monthRangeUtc, monthDayBounds } from "./timezone";
 import { setOvertimeAccountBalance } from "./facade/overtime-account";
 import {
-  getEffectiveBreakDuration,
   getEffectiveSchedule,
   defaultScheduleFromTenantConfig,
   getValidWorkedEntriesInRange,
@@ -540,6 +540,7 @@ async function computeAccountChain(
       isTimeTrackingExempt: false, // already guarded above
       breakOver6hOverride: employee?.breakOver6hOverride ?? null,
       breakOver9hOverride: employee?.breakOver9hOverride ?? null,
+      birthDate: employee?.birthDate ?? null, // Issue #1056
       entries: monthEntries.map((e) => ({
         date: e.date,
         startTime: e.startTime,
@@ -666,8 +667,9 @@ async function computeAccountChain(
 
     // Pre-compute rosterProration for SHIFT_BASED (partial month only). R_toDate uses shifts
     // up to effectiveEnd (coveredDates for the open window); R_periodFull uses ALL current-
-    // month shifts (coveredDates for the full month). getEffectiveBreakDuration/netto match
-    // the core's shift-netto computation.
+    // month shifts (coveredDates for the full month). The closure nets with
+    // `rosterShiftBreakMinutes` — the same roster-break rule (§ 11 JArbSchG under 18 per shift
+    // date, Issue #1056) the core uses, so the proration ratio and the core's R agree.
     let rosterProration: { rosterToDateMinutes: number; rosterPeriodMinutes: number } | undefined;
     // Issue #447 (D-13) — roster proration only applies while the employee is still employed
     // after the window end. An employee who has left by the window end has a complete month
@@ -678,6 +680,7 @@ async function computeAccountChain(
       const employeeBreakShape = {
         breakOver6hOverride: employee?.breakOver6hOverride ?? null,
         breakOver9hOverride: employee?.breakOver9hOverride ?? null,
+        birthDate: employee?.birthDate ?? null, // Issue #1056
       };
       const tenantConfigShape = {
         defaultBreakOver6h: tenantConfig?.defaultBreakOver6h ?? 30,
@@ -697,7 +700,12 @@ async function computeAccountChain(
           let brutto = hmToMin(sh.endTime) - hmToMin(sh.startTime);
           if (brutto < 0) brutto += 24 * 60;
           if (brutto <= 0) continue;
-          const breakMin = getEffectiveBreakDuration(employeeBreakShape, tenantConfigShape, brutto);
+          const breakMin = rosterShiftBreakMinutes(
+            employeeBreakShape,
+            tenantConfigShape,
+            brutto,
+            sh.date,
+          );
           total += Math.max(0, brutto - breakMin);
         }
         return total;
@@ -792,6 +800,7 @@ async function computeAccountChain(
       isTimeTrackingExempt: false,
       breakOver6hOverride: employee?.breakOver6hOverride ?? null,
       breakOver9hOverride: employee?.breakOver9hOverride ?? null,
+      birthDate: employee?.birthDate ?? null, // Issue #1056
       entries: entries
         .filter((e) => e.date >= curMonthFirstDay && e.date <= effectiveEnd)
         .map((e) => ({
@@ -1090,6 +1099,8 @@ export type ChainEmployee = {
   isTimeTrackingExempt: boolean;
   breakOver6hOverride: number | null;
   breakOver9hOverride: number | null;
+  /** Issue #1056 — read only by the roster-break rule (age per shift date); never echoed. */
+  birthDate: Date | null;
 };
 export type ChainTenantConfig = Prisma.TenantConfigGetPayload<object>;
 export type ChainSchedule = Awaited<ReturnType<typeof getEffectiveSchedule>>;
@@ -1185,6 +1196,7 @@ export function querySource(app: FastifyInstance, employeeId: string): ChainSour
           isTimeTrackingExempt: true, // Phase 76.7 (D-04, SALDO-V19-04)
           breakOver6hOverride: true, // v1.8.9 — SHIFT_BASED netto saldo
           breakOver9hOverride: true, // v1.8.9 — SHIFT_BASED netto saldo
+          birthDate: true, // Issue #1056 — § 11 JArbSchG roster break per shift date
         },
       }),
     timezone: (tenantId) => getTenantTimezone(app.prisma, tenantId),
@@ -1292,6 +1304,7 @@ export async function loadChainSources(
         isTimeTrackingExempt: true,
         breakOver6hOverride: true,
         breakOver9hOverride: true,
+        birthDate: true, // Issue #1056 — bulk equals single (#696)
       },
     }),
     app.prisma.tenantConfig.findUnique({ where: { tenantId } }),

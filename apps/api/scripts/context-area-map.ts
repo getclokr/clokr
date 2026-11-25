@@ -99,6 +99,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/__tests__/presence-pairing-fixtures-610.ts": "rahmen", // Issue #610 — shared fixture of the WLAN pairing tests (presence source with a raw key, random MAC, issue/preview/confirm injectors); test infra, no model of its own
   "src/__tests__/notify-emit-sites.ts": "rahmen", // Issue #608 — the one notify() call-site scanner shared by the e-mail and push registry tests; test infra, no model of its own
   "src/__tests__/shift-reminder-fixtures-609.ts": "rahmen", // Issue #609 — shared fixture of the shift-reminder tests (tenant with the switches, persons, shifts, entries, tenant-local instants); test infra, no model of its own
+  "src/__tests__/shift-soll-minor-fixture-1056.ts": "rahmen", // Issue #1056 — shared fixture of the minor roster-Soll tests (SHIFT_BASED persons around their 17th/18th birthday, shifts, entries); test infra, no model of its own
   "src/__tests__/monthly-export-fixture-617.ts": "rahmen", // Issue #617 — shared nine-person fixture of the Monatsexport tests (closed/open months, every leave kind, § 9, exit, Azubi); test infra, no model of its own
   "src/__tests__/template-grant-chain.ts": "rahmen", // Issue #835 — ordered chain of the data-only template-grant migrations (templateAsOf, replayChainFrom, rolled-back replay) shared by the template migration pins; test infra, no model of its own
   "src/__tests__/datev-rows.ts": "rahmen", // Issue #304 — shared parser of the DATEV LODAS file for tests; test infra, no model of its own

@@ -538,6 +538,7 @@ export const autoCloseMonthPlugin = fp(async (app) => {
                 isTimeTrackingExempt: false, // already short-circuited above
                 breakOver6hOverride: emp.breakOver6hOverride ?? null,
                 breakOver9hOverride: emp.breakOver9hOverride ?? null,
+                birthDate: emp.birthDate ?? null, // Issue #1056
                 entries: closeEntries.map((e) => ({
                   date: e.date,
                   startTime: e.startTime,

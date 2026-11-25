@@ -45,7 +45,7 @@
  * Model / references: golden-azubi-jan2026.test.ts (harness), shift-based-saldo-parity.test.ts,
  * close-employee-month.test.ts case 9 (pure-core pin), GOLDEN-MATRIX-SPEC.md.
  */
-import { vi, describe, it, expect, afterAll } from "vitest";
+import { vi, describe, it, expect, afterAll, afterEach } from "vitest";
 import {
   getTestApp,
   cleanupTestData,
@@ -2015,15 +2015,35 @@ function liveNowIso(year: number, month: number): string {
 const seededTenants: string[] = [];
 let sharedApp: FastifyInstance;
 
-afterAll(async () => {
+/**
+ * Removes every tenant the cells have seeded so far and empties `seededTenants`.
+ *
+ * Runs after EACH test, not once at the end of the file. The four-path parity cells drive
+ * `app.tryAutoCloseMonth()` (Path D), and that cron is global: it closes every unclosed month of
+ * EVERY employee of EVERY active tenant in the worker database, from hire date to the grace month.
+ * A tenant kept until `afterAll` therefore stays in the cron's population for every later cell.
+ * Each cell seeds an admin employee hired 2024-01-01, so the first exit cell (July 2026) had to
+ * back-fill ~30 foreign admins x ~31 months, about 50 000 statements: ~17 s on an idle machine
+ * (a 120 s hang on a loaded one), growing with the number of cells above it. Releasing the tenant
+ * after its cell keeps the cron's population at the one tenant the cell is about — the assertions
+ * and golden literals are unchanged.
+ */
+async function cleanupSeededTenants(): Promise<void> {
   if (!sharedApp) return;
-  for (const t of seededTenants) {
+  while (seededTenants.length > 0) {
+    const tenantId = seededTenants.pop()!;
     try {
-      await cleanupTestData(sharedApp, t);
+      await cleanupTestData(sharedApp, tenantId);
     } catch (err) {
       console.error("golden-matrix cleanup:", err);
     }
   }
+}
+
+afterEach(cleanupSeededTenants);
+
+afterAll(async () => {
+  await cleanupSeededTenants();
   vi.useRealTimers();
 });
 

@@ -95,6 +95,7 @@ export async function recalculateSnapshots(
       isTimeTrackingExempt: true, // Phase 76.7 (D-06, SALDO-V19-04b)
       breakOver6hOverride: true, // SHIFT_BASED netto (parity with overtime.ts close-month)
       breakOver9hOverride: true,
+      birthDate: true, // Issue #1056 — § 11 JArbSchG roster break per shift date
     },
   });
   if (!employee) return { lockedMonthsSkipped, legacyMonthsSkipped };
@@ -489,6 +490,7 @@ export async function recalculateSnapshots(
       isTimeTrackingExempt: false, // already short-circuited above via employee.isTimeTrackingExempt
       breakOver6hOverride: employee.breakOver6hOverride ?? null,
       breakOver9hOverride: employee.breakOver9hOverride ?? null,
+      birthDate: employee.birthDate ?? null, // Issue #1056
       entries: closeEntries.map((e) => ({
         date: e.date,
         startTime: e.startTime,

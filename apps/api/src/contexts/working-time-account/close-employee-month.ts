@@ -69,7 +69,9 @@ import { isNoContractSchedule, NO_CONTRACT_SCHEDULE } from "./month-contract"; /
 import { isTrackOnlySchedule } from "./track-only-schedule"; // Issue #494 — the one track-only rule
 import {
   getEffectiveSchedule,
-  getEffectiveBreakDuration, // Phase 101B (Issue #101, wave 8)
+  breakAmountFor, // Issue #1056 — the one break-amount rule (recording, Dienstplan, roster Soll)
+  type BreakEmployeeShape,
+  type BreakTenantConfigShape,
   getValidWorkedEntriesInRange, // Phase 100B Plan 08 — T1; THE SALDO INPUT (computeWeekProgress)
   getWorkedEntriesInRange, // Phase 71b (issue #71) — T2, feeds the holiday resolver (computeWeekProgress)
   entryDurations, // Phase 79 (Issue #79), D-03/D-05 — presence/working-time kernel
@@ -99,6 +101,7 @@ import {
   getActiveLeaveOverlapping, // Issue #446 (D-02) — effective leave (computeWeekProgress)
   getAbsencesOverlapping, // Phase 100B Plan 12 — A4 (computeWeekProgress)
   loadBsSlotOverrides, // Phase 76.31 (D-06) — BS slot overrides (computeWeekProgress)
+  isMinorAtDate, // Issue #1056 — the age decision of the § 11 JArbSchG roster break
 } from "../absence"; // Phase 101B (Issue #101, wave 7)
 import {
   computeDailySollMinutes,
@@ -126,6 +129,16 @@ export type CloseMonthInput = {
   isTimeTrackingExempt: boolean; // must be false (caller verifies)
   breakOver6hOverride: number | null;
   breakOver9hOverride: number | null;
+  /**
+   * Issue #1056 — the employee's birth date. Read ONLY by the SHIFT_BASED roster netto, which nets
+   * each planned shift with the break `rosterShiftBreakMinutes` decides per shift date (§ 11 JArbSchG
+   * under 18). Optional in the type only so the pure-core unit fixtures (including the golden files)
+   * stay as they are; an absent value reads as "no birth date" — the adult break, the fail-open rule
+   * of `isMinorAtDate`. EVERY production call site passes it explicitly (a forgotten caller would
+   * silently net a minor's roster with the adult break) — pinned by
+   * `roster-minor-break-gate-1056.test.ts`. Never part of a result.
+   */
+  birthDate?: Date | null;
 
   // Pre-fetched collections (PERF: caller batches these)
   entries: Array<{
@@ -349,6 +362,41 @@ export function toCloseMonthApprovedLeave(
   }));
 }
 
+/** The employee facts the roster break reads; the `birthDate` KEY is required so no closure can forget the age. */
+export type RosterBreakEmployee = BreakEmployeeShape & { birthDate: Date | null | undefined };
+
+/**
+ * Issue #1056 — the ONE roster-break rule of the Arbeitszeitkonto: the break a planned SHIFT_BASED
+ * shift is netted with, in the Soll (R) and in the ROSTER-basis leave relief.
+ *
+ * It delegates to `breakAmountFor` — the rule the recording's automatic break and the Dienstplan
+ * (`scheduling/shift-netto.ts`) already use — so a plan, a recording and the Konto can never disagree
+ * on the break of the same times. The age is decided per SHIFT DATE (`isMinorAtDate`): for a person
+ * under 18 § 11 JArbSchG replaces § 4 ArbZG (§ 18 Abs. 2 ArbZG); the 18th birthday itself is already
+ * adult (§ 187 Abs. 2 S. 2 BGB). Adults and persons without a birth date get exactly the pre-#1056
+ * break (`getEffectiveBreakDuration`). The GROSS shift minutes are the threshold input, the
+ * convention recording and Dienstplan use.
+ *
+ * `breakAmountFor` receives a FRESH object with only the two overrides: time-tracking never sees a
+ * birth date.
+ */
+export function rosterShiftBreakMinutes(
+  employee: RosterBreakEmployee,
+  tenantConfig: BreakTenantConfigShape,
+  bruttoMin: number,
+  shiftDate: Date,
+): number {
+  return breakAmountFor({
+    employee: {
+      breakOver6hOverride: employee.breakOver6hOverride,
+      breakOver9hOverride: employee.breakOver9hOverride,
+    },
+    tenantConfig,
+    presenceMin: bruttoMin,
+    isMinor: isMinorAtDate(employee.birthDate, shiftDate),
+  }).amountMin;
+}
+
 /**
  * Issue #433 (D-11) — the full calendar month's net Soll of a MONTHLY_HOURS employee,
  * computed BY the saldo core itself rather than by a hand-rolled copy in the composition
@@ -413,6 +461,8 @@ export function monthlyHoursMonthSollMinutes(input: {
     isTimeTrackingExempt: false,
     breakOver6hOverride: null,
     breakOver9hOverride: null,
+    // Issue #1056: MONTHLY_HOURS only with `shifts: []`, so the roster break is never read.
+    birthDate: null,
     entries: [],
     shifts: [],
     approvedLeave: toCloseMonthApprovedLeave(input.leave),
@@ -550,6 +600,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     exitDate,
     breakOver6hOverride,
     breakOver9hOverride,
+    birthDate,
     entries,
     shifts,
     approvedLeave,
@@ -905,6 +956,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
   // SHIFT_BASED: Model B + §615 via calcShiftBasedSaldo.
   //   R = Σ netto active shifts (deletedAt=null, coveredDates excluded) — reusing
   //       the SAME coveredDates from findMissingWorkdays (pitfall A1 fix).
+  //       netto = brutto − rosterShiftBreakMinutes (§ 11 JArbSchG under 18 per shift date, Issue #1056).
   //   C_net = calcExpectedMinutesTz − leave credits − absence credits (incl. BS/PATTERN,
   //           v1.8.27 subtract-then-recredit) + bsExpectedMinutes.
   //   No rosterProration (close = full month, not live open month).
@@ -935,6 +987,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     const employeeBreakShape = {
       breakOver6hOverride: breakOver6hOverride ?? null,
       breakOver9hOverride: breakOver9hOverride ?? null,
+      birthDate: birthDate ?? null, // Issue #1056
     };
     const tenantBreakShape = {
       defaultBreakOver6h: tenantConfig?.defaultBreakOver6h ?? 30,
@@ -952,7 +1005,12 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       let brutto = hmToMin(sh.endTime) - hmToMin(sh.startTime);
       if (brutto < 0) brutto += 24 * 60; // cross-midnight (e.g. 22:00–06:00)
       if (brutto <= 0) continue;
-      const breakMin = getEffectiveBreakDuration(employeeBreakShape, tenantBreakShape, brutto);
+      const breakMin = rosterShiftBreakMinutes(
+        employeeBreakShape,
+        tenantBreakShape,
+        brutto,
+        sh.date,
+      );
       const netto = Math.max(0, brutto - breakMin);
       plannedNettoByDate.set(shDs, (plannedNettoByDate.get(shDs) ?? 0) + netto);
       // Exclude shifts on covered dates from R (leave/absence/holiday — Ausfallprinzip)
@@ -1437,6 +1495,7 @@ export async function computeWeekProgress(
       isTimeTrackingExempt: true,
       breakOver6hOverride: true,
       breakOver9hOverride: true,
+      birthDate: true, // Issue #1056 — week Soll nets a minor's roster with the § 11 break
     },
   });
   if (!employee || employee.isTimeTrackingExempt) return null;
@@ -1578,6 +1637,7 @@ export async function computeWeekProgress(
       isTimeTrackingExempt: false as const,
       breakOver6hOverride: employee.breakOver6hOverride ?? null,
       breakOver9hOverride: employee.breakOver9hOverride ?? null,
+      birthDate: employee.birthDate ?? null, // Issue #1056
       shifts: pieceShifts,
       approvedLeave: approvedLeaveInput,
       absences: absencesInput,
