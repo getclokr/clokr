@@ -56,6 +56,16 @@ describe("test-dates helper", () => {
     expect(nextWeekdayStr("2026-08-29")).toBe("2026-08-31"); // Sat -> Mon
   });
 
+  it("nextWeekdayStr skips statutory holidays and the Christmas/New-Year's-Eve days", () => {
+    expect(nextWeekdayStr("2026-08-31")).toBe("2026-08-31"); // a plain Monday stays
+    expect(nextWeekdayStr("2026-12-24")).toBe("2026-12-28"); // Heiligabend, 25., 26. (Sa), 27. (Su)
+    expect(nextWeekdayStr("2026-12-31")).toBe("2027-01-04"); // Silvester, Neujahr, weekend
+    expect(nextWeekdayStr("2026-04-03")).toBe("2026-04-07"); // Karfreitag, weekend, Ostermontag
+    expect(nextWeekdayStr("2026-05-14")).toBe("2026-05-15"); // Christi Himmelfahrt 2026
+    expect(nextWeekdayStr("2026-11-18")).toBe("2026-11-19"); // Buß- und Bettag 2026
+    expect(nextWeekdayStr("2026-06-04")).toBe("2026-06-05"); // Fronleichnam 2026
+  });
+
   describe("monthStartUtc / monthEndUtc", () => {
     afterEach(() => {
       vi.useRealTimers();
