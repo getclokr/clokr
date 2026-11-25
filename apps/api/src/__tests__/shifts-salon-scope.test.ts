@@ -19,9 +19,18 @@ import {
   tokenWithoutSignIn,
 } from "./setup";
 import { normalizeRolePermissions, roleNameKey } from "../contexts/platform";
-import { futureDateStr, nextWeekdayStr } from "./test-dates";
+import { addDaysStr, dowOf, futureDateStr, nextWeekdayStr } from "./test-dates";
 
 const PASSWORD = "test1234";
+
+// Issue #1075: generate-week / copy-week refuse days before the tenant's today, so the week the two
+// scope tests below plan into is anchored on the live clock (it was a fixed 2026-06 calendar week;
+// planned into the past, both responses would be empty and the "never listed" assertions vacuous).
+const FUTURE_MONDAY = (() => {
+  let d = futureDateStr(30);
+  while (dowOf(d) !== 1) d = addDaysStr(d, 1);
+  return d;
+})();
 
 function nextOpenDayIso(): string {
   return nextWeekdayStr(futureDateStr(1));
@@ -531,7 +540,7 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
         method: "POST",
         url: "/api/v1/shifts/generate-week",
         headers: { authorization: `Bearer ${token}` },
-        payload: { weekStart: "2026-06-15", commit: false }, // Monday, preview only
+        payload: { weekStart: FUTURE_MONDAY, commit: false }, // Monday, preview only
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as {
@@ -543,7 +552,7 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
     it("POST /copy-week: an out-of-scope employee's source shift is never copied for a SALONS-scoped manager", async () => {
       const outOfScope = await createEmployee("outscope-copyweek");
       await createHome(outOfScope.employee.id, salonB.id);
-      await createShift(outOfScope.employee.id, salonB.id, "2026-06-22"); // Monday source week
+      await createShift(outOfScope.employee.id, salonB.id, FUTURE_MONDAY); // Monday source week
 
       const manager = await createScopedManager("mgr-copyweek-salons", ["shift:plan:ZUGEWIESEN"], {
         scopeType: "SALONS",
@@ -556,8 +565,8 @@ describe("Issue #91 (Phase 91b Plan 08) — shifts.ts salon/person scope", () =>
         url: "/api/v1/shifts/copy-week",
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          sourceWeekStart: "2026-06-22",
-          targetWeekStart: "2026-06-29",
+          sourceWeekStart: FUTURE_MONDAY,
+          targetWeekStart: addDaysStr(FUTURE_MONDAY, 7),
           commit: false,
         },
       });

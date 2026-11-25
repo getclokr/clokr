@@ -57,8 +57,8 @@ function hmToMin(hm: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-/** Gross minutes of a shift, midnight-crossing corrected. 0 for a zero-length shift. */
-function shiftBruttoMinutes(shift: ShiftNettoInput): number {
+/** Gross minutes of a shift, midnight-crossing corrected. 0 for a zero-length shift. The one gross convention (Issue #1075). */
+export function shiftBruttoMinutes(shift: ShiftNettoInput): number {
   let brutto = hmToMin(shift.endTime) - hmToMin(shift.startTime);
   if (brutto < 0) brutto += 24 * 60; // midnight-crossing shift (e.g. 22:00 -> 06:00)
   return brutto;

@@ -1,6 +1,11 @@
 // Issue #850 — the three conflict buckets become one dated list of notices with one action each.
 import { describe, it, expect } from "vitest";
-import { buildShiftNotices, noticeDay, type ConflictShift } from "../shift-notices";
+import {
+  buildShiftNotices,
+  noticeDay,
+  restoreForceQuestion,
+  type ConflictShift,
+} from "../shift-notices";
 
 const shift = (over: Partial<ConflictShift>): ConflictShift => ({
   id: "s1",
@@ -87,5 +92,32 @@ describe("shift notices (Issue #850)", () => {
 
   it("names the weekday", () => {
     expect(noticeDay("2026-11-09")).toBe("Mo., 9. Nov.");
+  });
+});
+
+describe("restoreForceQuestion (Issue #1075)", () => {
+  it("asks for a 409 that can be forced and carries the API message", () => {
+    expect(
+      restoreForceQuestion(409, {
+        code: "ARBZG_VIOLATION_REST_PERIOD",
+        message: "Verstoß gegen § 5 ArbZG: zwischen Schichtende am 11.03.2027 und neuem Beginn …",
+        canForce: true,
+      }),
+    ).toBe("Verstoß gegen § 5 ArbZG: zwischen Schichtende am 11.03.2027 und neuem Beginn …");
+  });
+
+  it("falls back to a general question when the body has no message", () => {
+    expect(restoreForceQuestion(409, { canForce: true })).toBe(
+      "Die Schicht verstößt gegen eine Planungsregel.",
+    );
+  });
+
+  it("is null for a 409 without an override, for a 422 and for any other status", () => {
+    expect(restoreForceQuestion(409, { message: "x", canForce: false })).toBeNull();
+    expect(restoreForceQuestion(409, { message: "x" })).toBeNull();
+    expect(restoreForceQuestion(422, { message: "x", canForce: true })).toBeNull();
+    expect(restoreForceQuestion(500, { canForce: true })).toBeNull();
+    expect(restoreForceQuestion(409, undefined)).toBeNull();
+    expect(restoreForceQuestion(409, null)).toBeNull();
   });
 });

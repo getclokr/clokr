@@ -5,6 +5,7 @@
  */
 import type { Rng } from "../rng";
 import type { LeaveRecord } from "./context";
+import { addDays } from "../tz";
 
 /** Days a manual entry may lie in the past before the product demands a Zeitnachtrag. */
 export const RETRO_WINDOW_DAYS = 10;
@@ -161,4 +162,20 @@ export function planUnlocks(
     if (rng.chance(chance)) chosen.push(key);
   }
   return chosen;
+}
+
+/**
+ * First day the shift bot plans a roster from (Issue #1075). A replayed day plans from that day, or
+ * the day after what it planned before, but never before the REAL today: the roster refuses every
+ * day before today, and one past day in a chunk of 100 would refuse the whole batch and lose its
+ * future days with it.
+ */
+export function rosterPlanStart(input: {
+  plannedThrough: string | undefined;
+  day: string;
+  realToday: string;
+}): string {
+  const { plannedThrough, day, realToday } = input;
+  const from = plannedThrough && plannedThrough >= day ? addDays(plannedThrough, 1) : day;
+  return from < realToday ? realToday : from;
 }

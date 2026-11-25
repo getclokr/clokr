@@ -8,6 +8,7 @@ import {
   pickReviewer,
   planShiftEdits,
   planUnlocks,
+  rosterPlanStart,
   statusAfterReview,
   type ListedShift,
   type PendingNachtrag,
@@ -131,5 +132,28 @@ describe("unlocks", () => {
     expect(isDeliberateUnlock(unlocks, "closed-gone:entries:t/emp-1/2026-10")).toBe(true);
     expect(isDeliberateUnlock(unlocks, "closed-changed:entries:t/emp-1/2026-09")).toBe(false);
     expect(isDeliberateUnlock(unlocks, "closed-changed:entries:t/emp-2/2026-10")).toBe(false);
+  });
+});
+
+describe("rosterPlanStart (Issue #1075)", () => {
+  it("never plans before the real today, a replayed day included", () => {
+    expect(
+      rosterPlanStart({ plannedThrough: undefined, day: "2026-11-10", realToday: "2026-11-25" }),
+    ).toBe("2026-11-25");
+    expect(
+      rosterPlanStart({ plannedThrough: "2026-11-20", day: "2026-11-10", realToday: "2026-11-25" }),
+    ).toBe("2026-11-25");
+  });
+
+  it("keeps the old answer when the day is at or after the real today", () => {
+    expect(
+      rosterPlanStart({ plannedThrough: undefined, day: "2026-11-25", realToday: "2026-11-25" }),
+    ).toBe("2026-11-25");
+    expect(
+      rosterPlanStart({ plannedThrough: "2026-12-09", day: "2026-11-26", realToday: "2026-11-25" }),
+    ).toBe("2026-12-10");
+    expect(
+      rosterPlanStart({ plannedThrough: "2026-11-20", day: "2026-11-27", realToday: "2026-11-25" }),
+    ).toBe("2026-11-27");
   });
 });

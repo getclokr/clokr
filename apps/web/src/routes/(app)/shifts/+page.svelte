@@ -43,6 +43,12 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Modal from "$components/ui/Modal.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
+  import {
+    copySkipLabel,
+    sortSkips,
+    generateSkipLabel,
+    type RosterSkipReason,
+  } from "$lib/shifts/roster-skip-reasons"; // Issue #1075
   import CollisionWarnBody from "$lib/phorest/CollisionWarnBody.svelte";
   import {
     checkAppointmentCollisions,
@@ -317,14 +323,7 @@
     skip: Array<{
       employeeId: string;
       date: string;
-      reason:
-        | "leave"
-        | "absence"
-        | "existing"
-        | "no-pattern"
-        | "open-day"
-        | "availability-unavailable"
-        | "jarbschg"; // Issue #1057
+      reason: RosterSkipReason; // Issue #1057, #1075
       message?: string;
     }>;
     committed: boolean;
@@ -350,7 +349,7 @@
     skip: Array<{
       employeeId: string;
       date: string;
-      reason: "leave" | "absence" | "existing" | "availability-unavailable" | "jarbschg"; // Issue #1057
+      reason: RosterSkipReason; // Issue #1057, #1075
       message?: string;
     }>;
     committed: boolean;
@@ -385,26 +384,6 @@
   function formatDeDate(iso: string): string {
     const [y, m, d] = iso.slice(0, 10).split("-");
     return `${d}.${m}.${y}`;
-  }
-
-  function skipReasonLabel(r: GenerateDiff["skip"][number]["reason"]): string {
-    switch (r) {
-      case "leave":
-        return "Urlaub";
-      case "absence":
-        return "Abwesenheit";
-      case "existing":
-        return "Schicht existiert";
-      case "open-day":
-        return "Frei nach Muster";
-      case "availability-unavailable":
-        return "Nicht verfügbar";
-      case "jarbschg":
-        return "Jugendarbeitsschutz";
-      case "no-pattern":
-      default:
-        return "Kein Muster";
-    }
   }
 
   async function openGenerate() {
@@ -449,23 +428,6 @@
   }
 
   // ── Phase 43-05 — Letzte Woche kopieren ───────────────────────────────────
-  function copySkipReasonLabel(r: CopyDiff["skip"][number]["reason"]): string {
-    switch (r) {
-      case "leave":
-        return "Übersprungen — Urlaub";
-      case "absence":
-        return "Übersprungen — Krankheit";
-      case "existing":
-        return "Übersprungen — Schicht existiert bereits";
-      case "availability-unavailable":
-        return "Übersprungen — nicht verfügbar";
-      case "jarbschg":
-        return "Übersprungen — Jugendarbeitsschutz";
-      default:
-        return "Übersprungen";
-    }
-  }
-
   // Default source = current target week minus 7 days
   function defaultSourceWeekStart(): string {
     const d = new Date(cursorMonday);
@@ -2190,12 +2152,12 @@
       {#if generateDiff.skip.length > 0}
         <h3 class="sp-gen-h">Übersprungen ({generateDiff.skip.length})</h3>
         <div class="sp-gen-list sp-gen-list--skip">
-          {#each generateDiff.skip as s (`${s.employeeId}::${s.date}::${s.reason}`)}
+          {#each sortSkips(generateDiff.skip) as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
               <span class="sp-gen-reason sp-gen-reason--{s.reason}" title={s.message}
-                >{skipReasonLabel(s.reason)}</span
+                >{generateSkipLabel(s.reason)}</span
               >
             </div>
           {/each}
@@ -2222,7 +2184,9 @@
   <Modal bind:open={copyOpen} eyebrow="Schichtplanung" title="Woche kopieren">
     <p class="sp-gen-intro">
       Schichten von der ausgewählten Quellwoche werden in die aktuell angezeigte Woche kopiert.
-      Mitarbeiter mit Urlaub, Krankheit oder bestehenden Schichten werden übersprungen.
+      Personen mit Urlaub, Krankheit oder bestehenden Schichten werden übersprungen, ebenso
+      vergangene Tage und Schichten gegen Arbeitszeitgesetz, Jugendarbeitsschutz oder
+      Öffnungszeiten.
     </p>
     {#if pageSalonId !== null}
       <!-- Issue #558 D-10 — the bulk action keeps acting on the caller's whole reach. -->
@@ -2277,12 +2241,12 @@
       {#if copyDiff.skip.length > 0}
         <h3 class="sp-gen-h">Übersprungen ({copyDiff.skip.length})</h3>
         <div class="sp-gen-list sp-gen-list--skip">
-          {#each copyDiff.skip as s (`${s.employeeId}::${s.date}::${s.reason}`)}
+          {#each sortSkips(copyDiff.skip) as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
               <span class="sp-gen-reason sp-gen-reason--{s.reason}" title={s.message}
-                >{copySkipReasonLabel(s.reason)}</span
+                >{copySkipLabel(s.reason)}</span
               >
             </div>
           {/each}
@@ -2465,6 +2429,7 @@
   }
   .sp-gen-list {
     display: flex;
+    flex-shrink: 0;
     flex-direction: column;
     gap: 4px;
     max-height: 240px;
@@ -2531,9 +2496,19 @@
     color: var(--text-2);
   }
   .sp-gen-reason--availability-unavailable,
-  .sp-gen-reason--jarbschg {
+  .sp-gen-reason--jarbschg,
+  .sp-gen-reason--arbzg-daily-max,
+  .sp-gen-reason--arbzg-rest-period {
     color: var(--bad);
     border-color: var(--bad);
+  }
+  .sp-gen-reason--past,
+  .sp-gen-reason--no-contract {
+    color: var(--text-2);
+  }
+  .sp-gen-reason--outside-store-hours {
+    color: var(--warn);
+    border-color: var(--warn);
   }
   .form-group {
     display: flex;

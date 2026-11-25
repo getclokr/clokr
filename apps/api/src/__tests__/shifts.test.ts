@@ -9,7 +9,44 @@ import {
   grantSystemRole,
 } from "./setup";
 import type { FastifyInstance } from "fastify";
-import { dbDateStr, futureDateStr, nextWeekdayStr, utcMidnight } from "./test-dates";
+import {
+  addDaysStr,
+  dbDateStr,
+  dowOf,
+  futureDateStr,
+  nextWeekdayStr,
+  utcMidnight,
+} from "./test-dates";
+
+// Issue #1075: the roster refuses every day before the tenant's today, so the weeks the
+// generate-week / copy-week tests write into are anchored on the live clock (they were fixed
+// 2026-07 / 2026-10 / 2026-12 calendar weeks that rot). The three groups sit about 28, 33 and 38 weeks out,
+// far from every other anchor of this file (up to 12 weeks out) and from each other.
+const mondayAtLeast = (daysAhead: number): string => {
+  let d = futureDateStr(daysAhead);
+  while (dowOf(d) !== 1) d = addDaysStr(d, 1);
+  return d;
+};
+const GEN_MON = mondayAtLeast(200);
+const GEN_SUN = addDaysStr(GEN_MON, 6);
+const GEN_NEXT_MON = addDaysStr(GEN_MON, 7);
+const GEN_NEXT_TUE = addDaysStr(GEN_MON, 8);
+const CP_SRC_MON = mondayAtLeast(235);
+const CP_SRC_WED = addDaysStr(CP_SRC_MON, 2);
+const CP_SRC_FRI = addDaysStr(CP_SRC_MON, 4);
+const CP_TGT_MON = addDaysStr(CP_SRC_MON, 7);
+const CP_TGT_WED = addDaysStr(CP_SRC_MON, 9);
+const CP_TGT_FRI = addDaysStr(CP_SRC_MON, 11);
+const CP_TGT_SUN = addDaysStr(CP_SRC_MON, 13);
+const AV_MON = mondayAtLeast(270);
+const AV_TUE = addDaysStr(AV_MON, 1);
+const AV_WED = addDaysStr(AV_MON, 2);
+const AV_THU = addDaysStr(AV_MON, 3);
+const AV_FRI = addDaysStr(AV_MON, 4);
+const AV_SUN = addDaysStr(AV_MON, 6);
+const AV_NEXT_MON = addDaysStr(AV_MON, 7);
+const AV_NEXT_TUE = addDaysStr(AV_MON, 8);
+const AV_NEXT_SUN = addDaysStr(AV_MON, 13);
 
 describe("Shift Planning API", () => {
   let app: FastifyInstance;
@@ -654,7 +691,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: { in: [data.employee.id, data.adminEmployee.id] },
-          date: { gte: new Date("2026-07-06"), lte: new Date("2026-07-12") },
+          date: { gte: new Date(GEN_MON), lte: new Date(GEN_SUN) },
         },
       });
 
@@ -688,7 +725,7 @@ describe("Shift Planning API", () => {
         method: "POST",
         url: "/api/v1/shifts/generate-week",
         headers: { authorization: `Bearer ${managerToken}` },
-        payload: { weekStart: "2026-07-06", commit: false },
+        payload: { weekStart: GEN_MON, commit: false },
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
@@ -709,7 +746,7 @@ describe("Shift Planning API", () => {
       const shifts = await app.prisma.shift.findMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-07-06"), lte: new Date("2026-07-12") },
+          date: { gte: new Date(GEN_MON), lte: new Date(GEN_SUN) },
         },
       });
       expect(shifts).toHaveLength(0);
@@ -720,7 +757,7 @@ describe("Shift Planning API", () => {
         method: "POST",
         url: "/api/v1/shifts/generate-week",
         headers: { authorization: `Bearer ${managerToken}` },
-        payload: { weekStart: "2026-07-06", commit: true },
+        payload: { weekStart: GEN_MON, commit: true },
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
@@ -733,7 +770,7 @@ describe("Shift Planning API", () => {
       const shifts = await app.prisma.shift.findMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-07-06"), lte: new Date("2026-07-12") },
+          date: { gte: new Date(GEN_MON), lte: new Date(GEN_SUN) },
         },
       });
       expect(shifts).toHaveLength(5);
@@ -750,8 +787,8 @@ describe("Shift Planning API", () => {
         data: {
           employeeId: data.employee.id,
           leaveTypeId: data.vacationType.id,
-          startDate: new Date("2026-07-14"), // Di of week 2026-07-13
-          endDate: new Date("2026-07-14"),
+          startDate: new Date(GEN_NEXT_TUE), // Di of week 2026-07-13
+          endDate: new Date(GEN_NEXT_TUE),
           days: 1,
           status: "APPROVED",
         },
@@ -761,12 +798,12 @@ describe("Shift Planning API", () => {
         method: "POST",
         url: "/api/v1/shifts/generate-week",
         headers: { authorization: `Bearer ${managerToken}` },
-        payload: { weekStart: "2026-07-13", commit: false },
+        payload: { weekStart: GEN_NEXT_MON, commit: false },
       });
       const body = JSON.parse(res.body);
       const leaveSkip = body.skip.find(
         (s: { employeeId: string; date: string; reason: string }) =>
-          s.employeeId === data.employee.id && s.date === "2026-07-14",
+          s.employeeId === data.employee.id && s.date === GEN_NEXT_TUE,
       );
       expect(leaveSkip?.reason).toBe("leave");
 
@@ -1095,15 +1132,15 @@ describe("Shift Planning API", () => {
     let copyTplId: string;
     // Use weeks far enough out to avoid collision with earlier tests.
     // Source = Mon 2026-10-05, Target = Mon 2026-10-12.
-    const SOURCE_WEEK = "2026-10-05";
-    const TARGET_WEEK = "2026-10-12";
+    const SOURCE_WEEK = CP_SRC_MON;
+    const TARGET_WEEK = CP_TGT_MON;
 
     beforeAll(async () => {
       // Clean slate for both weeks
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: { in: [data.employee.id, data.adminEmployee.id] },
-          date: { gte: new Date("2026-10-05"), lte: new Date("2026-10-18") },
+          date: { gte: new Date(CP_SRC_MON), lte: new Date(CP_TGT_SUN) },
         },
       });
 
@@ -1122,7 +1159,7 @@ describe("Shift Planning API", () => {
             employeeId: data.employee.id,
             salonId: data.salonId, // Phase 325 (issue #325)
             templateId: copyTplId,
-            date: new Date("2026-10-05"), // Mo
+            date: new Date(CP_SRC_MON), // Mo
             startTime: "07:00",
             endTime: "15:00",
             label: "Copy-Tpl",
@@ -1132,7 +1169,7 @@ describe("Shift Planning API", () => {
             employeeId: data.employee.id,
             salonId: data.salonId, // Phase 325 (issue #325)
             templateId: copyTplId,
-            date: new Date("2026-10-07"), // Mi
+            date: new Date(CP_SRC_WED), // Mi
             startTime: "07:00",
             endTime: "15:00",
             label: "Copy-Tpl",
@@ -1142,7 +1179,7 @@ describe("Shift Planning API", () => {
             employeeId: data.employee.id,
             salonId: data.salonId, // Phase 325 (issue #325)
             templateId: copyTplId,
-            date: new Date("2026-10-09"), // Fr
+            date: new Date(CP_SRC_FRI), // Fr
             startTime: "07:00",
             endTime: "15:00",
             label: "Copy-Tpl",
@@ -1176,13 +1213,13 @@ describe("Shift Planning API", () => {
 
       // Day-of-week offset must be preserved: source Mo→target Mo etc.
       const dates = empCreates.map((c: { date: string }) => c.date).sort();
-      expect(dates).toEqual(["2026-10-12", "2026-10-14", "2026-10-16"]);
+      expect(dates).toEqual([CP_TGT_MON, CP_TGT_WED, CP_TGT_FRI]);
 
       // Confirm preview did not write anything
       const targetShifts = await app.prisma.shift.findMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-10-12"), lte: new Date("2026-10-18") },
+          date: { gte: new Date(CP_TGT_MON), lte: new Date(CP_TGT_SUN) },
         },
       });
       expect(targetShifts).toHaveLength(0);
@@ -1210,7 +1247,7 @@ describe("Shift Planning API", () => {
       const targetShifts = await app.prisma.shift.findMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-10-12"), lte: new Date("2026-10-18") },
+          date: { gte: new Date(CP_TGT_MON), lte: new Date(CP_TGT_SUN) },
         },
       });
       expect(targetShifts).toHaveLength(3);
@@ -1241,8 +1278,8 @@ describe("Shift Planning API", () => {
         data: {
           employeeId: data.employee.id,
           leaveTypeId: data.vacationType.id,
-          startDate: new Date("2026-10-14"), // Mi target
-          endDate: new Date("2026-10-14"),
+          startDate: new Date(CP_TGT_WED), // Mi target
+          endDate: new Date(CP_TGT_WED),
           days: 1,
           status: "APPROVED",
         },
@@ -1261,7 +1298,7 @@ describe("Shift Planning API", () => {
       const body = JSON.parse(res.body);
       const leaveSkip = body.skip.find(
         (s: { employeeId: string; date: string; reason: string }) =>
-          s.employeeId === data.employee.id && s.date === "2026-10-14",
+          s.employeeId === data.employee.id && s.date === CP_TGT_WED,
       );
       expect(leaveSkip?.reason).toBe("leave");
       // The Mo + Fr shifts should still be in the create list
@@ -1278,8 +1315,8 @@ describe("Shift Planning API", () => {
         data: {
           employeeId: data.employee.id,
           type: "SICK",
-          startDate: new Date("2026-10-12"), // Mo target
-          endDate: new Date("2026-10-12"),
+          startDate: new Date(CP_TGT_MON), // Mo target
+          endDate: new Date(CP_TGT_MON),
           days: 1,
           createdBy: data.adminUser.id,
         },
@@ -1298,7 +1335,7 @@ describe("Shift Planning API", () => {
       const body = JSON.parse(res.body);
       const absenceSkip = body.skip.find(
         (s: { employeeId: string; date: string; reason: string }) =>
-          s.employeeId === data.employee.id && s.date === "2026-10-12",
+          s.employeeId === data.employee.id && s.date === CP_TGT_MON,
       );
       expect(absenceSkip?.reason).toBe("absence");
 
@@ -1311,7 +1348,7 @@ describe("Shift Planning API", () => {
         data: {
           employeeId: data.employee.id,
           salonId: data.salonId, // Phase 325 (issue #325)
-          date: new Date("2026-10-12"),
+          date: new Date(CP_TGT_MON),
           startTime: "10:00",
           endTime: "18:00",
           label: "Pre-existing",
@@ -1332,7 +1369,7 @@ describe("Shift Planning API", () => {
       const body = JSON.parse(res.body);
       const existingSkip = body.skip.find(
         (s: { employeeId: string; date: string; reason: string }) =>
-          s.employeeId === data.employee.id && s.date === "2026-10-12",
+          s.employeeId === data.employee.id && s.date === CP_TGT_MON,
       );
       expect(existingSkip?.reason).toBe("existing");
 
@@ -1347,7 +1384,7 @@ describe("Shift Planning API", () => {
           data: {
             employeeId: otherData.employee.id,
             salonId: otherData.salonId, // Phase 325 (issue #325)
-            date: new Date("2026-10-05"), // same source Mo
+            date: new Date(CP_SRC_MON), // same source Mo
             startTime: "09:00",
             endTime: "17:00",
             label: "OtherTenant",
@@ -1709,12 +1746,12 @@ describe("Shift Planning API", () => {
   describe("Phase 46 — generate-week + copy-week UNAVAILABLE skip", () => {
     // Use isolated weeks far from earlier tests to avoid pollution.
     // 2026-12-07 = Monday; 2026-12-14 = Monday (next week = copy-week target).
-    const GEN_WEEK = "2026-12-07";
-    const GEN_MONDAY_ISO = "2026-12-07";
-    const GEN_TUESDAY_ISO = "2026-12-08";
-    const COPY_SOURCE_WEEK = "2026-12-07";
-    const COPY_TARGET_WEEK = "2026-12-14";
-    const COPY_TARGET_TUESDAY_ISO = "2026-12-15";
+    const GEN_WEEK = AV_MON;
+    const GEN_MONDAY_ISO = AV_MON;
+    const GEN_TUESDAY_ISO = AV_TUE;
+    const COPY_SOURCE_WEEK = AV_MON;
+    const COPY_TARGET_WEEK = AV_NEXT_MON;
+    const COPY_TARGET_TUESDAY_ISO = AV_NEXT_TUE;
     let availTplId: string;
 
     async function clearAvailability(employeeIds: string[]) {
@@ -1728,7 +1765,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: { in: [data.employee.id, data.adminEmployee.id] },
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
 
@@ -1764,7 +1801,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: { in: [data.employee.id, data.adminEmployee.id] },
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
     });
@@ -1775,7 +1812,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-13") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_SUN) },
         },
       });
 
@@ -1825,7 +1862,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-13") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_SUN) },
         },
       });
 
@@ -1878,7 +1915,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-13") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_SUN) },
         },
       });
 
@@ -1916,9 +1953,9 @@ describe("Shift Planning API", () => {
       const dates = empCreates.map((c: { date: string }) => c.date).sort();
       expect(dates).toEqual([
         GEN_MONDAY_ISO,
-        "2026-12-09", // Wed
-        "2026-12-10", // Thu
-        "2026-12-11", // Fri
+        AV_WED, // Wed
+        AV_THU, // Thu
+        AV_FRI, // Fri
       ]);
 
       await clearAvailability([data.employee.id]);
@@ -1930,7 +1967,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
 
@@ -1989,7 +2026,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
     });
@@ -1999,7 +2036,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
 
@@ -2060,7 +2097,7 @@ describe("Shift Planning API", () => {
       await app.prisma.shift.deleteMany({
         where: {
           employeeId: data.employee.id,
-          date: { gte: new Date("2026-12-07"), lte: new Date("2026-12-20") },
+          date: { gte: new Date(AV_MON), lte: new Date(AV_NEXT_SUN) },
         },
       });
     });

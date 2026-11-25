@@ -120,6 +120,56 @@ Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder 
 
 Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8/§ 12 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
 
+## Schichtplanung — eine Prüfung für jeden Schreibweg (Issue #1075)
+
+Jeder Weg, der Arbeitszeit in den Dienstplan **hinzufügt**, läuft durch dieselbe Funktion `checkShiftWrite` (`apps/api/src/contexts/scheduling/shift-write-checks.ts`) mit denselben sechs Regeln in derselben Reihenfolge. Kein Weg rechnet eine Regel selbst. Die Prüfung liest nur; sie schreibt weder Schicht noch Audit noch Saldo.
+
+### Die sechs Regeln
+
+Die erste Regel, die anschlägt, antwortet.
+
+| Nr. | Regel                      | Antwort                                 | Übersteuerbar             |
+| --- | -------------------------- | --------------------------------------- | ------------------------- |
+| 1   | Vertrag am Tag             | 422 `SHIFT_NO_CONTRACT`                 | nein                      |
+| 2   | Vergangenheit              | 422 `SHIFT_PAST_IMMUTABLE`              | nein                      |
+| 3   | Öffnungszeiten des Salons  | 409 `SHIFT_OUTSIDE_STORE_HOURS`         | ja, nur bei einer Schicht |
+| 4   | § 8 / § 12 JArbSchG        | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
+| 5   | § 3 ArbZG, Tageshöchstzeit | 422 `ARBZG_VIOLATION_DAILY_MAX`         | nein                      |
+| 6   | § 5 ArbZG, Ruhezeit        | 409 `ARBZG_VIOLATION_REST_PERIOD`       | ja, nur bei einer Schicht |
+
+- **Vergangenheit** heißt: vor dem heutigen Kalendertag **des Unternehmens** (Zeitzone des Unternehmens, nicht die Serveruhr). Heute bleibt planbar. Die Sperre gilt für Anlegen, Ändern (alter und neuer Tag), Wiederherstellen, Sammelzuweisung, „Muster anwenden“, „Woche kopieren“ und Löschen (Revisionssicherheit).
+- **§ 3 ArbZG ist eine Tagesregel** (§ 3 Satz 1 „werktägliche Arbeitszeit“, § 2 Abs. 1): Es zählt die **Summe** aller Schichten der Person an dem Tag, jede mit der einen Pausenregel (`breakAmountFor`) abgezogen. Mehr als 10 Stunden netto sind nicht zulässig; eine Schicht von 08:00 bis 13:00 plus eine von 13:30 bis 19:30 (11 Stunden) wird abgelehnt. Die Meldung nennt den Tag und die Stunden. Die 8-Stunden-Regel ist ein Durchschnitt über 24 Wochen und wird im Dienstplan nicht als Tagesgrenze behandelt.
+- **§ 5 ArbZG gilt in beide Richtungen** (§ 5 Abs. 1 „nach Beendigung der täglichen Arbeitszeit“): Eine neue Schicht verkürzt die Ruhezeit zur letzten Schicht des Vortags **und** zur ersten Schicht des Folgetags. Wie die Erfassung prüft der Dienstplan Vortag und Folgetag. Bei einer übersteuerten Schicht schreibt Clokr je verletzter Richtung einen Eintrag `SHIFT_FORCED_OVER_ARBZG` (`prevShiftId` für den Vortag, `nextShiftId` für den Folgetag).
+- Für Jugendliche läuft zuerst die Prüfung nach JArbSchG (Regel 4); § 3 und § 5 ArbZG laufen weiter, die Ruhezeit also mit 11 Stunden.
+- Eine Schicht ohne Dauer (Beginn gleich Ende) zählt 0 Minuten.
+
+### Schreibwege
+
+| Weg                                           | Antwort bei einem Befund                                                 | `?force=true`                 |
+| --------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------- |
+| Schicht anlegen (`POST /shifts`)              | Ablehnung (422 oder 409)                                                 | ja: Öffnungszeiten, § 5 ArbZG |
+| Schicht ändern (`PUT /shifts/:id`)            | Ablehnung, nur bei Verschlechterung                                      | ja: Öffnungszeiten, § 5 ArbZG |
+| Wiederherstellen (`POST /shifts/:id/restore`) | Ablehnung wie beim Anlegen; die Hinweise-Seite fragt vor dem Übersteuern | ja: Öffnungszeiten, § 5 ArbZG |
+| Sammelzuweisung (`POST /shifts/bulk`)         | die **ganze** Anfrage wird abgelehnt, mit `itemIndex`, `canForce: false` | nein                          |
+| „Muster anwenden“ (`generate-week`)           | die Zelle wird mit Grund und Meldung übersprungen                        | nein                          |
+| „Woche kopieren“ (`copy-week`)                | die Zelle wird mit Grund und Meldung übersprungen                        | nein                          |
+| Löschen (`DELETE /shifts/:id`)                | nur die Vergangenheitssperre (Löschen entfernt Zeit)                     | nein                          |
+
+Die Übersteuerung ist eine bewusste, protokollierte Entscheidung für genau **eine** Schicht (`SHIFT_FORCED_OUTSIDE_HOURS`, `SHIFT_FORCED_OVER_ARBZG`). Ein Muster, eine Kopie oder eine Sammelzuweisung soll sie nicht ungesehen vervielfältigen; eine einzelne Schicht lässt sich danach weiter mit Übersteuern anlegen. Gründe beim Überspringen: `past`, `no-contract`, `outside-store-hours`, `jarbschg`, `arbzg-daily-max`, `arbzg-rest-period`; die Vorschau und die Übernahme überspringen dieselben Zellen. Wiederherstellen prüft nur dort, wo Arbeitszeit zurückkommt (eine durch die Berufsschul-Bereinigung entfernte Schicht); das Entfernen einer Markierung ändert keine Zeit, keine Person und keinen Tag.
+
+### Nur Verschlechterung
+
+Wie bei JArbSchG (Issue #1057) wird nur abgelehnt oder gewarnt, was einen Verstoß **erzeugt oder vergrößert**: Die Tagessumme wächst oder die Ruhezeit zu diesem Nachbarn schrumpft. Eine reine Bezeichnungsänderung und das Verkürzen einer bereits unzulässigen Altschicht (Altbestand, Import, übersteuert) gehen durch; sonst bliebe der Dienstplan gesperrt und jede Änderung brächte einen neuen Übersteuern-Eintrag.
+
+### Bekannte Grenzen
+
+- **Wochenhöchstarbeitszeit (48 Stunden) und 24-Wochen-Schnitt** (§ 3 ArbZG) werden im Dienstplan nicht geprüft; die Erfassung meldet die 48 Stunden. Ob der Plan eine harte Wochengrenze bekommt, ist eine offene Owner-Entscheidung (das Gesetz kennt einen Durchschnitt).
+- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Wochenendruhe) gehören zu Issue #1076; für Jugendliche läuft bis dahin die 11-Stunden-Ruhezeit des ArbZG.
+- **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074).
+- **Vertragsprüfung:** Sie kennt den Beginn des Vertrags, nicht das Austrittsdatum.
+- **Hinweise-Seite:** Sie zeigt auch entfernte Schichten vergangener Tage; deren Wiederherstellung antwortet mit der Vergangenheitssperre.
+- Alle Schreibwege samt Antwort und Übersteuerung sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` erfasst; ein neuer Weg fällt dort auf.
+
 ---
 
 ## Tätigkeitsart am Zeiteintrag (Issue #81) — Auswertungsdimension

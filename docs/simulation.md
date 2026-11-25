@@ -84,7 +84,8 @@ pnpm sim backfill              # replays the 8 days before today, in order
 `--size small` (2 salons, 15 people) is for smoke runs. A backfill is limited by the product itself:
 manual web entries older than the retro window (10 days) are refused, so replayed older days carry
 only WLAN history (presence events keep their timestamp) and the bots count the skipped web entries
-(`entry.skipped-retro`). Months are therefore closed for real only when real time passes: the first
+(`entry.skipped-retro`). A replayed day plans the roster from the real today, because the roster refuses every day before
+today (Issue #1075). Months are therefore closed for real only when real time passes: the first
 close happens in the first week of the next month. Start with `--backfill-days 0` if in doubt. `provision` creates both tenants through the
 operator API (tenant, packages) and the tenant API (admin invitation read from the mail catcher,
 salons in different Bundesländer, 300 people, Stammsalon, Springer deployments, Berufsschule
