@@ -14,7 +14,13 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import List from "$components/ui/List.svelte";
   import ListRow from "$components/ui/ListRow.svelte";
-  import { COVERAGE_TEXT, READERS_TEXT, purposeLine } from "$lib/transparency/time-transparency";
+  import Note from "$components/ui/Note.svelte";
+  import {
+    COVERAGE_TEXT,
+    PROGRAMS_TEXT,
+    READERS_TEXT,
+    purposeLine,
+  } from "$lib/transparency/time-transparency";
 
   let loading = $state(true);
   let failed = $state(false);
@@ -79,8 +85,22 @@
               {#snippet meta()}<span class="purpose">{purposeLine(group.purposes)}</span>{/snippet}
             </ListRow>
           {/each}
+          {#if answer.connectedPrograms}
+            <ListRow
+              title={PROGRAMS_TEXT.title}
+              subtitle={PROGRAMS_TEXT.subtitle}
+              avatar={false}
+              wrap
+              kind="programs"
+            >
+              {#snippet meta()}<span class="purpose">{PROGRAMS_TEXT.purpose}</span>{/snippet}
+            </ListRow>
+          {/if}
         </List>
       {/if}
+      <div class="support-note">
+        <Note tone="info">{PROGRAMS_TEXT.supportNote}</Note>
+      </div>
     {/if}
   </Section>
 </div>
@@ -90,6 +110,9 @@
     margin: 0 0 var(--s-3);
     color: var(--text-2);
     font-size: var(--fs-sm);
+  }
+  .support-note {
+    margin-top: var(--s-3);
   }
   .purpose {
     color: var(--text-2);

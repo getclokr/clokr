@@ -277,4 +277,77 @@ describe("Issue #606 — GET /api/v1/me/time-entry-readers", () => {
     const hrToken = await tokenWithoutSignIn(app, hr.user.email);
     expect((await readers(hrToken)).res.statusCode).toBe(403);
   });
+  it("Pin 3: the listed Salonmanager's token reads the person's entry through GET /time-entries, an unlisted one does not", async () => {
+    const date = `${new Date().getUTCFullYear() - 1}-03-10`;
+    const entryRow = await app.prisma.timeEntry.create({
+      data: {
+        employeeId: data.employee.id,
+        salonId: salonA.id,
+        date: new Date(date),
+        startTime: new Date(`${date}T08:00:00Z`),
+        endTime: new Date(`${date}T16:00:00Z`),
+        source: "MANUAL",
+      },
+    });
+    const listedMgr = await createColleague("sm-pin3-listed");
+    await assign(listedMgr.user.id, SYSTEM_ROLE_IDS.SALON_MANAGER, {
+      type: "SALONS",
+      salonIds: [salonA.id],
+    });
+    const unlistedMgr = await createColleague("sm-pin3-unlisted");
+    await assign(unlistedMgr.user.id, SYSTEM_ROLE_IDS.SALON_MANAGER, {
+      type: "SALONS",
+      salonIds: [salonB.id],
+    });
+    expect(
+      (await readers(data.empToken)).body?.groups.filter((g) => g.roleName === "Salonmanager"),
+    ).toHaveLength(1);
+
+    const read = async (email: string) => {
+      const token = await tokenWithoutSignIn(app, email);
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/v1/time-entries?employeeId=${data.employee.id}&from=${date}&to=${date}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      return (JSON.parse(res.body) as { id: string }[]).map((e) => e.id);
+    };
+    expect(await read(listedMgr.user.email)).toContain(entryRow.id);
+    expect(await read(unlistedMgr.user.email)).toEqual([]);
+  });
+
+  it("connectedPrograms is true only while an active API key exists (not revoked, not expired)", async () => {
+    expect((await readers(data.empToken)).body?.connectedPrograms).toBe(false);
+    const key = await createAdminApiKey(app.prisma, {
+      tenantId: data.tenant.id,
+      createdBy: data.adminUser.id,
+    });
+    expect((await readers(data.empToken)).body?.connectedPrograms).toBe(true);
+    await app.prisma.apiKey.update({ where: { id: key.id }, data: { revokedAt: new Date() } });
+    expect((await readers(data.empToken)).body?.connectedPrograms).toBe(false);
+    await app.prisma.apiKey.update({
+      where: { id: key.id },
+      data: { revokedAt: null, expiresAt: new Date(Date.now() - 60_000) },
+    });
+    expect((await readers(data.empToken)).body?.connectedPrograms).toBe(false);
+    await app.prisma.apiKey.update({
+      where: { id: key.id },
+      data: { expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    expect((await readers(data.empToken)).body?.connectedPrograms).toBe(true);
+  });
+
+  it("never lists the admin of another tenant", async () => {
+    const foreign = await seedTestData(app, "rd606x");
+    try {
+      const { res } = await readers(data.empToken);
+      expect(res.body).not.toContain(foreign.tenant.id);
+      expect(
+        (JSON.parse(res.body) as TimeEntryReadersResponse).groups.map((g) => g.roleName),
+      ).toEqual(["Admin"]);
+    } finally {
+      await cleanupTestData(app, foreign.tenant.id);
+    }
+  });
 });

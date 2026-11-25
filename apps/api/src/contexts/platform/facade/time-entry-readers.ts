@@ -167,3 +167,24 @@ export async function timeEntryReaderGroups(
       a.roleName.localeCompare(b.roleName, "de"),
   );
 }
+
+/**
+ * Issue #606 (D-05): does the tenant have at least one active API key? An API key resolves to the
+ * Admin or Manager system role and reads every time entry of the tenant, so the profile names
+ * "Angebundene Programme" when one exists (no key name, no count). Active = not revoked and not
+ * expired, the very rule of `requireAuth` (`middleware/auth.ts`).
+ */
+export async function tenantHasActiveApiKey(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  now: Date,
+): Promise<boolean> {
+  const active = await db.apiKey.count({
+    where: {
+      tenantId,
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+    },
+  });
+  return active > 0;
+}

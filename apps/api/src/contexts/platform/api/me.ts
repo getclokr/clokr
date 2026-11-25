@@ -4,7 +4,7 @@ import { requireAuth } from "../../../middleware/auth";
 import { API_KEY_SUBJECT_PREFIX, accessContextFromRequest } from "../access-context";
 import { requireAnyPermission } from "../request-permissions";
 import { contextSalonIds, ownRoleNames } from "../facade/role-assignments";
-import { timeEntryReaderGroups } from "../facade/time-entry-readers";
+import { tenantHasActiveApiKey, timeEntryReaderGroups } from "../facade/time-entry-readers";
 import { isMultiSalonTenant, listSalons } from "../facade/salons";
 import { packagesForDisplay } from "../tenant-packages";
 import { PERSONAL_EMAIL_OPT_OUT_FIELDS } from "../notification-email-policy";
@@ -348,15 +348,16 @@ export async function meRoutes(app: FastifyInstance) {
       if (!req.user.employeeId) {
         return reply.code(400).send({ error: "Kein Mitarbeiterprofil vorhanden" });
       }
+      const now = new Date();
       return {
         groups: await timeEntryReaderGroups(
           app.prisma,
           req.user.tenantId,
           req.user.employeeId,
           req.user.sub,
-          new Date(),
+          now,
         ),
-        connectedPrograms: false,
+        connectedPrograms: await tenantHasActiveApiKey(app.prisma, req.user.tenantId, now),
       };
     },
   });

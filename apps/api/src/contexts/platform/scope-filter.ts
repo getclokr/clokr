@@ -70,6 +70,37 @@ export async function isTimeEntryInScope(
 }
 
 /**
+ * The D-09 TimeEntry rule as ONE SQL predicate over the alias `te` (`"TimeEntry"`): the entry's own
+ * salon, OR its person (PERSONS), OR its Stammsalon at the entry's own date, each with the explicit
+ * `FALSE` fallback for an empty id array (see {@link scopedTimeEntryIds}). Shared by
+ * {@link scopedTimeEntryIds} and {@link timeEntryCoverage} (Issue #606), so the profile's "who can
+ * read my times" list and the real read rule can never drift apart.
+ */
+function timeEntryInScopePredicate(reach: Extract<AccessReach, { kind: "scoped" }>): Prisma.Sql {
+  const salonBranch =
+    reach.salonIds.length > 0
+      ? Prisma.sql`te."salonId" IN (${Prisma.join([...reach.salonIds])})`
+      : Prisma.sql`FALSE`;
+  const employeeBranch =
+    reach.employeeIds.length > 0
+      ? Prisma.sql`te."employeeId" IN (${Prisma.join([...reach.employeeIds])})`
+      : Prisma.sql`FALSE`;
+  const homeSalonBranch =
+    reach.salonIds.length > 0
+      ? Prisma.sql`EXISTS (
+          SELECT 1 FROM "EmployeeSalonAssignment" esa
+          WHERE esa."employeeId" = te."employeeId"
+            AND esa."kind" = 'HOME'
+            AND esa."validFrom" <= te."date"
+            AND (esa."validUntil" IS NULL OR esa."validUntil" >= te."date")
+            AND esa."salonId" IN (${Prisma.join([...reach.salonIds])})
+        )`
+      : Prisma.sql`FALSE`;
+
+  return Prisma.sql`(${salonBranch} OR ${employeeBranch} OR ${homeSalonBranch})`;
+}
+
+/**
  * D-09, list mode: the ids of every `TimeEntry` in `[dateFrom, dateTo]` (inclusive, `date` column)
  * that is in scope, `deletedAt: null` always applied. `wholeTenant` -> the sentinel `"all"` (apply
  * no further id filter). A `scoped` reach with both `salonIds` and `employeeIds` empty -> `[]` with
@@ -104,26 +135,6 @@ export async function scopedTimeEntryIds(
   if (reach.kind === "wholeTenant") return "all";
   if (reach.salonIds.length === 0 && reach.employeeIds.length === 0) return [];
 
-  const salonBranch =
-    reach.salonIds.length > 0
-      ? Prisma.sql`te."salonId" IN (${Prisma.join([...reach.salonIds])})`
-      : Prisma.sql`FALSE`;
-  const employeeBranch =
-    reach.employeeIds.length > 0
-      ? Prisma.sql`te."employeeId" IN (${Prisma.join([...reach.employeeIds])})`
-      : Prisma.sql`FALSE`;
-  const homeSalonBranch =
-    reach.salonIds.length > 0
-      ? Prisma.sql`EXISTS (
-          SELECT 1 FROM "EmployeeSalonAssignment" esa
-          WHERE esa."employeeId" = te."employeeId"
-            AND esa."kind" = 'HOME'
-            AND esa."validFrom" <= te."date"
-            AND (esa."validUntil" IS NULL OR esa."validUntil" >= te."date")
-            AND esa."salonId" IN (${Prisma.join([...reach.salonIds])})
-        )`
-      : Prisma.sql`FALSE`;
-
   const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT te."id" FROM "TimeEntry" te
     INNER JOIN "Employee" e ON e."id" = te."employeeId"
@@ -131,7 +142,7 @@ export async function scopedTimeEntryIds(
       AND te."deletedAt" IS NULL
       AND te."date" >= ${dateFrom}
       AND te."date" <= ${dateTo}
-      AND (${salonBranch} OR ${employeeBranch} OR ${homeSalonBranch})
+      AND ${timeEntryInScopePredicate(reach)}
   `);
   return rows.map((r) => r.id);
 }
@@ -166,10 +177,20 @@ export async function timeEntryCoverage(
   if (reach.salonIds.length === 0) return null;
   if (homeSalonId !== null && reach.salonIds.includes(homeSalonId)) return "homeSalon";
   if (assignmentSalonIds.some((salonId) => reach.salonIds.includes(salonId))) return "workSalon";
-  // Reserved for the existing-entry branch (the entry-salon / Stammsalon-at-entry-date rule).
-  void db;
-  void tenantId;
-  return null;
+
+  // An existing entry that the D-09 rule already puts in scope (entry salon, or the Stammsalon at the
+  // entry's own date, which may differ from today's after a move): one parameterised query over the
+  // shared predicate, never a per-row loop. Soft-deleted entries never count.
+  const rows = await db.$queryRaw<{ one: number }[]>(Prisma.sql`
+    SELECT 1 AS one FROM "TimeEntry" te
+    INNER JOIN "Employee" e ON e."id" = te."employeeId"
+    WHERE e."tenantId" = ${tenantId}
+      AND te."employeeId" = ${employeeId}
+      AND te."deletedAt" IS NULL
+      AND ${timeEntryInScopePredicate(reach)}
+    LIMIT 1
+  `);
+  return rows.length > 0 ? "workSalon" : null;
 }
 
 // ── Stammsalon-only (D-10): leave/absence/saldo/exports — NO entry-salon fallback ───────────────

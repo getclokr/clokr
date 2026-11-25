@@ -64,6 +64,33 @@ describe("TimeEntryReadersSettings", () => {
     ).toBeInTheDocument();
   });
 
+  it("names connected programs without a key name or count, and always the support note", async () => {
+    fetchTimeEntryReaders.mockResolvedValue({
+      groups: [{ roleName: "Admin", coverage: "wholeTenant", purposes: ["protection"] }],
+      connectedPrograms: true,
+    });
+    renderWithTheme(TimeEntryReadersSettings, {});
+    expect(
+      await screen.findByText("Angebundene Programme deines Unternehmens"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Zweck: legt dein Unternehmen fest, zum Beispiel die Lohnabrechnung"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Der Clokr-Support sieht deine Zeiten nur in einem Supportfall/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows the support note and no programs row when nothing is connected", async () => {
+    renderWithTheme(TimeEntryReadersSettings, {});
+    await screen.findByText("Admin");
+    expect(screen.queryByText("Angebundene Programme deines Unternehmens")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Der Clokr-Support sieht deine Zeiten nur in einem Supportfall/),
+    ).toBeInTheDocument();
+  });
+
   it("shows the empty state when no other role can read the times", async () => {
     fetchTimeEntryReaders.mockResolvedValue({ groups: [], connectedPrograms: false });
     renderWithTheme(TimeEntryReadersSettings, {});

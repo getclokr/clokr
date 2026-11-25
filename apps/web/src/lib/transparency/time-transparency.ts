@@ -36,3 +36,13 @@ export const READERS_TEXT = {
   loadError: "Die Liste ließ sich nicht laden.",
   listLabel: "Rollen mit Lesezugriff",
 } as const;
+
+/** Readers outside the role assignments (Issue #606, D-05): connected programs and the Clokr support. */
+export const PROGRAMS_TEXT = {
+  title: "Angebundene Programme deines Unternehmens",
+  subtitle:
+    "über eine Schnittstelle, die deine Administration eingerichtet hat – sie können alle Zeiten lesen",
+  purpose: "Zweck: legt dein Unternehmen fest, zum Beispiel die Lohnabrechnung",
+  supportNote:
+    "Der Clokr-Support sieht deine Zeiten nur in einem Supportfall: zeitlich begrenzt, mit Begründung und protokolliert. Deine Administration wird dabei benachrichtigt.",
+} as const;
