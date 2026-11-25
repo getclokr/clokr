@@ -53,7 +53,7 @@
             <span class="day-detail-name">{row.name}</span>
             <span class="day-detail-type" data-testid="cal-day-detail-type">{row.typeLabel}</span>
             {#if row.isPending}
-              <span class="badge badge-yellow">ausstehend</span>
+              <span class="badge badge-yellow">offen</span>
             {/if}
           </li>
         {/each}

@@ -197,11 +197,11 @@ describe("bars", () => {
 });
 
 describe("header", () => {
-  it("shows the weekday letter and the day number per day, weekends shaded", () => {
+  it("shows the two-letter weekday and the day number per day, weekends shaded", () => {
     render();
     // 2026-11-02 is a Monday, 2026-11-07 a Saturday.
     const monday = screen.getByTestId("absence-day-2026-11-02");
-    expect(within(monday).getByText("M")).toBeTruthy();
+    expect(within(monday).getByText("Mo")).toBeTruthy();
     expect(within(monday).getByText("2")).toBeTruthy();
     expect(monday.classList.contains("absence-day--weekend")).toBe(false);
     expect(
@@ -512,11 +512,9 @@ describe("load row", () => {
     exceeded: new Map([["2027-03-11", "Grenze 3 für alle Mitarbeitenden"]]),
   };
 
-  it("is labelled „Abwesend (Personen)“ and shows the count per day", () => {
+  it("is labelled „Abwesend pro Tag“ (#991 N-19) and shows the count per day", () => {
     renderPlan({ load: loadDay });
-    expect(
-      within(screen.getByTestId("plan-day-load")).getByText("Abwesend (Personen)"),
-    ).toBeTruthy();
+    expect(within(screen.getByTestId("plan-day-load")).getByText("Abwesend pro Tag")).toBeTruthy();
     expect(screen.getByTestId("day-load-2027-03-10").textContent?.trim()).toBe("3");
   });
 
@@ -947,7 +945,7 @@ describe("#840 G-5 forecast pane", () => {
     );
   });
 
-  it("the load row prints the label it is given and falls back to „Abwesend (Personen)“", () => {
+  it("the load row prints the label it is given and falls back to „Abwesend pro Tag“ (a week load: „Abwesend pro Woche“)", () => {
     renderPlan({
       load: { kind: "day", counts: new Map([["2027-03-10", 1]]), label: "Urlaub (Personen)" },
     });

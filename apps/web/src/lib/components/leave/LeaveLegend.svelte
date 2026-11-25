@@ -47,10 +47,12 @@
 
   // Display wording only; a style is decided by its code, never by this text.
   const STYLE_LABELS: Record<BarStyle, string> = {
-    // #840 G-4: the keys name the look AND the status; "Gesetzt" read as a grey meaning of its own.
-    gesetzt: "Genehmigt (voll)",
-    beantragt: "Beantragt (gestrichelt)",
-    wunsch: "Wunsch (gestreift)",
+    // Issue #991 (N-17, D-991-17): the keys name the status only; the swatch beside each one shows
+    // the look (full, dashed, striped), so the text does not have to describe a drawing. #840 G-4's
+    // grey „Gesetzt“ stays replaced.
+    gesetzt: "Genehmigt",
+    beantragt: "Beantragt",
+    wunsch: "Wunsch",
     abwesend: "Abwesend",
   };
 

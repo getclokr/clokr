@@ -28,6 +28,7 @@
 
 import type { VacationBalance } from "./vacation-balance";
 import { formatDays } from "./review-facts";
+import { isEffectiveLeaveStatus } from "./effective-leave-statuses";
 
 export interface VacationSummary {
   /** Jahresanspruch. */
@@ -107,4 +108,38 @@ export function vacationCardDelta(total: number, carryOver: number): string {
     return `von ${formatDays(total + carryOver)} gesamt (${formatDays(total)} Anspruch + ${formatDays(carryOver)} Übertrag Vorjahr)`;
   }
   return `von ${formatDays(total)} gesamt`;
+}
+
+// ── „Genommen & genehmigt“: the one hint line (Issue #991 N-18, D-991-18) ───────────────────────
+
+/** The part of an own request the hint reads; the page's rows satisfy it. */
+export interface VacationHintRequest {
+  typeCode: string | null;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
+function hintDay(iso: string): string {
+  const [, m, d] = iso.slice(0, 10).split("-");
+  return `${Number(d)}.${Number(m)}.`;
+}
+
+/**
+ * The line under „Genommen & genehmigt“. An effective vacation ahead wins („nächster: 1.12.–2.12.“);
+ * without one, a waiting vacation request is named, so the card never says „kein Urlaub geplant“
+ * while a request is being decided; otherwise „kein Urlaub geplant“. `today` is the tenant-local day
+ * (`YYYY-MM-DD`); a request starting today counts as ahead. Only VACATION is read.
+ */
+export function vacationTakenHint(requests: readonly VacationHintRequest[], today: string): string {
+  const ahead = requests
+    .filter((r) => r.typeCode === "VACATION" && r.startDate.slice(0, 10) >= today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const next = ahead.find((r) => isEffectiveLeaveStatus(r.status));
+  if (next) return `nächster: ${hintDay(next.startDate)}–${hintDay(next.endDate)}`;
+  const waiting = ahead.find((r) => r.status === "PENDING");
+  if (waiting) {
+    return `beantragt: ${hintDay(waiting.startDate)}–${hintDay(waiting.endDate)}, wartet auf Entscheidung`;
+  }
+  return "kein Urlaub geplant";
 }

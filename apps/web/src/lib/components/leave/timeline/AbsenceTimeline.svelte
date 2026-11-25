@@ -60,7 +60,7 @@
       counts: Map<string, number>;
       exceeded?: Map<string, string>;
       hint?: string;
-      /** Name of the load row; default „Abwesend (Personen)“. */
+      /** Name of the load row; default „Abwesend pro Tag“ (a week load: „Abwesend pro Woche“). */
       label?: string;
     };
     onWeekSelect?: (monday: string) => void;
@@ -106,8 +106,9 @@
   const NEGATIVE_FORECAST_HEIGHT = 64;
   /** A text label on a bar needs room for a word (D-840-10). */
   const LABEL_MIN_WIDTH = 56;
-  /** Header cells print letter and number from this column width on. */
-  const DAY_TEXT_MIN_WIDTH = 14;
+  /** Header cells print the two-letter weekday and the number from this column width on (#991 N-19:
+   *  „Mo“ at 12 px needs about 18 px, the single letter needed 14). */
+  const DAY_TEXT_MIN_WIDTH = 18;
   /** Container width assumed while nothing is measured (jsdom, first paint). */
   const FALLBACK_CONTAINER = 1144;
   const MIN_WIDTH: Record<Period["zoom"], number> = { jahr: 4, quartal: 10, monat: 28 };
@@ -601,7 +602,9 @@
           <!-- Load: how many persons are absent per day (Quartal, Monat) or per week (Jahr) -->
           {#if load}
             <div class="tl-line tl-load" data-testid="plan-day-load">
-              <div class="tl-name" title={load.hint}>{load.label ?? "Abwesend (Personen)"}</div>
+              <div class="tl-name" title={load.hint}>
+                {load.label ?? (load.kind === "week" ? "Abwesend pro Woche" : "Abwesend pro Tag")}
+              </div>
               <div class="tl-track" style:width="{trackWidth}px" style:height="{LOAD_HEIGHT}px">
                 {#each loadCells as cell (cell.key)}
                   <div
@@ -1025,7 +1028,7 @@
     align-items: center;
     justify-content: center;
     border-left: 1px solid var(--line);
-    font-size: 0.6875rem;
+    font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
     color: var(--text-2);
   }
@@ -1050,7 +1053,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 0.6875rem;
+    font-size: var(--fs-xs);
     line-height: 1.1;
     color: var(--text-2);
   }

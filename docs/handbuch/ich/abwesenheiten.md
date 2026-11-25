@@ -60,7 +60,7 @@ Auf dem Reiter **Anträge** zeigt jeder Antrag seinen Status:
 
 | Status                | Bedeutung                                                                    |
 | --------------------- | ---------------------------------------------------------------------------- |
-| Ausstehend            | wartet auf Genehmigung                                                       |
+| Offen                 | wartet auf Genehmigung                                                       |
 | Genehmigt             | bestätigt, im Kalender sichtbar, zählt für dein Konto                        |
 | Abgelehnt             | nicht genehmigt, mit Begründung                                              |
 | Stornierung beantragt | du willst einen genehmigten Antrag zurücknehmen, eine Entscheidung steht aus |
@@ -76,7 +76,7 @@ Hinweise wie „Vorläufig“ oder „Angepasst“ erscheinen bei älteren Antr�
 
 Am Ende jeder Zeile öffnet ein Menü die Aktionen, die für den Status möglich sind:
 
-- **Noch ausstehender Antrag**: Du kannst ihn bearbeiten oder mit **Zurückziehen** zurücknehmen. Dabei nennst du kurz einen Grund.
+- **Offener Antrag**: Du kannst ihn bearbeiten oder mit **Zurückziehen** zurücknehmen. Dabei nennst du kurz einen Grund.
 - **Genehmigter Antrag**: Mit **Stornieren** beantragst du die Stornierung und nennst einen Grund. Der Urlaub bleibt bis zur Entscheidung aktiv, im Kalender sichtbar und zählt weiter. Aus Revisionsgründen bestätigt eine **andere** Führungskraft als die, die ihn genehmigt hat. Du kannst deine eigene Stornierung nicht genehmigen.
 
 ::: tip Hinweis

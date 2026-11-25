@@ -36,7 +36,7 @@ export interface Period {
 
 export interface DayColumn {
   day: string;
-  /** German weekday initial: M D M D F S S (Monday first). */
+  /** Two-letter German weekday: Mo Di Mi Do Fr Sa So (Issue #991 N-19; the field keeps its name). */
   weekdayLetter: string;
   dayNumber: number;
   isWeekend: boolean;
@@ -44,7 +44,8 @@ export interface DayColumn {
 
 // ── Day arithmetic ───────────────────────────────────────────────────────────
 
-const WEEKDAY_LETTERS = ["S", "M", "D", "M", "D", "F", "S"] as const; // index = getUTCDay()
+// Issue #991 (N-19): two letters, because the single initials „M D M D“ could not be told apart.
+const WEEKDAY_LETTERS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const; // index = getUTCDay()
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");

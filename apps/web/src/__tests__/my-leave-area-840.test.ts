@@ -114,7 +114,8 @@ describe("Issue #840 E-01 - one page, one toolbar", () => {
     expect(functionBody("selectTab")).toContain("void navigate({ tab, zoom: defaultZoomOf(tab) })");
     expect(PAGE).toContain("void navigate({ zoom }, true)");
     expect(PAGE).toContain("void navigate({ datum: today }, true)");
-    expect(PAGE).toContain("shiftPeriod(activeZoom, urlState.datum, step)");
+    // #991 (M-40): while the own Planung has no plan the toolbar steps by year (toolbarZoom).
+    expect(PAGE).toContain("shiftPeriod(toolbarZoom, urlState.datum, step)");
   });
 
   it("[zoom] Monat on Kalender, Jahr on Meine Anträge, the zoom control only on Team and Planung", () => {

@@ -616,6 +616,39 @@ describe("LeavePlanningPanel - mobile", () => {
   });
 });
 
+describe("LeavePlanningPanel - own Planung without a plan (#991 M-40)", () => {
+  it("names who opens the planning and the year, and reports „none“", async () => {
+    listPlans.mockResolvedValue([]);
+    const onPlanState = vi.fn();
+    render({ mode: "own", onPlanState });
+    expect(await screen.findByText("Noch keine Planung")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Sobald deine Salonleitung die Urlaubsplanung für 2027 eröffnet, trägst du hier deine Wünsche ein.",
+      ),
+    ).toBeTruthy();
+    expect(onPlanState).toHaveBeenLastCalledWith("none");
+  });
+
+  it("reports „loading“ first and „present“ once a plan is shown", async () => {
+    const onPlanState = vi.fn();
+    render({ mode: "own", onPlanState });
+    expect(onPlanState).toHaveBeenCalledWith("loading");
+    await screen.findByTestId("plan-row-e1");
+    expect(onPlanState).toHaveBeenLastCalledWith("present");
+  });
+
+  it("the team text stays as it was", async () => {
+    listPlans.mockResolvedValue([]);
+    const onPlanState = vi.fn();
+    render({ mode: "team", onPlanState });
+    expect(
+      await screen.findByText("Für dieses Jahr ist noch keine Planung eröffnet."),
+    ).toBeTruthy();
+    expect(onPlanState).toHaveBeenLastCalledWith("none");
+  });
+});
+
 describe("LeavePlanningPanel - one card and the controls for the toolbar (G-6)", () => {
   it("reports null while loading and without a plan", async () => {
     let release: (items: LeavePlanListItem[]) => void = () => {};
@@ -695,7 +728,7 @@ describe("LeavePlanningPanel - one card and the controls for the toolbar (G-6)",
     await screen.findByTestId("plan-day-load");
     const row = screen.getByTestId("plan-day-load").querySelector(".tl-name") as HTMLElement;
     const help = screen.getByTestId("leave-plan-load-help");
-    expect(row.textContent?.trim()).toBe("Abwesend (Personen)");
+    expect(row.textContent?.trim()).toBe("Abwesend pro Woche");
     expect(help.textContent).toContain(`„${row.textContent?.trim()}“`);
     expect(help.textContent).toContain(row.getAttribute("title") ?? "never");
     expect(help.textContent).not.toContain("Kopfzeile");

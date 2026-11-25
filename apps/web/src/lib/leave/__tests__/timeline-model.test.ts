@@ -70,24 +70,25 @@ describe("periodOf", () => {
 });
 
 describe("dayColumns", () => {
-  it("one column per day of the period with the German weekday letter and the day number", () => {
+  it("one column per day of the period with the two-letter German weekday and the day number", () => {
     // 2026-11-01 is a Sunday.
     const columns = dayColumns(periodOf("monat", "2026-11-15"));
     expect(columns).toHaveLength(30);
     expect(columns[0]).toEqual({
       day: "2026-11-01",
-      weekdayLetter: "S",
+      weekdayLetter: "So",
       dayNumber: 1,
       isWeekend: true,
     });
+    // Issue #991 (N-19): two letters, because „M D M D“ could not be told apart.
     expect(columns.slice(0, 7).map((c) => c.weekdayLetter)).toEqual([
-      "S",
-      "M",
-      "D",
-      "M",
-      "D",
-      "F",
-      "S",
+      "So",
+      "Mo",
+      "Di",
+      "Mi",
+      "Do",
+      "Fr",
+      "Sa",
     ]);
     expect(columns[29].dayNumber).toBe(30);
   });
