@@ -12,9 +12,9 @@
  *
  *  - `break-amount.ts` x1: inside `breakAmountFor` itself.
  *  - `scheduling/api/shifts.ts` x2: the § 3 ArbZG daily-max check of POST and PUT /shifts. It stays
- *    on the adult break on purpose: for a minor the longer § 11 break would lower the net time and
- *    relax the only daily cap. The right cap for a minor is § 8 JArbSchG (8 h a day) — a #1011
- *    follow-up.
+ *    on the adult break for adults. A minor is capped by § 8 / § 12 JArbSchG in
+ *    `scheduling/minor-shift-limits.ts`, which nets through `shiftNettoMinutes` / `breakAmountFor`
+ *    (Issue #1057) and runs before this check.
  *  - `working-time-account/close-employee-month.ts`, `month-saldo.ts`, `overtime-balance.ts` x1
  *    each: the SHIFT_BASED roster Soll still nets with the adult break. Changing it moves saldi and
  *    closed months, so it needs the full suite and a Bestand audit — a #1011 follow-up.
@@ -46,7 +46,8 @@ const EXPECTED: Record<string, { count: number; reason: string }> = {
   },
   "apps/api/src/contexts/scheduling/api/shifts.ts": {
     count: 2,
-    reason: "§ 3 ArbZG daily max of POST/PUT /shifts; § 8 JArbSchG cap for minors is a follow-up",
+    reason:
+      "§ 3 ArbZG daily max of POST/PUT /shifts for adults; minors are capped by § 8/§ 12 JArbSchG in minor-shift-limits.ts through breakAmountFor (Issue #1057)",
   },
   "apps/api/src/contexts/working-time-account/close-employee-month.ts": {
     count: 1,
