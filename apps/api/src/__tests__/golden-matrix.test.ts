@@ -42,6 +42,10 @@
  * (D-06) replaces the removed calendar-day-proration fallback. Derivation at the cell. No
  * other golden cell changed in Phase 433 (plan 01's or plan 02's commits).
  *
+ * Issue #1080 (2026-11-25): two cells, `az-fixed-38-5-bs_absence` (MATERNITY) and
+ * `az-shift-38-5-bs_absence` (OTHER), pin that a Berufsschultag inside an imposed absence of
+ * another code reduces the Soll exactly once; derivation at the cells.
+ *
  * Model / references: golden-azubi-jan2026.test.ts (harness), shift-based-saldo-parity.test.ts,
  * close-employee-month.test.ts case 9 (pure-core pin), GOLDEN-MATRIX-SPEC.md.
  */
@@ -142,6 +146,11 @@ interface Cell {
    * Wave 3 (76.32.1-03) threads halfDay through all valuation sites → turns GREEN.
    */
   halfAbsences?: Array<{ date: string }>;
+  /**
+   * Issue #1080 — imposed absences of a code other than VOCATIONAL_SCHOOL (source=MANUAL,
+   * UTC-midnight bounds). `days` is the Mo-Fr count of the range.
+   */
+  imposedAbsences?: Array<{ start: string; end: string; type: "OTHER" | "MATERNITY" | "PARENTAL" }>;
   /** PublicHoliday rows to seed */
   holidays?: Array<{ date: string; name: string }>;
   expected: Expected;
@@ -1293,6 +1302,79 @@ const CELLS: Cell[] = [
     // Phase 448: RED before the fix (see derivation comment above), GREEN after.
     expectedRed: false,
   },
+  // ── Issue #1080 — BS day inside an imposed absence of another code ──────────
+  // Same 38h/5-day (daily 456) schedules and the same Mo-Fr range 12.-16.01. (BS Wed 14.01.)
+  // as the #448 cells, but the range is an imposed Absence (MATERNITY / OTHER) instead of
+  // approved leave. The Berufsschule has priority: the day reduces Soll exactly once.
+  //
+  // Derivation (both cells): contractSoll = 22 Mo-Fr x 456 = 10032. Absence credit = 4 non-BS
+  // days (12.,13.,15.,16.) x 456 = 1824. BS absence Oe-method credit = 456 (subtracted once),
+  // §15 FIRST_LONG_DAY re-credit (no slot config, ordinal fallback) = 456 (cancels). 17
+  // Mo-Fr days outside the week worked at 456 = 7752.
+  //   expected = max(0, 10032 + 456(bsExpected) - 1824(absence) - 456(bsAbsence)) = 8208
+  //   worked   = 7752(entries) + 456(bsWorked) = 8208 ; balance 0.
+  //   RED before the fix: the absence also credited the BS day (5 x 456 = 2280):
+  //   expected = 7752 ; balance = +456 (the Berufsschultag double-reduced shows as phantom overtime).
+  {
+    id: "az-fixed-38-5-bs_absence",
+    scheduleType: "FIXED_SCHEDULE",
+    classification: "AZUBI",
+    situation:
+      "Issue #1080 — Berufsschule inside a Mo-Fr Mutterschutz absence (FIXED), BS wins, net-neutral",
+    schedule: FW_38_5,
+    year: 2026,
+    month: 1,
+    hireDate: "2025-12-01",
+    entries: rows(
+      JAN_MO_FR.filter(
+        (d) => !["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16"].includes(d),
+      ),
+      456,
+    ),
+    imposedAbsences: [{ start: "2026-01-12", end: "2026-01-16", type: "MATERNITY" }],
+    bsDays: ["2026-01-14"],
+    expected: {
+      workedMinutes: 8208,
+      expectedMinutes: 8208,
+      balanceMinutes: 0,
+      carryOver: 0,
+      overtimeHours: 0,
+    },
+    expectedRed: false,
+  },
+  {
+    id: "az-shift-38-5-bs_absence",
+    scheduleType: "SHIFT_BASED",
+    classification: "AZUBI",
+    situation:
+      "Issue #1080 — Berufsschule inside a Mo-Fr OTHER absence (SHIFT_BASED), BS wins, net-neutral",
+    schedule: SB_38_5,
+    year: 2026,
+    month: 1,
+    hireDate: "2025-12-01",
+    entries: rows(
+      JAN_MO_FR.filter(
+        (d) => !["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16"].includes(d),
+      ),
+      456,
+    ),
+    shifts: rows(
+      JAN_MO_FR.filter(
+        (d) => !["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16"].includes(d),
+      ),
+      456,
+    ),
+    imposedAbsences: [{ start: "2026-01-12", end: "2026-01-16", type: "OTHER" }],
+    bsDays: ["2026-01-14"],
+    expected: {
+      workedMinutes: 8208,
+      expectedMinutes: 8208,
+      balanceMinutes: 0,
+      carryOver: 0,
+      overtimeHours: 0,
+    },
+    expectedRed: false,
+  },
   // ── RED-first anchors (Phase 76.34) ─────────────────────────────────────
   {
     id: "az-38-5-bs_second",
@@ -1661,6 +1743,8 @@ const PARITY_IDS = new Set<string>([
   "az-38-5-bs_first", // AZUBI/BS
   "az-fixed-38-5-bs_leave", // Issue #448 — BS day inside approved leave (FIXED)
   "az-shift-38-5-bs_leave", // Issue #448 — BS day inside approved leave (SHIFT_BASED)
+  "az-fixed-38-5-bs_absence", // Issue #1080 — BS day inside an imposed absence (FIXED)
+  "az-shift-38-5-bs_absence", // Issue #1080 — BS day inside an imposed absence (SHIFT_BASED)
   "fw-40-5-exit", // Issue #447 — FIXED exit month
   "fx-30-4-exit", // Issue #447 — FLEXTIME exit month
   "mj-80-exit", // Issue #447 — MONTHLY_HOURS exit month
@@ -1871,6 +1955,21 @@ async function seedGoldenScenario(app: FastifyInstance, cell: Cell): Promise<See
         createdBy: employeeId,
         // Phase 76.38 — per-day Unterrichtszeit (null when not modeled → ordinal fallback).
         unterrichtsMinutes: cell.bsDayDurations?.[d] ?? null,
+      },
+    });
+  }
+
+  // Issue #1080 — imposed absences of a code other than VOCATIONAL_SCHOOL (source=MANUAL)
+  for (const ia of cell.imposedAbsences ?? []) {
+    await prisma.absence.create({
+      data: {
+        employeeId,
+        type: ia.type,
+        source: "MANUAL",
+        startDate: new Date(ia.start + "T00:00:00Z"),
+        endDate: new Date(ia.end + "T00:00:00Z"),
+        days: JAN_MO_FR.filter((d) => d >= ia.start && d <= ia.end).length,
+        createdBy: employeeId,
       },
     });
   }
