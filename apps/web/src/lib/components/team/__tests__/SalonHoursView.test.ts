@@ -233,8 +233,9 @@ describe("SalonHoursView - ready", () => {
     const table = container.querySelector("table")!;
     expect(table.classList.contains("dt-fixed")).toBe(true);
     expect(table.classList.contains("dt-sticky-first")).toBe(true);
-    // 13 rem person + 5 rem sum + 7 day columns of 4.5 rem at least.
-    expect(table.getAttribute("style")).toContain("min-width: 49.5rem");
+    expect(table.classList.contains("dt-dense")).toBe(true);
+    // 12 rem person + 4.5 rem sum + 7 day columns of 4.5 rem at least.
+    expect(table.getAttribute("style")).toContain("min-width: 48rem");
     const heads = [...table.querySelectorAll("thead th")];
     expect(heads).toHaveLength(9);
     // Head and values share the right edge: every day head and the sum head are end-aligned.
@@ -266,8 +267,8 @@ describe("SalonHoursView - ready", () => {
     expect(anna).toHaveLength(9);
     // 23.11.: hours only.
     expect(anna[1].textContent?.trim()).toBe("8:00");
-    // 24.11.: the one chip „in Salon Süd“ - never a dash next to it.
-    expect(anna[2].textContent?.trim()).toBe("in Salon Süd");
+    // 24.11.: the one chip „in Süd“ - never a dash next to it.
+    expect(anna[2].textContent?.trim()).toBe("in Süd");
     expect(anna[2].textContent).not.toContain("–");
     // 25.11. (not counted): „abwesend“, no dash.
     expect(anna[3].textContent?.trim()).toBe("abwesend");
@@ -304,7 +305,7 @@ describe("SalonHoursView - ready", () => {
     render({ data: both });
     const first = groupRows("stammteam")[0].querySelectorAll("td")[1];
     expect(first.querySelector(".salon-hours-hours")?.textContent).toBe("8:00");
-    expect(first.textContent).toContain("in Salon Süd");
+    expect(first.textContent).toContain("in Süd");
     expect(first.textContent).not.toContain("–");
   });
 
@@ -417,7 +418,7 @@ describe("SalonHoursView - cell states", () => {
   it("shows „in <Salon>“, „anderer Salon“ and „abwesend“ as chips", () => {
     render();
     const [anna, bernd] = groupRows("stammteam");
-    expect(anna.textContent).toContain("in Salon Süd");
+    expect(anna.textContent).toContain("in Süd");
     expect(anna.textContent).toContain("abwesend");
     expect(bernd.textContent).toContain("anderer Salon");
     // The hidden mark carries no salon: nothing but the neutral text.

@@ -118,8 +118,8 @@
 
   // Widths of the raster: the person column and the sum are fixed, the day columns share the rest
   // equally; the table never gets narrower than its columns (a month scrolls inside its card).
-  const PERSON_WIDTH_REM = 13;
-  const SUM_WIDTH_REM = 5;
+  const PERSON_WIDTH_REM = 12;
+  const SUM_WIDTH_REM = 4.5;
   const DAY_MIN_REM = 4.5;
 
   /** The columns of the raster: Person, one equal column per day, the sum. */
@@ -213,7 +213,9 @@
         {:else}
           {#if display.text}<span class="salon-hours-hours">{display.text}</span>{/if}
           {#each display.chips as chip (chip.text)}
-            <Chip tone={chip.tone}>{chip.text}</Chip>
+            <span class="salon-hours-chip" class:salon-hours-chip--long={chip.text.length > 9}>
+              <Chip tone={chip.tone}>{chip.text}</Chip>
+            </span>
           {/each}
         {/if}
       {/snippet}
@@ -342,6 +344,7 @@
               footer={totals}
               fixedMinWidth={minWidth}
               stickyFirst
+              dense
               caption={`Stunden in ${data.salonName}, ${salonPeriodLabel(period)}, ${stichtag}`}
             />
           </div>
@@ -459,6 +462,13 @@
     gap: var(--s-3);
   }
 
+  /* The aside card is the frame: the list inside it needs none of its own. */
+  .salon-hours-aside :global(.ui-list) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
   .salon-hours-main-head {
     display: flex;
     flex-wrap: wrap;
@@ -514,14 +524,24 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .salon-hours-cell :global(.chip),
-  .salon-hours-cell-button :global(.chip) {
+  /* A short chip („offen“, „in Nord“) stays on one line, a long salon name wraps inside the cell. */
+  .salon-hours-chip {
+    display: inline-flex;
+    max-width: 100%;
+  }
+
+  .salon-hours-chip :global(.chip) {
     max-width: 100%;
     height: auto;
-    padding-block: 3px;
+    gap: var(--s-1);
+    padding: 3px 6px;
     line-height: 1.2;
-    white-space: normal;
+    white-space: nowrap;
     text-align: start;
+  }
+
+  .salon-hours-chip--long :global(.chip) {
+    white-space: normal;
   }
 
   .salon-hours-nil {
@@ -532,7 +552,7 @@
   /* A clickable cell is a real button: no frame at rest, the person's day opens on activation. */
   .salon-hours-cell-button {
     min-height: var(--h-control);
-    padding: 0 var(--s-1);
+    padding: 0;
     border: 0;
     border-radius: var(--r-control);
     background: transparent;

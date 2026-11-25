@@ -122,6 +122,11 @@
     fixedMinWidth?: string;
     /** Issue #1030 (additive): the first column stays in view while the table scrolls sideways. */
     stickyFirst?: boolean;
+    /**
+     * Issue #1030 (additive): tighter horizontal cell padding on every column but the first, for a
+     * raster of many narrow value columns (hours per day).
+     */
+    dense?: boolean;
     /** Accessible table caption (visually hidden). */
     caption: string;
     loading?: boolean;
@@ -182,6 +187,7 @@
     groupHeader,
     fixedMinWidth,
     stickyFirst = false,
+    dense = false,
     caption,
     loading = false,
     selectable = false,
@@ -334,6 +340,7 @@
         class="data-table dt-table"
         class:dt-fixed={fixedMinWidth !== undefined}
         class:dt-sticky-first={stickyFirst}
+        class:dt-dense={dense}
         style={fixedMinWidth !== undefined ? `min-width: ${fixedMinWidth}` : undefined}
       >
         <caption class="sr-only">{caption}</caption>
@@ -564,6 +571,12 @@
     width: 100%;
   }
 
+  /* Issue #1030: dense value columns - the first column keeps the regular padding. */
+  .dt-table.dt-dense :global(th:not(:first-child)),
+  .dt-table.dt-dense :global(td:not(:first-child)) {
+    padding-inline: var(--s-2);
+  }
+
   /* Issue #1030: a sticky first column; the opaque card background keeps the scrolled cells from
      showing through, the line marks the edge. */
   .dt-table.dt-sticky-first :global(thead th:first-child),
@@ -573,10 +586,6 @@
     inset-inline-start: 0;
     z-index: 1;
     background: var(--card);
-  }
-
-  .dt-table.dt-sticky-first :global(thead th:first-child) {
-    background: var(--sunk);
   }
 
   /* Issue #1030: a group header row. Its label sticks to the start edge while the table scrolls. */
@@ -697,6 +706,7 @@
     .dt-table.dt-sticky-first :global(tbody td:first-child),
     .dt-table.dt-sticky-first :global(tfoot td:first-child) {
       position: static;
+      background: transparent;
     }
 
     .dt-group-label {

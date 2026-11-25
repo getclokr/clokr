@@ -67,10 +67,11 @@ describe("DataTable - row groups", () => {
 
 describe("DataTable - fixed equal columns and sticky first column", () => {
   it("switches to a fixed layout with the caller's minimum width and a sticky first column", () => {
-    const { container } = render({ fixedMinWidth: "40rem", stickyFirst: true });
+    const { container } = render({ fixedMinWidth: "40rem", stickyFirst: true, dense: true });
     const table = container.querySelector("table")!;
     expect(table.classList.contains("dt-fixed")).toBe(true);
     expect(table.classList.contains("dt-sticky-first")).toBe(true);
+    expect(table.classList.contains("dt-dense")).toBe(true);
     expect(table.getAttribute("style")).toBe("min-width: 40rem;");
   });
 
@@ -79,6 +80,7 @@ describe("DataTable - fixed equal columns and sticky first column", () => {
     const table = container.querySelector("table")!;
     expect(table.classList.contains("dt-fixed")).toBe(false);
     expect(table.classList.contains("dt-sticky-first")).toBe(false);
+    expect(table.classList.contains("dt-dense")).toBe(false);
     expect(table.getAttribute("style")).toBeNull();
   });
 

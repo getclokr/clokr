@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cellDisplay,
+  chipSalonName,
   combinedDayTotals,
   countedThroughLabel,
   dayColumnLabel,
@@ -185,6 +186,15 @@ describe("cellDisplay", () => {
     );
     expect(d.chips).toEqual([{ text: "in Süd", tone: "neutral" }]);
     expect(d.label).toBe("Pat Test, Montag, 23.11.2026: 4:00 im Salon, in Süd");
+  });
+
+  it("drops the word „Salon“ in the chip (draft: „in Süd“) and keeps it in the accessible name", () => {
+    expect(chipSalonName("Salon Nord")).toBe("Nord");
+    expect(chipSalonName("Salon")).toBe("Salon");
+    expect(chipSalonName("Haarkonzept Mitte")).toBe("Haarkonzept Mitte");
+    const d = cellDisplay(cell({ elsewhere: [{ salonId: "s2", salonName: "Salon Nord" }] }));
+    expect(d.chips).toEqual([{ text: "in Nord", tone: "neutral" }]);
+    expect(d.label).toBe("Montag, 23.11.2026: keine Stunden im Salon, in Salon Nord");
   });
 
   it("spells out at most two salon names, then „+N“", () => {

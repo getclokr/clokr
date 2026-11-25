@@ -322,6 +322,12 @@ export function elsewhereChipText(names: readonly string[]): string {
   return more > 0 ? `in ${shown} +${more}` : `in ${shown}`;
 }
 
+/** „Salon Nord“ reads „Nord“ inside a chip (the draft: „in Süd“); the accessible name keeps it whole. */
+export function chipSalonName(name: string): string {
+  const short = name.replace(/^Salon\s+/i, "").trim();
+  return short === "" ? name : short;
+}
+
 /**
  * What one cell shows - exactly ONE thing (Issue #1030, owner draft): hours (with their state chips
  * beneath), or one chip, or a muted dash. Days that are not counted yet read as the dash, too.
@@ -330,20 +336,22 @@ export function elsewhereChipText(names: readonly string[]): string {
 export function cellDisplay(cell: SalonHoursCell, personName = ""): SalonCellDisplay {
   // In order of importance: a missing clock-out asks for action, absence explains the empty day,
   // another salon says where the person was, the hidden mark says only that it was somewhere else.
-  const states: SalonCellChip[] = [];
+  const states: (SalonCellChip & { spoken?: string })[] = [];
   if (cell.open) states.push({ text: "offen", tone: "warn" });
   if (cell.absent) states.push({ text: "abwesend", tone: "info" });
   if (cell.elsewhere.length > 0) {
     states.push({
-      text: elsewhereChipText(cell.elsewhere.map((e) => e.salonName)),
+      text: elsewhereChipText(cell.elsewhere.map((e) => chipSalonName(e.salonName))),
       tone: "neutral",
+      spoken: elsewhereChipText(cell.elsewhere.map((e) => e.salonName)),
     });
   }
   // Time outside the reach reads as a neutral mark: no hours, no name, no way to tell which salon.
   if (cell.elsewhereHidden) states.push({ text: "anderer Salon", tone: "neutral" });
 
   const hasHours = cell.minutes > 0;
-  const chips = hasHours || states.length === 0 ? states : [states[0]];
+  const shown = hasHours || states.length === 0 ? states : [states[0]];
+  const chips: SalonCellChip[] = shown.map(({ text, tone }) => ({ text, tone }));
 
   const when = dayFullLabel(cell.date);
   const head = personName ? `${personName}, ${when}` : when;
@@ -352,7 +360,8 @@ export function cellDisplay(cell: SalonHoursCell, personName = ""): SalonCellDis
     text: hasHours ? fmtMin(cell.minutes) : "",
     chips,
     nil: !hasHours && chips.length === 0,
-    label: [`${head}: ${what}`, ...states.map((chip) => chip.text)].join(", "),
+    // The accessible name spells every state out, with the whole salon names.
+    label: [`${head}: ${what}`, ...states.map((chip) => chip.spoken ?? chip.text)].join(", "),
   };
 }
 
