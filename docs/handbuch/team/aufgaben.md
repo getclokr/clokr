@@ -18,6 +18,7 @@ Die Arten sind:
 | Krank im Urlaub   | eine Krankheit während eines genehmigten Urlaubs klären (§ 9 BUrlG)                               |
 | Pausenbefund      | einen offenen Pausenbefund klären                                                                 |
 | Ausstempeln fehlt | einen Eintrag ohne Ende klären                                                                    |
+| Zeit prüfen       | einen Hinweis auf vermutlich nicht erfasste Zeit ansehen (siehe unten)                            |
 | Zeitkorrektur     | eine Korrektur für einen abgeschlossenen Monat entscheiden                                        |
 
 Ein neuer Antrag löst eine Benachrichtigung aus. Die Benachrichtigung erscheint an der Glocke oben rechts und führt dich direkt zum Antrag.
@@ -74,6 +75,12 @@ Clokr setzt das Vier-Augen-Prinzip durch, unabhängig von deiner Rolle:
 - **Stornierung braucht eine zweite Person**: Weder die Person, die die Stornierung beantragt hat, noch die, die den Urlaub genehmigt hat, darf sie freigeben.
 - **Zeitkorrekturen für abgeschlossene Monate** entscheidet weder die Person, die sie gestellt hat, noch die Person, um deren Zeiten es geht.
 - Die direkte Korrektur eines Zeiteintrags auf [Team › Zeiten](zeiten.md) ist davon ausgenommen. Dort darfst du auch deinen eigenen Eintrag bearbeiten.
+
+## Zeit prüfen
+
+Die Art „Zeit prüfen“ gibt es nur, wenn dein Unternehmen den Abgleich mit Terminen eingeschaltet hat. Eine Zeile bedeutet: Bei einer Person endete der letzte Termin eines vergangenen Tages mehr als 15 Minuten nach dem Ausstempeln, oder sie hatte Termine, aber an dem Tag keine Zeit erfasst. Du siehst nur Personen, deren Zeiten du sehen darfst. **Prüfen** öffnet den Tag der Person auf [Team › Zeiten](zeiten.md). Dort korrigierst du bei Bedarf den Eintrag mit den bekannten Dialogen.
+
+Clokr trägt nie selbst Zeit ein. Die Person selbst beantwortet den Hinweis mit **Stimmt so**, wenn ihre erfasste Zeit vollständig ist. Danach verschwindet die Zeile bei dir. Korrigierst du den Eintrag, verschwindet sie von allein.
 
 ## Pausenbefunde und fehlende Stempelungen
 
