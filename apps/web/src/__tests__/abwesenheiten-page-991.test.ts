@@ -178,3 +178,13 @@ describe("Planung without a plan (D-991-20)", () => {
     expect(panel.slice(0, panel.indexOf("/>"))).toContain("period={activePeriod}");
   });
 });
+
+describe("row menu trigger name (#991)", () => {
+  it("the „…“ summary is an explicit button with an aria-label, so the name reaches assistive technology", () => {
+    const at = PAGE.indexOf('class="lv-menu-btn"');
+    expect(at).toBeGreaterThan(-1);
+    const tag = PAGE.slice(at, PAGE.indexOf(">…</summary", at));
+    expect(tag).toContain('role="button"');
+    expect(tag).toContain('aria-label="Aktionen für');
+  });
+});

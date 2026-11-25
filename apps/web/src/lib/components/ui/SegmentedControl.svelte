@@ -138,7 +138,13 @@
     padding-inline: 6px;
     line-height: 1.2;
     min-width: 0;
-    overflow-wrap: anywhere;
+    /* glyph above the label, so a word is never split to make room for it */
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .seg-control--fill .seg-glyph {
+    margin-right: 0;
   }
 
   .seg-control--disabled {

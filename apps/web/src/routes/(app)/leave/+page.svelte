@@ -1294,8 +1294,10 @@
           <!-- An open request can be changed or withdrawn, an approved one cancelled (the server
                decides; the menu offers exactly what the status allows). -->
           <details class="lv-menu" ontoggle={placeMenu}>
+            <!-- svelte-ignore a11y_no_redundant_roles: an explicit role makes browsers expose the summary as a named button (#991) -->
             <summary
               class="lv-menu-btn"
+              role="button"
               aria-label="Aktionen für {typeName(req.typeCode)} {compactRange(
                 req.startDate,
                 req.endDate,
