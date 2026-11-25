@@ -1,14 +1,10 @@
 <script lang="ts" module>
-  /** Delay before a hover opens (and closes) the panel; keyboard focus and tap open at once. */
-  export const HINT_HOVER_DELAY_MS = 150;
-
-  /** The accessible name of an InfoHint trigger for the heading, label or value it explains. */
-  export function hintLabel(subject: string): string {
-    return `Erklärung zu „${subject}“`;
-  }
+  // The plain values live in info-hint.ts (importable by .ts tests under tsc) and are re-exported here.
+  export { HINT_HOVER_DELAY_MS, hintLabel } from "./info-hint";
 </script>
 
 <script lang="ts">
+  import { HINT_HOVER_DELAY_MS as hoverDelayMs } from "./info-hint";
   // Issue #1058 (sub-part of block 8 „Chips & Hinweise“) - the ONE info symbol. A pure explanation
   // (what a setting means, how a figure is built) takes no room: it sits behind a small symbol
   // beside the heading, label or value it explains. A deadline, lock, warning, error, legal
@@ -83,8 +79,8 @@
   <Popover.Root bind:open>
     <Popover.Trigger
       openOnHover
-      openDelay={HINT_HOVER_DELAY_MS}
-      closeDelay={HINT_HOVER_DELAY_MS}
+      openDelay={hoverDelayMs}
+      closeDelay={hoverDelayMs}
       {onpointerdown}
       {onfocus}
       {onblur}

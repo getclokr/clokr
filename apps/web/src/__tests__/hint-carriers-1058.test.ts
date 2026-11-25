@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, screen } from "@testing-library/svelte";
 import { createRawSnippet } from "svelte";
 import { renderWithTheme } from "$tests/test-utils";
-import { hintLabel } from "$components/ui/InfoHint.svelte";
+import { hintLabel } from "$components/ui/info-hint";
 import FormField from "$components/ui/FormField.svelte";
 import PageHeader from "$components/ui/PageHeader.svelte";
 import ToggleField from "$components/admin/settings/ToggleField.svelte";

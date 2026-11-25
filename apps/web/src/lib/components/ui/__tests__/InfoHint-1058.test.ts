@@ -4,7 +4,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
-import InfoHint, { hintLabel, HINT_HOVER_DELAY_MS } from "../InfoHint.svelte";
+import InfoHint from "../InfoHint.svelte";
+import { hintLabel, HINT_HOVER_DELAY_MS } from "../info-hint";
 import DialogWithInfoHint from "./fixtures/DialogWithInfoHint.svelte";
 import hintSource from "../InfoHint.svelte?raw";
 
