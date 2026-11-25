@@ -758,11 +758,9 @@
     white-space: nowrap;
   }
   .avatar-menu-role {
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--brand);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-2);
     margin-top: 4px;
   }
   .avatar-menu-items {

@@ -1901,14 +1901,6 @@
     border-radius: 8px;
     padding: 0.875rem 1rem;
   }
-  .overlap-title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-2);
-    margin: 0 0 0.5rem;
-  }
   .overlap-empty {
     font-size: 0.9375rem;
     margin: 0;

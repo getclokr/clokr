@@ -270,11 +270,9 @@
   .mehr-section-label {
     margin: 0;
     padding: var(--s-4) 18px var(--s-1);
-    font-size: 0.6875rem;
+    font-size: var(--fs-th);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-2);
+    color: var(--text-3);
   }
 
   .mehr-item {
@@ -381,7 +379,6 @@
     font-size: 0.75rem;
     color: var(--text-3);
     font-feature-settings: "tnum";
-    letter-spacing: 0.02em;
   }
 
   /* Mirrors Topbar.svelte's .notif-dot.unread-dot idiom. */

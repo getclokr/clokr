@@ -3870,8 +3870,6 @@
     display: block;
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     opacity: 0.65;
     line-height: 1.2;
     overflow: hidden;
@@ -4023,12 +4021,6 @@
     gap: 0.25rem;
   }
 
-  .day-detail-label {
-    font-weight: 600;
-    font-size: 0.9375rem;
-    text-transform: capitalize;
-  }
-
   .day-detail-stats {
     display: flex;
     gap: 0.875rem;
@@ -4071,8 +4063,6 @@
     padding: 0.45rem 0.75rem;
     font-weight: 600;
     font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-2);
     text-align: left;
     white-space: nowrap;

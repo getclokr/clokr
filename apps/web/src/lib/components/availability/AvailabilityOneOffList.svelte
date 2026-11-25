@@ -256,8 +256,6 @@
     font-family: var(--font-ui);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-2);
   }
 

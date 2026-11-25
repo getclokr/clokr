@@ -79,8 +79,6 @@
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text-2);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     margin-bottom: 0.625rem;
   }
   .attest-dates {
