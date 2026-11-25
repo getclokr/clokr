@@ -228,7 +228,15 @@
     {/if}
   {/snippet}
   <div data-testid={testId}>
-    <DataTable {columns} {rows} rowKey={(row) => row.id} {cell} footer={totals} {caption} />
+    <DataTable
+      listId="team.zeiten.salon-stunden"
+      {columns}
+      {rows}
+      rowKey={(row) => row.id}
+      {cell}
+      footer={totals}
+      {caption}
+    />
   </div>
 {/snippet}
 
@@ -250,6 +258,7 @@
     {:else}
       <div data-testid={testId}>
         <DataTable
+          listId="team.zeiten.salon-austausch"
           columns={EXCHANGE_COLUMNS}
           rows={exchangeRows(groups)}
           rowKey={(row) => row.id}
