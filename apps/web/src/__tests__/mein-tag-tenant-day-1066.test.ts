@@ -155,7 +155,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Waits until the page's onMount has finished loading, i.e. the poll is registered. */
 async function settled() {
-  await waitFor(() => expect(getPaths()).toContain("/activity?limit=5"));
+  // Issue #1028 (P-08): Verlauf reads the API maximum of 20 and pages it, no longer a cut of 5.
+  await waitFor(() => expect(getPaths()).toContain("/activity?limit=20"));
   await sleep(40);
 }
 
