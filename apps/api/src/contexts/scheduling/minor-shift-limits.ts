@@ -1,14 +1,17 @@
 /**
  * minor-shift-limits.ts
  *
- * Issue #1057 — § 8 (daily and weekly working time) and § 12 (Schichtzeit) JArbSchG for a roster
- * shift of a person who is under 18 on the shift date. This module only READS; it never writes a
- * row, an audit entry or a saldo figure.
+ * The ONE JArbSchG roster rule for a shift of a person who is under 18 on the shift date:
+ * Issue #1057 (§ 8 daily and weekly working time, § 12 Schichtzeit) and Issue #1076 (§ 13 Freizeit,
+ * § 14 Nachtruhe, § 17 Sonntagsruhe). This module only READS; it never writes a row, an audit entry
+ * or a saldo figure.
  *
- * Legal reading (the decision record is the #1057 comment and docs/compliance.md):
+ * Legal reading (the decision record is the #1057 / #1076 comments and docs/compliance.md):
  *  - Scope: JArbSchG applies instead of the ArbZG to a person under 18 (§ 18 Abs. 2 ArbZG). The age
  *    is decided per day by `isMinorAtDate` (the 18th birthday itself is adult); a missing birth date
  *    is not a minor.
+ *  - Trade: Clokr stores no trade; every tenant is read as a Friseurbetrieb (hair salons are the
+ *    product). Only § 16 (Saturday) depends on it; §§ 13, 14 and 17 have no Friseur exception.
  *  - Arbeitszeit (§ 4 Abs. 1) is net of the Ruhepause: the sum of `shiftNettoMinutes()` (the one
  *    break rule, `breakAmountFor`, #1060) over the day's shifts plus the day's Berufsschule credit
  *    (§ 9 Abs. 2) as the Arbeitszeitkonto already computes it (read only).
@@ -20,8 +23,17 @@
  *    working time lost to a public holiday counts) is NOT applied: an owner decision is open.
  *  - § 12: Schichtzeit = earliest start to latest end of the day's shifts (every interruption of at
  *    least 15 min is a Ruhepause, so gaps are inside it), at most 10:00.
- *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span or week
- *    sum grows), so an already illegal plan (legacy, Phorest import) never freezes the roster.
+ *  - § 13: at least 12:00 uninterrupted Freizeit between the latest end of a day and the earliest
+ *    start of the next calendar day (a midnight-crossing end counts past 24:00), in both directions
+ *    and across the week boundary (the loader reads Monday-1 .. Sunday+1). It applies when the person
+ *    is a minor on the LATER day; on the 18th birthday § 5 ArbZG answers instead (11 h, forceable).
+ *  - § 14 Abs. 1: only 06:00-20:00. Every minute outside it (the part of a midnight-crossing shift
+ *    included) is a violation. The extensions of Abs. 2 (other trades, multi-shift operations),
+ *    Abs. 3, 5, 6 and 7 are not applied: a salon has none of those cases or Clokr cannot know it.
+ *  - § 17 Abs. 1: no shift on a Sunday (decided from the ISO date). Abs. 2 lists no salon case.
+ *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span, week
+ *    sum, night minutes, Sunday minutes grow or a Freizeit gap shrinks), so an already illegal plan
+ *    (legacy, Phorest import) never freezes the roster.
  *
  * The day/week arithmetic lives in `evaluateMinorWeekFigures` over per-day minute figures, not over
  * Shift rows, so the recording side (#524) can reuse it without a rewrite.
@@ -48,11 +60,22 @@ export const MINOR_DAILY_EXTENDED_LIMIT_MINUTES = 510;
 export const MINOR_WEEKLY_LIMIT_MINUTES = 2400;
 /** § 12 JArbSchG: Schichtzeit of at most 10 h. */
 export const MINOR_SHIFT_TIME_LIMIT_MINUTES = 600;
+/** § 14 Abs. 1 JArbSchG: work only from 06:00 ... */
+export const MINOR_NIGHT_REST_UNTIL_MINUTE = 360;
+/** ... until 20:00. */
+export const MINOR_NIGHT_REST_FROM_MINUTE = 1200;
+/** § 13 JArbSchG: at least 12 h uninterrupted Freizeit after the daily working time. */
+export const MINOR_FREE_TIME_MINUTES = 720;
+
+const DAY_MINUTES = 24 * 60;
 
 export type MinorShiftLimitCode =
   | "JARBSCHG_VIOLATION_DAILY_MAX"
   | "JARBSCHG_VIOLATION_WEEKLY_MAX"
-  | "JARBSCHG_VIOLATION_SHIFT_TIME";
+  | "JARBSCHG_VIOLATION_SHIFT_TIME"
+  | "JARBSCHG_VIOLATION_NIGHT_REST"
+  | "JARBSCHG_VIOLATION_SUNDAY_REST"
+  | "JARBSCHG_VIOLATION_FREE_TIME";
 
 export interface MinorShiftLimitViolation {
   code: MinorShiftLimitCode;
@@ -76,6 +99,7 @@ export interface MinorShiftWeek {
   breakTenantConfig: BreakTenantConfigShape;
   /** Berufsschule credit (minutes) per ISO day, read from the Arbeitszeitkonto. */
   creditedMinutesByDate: Record<string, number>;
+  /** The shifts of the week AND of the Sunday before / the Monday after (see `minorWeekHorizon`). */
   shifts: Array<ShiftDraft & { id: string }>;
 }
 
@@ -86,6 +110,22 @@ export interface MinorDayFigures {
   workMinutes: number;
   /** Earliest start to latest end of the day's shifts; 0 without a shift. */
   spanMinutes: number;
+  /** Earliest start in minutes after the day's 00:00; null without a shift. */
+  firstStartMinute: number | null;
+  /** Latest end in minutes after the day's 00:00 (above 1440 for a midnight-crossing shift). */
+  lastEndMinute: number | null;
+  /** Shift minutes outside 06:00-20:00 (§ 14 Abs. 1). */
+  nightMinutes: number;
+  /** Sum of the gross shift minutes of the day. */
+  shiftMinutes: number;
+}
+
+/** The figures of a week and of the two edge days that border it (the horizon). */
+export interface MinorWeekFigures {
+  previousDay: MinorDayFigures;
+  /** Monday .. Sunday. */
+  days: MinorDayFigures[];
+  nextDay: MinorDayFigures;
 }
 
 // ── formatting ───────────────────────────────────────────────────────────────────────────────────
@@ -104,6 +144,12 @@ function formatHm(minutes: number): string {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+/** Clock time HH:MM of a minute count after midnight (modulo one day). */
+function formatClock(minutes: number): string {
+  const m = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 function hmToMin(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
@@ -115,6 +161,24 @@ function utcMidnightOf(iso: string): Date {
 
 function isoOf(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function addDaysIso(iso: string, n: number): string {
+  const d = utcMidnightOf(iso);
+  d.setUTCDate(d.getUTCDate() + n);
+  return isoOf(d);
+}
+
+function isSundayIso(iso: string): boolean {
+  return utcMidnightOf(iso).getUTCDay() === 0;
+}
+
+/**
+ * The ONE definition of the horizon of a minor week: the Sunday before, Monday .. Sunday, the Monday
+ * after. § 13 compares neighbouring days, so the edge days are part of what the check reads.
+ */
+export function minorWeekHorizon(week: Pick<MinorShiftWeek, "weekDays">): string[] {
+  return [addDaysIso(week.weekDays[0], -1), ...week.weekDays, addDaysIso(week.weekDays[6], 1)];
 }
 
 // ── pure arithmetic over per-day figures ─────────────────────────────────────────────────────────
@@ -139,12 +203,47 @@ function weekSum(figures: MinorDayFigures[]): number {
   return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes : 0), 0);
 }
 
+// § 14 Abs. 1: any shift minute outside 06:00-20:00.
+function nightBad(f: MinorDayFigures): boolean {
+  return f.isMinor && f.nightMinutes > 0;
+}
+
+// § 17 Abs. 1: any shift on a Sunday.
+function sundayBad(f: MinorDayFigures, iso: string): boolean {
+  return f.isMinor && isSundayIso(iso) && f.shiftMinutes > 0;
+}
+
+/** Minutes of Freizeit between the end of `previous` and the start of `next`; null without both. */
+function freeTimeGap(previous: MinorDayFigures, next: MinorDayFigures): number | null {
+  if (previous.lastEndMinute === null || next.firstStartMinute === null) return null;
+  return DAY_MINUTES + next.firstStartMinute - previous.lastEndMinute;
+}
+
+// § 13: the prohibition addresses the employment that would begin too early, so the LATER day
+// decides whether the person is a minor.
+function freeTimeBad(previous: MinorDayFigures, next: MinorDayFigures): boolean {
+  const gap = freeTimeGap(previous, next);
+  return next.isMinor && gap !== null && gap < MINOR_FREE_TIME_MINUTES;
+}
+
 function dailyMessage(dateIso: string, workMinutes: number): string {
   return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} beträgt ${formatHm(workMinutes)} Stunden. Für Jugendliche sind höchstens 8 Stunden am Tag erlaubt, bis zu 8,5 Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als 8 Stunden gearbeitet wird (§ 8 Abs. 1 und 2a JArbSchG).`;
 }
 
 function shiftTimeMessage(dateIso: string, spanMinutes: number): string {
   return `Die Schichtzeit am ${formatDateDe(dateIso)} beträgt ${formatHm(spanMinutes)} Stunden (Beginn bis Ende einschließlich Pausen). Für Jugendliche sind höchstens 10 Stunden erlaubt (§ 12 JArbSchG).`;
+}
+
+function nightRestMessage(dateIso: string, f: MinorDayFigures): string {
+  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} reicht von ${formatClock(f.firstStartMinute ?? 0)} bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Jugendliche dürfen nur in der Zeit von 6 bis 20 Uhr beschäftigt werden (§ 14 Abs. 1 JArbSchG).`;
+}
+
+function sundayRestMessage(dateIso: string): string {
+  return `Am Sonntag, ${formatDateDe(dateIso)}, ist eine Schicht geplant. Jugendliche dürfen an Sonntagen nicht beschäftigt werden (§ 17 Abs. 1 JArbSchG).`;
+}
+
+function freeTimeMessage(dateIso: string, gapMinutes: number): string {
+  return `Zwischen dem Schichtende am ${formatDateDe(addDaysIso(dateIso, -1))} und dem Schichtbeginn am ${formatDateDe(dateIso)} liegen ${formatHm(Math.max(0, gapMinutes))} Stunden. Jugendliche brauchen nach dem Ende der täglichen Arbeitszeit mindestens 12 Stunden ununterbrochene Freizeit (§ 13 JArbSchG).`;
 }
 
 /** With a trigger day the text names the shift that tipped the week; without, it names the week. */
@@ -158,23 +257,50 @@ function weeklyMessage(weekDays: string[], sumMinutes: number, triggerIso: strin
   return `Mit der Schicht am ${formatDateDe(triggerIso)} beträgt die geplante Arbeitszeit in der Woche vom ${range} ${formatHm(sumMinutes)} Stunden. ${limit}`;
 }
 
+/** The figure list over the whole horizon: index 0 = Sunday before, 1..7 = Monday..Sunday, 8 = Monday after. */
+function horizonList(f: MinorWeekFigures): MinorDayFigures[] {
+  return [f.previousDay, ...f.days, f.nextDay];
+}
+
 /**
- * Compares the week before and after a change. `before` and `after` hold seven figures, Monday to
- * Sunday. The trigger day is checked first, the rest in calendar order; the weekly sum last.
+ * Compares the week before and after a change. `before` and `after` hold the seven figures of
+ * Monday to Sunday plus the two edge days. Per day the trigger day is checked first, the rest in
+ * calendar order (DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME of the pair ending that
+ * day); then the pair Sunday -> next Monday; the weekly sum last.
  */
 export function evaluateMinorWeekFigures(input: {
   weekDays: string[];
   triggerIso: string;
-  before: MinorDayFigures[];
-  after: MinorDayFigures[];
+  before: MinorWeekFigures;
+  after: MinorWeekFigures;
 }): MinorShiftLimitViolation | null {
-  const { weekDays, triggerIso, before, after } = input;
+  const { weekDays, triggerIso } = input;
+  const before = input.before.days;
+  const after = input.after.days;
+  const beforeAll = horizonList(input.before);
+  const afterAll = horizonList(input.after);
 
   const triggerIndex = weekDays.indexOf(triggerIso);
   const order = [
     ...(triggerIndex >= 0 ? [triggerIndex] : []),
     ...weekDays.map((_, i) => i).filter((i) => i !== triggerIndex),
   ];
+
+  // The pair ending on horizon index `h` (h = 1 is Monday ... h = 8 is the Monday after): refused
+  // when it is short now and was not short before, or the gap shrank.
+  const freeTimeFinding = (h: number, dateIso: string): MinorShiftLimitViolation | null => {
+    if (!freeTimeBad(afterAll[h - 1], afterAll[h])) return null;
+    const gapAfter = freeTimeGap(afterAll[h - 1], afterAll[h]) as number;
+    if (freeTimeBad(beforeAll[h - 1], beforeAll[h])) {
+      const gapBefore = freeTimeGap(beforeAll[h - 1], beforeAll[h]) as number;
+      if (gapAfter >= gapBefore) return null;
+    }
+    return {
+      code: "JARBSCHG_VIOLATION_FREE_TIME",
+      dateIso,
+      message: freeTimeMessage(dateIso, gapAfter),
+    };
+  };
 
   for (const i of order) {
     const dateIso = weekDays[i];
@@ -198,7 +324,26 @@ export function evaluateMinorWeekFigures(input: {
         message: shiftTimeMessage(dateIso, after[i].spanMinutes),
       };
     }
+    if (nightBad(after[i]) && after[i].nightMinutes > before[i].nightMinutes) {
+      return {
+        code: "JARBSCHG_VIOLATION_NIGHT_REST",
+        dateIso,
+        message: nightRestMessage(dateIso, after[i]),
+      };
+    }
+    if (sundayBad(after[i], dateIso) && after[i].shiftMinutes > before[i].shiftMinutes) {
+      return {
+        code: "JARBSCHG_VIOLATION_SUNDAY_REST",
+        dateIso,
+        message: sundayRestMessage(dateIso),
+      };
+    }
+    const freeTime = freeTimeFinding(i + 1, dateIso);
+    if (freeTime) return freeTime;
   }
+
+  const freeTimeNextMonday = freeTimeFinding(8, addDaysIso(weekDays[6], 1));
+  if (freeTimeNextMonday) return freeTimeNextMonday;
 
   const afterSum = weekSum(after);
   if (afterSum > MINOR_WEEKLY_LIMIT_MINUTES && afterSum > weekSum(before)) {
@@ -215,13 +360,17 @@ export function evaluateMinorWeekFigures(input: {
 /**
  * Every violation the given figures hold (Issue #1074) — the stored week of a plan nobody can
  * refuse. Same predicates and message builders as `evaluateMinorWeekFigures`: per day in calendar
- * order DAILY_MAX then SHIFT_TIME (both may occur on one day), then WEEKLY_MAX (dated Monday).
+ * order DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME (several may occur on one day),
+ * then WEEKLY_MAX (dated Monday). The pair Sunday -> next Monday belongs to the next week and is
+ * never listed here, so nothing is reported twice.
  */
 export function listMinorWeekViolations(input: {
   weekDays: string[];
-  figures: MinorDayFigures[];
+  figures: MinorWeekFigures;
 }): MinorShiftLimitViolation[] {
-  const { weekDays, figures } = input;
+  const { weekDays } = input;
+  const figures = input.figures.days;
+  const all = horizonList(input.figures);
   const out: MinorShiftLimitViolation[] = [];
   for (let i = 0; i < weekDays.length; i++) {
     const dateIso = weekDays[i];
@@ -239,6 +388,27 @@ export function listMinorWeekViolations(input: {
         message: shiftTimeMessage(dateIso, figures[i].spanMinutes),
       });
     }
+    if (nightBad(figures[i])) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_NIGHT_REST",
+        dateIso,
+        message: nightRestMessage(dateIso, figures[i]),
+      });
+    }
+    if (sundayBad(figures[i], dateIso)) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_SUNDAY_REST",
+        dateIso,
+        message: sundayRestMessage(dateIso),
+      });
+    }
+    if (freeTimeBad(all[i], all[i + 1])) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_FREE_TIME",
+        dateIso,
+        message: freeTimeMessage(dateIso, freeTimeGap(all[i], all[i + 1]) as number),
+      });
+    }
   }
   const sum = weekSum(figures);
   if (sum > MINOR_WEEKLY_LIMIT_MINUTES) {
@@ -253,37 +423,84 @@ export function listMinorWeekViolations(input: {
 
 /** Short German label of a finding for a list of further violations ("DD.MM.YYYY (Arbeitszeit)"). */
 export function minorShiftLimitLabel(v: MinorShiftLimitViolation): string {
-  if (v.code === "JARBSCHG_VIOLATION_DAILY_MAX") return `${formatDateDe(v.dateIso)} (Arbeitszeit)`;
-  if (v.code === "JARBSCHG_VIOLATION_SHIFT_TIME") return `${formatDateDe(v.dateIso)} (Schichtzeit)`;
-  return "Wochenarbeitszeit";
+  switch (v.code) {
+    case "JARBSCHG_VIOLATION_DAILY_MAX":
+      return `${formatDateDe(v.dateIso)} (Arbeitszeit)`;
+    case "JARBSCHG_VIOLATION_SHIFT_TIME":
+      return `${formatDateDe(v.dateIso)} (Schichtzeit)`;
+    case "JARBSCHG_VIOLATION_NIGHT_REST":
+      return `${formatDateDe(v.dateIso)} (Nachtruhe)`;
+    case "JARBSCHG_VIOLATION_SUNDAY_REST":
+      return `${formatDateDe(v.dateIso)} (Sonntagsruhe)`;
+    case "JARBSCHG_VIOLATION_FREE_TIME":
+      return `${formatDateDe(v.dateIso)} (Freizeit)`;
+    case "JARBSCHG_VIOLATION_WEEKLY_MAX":
+      return "Wochenarbeitszeit";
+    default: {
+      const unreachable: never = v.code;
+      return unreachable;
+    }
+  }
 }
 
 // ── rows -> figures ──────────────────────────────────────────────────────────────────────────────
 
+function overlapMinutes(aFrom: number, aTo: number, bFrom: number, bTo: number): number {
+  return Math.max(0, Math.min(aTo, bTo) - Math.max(aFrom, bFrom));
+}
+
+function dayFigures(
+  week: MinorShiftWeek,
+  iso: string,
+  shifts: Array<ShiftDraft & { id?: string }>,
+): MinorDayFigures {
+  const day = shifts.filter((s) => isoOf(s.date) === iso);
+  let work = week.creditedMinutesByDate[iso] ?? 0;
+  let earliest = Number.POSITIVE_INFINITY;
+  let latest = Number.NEGATIVE_INFINITY;
+  let night = 0;
+  let shiftMinutes = 0;
+  for (const s of day) {
+    work += shiftNettoMinutes(s, week.breakEmployee, week.breakTenantConfig);
+    let gross = hmToMin(s.endTime) - hmToMin(s.startTime);
+    if (gross < 0) gross += DAY_MINUTES; // midnight-crossing, the shift-netto convention
+    if (gross <= 0) continue;
+    const start = hmToMin(s.startTime);
+    const end = start + gross;
+    earliest = Math.min(earliest, start);
+    latest = Math.max(latest, end);
+    shiftMinutes += gross;
+    // The allowed window is 06:00-20:00 of the start day and of the following day (a shift that
+    // crosses midnight can reach 06:00 of the next morning).
+    const inside =
+      overlapMinutes(start, end, MINOR_NIGHT_REST_UNTIL_MINUTE, MINOR_NIGHT_REST_FROM_MINUTE) +
+      overlapMinutes(
+        start,
+        end,
+        DAY_MINUTES + MINOR_NIGHT_REST_UNTIL_MINUTE,
+        DAY_MINUTES + MINOR_NIGHT_REST_FROM_MINUTE,
+      );
+    night += gross - inside;
+  }
+  const hasShift = latest > Number.NEGATIVE_INFINITY;
+  return {
+    isMinor: isMinorAtDate(week.birthDate, utcMidnightOf(iso)),
+    workMinutes: work,
+    spanMinutes: latest > earliest ? latest - earliest : 0,
+    firstStartMinute: hasShift ? earliest : null,
+    lastEndMinute: hasShift ? latest : null,
+    nightMinutes: night,
+    shiftMinutes,
+  };
+}
+
 function figuresFor(
   week: MinorShiftWeek,
   shifts: Array<ShiftDraft & { id?: string }>,
-): MinorDayFigures[] {
-  return week.weekDays.map((iso) => {
-    const day = shifts.filter((s) => isoOf(s.date) === iso);
-    const dayDate = utcMidnightOf(iso);
-    let work = week.creditedMinutesByDate[iso] ?? 0;
-    let earliest = Number.POSITIVE_INFINITY;
-    let latest = Number.NEGATIVE_INFINITY;
-    for (const s of day) {
-      work += shiftNettoMinutes(s, week.breakEmployee, week.breakTenantConfig);
-      let gross = hmToMin(s.endTime) - hmToMin(s.startTime);
-      if (gross < 0) gross += 24 * 60; // midnight-crossing, the shift-netto convention
-      if (gross <= 0) continue;
-      earliest = Math.min(earliest, hmToMin(s.startTime));
-      latest = Math.max(latest, hmToMin(s.startTime) + gross);
-    }
-    return {
-      isMinor: isMinorAtDate(week.birthDate, dayDate),
-      workMinutes: work,
-      spanMinutes: latest > earliest ? latest - earliest : 0,
-    };
-  });
+): MinorWeekFigures {
+  const horizon = minorWeekHorizon(week);
+  const all = horizon.map((iso) => dayFigures(week, iso, shifts));
+  return { previousDay: all[0], days: all.slice(1, 8), nextDay: all[8] };
 }
 
 /**
@@ -296,11 +513,12 @@ export function findMinorShiftLimitViolation(
   change: { removeShiftId?: string; add: ShiftDraft[] },
 ): MinorShiftLimitViolation | null {
   if (change.add.length === 0) return null;
-  const inWeek = (d: ShiftDraft) => week.weekDays.includes(isoOf(d.date));
-  const beforeShifts = week.shifts.filter((s) => week.weekDays.includes(isoOf(s.date)));
+  const horizon = minorWeekHorizon(week);
+  const inHorizon = (d: ShiftDraft) => horizon.includes(isoOf(d.date));
+  const beforeShifts = week.shifts.filter(inHorizon);
   const afterShifts = [
     ...beforeShifts.filter((s) => s.id !== change.removeShiftId),
-    ...change.add.filter(inWeek),
+    ...change.add.filter(inHorizon),
   ];
   return evaluateMinorWeekFigures({
     weekDays: week.weekDays,
@@ -315,7 +533,8 @@ export function findMinorShiftLimitViolation(
  * plan that cannot be refused (Phorest import). Same rule as `findMinorShiftLimitViolation`.
  */
 export function findStoredMinorWeekViolations(week: MinorShiftWeek): MinorShiftLimitViolation[] {
-  const stored = week.shifts.filter((s) => week.weekDays.includes(isoOf(s.date)));
+  const horizon = minorWeekHorizon(week);
+  const stored = week.shifts.filter((s) => horizon.includes(isoOf(s.date)));
   return listMinorWeekViolations({
     weekDays: week.weekDays,
     figures: figuresFor(week, stored),
@@ -355,7 +574,9 @@ export async function loadMinorShiftWeeks(
     d.setUTCDate(d.getUTCDate() + i);
     weekDays.push(isoOf(d));
   }
-  const sunday = utcMidnightOf(weekDays[6]);
+  // The horizon (Sunday before .. Monday after) feeds § 13, which compares neighbouring days.
+  const horizonFrom = utcMidnightOf(addDaysIso(weekDays[0], -1));
+  const horizonTo = utcMidnightOf(addDaysIso(weekDays[6], 1));
 
   const employees = await prisma.employee.findMany({
     where: { id: { in: Array.from(new Set(employeeIds)) }, tenantId },
@@ -390,7 +611,7 @@ export async function loadMinorShiftWeeks(
       where: {
         employeeId: emp.id,
         employee: { tenantId },
-        date: { gte: monday, lte: sunday },
+        date: { gte: horizonFrom, lte: horizonTo },
         deletedAt: null,
       },
       select: { id: true, date: true, startTime: true, endTime: true },
