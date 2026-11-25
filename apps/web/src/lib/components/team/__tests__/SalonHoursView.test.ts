@@ -2,10 +2,18 @@
 // imports and a dozen requests on mount), so the component carries the rendering contract. The
 // component sums nothing: every figure on screen is a figure the server sent.
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The shared heading text comes from page-scope, which pulls in the api client, the auth store and
+// its localStorage bootstrap; a stand-in (as in team-view.test.ts) keeps this file free of that.
+vi.mock("$api/client", () => ({
+  api: { get: vi.fn() },
+  ApiError: class ApiError extends Error {},
+}));
+vi.mock("$lib/utils/logger", () => ({ clientLogger: { warn: vi.fn(), error: vi.fn() } }));
 import { cleanup, fireEvent, screen } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import SalonHoursView from "../SalonHoursView.svelte";
-import type { SalonHoursResponse, SalonPeriod } from "$lib/team/salon-hours";
+import type { SalonHoursCell, SalonHoursResponse, SalonPeriod } from "$lib/team/salon-hours";
 
 afterEach(() => cleanup());
 
@@ -19,8 +27,16 @@ const DAYS = [
   "2026-11-29",
 ];
 
-function cells(minutes: number[]) {
-  return DAYS.map((date, i) => ({ date, minutes: minutes[i] ?? 0, counted: i <= 1 }));
+function cells(minutes: number[], states: Record<string, Partial<SalonHoursCell>> = {}) {
+  return DAYS.map((date, i): SalonHoursCell => ({
+    date,
+    minutes: minutes[i] ?? 0,
+    counted: i <= 1,
+    elsewhere: [],
+    elsewhereHidden: false,
+    absent: false,
+    ...states[date],
+  }));
 }
 
 // The totals are deliberately NOT the sum of the cells: a component that summed would show 8:00.
@@ -32,7 +48,7 @@ const DATA: SalonHoursResponse = {
   to: "2026-11-29",
   days: DAYS,
   countedThrough: "2026-11-24",
-  kpis: { salonWorkedMinutes: 1234, stammteamMinutes: 1234 },
+  kpis: { salonWorkedMinutes: 1234, stammteamMinutes: 1000, aushilfenMinutes: 234 },
   stammteam: {
     rows: [
       {
@@ -40,18 +56,45 @@ const DATA: SalonHoursResponse = {
         employeeName: "Anna Berg",
         employeeNumber: "1001",
         totalMinutes: 555,
-        cells: cells([480, 0]),
+        cells: cells([480, 0], {
+          "2026-11-24": { elsewhere: [{ salonId: "s2", salonName: "Salon Süd" }] },
+          "2026-11-25": { absent: true },
+        }),
       },
       {
         employeeId: "e2",
         employeeName: "Bernd Adler",
         employeeNumber: null,
         totalMinutes: 0,
-        cells: cells([]),
+        cells: cells([], { "2026-11-24": { elsewhereHidden: true } }),
       },
     ],
     dayTotals: [777, 0, 0, 0, 0, 0, 0],
     totalMinutes: 999,
+  },
+  aushilfen: {
+    rows: [
+      {
+        employeeId: "h1",
+        employeeName: "Carla Gast",
+        employeeNumber: null,
+        totalMinutes: 234,
+        cells: cells([234]),
+        homeSalonId: "s2",
+        homeSalonName: "Salon Süd",
+      },
+      {
+        employeeId: "h2",
+        employeeName: "Dora Frei",
+        employeeNumber: null,
+        totalMinutes: 0,
+        cells: cells([]),
+        homeSalonId: null,
+        homeSalonName: null,
+      },
+    ],
+    dayTotals: [321, 0, 0, 0, 0, 0, 0],
+    totalMinutes: 234,
   },
 };
 
@@ -155,7 +198,8 @@ describe("SalonHoursView - ready", () => {
     // person, 7 days, sum
     expect(cellsOfFirst).toHaveLength(9);
     expect(cellsOfFirst[1].textContent?.trim()).toBe("–");
-    expect(cellsOfFirst[2].textContent?.trim()).toBe("–");
+    // Bernd's 24.11. also carries the neutral „anderer Salon“ chip next to the dash.
+    expect(cellsOfFirst[2].textContent).toContain("–");
     expect(cellsOfFirst[3].textContent?.trim()).toBe("");
   });
 
@@ -178,5 +222,95 @@ describe("SalonHoursView - ready", () => {
     expect(next.disabled).toBe(true);
     await fireEvent.click(screen.getByRole("radio", { name: "Monat" }));
     expect(onPeriodChange).toHaveBeenLastCalledWith({ zoom: "monat", anchor: "2026-11-01" });
+  });
+});
+
+describe("SalonHoursView - Aushilfen", () => {
+  it("lists the helpers in their own block under the shared heading, with the Stammsalon", () => {
+    render();
+    expect(screen.getByRole("heading", { name: "Aushilfen aus anderen Salons" })).toBeTruthy();
+    const table = screen.getByTestId("salon-hours-aushilfen");
+    const bodyRows = table.querySelectorAll("tbody tr");
+    expect(bodyRows).toHaveLength(2);
+    expect(bodyRows[0].textContent).toContain("Carla Gast");
+    expect(bodyRows[0].textContent).toContain("Salon Süd");
+    expect(bodyRows[1].textContent).toContain("ohne Stammsalon");
+    const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent);
+    expect(heads.slice(0, 2)).toEqual(["Person", "Stammsalon"]);
+    // The helper block carries its own server totals in its own footer.
+    expect(table.querySelector("tfoot")!.textContent).toContain("5:21");
+    // No helper appears in the Stammteam block and vice versa.
+    expect(screen.getByTestId("salon-hours-stammteam").textContent).not.toContain("Carla Gast");
+  });
+
+  it("says so when no helper worked in the salon, and renders no helper table", () => {
+    render({
+      data: { ...DATA, aushilfen: { rows: [], dayTotals: [0, 0, 0, 0, 0, 0, 0], totalMinutes: 0 } },
+    });
+    expect(screen.getByTestId("salon-hours-no-helpers").textContent).toContain(
+      "Keine Aushilfen aus anderen Salons in diesem Zeitraum.",
+    );
+    expect(screen.queryByTestId("salon-hours-aushilfen")).toBeNull();
+  });
+
+  it("shows the KPI Aushilfen next to Stammteam", () => {
+    render();
+    expect(screen.getByTestId("salon-hours-kpi-aushilfen").textContent).toContain("3:54");
+    expect(screen.getByTestId("salon-hours-kpi-stammteam").textContent).toContain("16:40");
+  });
+});
+
+describe("SalonHoursView - cell states", () => {
+  it("shows „in <Salon>“, „anderer Salon“ and „abwesend“ as chips", () => {
+    render();
+    const table = screen.getByTestId("salon-hours-stammteam");
+    const anna = table.querySelectorAll("tbody tr")[0];
+    expect(anna.textContent).toContain("in Salon Süd");
+    expect(anna.textContent).toContain("abwesend");
+    const bernd = table.querySelectorAll("tbody tr")[1];
+    expect(bernd.textContent).toContain("anderer Salon");
+    // The hidden mark carries no salon: nothing but the neutral text.
+    expect(bernd.textContent).not.toContain("Salon Süd");
+  });
+
+  it("names no kind of absence anywhere", () => {
+    render();
+    expect(document.body.textContent ?? "").not.toMatch(/Urlaub|Krank|Berufsschule|Elternzeit/);
+  });
+});
+
+describe("SalonHoursView - cell click", () => {
+  it("makes the cells of a clickable person buttons named with their state and opens the day", async () => {
+    const onCellOpen = vi.fn();
+    render({ clickableIds: new Set(["e1"]), onCellOpen });
+    const table = screen.getByTestId("salon-hours-stammteam");
+    const buttons = table.querySelectorAll("tbody tr:nth-child(1) button");
+    expect(buttons).toHaveLength(7);
+    expect(buttons[0].getAttribute("aria-label")).toBe(
+      "Anna Berg, Montag, 23.11.2026: 8:00 im Salon",
+    );
+    expect(buttons[1].getAttribute("aria-label")).toContain("in Salon Süd");
+    await fireEvent.click(buttons[0]);
+    expect(onCellOpen).toHaveBeenCalledWith("e1", "2026-11-23");
+    await fireEvent.click(buttons[2]);
+    expect(onCellOpen).toHaveBeenLastCalledWith("e1", "2026-11-25");
+  });
+
+  it("renders plain text cells for a person the caller cannot open", () => {
+    const onCellOpen = vi.fn();
+    render({ clickableIds: new Set(["e1"]), onCellOpen });
+    const bernd = screen
+      .getByTestId("salon-hours-stammteam")
+      .querySelectorAll("tbody tr:nth-child(2) button");
+    expect(bernd).toHaveLength(0);
+    const helpers = screen.getByTestId("salon-hours-aushilfen").querySelectorAll("button");
+    expect(helpers).toHaveLength(0);
+  });
+
+  it("makes no cell a button without clickable ids", () => {
+    render();
+    expect(
+      screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody button"),
+    ).toHaveLength(0);
   });
 });

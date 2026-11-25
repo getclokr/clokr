@@ -8,6 +8,7 @@ import {
   resolveSalonInReach,
   salonOnlyReach,
   listSalons,
+  homeSalonsForDays,
   reportPopulationWhere,
   scopedTimeEntryIds,
   type PermissionKey,
@@ -24,11 +25,14 @@ import {
   getRecordedWorkEntriesInRange,
   getRecordedWorkEntriesByIds,
 } from "../contexts/time-tracking";
-import { resolveWindowReachIds, type ReachWindow } from "./reach-day";
-import { SALON_VIEW_NOT_FOUND } from "./salon-view";
-import { distinctEmployeeIds } from "./team-entry-scope";
+import { getActiveLeaveOverlapping, getAbsencesOverlapping } from "../contexts/absence";
+import { resolveWindowReachIds, windowReachDay, type ReachWindow } from "./reach-day";
+import { SALON_VIEW_NOT_FOUND, salonHelperIds } from "./salon-view";
+import { distinctEmployeeIds, outOfScopeValidCounts } from "./team-entry-scope";
 import {
+  absentDaysOf,
   buildSalonHoursBlock,
+  entryDayKey,
   type SalonHoursEntryRow,
   type SalonHoursPerson,
 } from "./salon-hours-cells";
@@ -159,6 +163,7 @@ export async function assembleSalonHours(
     },
   });
   const populationIds = population.map((p) => p.id);
+  const populationIdSet = new Set(populationIds);
 
   // The Stammteam circle: persons homed in the salon at their window Stichtag. A salon-only reach
   // never answers "all"; if it did, the circle is empty (fail-closed).
@@ -175,7 +180,7 @@ export async function assembleSalonHours(
   // every row of the population; a scoped caller only the in-scope rows (never a hidden minute).
   const rows: SalonHoursEntryRow[] =
     inScopeRows !== null
-      ? inScopeRows.filter((r) => populationIds.includes(r.employeeId))
+      ? inScopeRows.filter((r) => populationIdSet.has(r.employeeId))
       : populationIds.length === 0
         ? []
         : await getRecordedWorkEntriesInRange(
@@ -192,7 +197,80 @@ export async function assembleSalonHours(
   }
 
   const salons = await listSalons(app.prisma, tenantId, { includeInactive: true });
-  const salonName = salons.find((s) => s.id === salonId)?.name ?? "";
+  // Inactive salons keep their name: history names them.
+  const salonNames = new Map(salons.map((s) => [s.id, s.name]));
+  const salonName = salonNames.get(salonId) ?? "";
+
+  const stammPersons = population.filter((p) => circle.has(p.id));
+  const stammIds = stammPersons.map((p) => p.id);
+  const stammSet = new Set(stammIds);
+
+  // Issue #714 (D-07): the Aushilfen are the entry branch of the one membership rule - persons of
+  // the caller's population OUTSIDE the circle with a counted entry in the salon. The very call
+  // shape of the period report, so the two lists are one.
+  const helperIds = salonHelperIds({
+    salonId,
+    candidateIds: population.filter((p) => !circle.has(p.id)).map((p) => p.id),
+    entries: rows
+      .filter((r) => r.endTime !== null && !r.isInvalid && r.date <= yesterday)
+      .map((r) => ({ employeeId: r.employeeId, salonId: r.salonId })),
+    homeMemberIds: circle,
+  });
+  const helperPersons = population.filter((p) => helperIds.has(p.id));
+
+  // The Stammsalon per person and day: a helper's Stammsalon is the one at the window Stichtag, and
+  // an absence is shown on the days the Stammteam person is homed here (#84 D-13).
+  const homeByPerson = await homeSalonsForDays(
+    app.prisma,
+    tenantId,
+    [...stammIds, ...helperPersons.map((p) => p.id)],
+    days[0],
+    days[days.length - 1],
+  );
+
+  // Scoped callers (#85 D-05): the Stammteam's rows of ALL salons are read only to count what the
+  // reach hides; hours, salons and the open state come from the in-scope rows alone.
+  let hiddenValidCounts: Map<string, number> | undefined;
+  if (inScopeRows !== null && stammIds.length > 0) {
+    const stammAllRows = await getRecordedWorkEntriesInRange(
+      app.prisma,
+      employeeScopeFor(scopedAccess, { employeeIds: stammIds }),
+      firstDay,
+      lastDay,
+    );
+    hiddenValidCounts = outOfScopeValidCounts(
+      stammAllRows,
+      inScopeRows.filter((r) => stammSet.has(r.employeeId)),
+      entryDayKey,
+    );
+  }
+
+  // Leave and imposed absences belong to the Stammsalon persons; only that a day is covered leaves
+  // the read, never a type, a reason or a half day.
+  const covers =
+    stammIds.length === 0
+      ? []
+      : [
+          ...(await getActiveLeaveOverlapping(
+            app.prisma,
+            employeeScopeFor(scopedAccess, { employeeIds: stammIds }),
+            firstDay,
+            lastDay,
+          )),
+          ...(await getAbsencesOverlapping(
+            app.prisma,
+            employeeScopeFor(scopedAccess, { employeeIds: stammIds }),
+            firstDay,
+            lastDay,
+          )),
+        ];
+  const absentByPerson = absentDaysOf({
+    salonId,
+    days,
+    personIds: stammIds,
+    homeByPerson,
+    covers,
+  });
 
   const toPerson = (p: (typeof population)[number]): SalonHoursPerson => ({
     id: p.id,
@@ -205,8 +283,32 @@ export async function assembleSalonHours(
     days,
     countedThrough,
     yesterday,
-    persons: population.filter((p) => circle.has(p.id)).map(toPerson),
+    persons: stammPersons.map(toPerson),
     rowsByPerson,
+    salonNames,
+    showElsewhere: true,
+    absentByPerson,
+    hiddenValidCounts,
+  });
+  const aushilfen = buildSalonHoursBlock({
+    salonId,
+    days,
+    countedThrough,
+    yesterday,
+    persons: helperPersons.map((p): SalonHoursPerson => {
+      const stichtag = windowReachDay(p.exitDate, window, tz).toISOString().slice(0, 10);
+      const homeSalonId = homeByPerson.get(p.id)?.get(stichtag) ?? null;
+      return {
+        ...toPerson(p),
+        homeSalonId,
+        homeSalonName: homeSalonId === null ? null : (salonNames.get(homeSalonId) ?? null),
+      };
+    }),
+    rowsByPerson,
+    salonNames,
+    showElsewhere: false,
+    // A helper is listed through an entry only: the Personalnummer stays with the Stammsalon (#548).
+    withholdNumbers: reach.kind === "scoped",
   });
 
   return {
@@ -218,10 +320,12 @@ export async function assembleSalonHours(
     days,
     countedThrough,
     kpis: {
-      salonWorkedMinutes: stammteam.totalMinutes,
+      salonWorkedMinutes: stammteam.totalMinutes + aushilfen.totalMinutes,
       stammteamMinutes: stammteam.totalMinutes,
+      aushilfenMinutes: aushilfen.totalMinutes,
     },
     stammteam,
+    aushilfen,
   };
 }
 

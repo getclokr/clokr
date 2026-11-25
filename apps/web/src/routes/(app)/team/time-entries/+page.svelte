@@ -88,6 +88,7 @@
     type SalonHoursStatus,
     type SalonPeriod,
     defaultSalonPeriod,
+    periodAfterSalonChange,
     salonHoursRequestPath,
     teamModeFor,
   } from "$lib/team/salon-hours";
@@ -488,6 +489,22 @@
     $salonContext.salons.find((salon) => salon.id === salonViewSalonId)?.name ?? null,
   );
 
+  // A header salon change returns the period to the default week and remounts the lists, so every
+  // list starts at its first page (Issue #1030). Declared BEFORE the load effect, so the single
+  // reload that follows already sees the reset period. The first run only records the salon.
+  let salonViewKey = $state(0);
+  let lastSalonViewSalon: string | null | undefined;
+  $effect(() => {
+    const next = salonViewSalonId;
+    untrack(() => {
+      if (lastSalonViewSalon !== undefined && lastSalonViewSalon !== next) {
+        salonPeriod = periodAfterSalonChange(lastSalonViewSalon, next, salonPeriod, todayStr);
+        salonViewKey += 1;
+      }
+      lastSalonViewSalon = next;
+    });
+  });
+
   $effect(() => {
     if (teamMode !== "salon" || !$salonContext.loaded) return;
     const salonId = salonViewSalonId;
@@ -517,6 +534,7 @@
       return;
     }
     salonViewStatus = "loading";
+    void loadSalonMasterData();
     try {
       const answer = await api.get<SalonHoursResponse>(salonHoursRequestPath(salonId, period));
       if (generation !== salonViewGeneration) return;
@@ -532,6 +550,45 @@
       salonViewStatus = "error";
       salonViewError = err instanceof Error ? err.message : "Fehler beim Laden";
     }
+  }
+
+  // The persons whose day the caller may open: the master-data list (`GET /employees`, narrowed by
+  // the caller's reach, #547), loaded once with the first salon view and used by id only. The salon
+  // header never narrows it - a person of this salon who is homed elsewhere stays clickable. A
+  // failure is non-fatal: no cell becomes a button.
+  let salonMasterEmployees = $state<Employee[]>([]);
+  let salonMasterRequested = false;
+  const salonClickableIds = $derived(
+    new Set([...salonMasterEmployees, ...employees].map((e) => e.id)),
+  );
+
+  async function loadSalonMasterData() {
+    if (salonMasterRequested) return;
+    salonMasterRequested = true;
+    try {
+      salonMasterEmployees = await api.get<Employee[]>("/employees");
+    } catch {
+      salonMasterEmployees = [];
+    }
+  }
+
+  // A click on a raster cell: that person's day in the Personenansicht (the existing correction
+  // path - the day sheet), in the month of the day.
+  async function openPersonDay(employeeId: string, day: string) {
+    const person =
+      salonMasterEmployees.find((e) => e.id === employeeId) ??
+      employees.find((e) => e.id === employeeId);
+    if (!person) return;
+    teamMode = "person";
+    const [year, month] = day.split("-").map(Number);
+    calMonth = new Date(year, month - 1, 1);
+    fromDate = format(startOfMonth(calMonth), "yyyy-MM-dd");
+    toDate = format(endOfMonth(calMonth), "yyyy-MM-dd");
+    selectedDate = day;
+    selectedEmployeeId = person.id;
+    selectedEmployeeRecord = person;
+    await loadAll();
+    openDaySheet(day);
   }
 
   async function setTeamMode(mode: "person" | "salon") {
@@ -2124,16 +2181,20 @@
   {/if}
 
   {#if teamMode === "salon"}
-    <SalonHoursView
-      status={salonViewStatus}
-      data={salonHoursData}
-      period={salonPeriod}
-      {todayStr}
-      salonName={salonViewSalonName}
-      errorMessage={salonViewError || undefined}
-      onPeriodChange={(next) => (salonPeriod = next)}
-      onRetry={() => void loadSalonView(salonViewSalonId, salonPeriod)}
-    />
+    {#key salonViewKey}
+      <SalonHoursView
+        status={salonViewStatus}
+        data={salonHoursData}
+        period={salonPeriod}
+        {todayStr}
+        salonName={salonViewSalonName}
+        errorMessage={salonViewError || undefined}
+        clickableIds={salonClickableIds}
+        onCellOpen={(employeeId, day) => void openPersonDay(employeeId, day)}
+        onPeriodChange={(next) => (salonPeriod = next)}
+        onRetry={() => void loadSalonView(salonViewSalonId, salonPeriod)}
+      />
+    {/key}
   {:else if selectedEmployee}
     {#if error}
       <div class="alert alert-error" role="alert">

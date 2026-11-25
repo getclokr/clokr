@@ -179,6 +179,39 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(PAGE).toContain('void setTeamMode("person");');
   });
 
+  // Issue #1030: a click on a raster cell opens that person's day through the existing day sheet;
+  // the person list is the unfiltered master-data list, loaded once and never fatal.
+  it("[#1030] a cell click opens the person's day in the Personenansicht", () => {
+    const body = functionBody("openPersonDay");
+    expect(body).toContain('teamMode = "person";');
+    expect(body).toContain("selectedEmployeeRecord = person;");
+    expect(body.indexOf("await loadAll();")).toBeGreaterThan(body.indexOf('teamMode = "person";'));
+    expect(body.indexOf("openDaySheet(day);")).toBeGreaterThan(body.indexOf("await loadAll();"));
+    expect(PAGE).toContain("onCellOpen={(employeeId, day) => void openPersonDay(employeeId, day)}");
+    expect(PAGE).toContain("clickableIds={salonClickableIds}");
+  });
+
+  it("[#1030] the master-data list is requested once, and a failure only leaves no clickable cell", () => {
+    const body = functionBody("loadSalonMasterData");
+    expect(body).toContain("if (salonMasterRequested) return;");
+    expect(body).toMatch(/catch \{\s*salonMasterEmployees = \[\];/);
+    expect(body).not.toContain("toasts.");
+  });
+
+  // Issue #1030: changing the header salon returns to the default week and remounts the lists
+  // (every list restarts at its first page); the reset runs BEFORE the load effect.
+  it("[#1030] a salon change resets the period and remounts the view, before the reload", () => {
+    expect(PAGE).toContain(
+      "periodAfterSalonChange(lastSalonViewSalon, next, salonPeriod, todayStr)",
+    );
+    expect(PAGE).toContain("salonViewKey += 1;");
+    expect(PAGE).toContain("{#key salonViewKey}");
+    const reset = PAGE.indexOf("periodAfterSalonChange(lastSalonViewSalon");
+    const load = PAGE.indexOf('$effect(() => {\n    if (teamMode !== "salon"');
+    expect(reset).toBeGreaterThan(-1);
+    expect(load).toBeGreaterThan(reset);
+  });
+
   it("[#1030] the period starts at the default week and the salon view has no month bar", () => {
     expect(PAGE).toContain("let salonPeriod = $state<SalonPeriod>(defaultSalonPeriod(todayStr));");
     const body = PAGE.indexOf("{#snippet viewBody()}");

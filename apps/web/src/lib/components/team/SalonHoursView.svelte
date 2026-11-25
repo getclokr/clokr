@@ -5,12 +5,14 @@
   // saldo (those belong to the person - the info symbol beside the heading says so).
   // Mountable: no `$app` import, no request; the page loads the data and passes the status.
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
+  import Chip from "$components/ui/Chip.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { fmtMin } from "$lib/utils/format-minutes";
+  import { SALON_HELPERS_HEADING } from "$lib/salons/page-scope";
   import {
     cellDisplay,
     countedThroughLabel,
@@ -22,6 +24,8 @@
     salonPeriodWithZoom,
     shiftSalonPeriod,
     type SalonHoursBlock,
+    type SalonHoursHelperBlock,
+    type SalonHoursHelperRow,
     type SalonHoursResponse,
     type SalonHoursRow,
     type SalonHoursStatus,
@@ -39,6 +43,10 @@
     salonName?: string | null;
     errorMessage?: string;
     onRetry?: () => void;
+    /** Persons whose day the caller can open (master-data reach); only their cells are buttons. */
+    clickableIds?: ReadonlySet<string>;
+    /** A click on the cell of a clickable person: opens that person's day. */
+    onCellOpen?: (employeeId: string, day: string) => void;
   }
 
   let {
@@ -50,10 +58,17 @@
     salonName = null,
     errorMessage = "Die Stunden konnten nicht geladen werden.",
     onRetry,
+    clickableIds = new Set<string>(),
+    onCellOpen,
   }: Props = $props();
 
   // A type alias, because DataTable's row generic wants an object type.
-  type RasterRow = { id: string; person: SalonHoursRow };
+  type RasterRow = {
+    id: string;
+    person: SalonHoursRow;
+    /** The Stammsalon column of an Aushilfen row; undefined in the Stammteam block. */
+    home?: string;
+  };
 
   const heading = $derived(data?.salonName ?? salonName ?? "Salon");
   const stichtag = $derived(countedThroughLabel(data?.countedThrough ?? null));
@@ -72,27 +87,41 @@
             value: fmtMin(data.kpis.stammteamMinutes),
             testId: "salon-hours-kpi-stammteam",
           },
+          {
+            label: "Aushilfen",
+            value: fmtMin(data.kpis.aushilfenMinutes),
+            testId: "salon-hours-kpi-aushilfen",
+          },
         ]
       : [],
   );
 
-  const columns = $derived<DataTableColumn[]>(
-    data
-      ? [
-          { key: "person", label: "Person", primary: true },
-          ...data.days.map((day): DataTableColumn => ({
-            key: `d:${day}`,
-            label: dayColumnLabel(day),
-            title: dayFullLabel(day),
-            align: "end",
-          })),
-          { key: "sum", label: `Summe ${stichtag}`, align: "end" },
-        ]
-      : [],
-  );
+  /** The columns of a block: Person, the Stammsalon of an Aushilfe, one per day, the sum. */
+  function columnsFor(helpers: boolean): DataTableColumn[] {
+    if (!data) return [];
+    return [
+      { key: "person", label: "Person", primary: true },
+      ...(helpers ? [{ key: "home", label: "Stammsalon" } satisfies DataTableColumn] : []),
+      ...data.days.map((day): DataTableColumn => ({
+        key: `d:${day}`,
+        label: dayColumnLabel(day),
+        title: dayFullLabel(day),
+        align: "end",
+      })),
+      { key: "sum", label: `Summe ${stichtag}`, align: "end" },
+    ];
+  }
 
   function tableRows(block: SalonHoursBlock): RasterRow[] {
     return block.rows.map((person) => ({ id: person.employeeId, person }));
+  }
+
+  function helperRows(block: SalonHoursHelperBlock): RasterRow[] {
+    return block.rows.map((person: SalonHoursHelperRow) => ({
+      id: person.employeeId,
+      person,
+      home: person.homeSalonName ?? "ohne Stammsalon",
+    }));
   }
 
   /** A day is counted when it lies through the server's Stichtag. */
@@ -118,20 +147,44 @@
         <span class="salon-hours-number">{row.person.employeeNumber}</span>
       {/if}
     </span>
+  {:else if column.key === "home"}
+    {row.home}
   {:else if column.key === "sum"}
     {fmtMin(row.person.totalMinutes)}
   {:else}
     {@const day = column.key.slice(2)}
     {@const found = row.person.cells.find((c) => c.date === day)}
     {#if found}
-      <span class="salon-hours-cell" title={cellDisplay(found, row.person.employeeName).label}>
-        {cellDisplay(found, row.person.employeeName).text}
-      </span>
+      {@const display = cellDisplay(found, row.person.employeeName)}
+      {#snippet content()}
+        <span class="salon-hours-cell-text">{display.text}</span>
+        {#each display.chips as chip (chip.text)}
+          <Chip tone={chip.tone}>{chip.text}</Chip>
+        {/each}
+      {/snippet}
+      {#if clickableIds.has(row.person.employeeId)}
+        <button
+          type="button"
+          class="salon-hours-cell-button"
+          aria-label={display.label}
+          onclick={() => onCellOpen?.(row.person.employeeId, day)}
+        >
+          {@render content()}
+        </button>
+      {:else}
+        <span class="salon-hours-cell" title={display.label}>{@render content()}</span>
+      {/if}
     {/if}
   {/if}
 {/snippet}
 
-{#snippet raster(block: SalonHoursBlock, caption: string, testId: string)}
+{#snippet raster(
+  block: SalonHoursBlock | SalonHoursHelperBlock,
+  rows: RasterRow[],
+  columns: DataTableColumn[],
+  caption: string,
+  testId: string,
+)}
   {#snippet totals(column: DataTableColumn)}
     {#if column.key === "person"}
       Summe je Tag
@@ -145,14 +198,7 @@
     {/if}
   {/snippet}
   <div data-testid={testId}>
-    <DataTable
-      {columns}
-      rows={tableRows(block)}
-      rowKey={(row) => row.id}
-      {cell}
-      footer={totals}
-      {caption}
-    />
+    <DataTable {columns} {rows} rowKey={(row) => row.id} {cell} footer={totals} {caption} />
   </div>
 {/snippet}
 
@@ -197,9 +243,25 @@
       <h2 class="salon-hours-sub">Stammteam</h2>
       {@render raster(
         data.stammteam,
+        tableRows(data.stammteam),
+        columnsFor(false),
         `Stammteam in ${data.salonName}, ${salonPeriodLabel(period)}`,
         "salon-hours-stammteam",
       )}
+      <h2 class="salon-hours-sub">{SALON_HELPERS_HEADING}</h2>
+      {#if data.aushilfen.rows.length === 0}
+        <p class="salon-hours-calm" data-testid="salon-hours-no-helpers">
+          Keine Aushilfen aus anderen Salons in diesem Zeitraum.
+        </p>
+      {:else}
+        {@render raster(
+          data.aushilfen,
+          helperRows(data.aushilfen),
+          columnsFor(true),
+          `${SALON_HELPERS_HEADING} in ${data.salonName}, ${salonPeriodLabel(period)}`,
+          "salon-hours-aushilfen",
+        )}
+      {/if}
     {/if}
   {/if}
 </div>
@@ -238,7 +300,40 @@
     color: var(--text-2);
   }
 
-  .salon-hours-cell {
+  .salon-hours-cell,
+  .salon-hours-cell-button {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--s-1);
     font-variant-numeric: tabular-nums;
+  }
+
+  /* A clickable cell is a real button: no frame at rest, the person's day opens on activation. */
+  .salon-hours-cell-button {
+    min-height: var(--h-control);
+    padding: 0 var(--s-1);
+    border: 0;
+    border-radius: var(--r-control);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .salon-hours-cell-button:hover {
+    background: var(--hover);
+  }
+
+  .salon-hours-cell-button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+
+  .salon-hours-calm {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
 </style>

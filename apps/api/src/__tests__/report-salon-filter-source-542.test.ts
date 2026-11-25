@@ -138,6 +138,15 @@ export const REGIONS: readonly RegionEntry[] = [
     validator: "resolveSalonInReach",
     membership: "resolveWindowReachIds",
   },
+  // Issue #1030: the same assembly's Aushilfen are decided by the entry branch of the one rule.
+  {
+    file: `${COMPOSITION}/salon-hours.ts`,
+    method: "get",
+    path: "assembleSalonHours",
+    kind: "function",
+    validator: "resolveSalonInReach",
+    membership: "salonHelperIds",
+  },
 ];
 
 /** Reads that must not happen before the validation. */

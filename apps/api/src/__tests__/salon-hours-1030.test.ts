@@ -11,7 +11,11 @@
  *   P1  | A          | A: Mon 9.3. 8 h, Tue 10.3. 4 h, Mon 16.3. 8 h, Tue 17.3. 6 h, TODAY 18.3. 8 h,
  *       |            |    Fri 20.3. 8 h (future), Thu 5.3. 3 h (earlier in the month)
  *   P2  | A          | A: Mon 9.3. 6 h; an OPEN entry in A on Wed 11.3.; an INVALID entry in A 12.3.
- *   Q1  | B          | A: Wed 11.3. 4 h (a helper, Task 2)
+ *   Q1  | B          | A: Wed 11.3. 4 h (a helper in A)
+ *   TR  | A          | a TRAVEL row A -> B on Fri 6.3. 12:00-13:00 (counts for the departure salon A)
+ *   MV  | A until 4.3., B from 5.3. | A: Mon 2.3. 3 h (before the move), B: Thu 5.3. 4 h
+ *   NH  | no HOME row | A: Tue 3.3. 2 h (a helper without a Stammsalon)
+ *   P1  | (also)     | VACATION approved Mon 2.3. - Tue 3.3.; P2: B Tue 3.3. 5 h, Absence Berufsschule Wed 4.3.
  *
  * No person names beyond the fixture tags. Mutation proofs are recorded in the plan SUMMARY.
  */
@@ -32,12 +36,20 @@ import { SYSTEM_ROLE_IDS, salonOnlyReach } from "../contexts/platform";
 import { monthRangeUtc, monthDateRange } from "../contexts/working-time-account";
 import { resolvePeriodReachIds, resolveWindowReachIds } from "../composition/reach-day";
 import { salonWorkedMinutesOf } from "../composition/reports-period";
+import { absentDaysOf } from "../composition/salon-hours-cells";
 
 const FAKE_NOW = "2026-03-18T10:00:00.000Z";
 const NOT_FOUND = '{"error":"Salon nicht gefunden"}';
 const PASSWORD = "test1234";
 
-type Cell = { date: string; minutes: number; counted: boolean };
+type Cell = {
+  date: string;
+  minutes: number;
+  counted: boolean;
+  elsewhere: Array<{ salonId: string; salonName: string }>;
+  elsewhereHidden: boolean;
+  absent: boolean;
+};
 type Row = {
   employeeId: string;
   employeeName: string;
@@ -45,7 +57,9 @@ type Row = {
   totalMinutes: number;
   cells: Cell[];
 };
+type HelperRow = Row & { homeSalonId: string | null; homeSalonName: string | null };
 type Block = { rows: Row[]; dayTotals: number[]; totalMinutes: number };
+type HelperBlock = { rows: HelperRow[]; dayTotals: number[]; totalMinutes: number };
 type Hours = {
   salonId: string;
   salonName: string;
@@ -54,11 +68,12 @@ type Hours = {
   to: string;
   days: string[];
   countedThrough: string | null;
-  kpis: { salonWorkedMinutes: number; stammteamMinutes: number };
+  kpis: { salonWorkedMinutes: number; stammteamMinutes: number; aushilfenMinutes: number };
   stammteam: Block;
+  aushilfen: HelperBlock;
 };
 
-type Tag = "P1" | "P2" | "Q1";
+type Tag = "P1" | "P2" | "Q1" | "TR" | "MV" | "NH";
 
 describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
   let app: FastifyInstance;
@@ -70,7 +85,7 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
   let salonD: string;
   let tenantId: string;
   const ids = {} as Record<Tag, string>;
-  const tokens = { admin: "", emp: "", managerA: "" };
+  const tokens = { admin: "", emp: "", managerA: "", managerB: "" };
   let managerAEmail = "";
 
   function entry(
@@ -150,6 +165,9 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     await mk("P1", salonA);
     await mk("P2", salonA);
     await mk("Q1", salonB);
+    await mk("TR", salonA);
+    await mk("MV", salonA);
+    await mk("NH", salonA);
 
     await entry(ids.P1, salonA, "2026-03-05", { hours: 3 });
     await entry(ids.P1, salonA, "2026-03-09");
@@ -162,6 +180,64 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     await entry(ids.P2, salonA, "2026-03-11", { endTime: null });
     await entry(ids.P2, salonA, "2026-03-12", { isInvalid: true });
     await entry(ids.Q1, salonA, "2026-03-11", { hours: 4 });
+
+    // Week 2.-8.3.: the mover MV is homed in A until 4.3. and in B from 5.3.; NH has no Stammsalon.
+    await app.prisma.employeeSalonAssignment.updateMany({
+      where: { employeeId: ids.MV, kind: "HOME" },
+      data: { validUntil: new Date("2026-03-04T00:00:00Z") },
+    });
+    await app.prisma.employeeSalonAssignment.create({
+      data: {
+        tenantId,
+        employeeId: ids.MV,
+        salonId: salonB,
+        kind: "HOME",
+        validFrom: new Date("2026-03-05T00:00:00Z"),
+        validUntil: null,
+        weekdays: [],
+      },
+    });
+    await app.prisma.employeeSalonAssignment.deleteMany({ where: { employeeId: ids.NH } });
+    await entry(ids.MV, salonA, "2026-03-02", { hours: 3 });
+    await entry(ids.MV, salonB, "2026-03-05", { hours: 4 });
+    await entry(ids.NH, salonA, "2026-03-03", { hours: 2 });
+    await entry(ids.P2, salonB, "2026-03-03", { hours: 5 });
+    // A trip A -> B: the departure salon A is the one it counts for (#92).
+    await app.prisma.timeEntry.create({
+      data: {
+        employeeId: ids.TR,
+        salonId: salonA,
+        travelToSalonId: salonB,
+        activityKind: "TRAVEL",
+        date: new Date("2026-03-06T00:00:00Z"),
+        startTime: new Date("2026-03-06T12:00:00Z"),
+        endTime: new Date("2026-03-06T13:00:00Z"),
+        breakMinutes: 0,
+        type: "WORK",
+        source: "MANUAL",
+      },
+    });
+    // Effective leave and an imposed absence on days the person is homed in A.
+    await app.prisma.leaveRequest.create({
+      data: {
+        employeeId: ids.P1,
+        leaveTypeId: data.vacationType.id,
+        startDate: new Date("2026-03-02T00:00:00Z"),
+        endDate: new Date("2026-03-03T00:00:00Z"),
+        days: 2,
+        status: "APPROVED",
+      },
+    });
+    await app.prisma.absence.create({
+      data: {
+        employeeId: ids.P2,
+        type: "VOCATIONAL_SCHOOL",
+        startDate: new Date("2026-03-04T00:00:00Z"),
+        endDate: new Date("2026-03-04T00:00:00Z"),
+        days: 1,
+        createdBy: data.adminUser.id,
+      },
+    });
 
     // A Salonmanager of salon A only, and (through the seed) the whole-tenant admin.
     const user = await app.prisma.user.create({
@@ -199,7 +275,45 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     });
     expect(login.statusCode, login.body).toBe(200);
     tokens.managerA = (JSON.parse(login.body) as { accessToken: string }).accessToken;
+    tokens.managerB = await salonManager("B", [salonB]);
   });
+
+  async function salonManager(label: string, salonIds: string[]): Promise<string> {
+    const user = await app.prisma.user.create({
+      data: {
+        email: `mgr-1030-${label}-${Date.now().toString(36)}@example.invalid`,
+        passwordHash: await bcrypt.hash(PASSWORD, 4),
+        isActive: true,
+      },
+    });
+    await app.prisma.employee.create({
+      data: {
+        tenantId,
+        userId: user.id,
+        employeeNumber: numericEmployeeNumber(),
+        firstName: "Mg",
+        lastName: `Mgr1030${label}`,
+        hireDate: new Date("2025-06-01T00:00:00Z"),
+      },
+    });
+    await app.prisma.roleAssignment.create({
+      data: {
+        tenantId,
+        userId: user.id,
+        accessRoleId: SYSTEM_ROLE_IDS.SALON_MANAGER,
+        scopeType: "SALONS",
+        salonIds,
+        employeeIds: [],
+      },
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: user.email, password: PASSWORD },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return (JSON.parse(res.body) as { accessToken: string }).accessToken;
+  }
 
   afterAll(async () => {
     vi.useRealTimers();
@@ -237,11 +351,11 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
   it("cells hold the minutes worked in this salon; today, a future day, open and invalid rows count nowhere", async () => {
     const h = await hours(`salonId=${salonA}`);
     const p1 = rowOf(h, "P1");
-    expect(cellOf(p1, "2026-03-16")).toEqual({ date: "2026-03-16", minutes: 480, counted: true });
-    expect(cellOf(p1, "2026-03-17")).toEqual({ date: "2026-03-17", minutes: 360, counted: true });
+    expect(cellOf(p1, "2026-03-16")).toMatchObject({ minutes: 480, counted: true });
+    expect(cellOf(p1, "2026-03-17")).toMatchObject({ minutes: 360, counted: true });
     // Today has a closed 8 h entry in the database and still reads as not counted.
-    expect(cellOf(p1, "2026-03-18")).toEqual({ date: "2026-03-18", minutes: 0, counted: false });
-    expect(cellOf(p1, "2026-03-20")).toEqual({ date: "2026-03-20", minutes: 0, counted: false });
+    expect(cellOf(p1, "2026-03-18")).toMatchObject({ minutes: 0, counted: false });
+    expect(cellOf(p1, "2026-03-20")).toMatchObject({ minutes: 0, counted: false });
     expect(p1.totalMinutes).toBe(840);
     expect(p1.totalMinutes).toBeGreaterThan(0);
   });
@@ -275,8 +389,10 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     }
     expect(h.stammteam.totalMinutes).toBe(1080);
     expect(h.stammteam.totalMinutes).toBe(h.stammteam.rows.reduce((s, r) => s + r.totalMinutes, 0));
-    expect(h.kpis.salonWorkedMinutes).toBe(1080);
     expect(h.kpis.stammteamMinutes).toBe(1080);
+    // Q1 helped in A on Wed 11.3. for 4 h: the KPI is the Stammteam plus the Aushilfen.
+    expect(h.kpis.aushilfenMinutes).toBe(240);
+    expect(h.kpis.salonWorkedMinutes).toBe(1080 + 240);
   });
 
   it("the Stammteam holds the persons homed in the salon, never another salon's person", async () => {
@@ -287,7 +403,8 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     // Q1 is homed in B; in A they are at most a helper (Task 2), never a Stammteam row.
     expect(rowIds).not.toContain(ids.Q1);
     const other = await hours(`salonId=${salonB}&period=week&date=2026-03-11`);
-    expect(other.stammteam.rows.map((r) => r.employeeId)).toEqual([ids.Q1]);
+    // B's Stammteam at the week's Stichtag (15.3.): Q1 and the mover MV (homed in B from 5.3.).
+    expect(other.stammteam.rows.map((r) => r.employeeId).sort()).toEqual([ids.Q1, ids.MV].sort());
     // Q1's hours in salon A are not hours of salon B.
     expect(other.stammteam.totalMinutes).toBe(0);
   });
@@ -323,7 +440,7 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     const p1 = rowOf(h, "P1");
     // 5.3. 3 h + 9.3. 8 h + 10.3. 4 h + 16.3. 8 h + 17.3. 6 h; today and the 20th are not counted.
     expect(p1.totalMinutes).toBe((3 + 8 + 4 + 8 + 6) * 60);
-    expect(h.kpis.salonWorkedMinutes).toBe(h.stammteam.totalMinutes);
+    expect(h.kpis.salonWorkedMinutes).toBe(h.stammteam.totalMinutes + h.aushilfen.totalMinutes);
   });
 
   it("the week raster is the same figures as the same days of the month raster", async () => {
@@ -427,5 +544,232 @@ describe("Issue #1030 - GET /salon-hours, the Stammteam raster", () => {
     expect(viaWindow).not.toBe("all");
     expect((viaWindow as string[]).length).toBeGreaterThanOrEqual(2);
     expect([...(viaWindow as string[])].sort()).toEqual([...(viaPeriod as string[])].sort());
+  });
+
+  // ── Task 2: Aushilfen, cell states, parity, redaction ─────────────────────────────────────
+
+  const helperOf = (h: Hours, tag: Tag): HelperRow => {
+    const row = h.aushilfen.rows.find((r) => r.employeeId === ids[tag]);
+    if (!row) throw new Error(`helper ${tag} missing`);
+    return row;
+  };
+  const WEEK2 = "period=week&date=2026-03-04";
+
+  it("a person of another salon with a counted entry here is an Aushilfe with the Stammsalon, never a Stammteam row", async () => {
+    const h = await hours(`salonId=${salonA}&period=week&date=2026-03-11`);
+    const q1 = helperOf(h, "Q1");
+    expect(q1.homeSalonId).toBe(salonB);
+    expect(q1.homeSalonName).toBe("SH1030 B");
+    expect(q1.totalMinutes).toBe(240);
+    expect(cellOf(q1, "2026-03-11").minutes).toBe(240);
+    expect(h.stammteam.rows.map((r) => r.employeeId)).not.toContain(ids.Q1);
+    // The helper block sums its own rows; the KPI sums both blocks.
+    expect(h.aushilfen.totalMinutes).toBe(240);
+    expect(h.aushilfen.dayTotals[2]).toBe(240);
+  });
+
+  it("an Aushilfe without a Stammsalon has homeSalonId null", async () => {
+    const h = await hours(`salonId=${salonA}&${WEEK2}`);
+    const nh = helperOf(h, "NH");
+    expect(nh.homeSalonId).toBeNull();
+    expect(nh.homeSalonName).toBeNull();
+    expect(nh.totalMinutes).toBe(120);
+  });
+
+  it("a mover is judged on the window's Stichtag: a helper in A, a Stammteam row in B", async () => {
+    const a = await hours(`salonId=${salonA}&${WEEK2}`);
+    const mvInA = helperOf(a, "MV");
+    expect(mvInA.homeSalonId).toBe(salonB);
+    expect(mvInA.totalMinutes).toBe(180);
+    expect(a.stammteam.rows.map((r) => r.employeeId)).not.toContain(ids.MV);
+    const b = await hours(`salonId=${salonB}&${WEEK2}`);
+    const mvInB = rowOf(b, "MV");
+    // The 4 h of Thu 5.3. in B are B's hours; the 3 h of Mon 2.3. in A are not.
+    expect(mvInB.totalMinutes).toBe(240);
+    expect(cellOf(mvInB, "2026-03-05").minutes).toBe(240);
+    expect(cellOf(mvInB, "2026-03-02").minutes).toBe(0);
+    expect(b.aushilfen.rows.map((r) => r.employeeId)).not.toContain(ids.MV);
+  });
+
+  it("the KPI is the Stammteam plus the Aushilfen, and a trip counts for its departure salon", async () => {
+    const a = await hours(`salonId=${salonA}&${WEEK2}`);
+    expect(a.kpis.salonWorkedMinutes).toBe(a.stammteam.totalMinutes + a.aushilfen.totalMinutes);
+    expect(a.kpis.aushilfenMinutes).toBe(a.aushilfen.totalMinutes);
+    expect(a.aushilfen.totalMinutes).toBeGreaterThan(0);
+    // TR's only row is the A -> B trip: 60 minutes in A on Fri 6.3., none anywhere in B.
+    expect(cellOf(rowOf(a, "TR"), "2026-03-06").minutes).toBe(60);
+    const b = await hours(`salonId=${salonB}&${WEEK2}`);
+    expect(b.stammteam.rows.map((r) => r.employeeId)).not.toContain(ids.TR);
+    expect(b.aushilfen.rows.map((r) => r.employeeId)).not.toContain(ids.TR);
+  });
+
+  it("names another salon on a day of an A-homed person's time there (whole tenant and the manager of A)", async () => {
+    for (const token of [tokens.admin, tokens.managerA]) {
+      const a = await hours(`salonId=${salonA}&${WEEK2}`, token);
+      const cell = cellOf(rowOf(a, "P2"), "2026-03-03");
+      expect(cell.minutes).toBe(0);
+      expect(cell.elsewhere).toEqual([{ salonId: salonB, salonName: "SH1030 B" }]);
+      expect(cell.elsewhereHidden).toBe(false);
+    }
+  });
+
+  it("reads time outside the reach as a neutral hidden mark without minutes, salon id or salon name", async () => {
+    const b = await get(`salonId=${salonB}&${WEEK2}`, tokens.managerB);
+    expect(b.statusCode, b.body).toBe(200);
+    const answer = JSON.parse(b.body) as Hours;
+    const mv = rowOf(answer, "MV");
+    // Mon 2.3.: MV was homed in A and worked in A - outside the manager of B's reach.
+    const hidden = cellOf(mv, "2026-03-02");
+    expect(hidden.elsewhereHidden).toBe(true);
+    expect(hidden.minutes).toBe(0);
+    expect(hidden.elsewhere).toEqual([]);
+    // MV's own in-reach hours stay.
+    expect(mv.totalMinutes).toBe(240);
+    // No cell of the answer names salon A as a place of time: out-of-reach time carries no salon. (A
+    // helper's Stammsalon is master data of a person who worked in B and stays named, see #949.)
+    const named = [...answer.stammteam.rows, ...answer.aushilfen.rows].flatMap((r) =>
+      r.cells.flatMap((c) => c.elsewhere.map((e) => e.salonId)),
+    );
+    expect(named).not.toContain(salonA);
+    const hiddenCells = [...answer.stammteam.rows, ...answer.aushilfen.rows].flatMap((r) =>
+      r.cells.filter((c) => c.elsewhereHidden),
+    );
+    expect(hiddenCells.length).toBeGreaterThan(0);
+    expect(hiddenCells.every((c) => c.minutes === 0 && c.elsewhere.length === 0)).toBe(true);
+    // The whole-tenant caller names the salon on the same cell.
+    const whole = await hours(`salonId=${salonB}&${WEEK2}`);
+    expect(cellOf(rowOf(whole, "MV"), "2026-03-02")).toMatchObject({
+      elsewhereHidden: false,
+      elsewhere: [{ salonId: salonA, salonName: data.tenant.name }],
+    });
+  });
+
+  it("marks leave and an imposed absence as absent without any kind, only for Stammteam persons on days homed here", async () => {
+    const a = await get(`salonId=${salonA}&${WEEK2}`);
+    const answer = JSON.parse(a.body) as Hours;
+    expect(cellOf(rowOf(answer, "P1"), "2026-03-02").absent).toBe(true);
+    expect(cellOf(rowOf(answer, "P1"), "2026-03-03").absent).toBe(true);
+    expect(cellOf(rowOf(answer, "P1"), "2026-03-04").absent).toBe(false);
+    expect(cellOf(rowOf(answer, "P2"), "2026-03-04").absent).toBe(true);
+    // No kind, reason or name of an absence anywhere in the answer.
+    for (const word of [
+      "VACATION",
+      "VOCATIONAL_SCHOOL",
+      "SICK",
+      "Urlaub",
+      "Berufsschule",
+      "Krankheit",
+      "halfDay",
+      "reason",
+      data.vacationType.name,
+    ]) {
+      expect(a.body, word).not.toContain(word);
+    }
+    // A helper is never absent; the Stammsalon holds their absences.
+    for (const row of answer.aushilfen.rows) expect(row.cells.every((c) => !c.absent)).toBe(true);
+  });
+
+  it("shows no absence on days a person is homed in another salon (the mover's days in A)", async () => {
+    // MV is homed in A until 4.3.; leave on 2.3. would be absent in A's week - none is recorded, so
+    // the helper-free Stammteam day map is the proof here: absentDaysOf is the only rule.
+    const day = "2026-03-02";
+    const home = new Map([[ids.MV, new Map([[day, salonB]])]]);
+    const covers = [
+      {
+        employeeId: ids.MV,
+        startDate: new Date(`${day}T00:00:00Z`),
+        endDate: new Date(`${day}T00:00:00Z`),
+      },
+    ];
+    expect(
+      absentDaysOf({
+        salonId: salonA,
+        days: [day],
+        personIds: [ids.MV],
+        homeByPerson: home,
+        covers,
+      }).size,
+    ).toBe(0);
+  });
+
+  it("withholds a helper's Personalnummer from a scoped manager and shows it to the whole tenant", async () => {
+    const week = "period=week&date=2026-03-11";
+    const scoped = await hours(`salonId=${salonA}&${week}`, tokens.managerA);
+    const whole = await hours(`salonId=${salonA}&${week}`);
+    expect(helperOf(scoped, "Q1").employeeNumber).toBeNull();
+    expect(typeof helperOf(whole, "Q1").employeeNumber).toBe("string");
+    // Stammteam persons keep their number for the scoped manager.
+    expect(typeof rowOf(scoped, "P1").employeeNumber).toBe("string");
+  });
+
+  it("the scoped manager of A sees no minute of an entry outside the reach", async () => {
+    const week = await hours(`salonId=${salonA}&${WEEK2}`, tokens.managerA);
+    // MV's B entry of Thu 5.3. is outside A's reach: it appears in no cell, no total, no KPI.
+    const mv = helperOf(week, "MV");
+    expect(mv.cells.map((c) => c.minutes)).toEqual([180, 0, 0, 0, 0, 0, 0]);
+    expect(week.kpis.salonWorkedMinutes).toBe(
+      week.stammteam.totalMinutes + week.aushilfen.totalMinutes,
+    );
+    expect(week.aushilfen.rows.some((r) => r.employeeId === ids.MV && r.totalMinutes !== 180)).toBe(
+      false,
+    );
+  });
+
+  // ── parity with the period report (P-05) ──────────────────────────────────────────────────
+
+  it("the month raster of a whole-tenant caller equals the salon view of GET /reports/period", async () => {
+    type PeriodRow = { employeeId: string; salonWorkedMinutes?: number };
+    type PeriodAnswer = {
+      kpis: { salonWorkedMinutes: number };
+      rows: PeriodRow[];
+      helpers?: Array<{ employeeId: string; salonWorkedMinutes: number }>;
+    };
+    for (const salon of [salonA, salonB]) {
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/v1/reports/period?from=2026-03&to=2026-03&salonId=${salon}`,
+        headers: { authorization: `Bearer ${tokens.admin}` },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const period = JSON.parse(res.body) as PeriodAnswer;
+      const mine = await hours(`salonId=${salon}&period=month&date=2026-03-10`);
+
+      expect(mine.stammteam.rows.map((r) => r.employeeId).sort()).toEqual(
+        period.rows.map((r) => r.employeeId).sort(),
+      );
+      expect(mine.aushilfen.rows.map((r) => r.employeeId).sort()).toEqual(
+        (period.helpers ?? []).map((h) => h.employeeId).sort(),
+      );
+      for (const row of mine.stammteam.rows) {
+        const theirs = period.rows.find((r) => r.employeeId === row.employeeId);
+        expect(row.totalMinutes, row.employeeId).toBe(theirs?.salonWorkedMinutes ?? 0);
+      }
+      for (const row of mine.aushilfen.rows) {
+        const theirs = period.helpers?.find((h) => h.employeeId === row.employeeId);
+        expect(row.totalMinutes, row.employeeId).toBe(theirs?.salonWorkedMinutes);
+      }
+      expect(mine.kpis.salonWorkedMinutes).toBe(period.kpis.salonWorkedMinutes);
+      // Not vacuous: every compared figure is a real, positive number for salon A.
+      if (salon === salonA) {
+        expect(mine.kpis.salonWorkedMinutes).toBeGreaterThan(0);
+        expect(mine.stammteam.rows.some((r) => r.totalMinutes > 0)).toBe(true);
+        expect(mine.aushilfen.rows.some((r) => r.totalMinutes > 0)).toBe(true);
+      }
+    }
+  });
+
+  it("a week raster's person totals are the sums of the same days of the month raster", async () => {
+    const week = await hours(`salonId=${salonA}&${WEEK2}`);
+    const month = await hours(`salonId=${salonA}&period=month&date=2026-03-04`);
+    const rowsOf = (h: Hours): Array<Row | HelperRow> => [...h.stammteam.rows, ...h.aushilfen.rows];
+    for (const row of rowsOf(week)) {
+      const inMonth = rowsOf(month).find((r) => r.employeeId === row.employeeId);
+      expect(inMonth, row.employeeId).toBeDefined();
+      const sameDays = inMonth!.cells
+        .filter((c) => week.days.includes(c.date))
+        .reduce((sum, c) => sum + c.minutes, 0);
+      expect(row.totalMinutes).toBe(sameDays);
+    }
+    expect(rowsOf(week).some((r) => r.totalMinutes > 0)).toBe(true);
   });
 });

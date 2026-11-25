@@ -18,6 +18,12 @@ export interface SalonHoursCell {
   minutes: number;
   /** False after tenant-local yesterday: nothing is counted there. */
   counted: boolean;
+  /** Other salons the person worked in that day, inside the caller's reach. */
+  elsewhere: { salonId: string; salonName: string }[];
+  /** Time the caller's reach does not cover: no hours, no salon. */
+  elsewhereHidden: boolean;
+  /** Leave or an absence covers the day (the kind is never sent). */
+  absent: boolean;
 }
 
 export interface SalonHoursRow {
@@ -26,6 +32,18 @@ export interface SalonHoursRow {
   employeeNumber: string | null;
   totalMinutes: number;
   cells: SalonHoursCell[];
+}
+
+export interface SalonHoursHelperRow extends SalonHoursRow {
+  /** The Stammsalon at the window's Stichtag; null = none. */
+  homeSalonId: string | null;
+  homeSalonName: string | null;
+}
+
+export interface SalonHoursHelperBlock {
+  rows: SalonHoursHelperRow[];
+  dayTotals: number[];
+  totalMinutes: number;
 }
 
 export interface SalonHoursBlock {
@@ -44,8 +62,9 @@ export interface SalonHoursResponse {
   days: string[];
   /** The last counted day, null when nothing is counted yet. */
   countedThrough: string | null;
-  kpis: { salonWorkedMinutes: number; stammteamMinutes: number };
+  kpis: { salonWorkedMinutes: number; stammteamMinutes: number; aushilfenMinutes: number };
   stammteam: SalonHoursBlock;
+  aushilfen: SalonHoursHelperBlock;
 }
 
 /** What the Salonansicht currently shows (the page decides, the component renders). */
@@ -205,22 +224,62 @@ export function teamModeFor(
   return requested === "salon" && salonTabAvailable ? "salon" : "person";
 }
 
+/**
+ * The salon a header change leaves behind: the period returns to the default week only when the
+ * salon id really changes, so a reload of the same salon keeps the shown period.
+ */
+export function periodAfterSalonChange(
+  prevSalonId: string | null,
+  nextSalonId: string | null,
+  current: SalonPeriod,
+  todayStr: string,
+): SalonPeriod {
+  return prevSalonId === nextSalonId ? current : defaultSalonPeriod(todayStr);
+}
+
 // ── a cell ─────────────────────────────────────────────────────────────────────────────────────
+
+export interface SalonCellChip {
+  text: string;
+  tone: "neutral" | "info";
+}
 
 export interface SalonCellDisplay {
   /** The cell text: H:MM, „–“ on a counted day without hours, empty on a day not counted yet. */
   text: string;
-  /** The state chips of the cell (none in this slice). */
-  chips: { text: string; tone: "neutral" | "info" }[];
+  /** The state chips of the cell: „abwesend“, „in <Salon>“, „anderer Salon“. */
+  chips: SalonCellChip[];
   /** The accessible name of the cell. */
   label: string;
 }
 
-/** What one cell shows. `personName` and `day` only widen the accessible name. */
+/** At most this many salon names are spelled out in an „in <Salon>“ chip; the rest is „+N“. */
+export const MAX_ELSEWHERE_NAMES = 2;
+
+/** „in Süd“, „in Süd, Ost“, „in Süd, Ost +1“. */
+export function elsewhereChipText(names: readonly string[]): string {
+  const shown = names.slice(0, MAX_ELSEWHERE_NAMES).join(", ");
+  const more = names.length - MAX_ELSEWHERE_NAMES;
+  return more > 0 ? `in ${shown} +${more}` : `in ${shown}`;
+}
+
+/** What one cell shows. `personName` only widens the accessible name. */
 export function cellDisplay(cell: SalonHoursCell, personName = ""): SalonCellDisplay {
   const text = cell.minutes > 0 ? fmtMin(cell.minutes) : cell.counted ? "–" : "";
+  const chips: SalonCellChip[] = [];
+  if (cell.absent) chips.push({ text: "abwesend", tone: "info" });
+  if (cell.elsewhere.length > 0) {
+    chips.push({
+      text: elsewhereChipText(cell.elsewhere.map((e) => e.salonName)),
+      tone: "neutral",
+    });
+  }
+  // Time outside the reach reads as a neutral mark: no hours, no name, no way to tell which salon.
+  if (cell.elsewhereHidden) chips.push({ text: "anderer Salon", tone: "neutral" });
+
   const when = dayFullLabel(cell.date);
   const head = personName ? `${personName}, ${when}` : when;
   const what = cell.minutes > 0 ? `${fmtMin(cell.minutes)} im Salon` : "keine Stunden im Salon";
-  return { text, chips: [], label: `${head}: ${what}` };
+  const states = chips.map((chip) => chip.text);
+  return { text, chips, label: [`${head}: ${what}`, ...states].join(", ") };
 }

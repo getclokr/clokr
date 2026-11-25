@@ -7,6 +7,8 @@ import {
   dayColumnLabel,
   dayFullLabel,
   defaultSalonPeriod,
+  elsewhereChipText,
+  periodAfterSalonChange,
   salonHoursRequestPath,
   salonPeriodEnd,
   salonPeriodLabel,
@@ -15,6 +17,7 @@ import {
   salonPeriodWithZoom,
   shiftSalonPeriod,
   teamModeFor,
+  type SalonHoursCell,
   type SalonPeriod,
 } from "../salon-hours";
 
@@ -138,16 +141,89 @@ describe("teamModeFor", () => {
   });
 });
 
+function cell(over: Partial<SalonHoursCell> = {}): SalonHoursCell {
+  return {
+    date: "2026-11-23",
+    minutes: 0,
+    counted: true,
+    elsewhere: [],
+    elsewhereHidden: false,
+    absent: false,
+    ...over,
+  };
+}
+
 describe("cellDisplay", () => {
   it("shows H:MM for worked minutes", () => {
-    const d = cellDisplay({ date: "2026-11-23", minutes: 450, counted: true }, "Pat Test");
+    const d = cellDisplay(cell({ minutes: 450 }), "Pat Test");
     expect(d.text).toBe("7:30");
     expect(d.chips).toEqual([]);
     expect(d.label).toBe("Pat Test, Montag, 23.11.2026: 7:30 im Salon");
   });
 
   it("shows a dash on a counted day without hours and nothing on a day not counted yet", () => {
-    expect(cellDisplay({ date: "2026-11-23", minutes: 0, counted: true }).text).toBe("–");
-    expect(cellDisplay({ date: "2026-11-30", minutes: 0, counted: false }).text).toBe("");
+    expect(cellDisplay(cell()).text).toBe("–");
+    expect(cellDisplay(cell({ date: "2026-11-30", counted: false })).text).toBe("");
+  });
+
+  it("names the other salon of a day as „in <Salon>“", () => {
+    const d = cellDisplay(
+      cell({ minutes: 240, elsewhere: [{ salonId: "s2", salonName: "Süd" }] }),
+      "Pat Test",
+    );
+    expect(d.chips).toEqual([{ text: "in Süd", tone: "neutral" }]);
+    expect(d.label).toBe("Pat Test, Montag, 23.11.2026: 4:00 im Salon, in Süd");
+  });
+
+  it("spells out at most two salon names, then „+N“", () => {
+    expect(elsewhereChipText(["Süd"])).toBe("in Süd");
+    expect(elsewhereChipText(["Süd", "Ost"])).toBe("in Süd, Ost");
+    expect(elsewhereChipText(["Süd", "Ost", "West", "Nord"])).toBe("in Süd, Ost +2");
+  });
+
+  it("reads hidden time as „anderer Salon“: no hours, no name", () => {
+    const d = cellDisplay(cell({ elsewhereHidden: true }), "Pat Test");
+    expect(d.text).toBe("–");
+    expect(d.chips).toEqual([{ text: "anderer Salon", tone: "neutral" }]);
+    expect(d.label).toBe("Pat Test, Montag, 23.11.2026: keine Stunden im Salon, anderer Salon");
+  });
+
+  it("reads leave or an absence as „abwesend“ without any kind, also on a day not counted yet", () => {
+    const d = cellDisplay(cell({ date: "2026-11-30", counted: false, absent: true }));
+    expect(d.text).toBe("");
+    expect(d.chips).toEqual([{ text: "abwesend", tone: "info" }]);
+    expect(JSON.stringify(d)).not.toMatch(/Urlaub|Krank|Berufsschule|VACATION|SICK/);
+  });
+
+  it("lists the states in a fixed order: abwesend, in <Salon>, anderer Salon", () => {
+    const d = cellDisplay(
+      cell({
+        absent: true,
+        elsewhere: [{ salonId: "s2", salonName: "Süd" }],
+        elsewhereHidden: true,
+      }),
+    );
+    expect(d.chips.map((c) => c.text)).toEqual(["abwesend", "in Süd", "anderer Salon"]);
+  });
+});
+
+describe("periodAfterSalonChange", () => {
+  const shown = MONTH("2026-09-01");
+
+  it("returns to the default week when the salon changes", () => {
+    expect(periodAfterSalonChange("s1", "s2", shown, "2026-11-24")).toEqual(
+      defaultSalonPeriod("2026-11-24"),
+    );
+    expect(periodAfterSalonChange(null, "s2", shown, "2026-11-24")).toEqual(
+      defaultSalonPeriod("2026-11-24"),
+    );
+    expect(periodAfterSalonChange("s1", null, shown, "2026-11-24")).toEqual(
+      defaultSalonPeriod("2026-11-24"),
+    );
+  });
+
+  it("keeps the shown period when the salon stays", () => {
+    expect(periodAfterSalonChange("s1", "s1", shown, "2026-11-24")).toBe(shown);
+    expect(periodAfterSalonChange(null, null, shown, "2026-11-24")).toBe(shown);
   });
 });

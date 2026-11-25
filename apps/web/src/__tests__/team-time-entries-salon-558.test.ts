@@ -100,7 +100,11 @@ describe("Issue #558 — the person selector of /team/time-entries follows the h
     expect(unfiltered).toBeGreaterThan(missing);
     // The unfiltered request exists only inside the not-found branch, once in the whole page.
     expect(block.indexOf('api.get<Employee[]>("/employees")')).toBe(unfiltered);
-    expect(PAGE.split('api.get<Employee[]>("/employees")').length - 1).toBe(1);
+    // Issue #1030: the raster of the Salonansicht reads the same unfiltered master-data list once
+    // for the ids of the persons whose day the caller may open (`loadSalonMasterData`); the deep
+    // link's lookup above stays the only other place and stays inside its not-found branch.
+    expect(PAGE.split('api.get<Employee[]>("/employees")').length - 1).toBe(2);
+    expect(functionBody("loadSalonMasterData")).toContain('api.get<Employee[]>("/employees")');
     // The #85 Salonansicht fallback is kept for a person that is still missing.
     expect(block.slice(unfiltered)).toContain(
       'else teamMode = teamModeFor("salon", salonTabAvailable);',
