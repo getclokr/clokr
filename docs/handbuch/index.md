@@ -7,7 +7,7 @@ Clokr ist eine revisionssichere Zeiterfassung und Abwesenheitsverwaltung für Be
 Clokr ist in drei Bereiche gegliedert. Du findest sie in der Navigation der App:
 
 - [**Ich**](ich/index.md) – Dein Tag, deine Zeiten, deine Abwesenheiten, dein Dienstplan, dein Konto und dein Profil.
-- **Team** – Wer heute im Salon ist, die Aufgaben, die auf dich warten, die Zeiten, Abwesenheiten und der Dienstplan deines Teams, Berichte und die Personen in deinem Bereich.
+- [**Team**](team/index.md) – Wer heute im Salon ist, die Aufgaben, die auf dich warten, die Zeiten, Abwesenheiten und der Dienstplan deines Teams, Berichte und die Personen in deinem Bereich.
 - **Verwalten** – Personen, Salons und Feiertage, die Regeln für Arbeitszeit und Urlaub, der Monatsabschluss, Import und Export sowie das System.
 
 Welche Bereiche und Seiten du siehst, hängt von deinen Rechten ab. Eine Seite, die dir fehlt, ist für deine Rolle nicht freigegeben.
