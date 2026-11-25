@@ -12,7 +12,9 @@ Diese Seite führt dich durch Anmeldung, Einladung, Passwort und die Oberfläche
 
 Mit dem Auge-Symbol im Passwortfeld machst du deine Eingabe sichtbar. Stimmen die Zugangsdaten nicht, erscheint eine Fehlermeldung über dem Formular.
 
-<!-- SCREENSHOT file=bilder/erste-schritte-01.png role=emp url=/login show="Die Anmeldeseite mit den Feldern E-Mail-Adresse und Passwort, dem Kästchen Angemeldet bleiben und dem Button Anmelden" -->
+<!-- SCREENSHOT file=bilder/erste-schritte-01.png role=emp url=/login show="Die Anmeldeseite mit den Feldern E-Mail-Adresse und Passwort, dem Kästchen Angemeldet bleiben, dem Link Passwort vergessen und dem Button Anmelden" -->
+
+![Die Anmeldeseite mit den Feldern E-Mail-Adresse und Passwort, dem Kästchen Angemeldet bleiben, dem Link Passwort vergessen und dem Button Anmelden](bilder/erste-schritte-01.png)
 
 ## Einladung annehmen
 
@@ -61,7 +63,9 @@ Auf dem Handy ersetzt eine **Tab-Leiste am unteren Rand** die Navigation. Die wi
 - **Glocke**: deine Benachrichtigungen. Mit **Alle als gelesen** hakst du alle ungelesenen Einträge ab. Ein Klick auf eine Benachrichtigung bringt dich direkt zur passenden Stelle.
 - **Dein Bild oder deine Initialen**: das persönliche Menü mit **Profil** und **Abmelden**.
 
-<!-- SCREENSHOT file=bilder/erste-schritte-02.png role=emp url=/ich/tag show="Mein Tag mit der Navigation links und der Kopfzeile mit Suche, Modus-Schalter, Glocke und persönlichem Menü" -->
+<!-- SCREENSHOT file=bilder/erste-schritte-02.png role=emp url=/ich/tag show="Mein Tag mit Begrüßung, Stempeluhr und Button Einstempeln, den Kennzahlen Stundenkonto, Resturlaub, Nächste Schicht und Diese Woche sowie den Abschnitten Deine Woche, Für dich, Letzte Tage und Verlauf" -->
+
+![Mein Tag mit Begrüßung, Stempeluhr und Button Einstempeln, den Kennzahlen Stundenkonto, Resturlaub, Nächste Schicht und Diese Woche sowie den Abschnitten Deine Woche, Für dich, Letzte Tage und Verlauf](bilder/erste-schritte-02.png)
 
 ## Dein Profil
 
@@ -76,6 +80,8 @@ Unter **Ich › Profil** findest du alles, was nur dich betrifft.
 - **Sicherheit**: mit **Passwort ändern** setzt du ein neues Passwort. Du brauchst dafür dein aktuelles.
 
 <!-- SCREENSHOT file=bilder/erste-schritte-03.png role=emp url=/ich/profil show="Die Profilseite mit dem Foto, den Abschnitten Meine Arbeit, Benachrichtigungen, Darstellung, Stempeln mit dem Handy und Sicherheit" -->
+
+![Die Profilseite mit dem Foto, den Abschnitten Meine Arbeit, Benachrichtigungen, Darstellung, Stempeln mit dem Handy und Sicherheit](bilder/erste-schritte-03.png)
 
 ### Erscheinungsbild
 

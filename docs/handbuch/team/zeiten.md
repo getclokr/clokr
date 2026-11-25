@@ -19,7 +19,9 @@ Den Monat wählst du über die Monatsleiste.
 
 Im Kalender ist jeder Tag nach seinem Stand eingefärbt. Fehlt an einem Tag der Eintrag, steht dort **Fehlt** oder die fehlende Zeit in Stunden. Eine Legende erklärt die Farben. Ein Klick auf einen Tag öffnet das Tagesfenster mit allen Einträgen des Tages. Unter dem Kalender fasst eine Zeile die Auffälligkeiten des Monats zusammen: Tage mit Hinweisen zur Pause oder zur Arbeitszeit.
 
-<!-- SCREENSHOT file=bilder/team-zeiten-01.png role=manager url=/team/zeiten show="Team Zeiten in der Personenansicht mit gewählter Person, den Kennzahlen und dem Kalender" -->
+<!-- SCREENSHOT file=bilder/team-zeiten-01.png role=manager url=/team/zeiten show="Zeiten in der Personenansicht mit dem Hinweis Wähle eine Person und dem Auswahlfeld für Name oder Personalnummer" -->
+
+![Zeiten in der Personenansicht mit dem Hinweis Wähle eine Person und dem Auswahlfeld für Name oder Personalnummer](../bilder/team-zeiten-01.png)
 
 ## Hinweise zum Arbeitszeitgesetz
 

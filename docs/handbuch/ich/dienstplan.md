@@ -15,6 +15,8 @@ Ein heutiger Tag ist hervorgehoben. Hast du noch keine Schichten, steht dort „
 
 <!-- SCREENSHOT file=bilder/dienstplan-01.png role=emp url=/ich/dienstplan show="Der Reiter Nächste 14 Tage mit den Schichten der kommenden Wochen" -->
 
+![Der Reiter Nächste 14 Tage mit den Schichten der kommenden Wochen](../bilder/dienstplan-01.png)
+
 ## Verfügbarkeit angeben
 
 Der Reiter **Meine Verfügbarkeit** erscheint nur, wenn dein Unternehmen die Verfügbarkeit nutzt. Dort sagst du deiner Salonleitung, wann du arbeiten kannst, wann nicht und wann du lieber arbeitest. Du trägst nur deine Wünsche ein. Eingeteilt wirst du von der Salonleitung.
@@ -25,8 +27,6 @@ Du schaltest zwischen zwei Ansichten um:
 - **Einzelne Tage**: Ausnahmen vom Wochenmuster, zum Beispiel ein freier Nachmittag. Mit **+ Einmaltermin hinzufügen** legst du einen Tag mit demselben Status an. Ohne Einträge steht dort „Keine Einmaltermine vorhanden.“
 
 Beim Bearbeiten kannst du zusätzlich festlegen, ab und bis wann ein Eintrag gilt, und eine Notiz ergänzen. Mit **Verfügbarkeit speichern** übernimmst du deine Änderungen, über die Leiste verwirfst du sie wieder. Beim Entfernen eines Eintrags bleiben bereits geplante Schichten bestehen.
-
-<!-- SCREENSHOT file=bilder/dienstplan-02.png role=emp url=/ich/dienstplan show="Meine Verfügbarkeit, Ansicht Jede Woche, mit Status pro Wochentag" -->
 
 ## Kalender abonnieren
 

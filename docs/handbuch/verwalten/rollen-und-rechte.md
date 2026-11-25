@@ -32,6 +32,10 @@ Clokr bringt sieben Systemrollen mit. Diese Rollen sind fest, du siehst sie, kan
 
 Wer als Salonmanager, Personalabteilung oder Ausbilder selbst arbeitet, bekommt zusätzlich die Rolle Mitarbeiter für die eigenen Daten.
 
+<!-- SCREENSHOT file=bilder/rollen-und-rechte-01.png role=admin url=/verwalten/system/rollen show="Rollen und Rechte mit dem Reiter Rollen: die Systemrollen mit der Anzahl ihrer Rechte und dem Button Neue Rolle" -->
+
+![Rollen und Rechte mit dem Reiter Rollen: die Systemrollen mit der Anzahl ihrer Rechte und dem Button Neue Rolle](../bilder/rollen-und-rechte-01.png)
+
 ## Rollen zuweisen
 
 Die Seite hat zwei Reiter, je nachdem was du darfst: **Rollen** und **Zuweisungen**.
@@ -44,8 +48,6 @@ Auf dem Reiter **Zuweisungen** siehst du alle Personen mit ihren Rollen. So weis
 4. Speichere.
 
 Du findest dieselbe Zuweisung auch bei der Person selbst: auf dem Reiter **Zugang** unter **Verwalten › Personen**. Beim Anlegen einer Person wählst du die Rollen im Schritt „Salon & Rolle“, siehe [Personen](personen.md). Mehrere Personen auf einmal bekommen eine Rolle über die Auswahl in der Personenliste.
-
-<!-- SCREENSHOT file=bilder/rollen-und-rechte-01.png role=admin url=/verwalten/system/rollen show="Rollen und Rechte mit dem Reiter Zuweisungen: Personen mit ihren Rollen" -->
 
 ## Eigene Rollen anlegen
 

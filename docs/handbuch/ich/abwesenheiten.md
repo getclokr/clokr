@@ -15,6 +15,8 @@ Mit **Kalender exportieren** lädst du deine Abwesenheiten oder die des Teams al
 
 <!-- SCREENSHOT file=bilder/abwesenheiten-01.png role=emp url=/ich/abwesenheiten show="Abwesenheiten mit Resturlaub-Karte, den Reitern Kalender, Anträge, Team und Planung und dem Monatskalender" -->
 
+![Abwesenheiten mit Resturlaub-Karte, den Reitern Kalender, Anträge, Team und Planung und dem Monatskalender](../bilder/abwesenheiten-01.png)
+
 ## Urlaub beantragen
 
 1. Klicke auf **Urlaub beantragen** (oder auf einen Tag im Kalender, oder ziehe über mehrere Tage).
@@ -67,6 +69,8 @@ Auf dem Reiter **Anträge** zeigt jeder Antrag seinen Status:
 Hinweise wie „Vorläufig“ oder „Angepasst“ erscheinen bei älteren Anträgen mit Schichtplan. Neue Anträge bekommen sie nicht mehr.
 
 <!-- SCREENSHOT file=bilder/abwesenheiten-02.png role=emp url=/ich/abwesenheiten?tab=antraege show="Die Liste der eigenen Anträge mit Statusanzeigen" -->
+
+![Die Liste der eigenen Anträge mit Statusanzeigen](../bilder/abwesenheiten-02.png)
 
 ### Antrag bearbeiten, zurückziehen, stornieren
 

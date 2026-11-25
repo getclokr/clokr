@@ -10,7 +10,9 @@ Oben stellst du den Zeitraum ein: mit den Pfeilen blätterst du Monat für Monat
 
 Über den Kennzahlen siehst du die wichtigsten Zahlen des Zeitraums, zum Beispiel Saldo im Zeitraum, Gesamtsaldo am Ende, Urlaub genommen, Urlaub genehmigt, Urlaubsanspruch und Krankheitstage.
 
-<!-- SCREENSHOT file=bilder/berichte-01.png role=manager url=/team/berichte show="Berichte mit Zeitraumleiste, Kennzahlen und dem Reiter Zeiten und Konten" -->
+<!-- SCREENSHOT file=bilder/berichte-01.png role=manager url=/team/berichte show="Berichte mit den Reitern Zeiten & Konten, Urlaub & Abwesenheit, Heute und Verläufe, der Zeitraumleiste, den Kennzahlen und der Tabelle der Personen" -->
+
+![Berichte mit den Reitern Zeiten & Konten, Urlaub & Abwesenheit, Heute und Verläufe, der Zeitraumleiste, den Kennzahlen und der Tabelle der Personen](../bilder/berichte-01.png)
 
 ## Die Reiter
 

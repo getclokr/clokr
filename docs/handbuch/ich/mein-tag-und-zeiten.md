@@ -30,7 +30,9 @@ Du kannst auch ohne Knopfdruck stempeln:
 
 Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir die Stempel-Buttons gar nicht an. Das ist beabsichtigt.
 
-<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-01.png role=emp url=/ich/tag show="Mein Tag mit laufender Uhr, den Buttons Pause und Ausstempeln und den Kennzahlen darunter" -->
+<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-01.png role=emp url=/ich/tag show="Mein Tag mit der Stempeluhr (noch nicht eingestempelt) und dem Button Einstempeln, darunter die Kennzahlen zu Stundenkonto, Resturlaub und Diese Woche" -->
+
+![Mein Tag mit der Stempeluhr (noch nicht eingestempelt) und dem Button Einstempeln, darunter die Kennzahlen zu Stundenkonto, Resturlaub und Diese Woche](../bilder/mein-tag-und-zeiten-01.png)
 
 ### Was sonst auf Mein Tag steht
 
@@ -69,7 +71,9 @@ Klickst du einen Tag an, öffnet sich das Tagesfenster mit allen Einträgen des 
 
 Mit **Stundennachweis (PDF)** oben erstellst du deinen Stundennachweis für den gewählten Monat.
 
-<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-02.png role=emp url=/ich/zeiten show="Zeiten im Kalender mit den Kennzahlen Dein Monat in Zahlen, farbigen Tagen und der Legende" -->
+<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-02.png role=emp url=/ich/zeiten show="Zeiten im Kalender mit den Kennzahlen Ist, Soll bis gestern, Differenz und Status, den Tageswerten der einzelnen Tage und der Legende zum Soll-Status" -->
+
+![Zeiten im Kalender mit den Kennzahlen Ist, Soll bis gestern, Differenz und Status, den Tageswerten der einzelnen Tage und der Legende zum Soll-Status](../bilder/mein-tag-und-zeiten-02.png)
 
 ### Zeit nachtragen
 
@@ -123,7 +127,9 @@ Hat die Verwaltung einen Monat abgeschlossen, kannst du seine Einträge nicht me
 
 Ein Plus zeigt Clokr mit **+**, ein Minus mit **−**. Urlaub, Feiertage und genehmigte Abwesenheiten senken dein Soll automatisch.
 
-<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-03.png role=emp url=/ich/konto show="Konto mit den Kennzahlen zu Stundenkonto und Resturlaub und der Tabelle So setzt sich dein Stundenkonto zusammen" -->
+<!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-03.png role=emp url=/ich/konto show="Konto mit den Kennzahlen zu Stundenkonto und Resturlaub, der Tabelle So setzt sich dein Stundenkonto zusammen, den Monatsnachweisen und dem Urlaubskonto" -->
+
+![Konto mit den Kennzahlen zu Stundenkonto und Resturlaub, der Tabelle So setzt sich dein Stundenkonto zusammen, den Monatsnachweisen und dem Urlaubskonto](../bilder/mein-tag-und-zeiten-03.png)
 
 ## Stempeln mit dem Handy im WLAN
 

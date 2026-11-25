@@ -8,6 +8,8 @@ Die Liste zeigt alle Salons mit Status („Aktiv“ oder „Inaktiv“) und Bund
 
 <!-- SCREENSHOT file=bilder/salons-und-feiertage-01.png role=admin url=/verwalten/salons show="Die Salonliste mit Spalten für Status und Bundesland und der Schaltfläche Salon anlegen" -->
 
+![Die Salonliste mit Spalten für Status und Bundesland und der Schaltfläche Salon anlegen](../bilder/salons-und-feiertage-01.png)
+
 ## Ein Salon im Detail
 
 Die Seite eines Salons hat drei Reiter:

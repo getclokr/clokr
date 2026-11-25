@@ -6,6 +6,8 @@ Die Werte einer einzelnen Person pflegst du bei der Person selbst unter **Verwal
 
 <!-- SCREENSHOT file=bilder/abwesenheiten-und-urlaub-01.png role=admin url=/verwalten/regeln/abwesenheiten show="Regeln Abwesenheiten mit den Reitern Urlaub, Sonderurlaub, Übertrag, Betriebsurlaub und Urlaubsgrenzen und Sperren" -->
 
+![Regeln Abwesenheiten mit den Reitern Urlaub, Sonderurlaub, Übertrag, Betriebsurlaub und Urlaubsgrenzen und Sperren](../bilder/abwesenheiten-und-urlaub-01.png)
+
 ## Urlaub
 
 Der Reiter **Urlaub** hat vier Abschnitte, die du einzeln speicherst.

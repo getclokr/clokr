@@ -17,6 +17,8 @@ Unter der Wochenansicht erklärt eine Legende die Markierungen: Schicht, Unterbe
 
 <!-- SCREENSHOT file=bilder/team-dienstplan-01.png role=manager url=/team/dienstplan show="Der Dienstplan im Reiter Woche mit Vorlagen, Personenzeilen, Schichten und der Besetzung über den Tagen" -->
 
+![Der Dienstplan im Reiter Woche mit Vorlagen, Personenzeilen, Schichten und der Besetzung über den Tagen](../bilder/team-dienstplan-01.png)
+
 ### Schicht zuweisen
 
 - **Per Klick**: Klicke in einer freien Zelle auf **+ Schicht**. Im Dialog „Schicht zuweisen“ wählst du optional eine **Vorlage**, trägst **Startzeit** und **Endzeit** ein und ergänzt optional eine **Bezeichnung** und eine **Notiz**. Speichere.

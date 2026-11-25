@@ -18,6 +18,8 @@ So gehst du vor:
 
 <!-- SCREENSHOT file=bilder/phorest-01.png role=admin url=/verwalten/system/phorest show="Phorest mit dem Reiter Verbindung: Zugangsdaten, Vor- und Nachbereitung und Zuordnung der Mitarbeitenden" -->
 
+![Phorest mit dem Reiter Verbindung: Zugangsdaten, Vor- und Nachbereitung und Zuordnung der Mitarbeitenden](../bilder/phorest-01.png)
+
 ### Import-Einstellungen
 
 - **Vorbereitungszeit** und **Nachbereitungszeit** (in Minuten): Phorest hält die buchbare Zeit fest, die tatsächliche Arbeitszeit beginnt früher und endet später. Clokr verlängert eine importierte Schicht um diese Zeiten. Pro Person lassen sie sich im Vertrag der Person überschreiben.

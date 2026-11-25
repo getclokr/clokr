@@ -14,6 +14,8 @@ Wählst du mehrere Personen aus, stehen oben Sammelaktionen bereit:
 
 <!-- SCREENSHOT file=bilder/personen-01.png role=admin url=/verwalten/personen show="Die Personenliste mit Suche, Filtern, Spalten und der Schaltfläche Person anlegen" -->
 
+![Die Personenliste mit Suche, Filtern, Spalten und der Schaltfläche Person anlegen](../bilder/personen-01.png)
+
 ## Person anlegen
 
 1. Klicke auf **Person anlegen**. Der Dialog führt dich durch vier Schritte.

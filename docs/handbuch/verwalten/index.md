@@ -8,6 +8,8 @@ Die Übersicht zeigt oben deine **offenen Aufgaben** in Zahlen und eine Liste **
 
 <!-- SCREENSHOT file=bilder/verwalten-01.png role=admin url=/verwalten show="Verwalten Übersicht mit den offenen Aufgaben, der Einrichtungsliste und der Liste aller Bereiche" -->
 
+![Verwalten Übersicht mit den offenen Aufgaben, der Einrichtungsliste und der Liste aller Bereiche](../bilder/verwalten-01.png)
+
 ## Ich möchte …
 
 | Ich möchte …                                                                          | Seite in Clokr                                                             | Handbuch                                                                       |

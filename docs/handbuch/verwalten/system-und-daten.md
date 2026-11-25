@@ -31,7 +31,9 @@ Die Seite hat fünf Reiter:
 - **E-Mail-Versand**: der **E-Mail-Server** (Server, Port, Verschlüsselung, Benutzername, Passwort), über den Clokr Einladungen und Benachrichtigungen verschickt. Mit **Test-E-Mail senden** prüfst du die Einstellung. Bei Gmail und Outlook brauchst du ein App-Passwort. Ohne eingerichteten Server verschickt Clokr keine E-Mails.
 - **DATEV**: **Berater-Nr.**, **Mandantennummer** und die Lohnarten für Normalstunden, Urlaub, Krank / AU und Sonderurlaub. Die Nummern gelten für jede erzeugte DATEV-Datei. Ohne Berater-Nr. und Mandantennummer lehnt Clokr den DATEV-Export ab.
 
-<!-- SCREENSHOT file=bilder/system-und-daten-01.png role=admin url=/verwalten/system/integrationen show="Integrationen mit den Reitern WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV" -->
+<!-- SCREENSHOT file=bilder/system-und-daten-01.png role=admin url=/verwalten/system/integrationen show="Integrationen mit den Reitern WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV; geöffnet ist der Reiter WLAN-Anwesenheit" -->
+
+![Integrationen mit den Reitern WLAN-Anwesenheit, NFC-Terminals, API-Schlüssel, E-Mail-Versand und DATEV; geöffnet ist der Reiter WLAN-Anwesenheit](../bilder/system-und-daten-01.png)
 
 ## Daten
 

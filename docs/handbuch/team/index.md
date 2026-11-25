@@ -27,6 +27,8 @@ Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit ein
 
 <!-- SCREENSHOT file=bilder/team-01.png role=manager url=/team/heute show="Heute im Salon mit den Kennzahlen, der Liste Jetzt im Salon und den Abschnitten Fehlende Zeiten, Aufgaben und Demnächst abwesend" -->
 
+![Heute im Salon mit den Kennzahlen, der Liste Jetzt im Salon und den Abschnitten Fehlende Zeiten, Aufgaben und Demnächst abwesend](../bilder/team-01.png)
+
 ## Abwesenheiten
 
 **Team › Abwesenheiten** zeigt die Urlaube, Krankmeldungen und anderen Abwesenheiten deines Teams. Oben wählst du den Zeitraum (Jahr, Quartal oder Monat) und blätterst vor und zurück. Es gibt drei Reiter:

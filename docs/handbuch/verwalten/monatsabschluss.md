@@ -8,6 +8,8 @@ Oben zeigt eine Leiste die vier Schritte **Prüfen**, **Korrigieren**, **Bestät
 
 <!-- SCREENSHOT file=bilder/monatsabschluss-01.png role=admin url=/verwalten/monatsabschluss show="Monatsabschluss mit der Schrittleiste, den Kennzahlen und der Monatstabelle eines Jahres" -->
 
+![Monatsabschluss mit der Schrittleiste, den Kennzahlen und der Monatstabelle eines Jahres](../bilder/monatsabschluss-01.png)
+
 ### Prüfen
 
 1. Wähle oben das **Jahr** und bei Bedarf einen **Status**.

@@ -6,7 +6,9 @@ Das Arbeitszeitmodell legt fest, wie Clokr das Soll einer Person berechnet. Es g
 
 Öffne **Verwalten › Personen**, wähle die Person und öffne den Reiter **Vertrag**. Im Abschnitt **Arbeitszeitmodell** wählst du eines der vier Modelle und trägst die passenden Werte ein. Beim Anlegen einer Person tust du dasselbe im Schritt „Vertrag“, siehe [Personen](personen.md#person-anlegen).
 
-<!-- SCREENSHOT file=bilder/arbeitszeitmodelle-01.png role=admin url=/verwalten/personen show="Der Reiter Vertrag einer Person mit der Auswahl des Arbeitszeitmodells, den Stunden je Wochentag und dem Feld Gültig ab" -->
+<!-- SCREENSHOT file=bilder/arbeitszeitmodelle-01.png role=admin url=/verwalten/personen show="Die Personenliste mit den Spalten Vertrag und Std./Woche, in denen das Arbeitszeitmodell jeder Person steht" -->
+
+![Die Personenliste mit den Spalten Vertrag und Std./Woche, in denen das Arbeitszeitmodell jeder Person steht](../bilder/arbeitszeitmodelle-01.png)
 
 ## Die vier Modelle
 

@@ -24,6 +24,8 @@ Ein neuer Antrag löst eine Benachrichtigung aus. Die Benachrichtigung erscheint
 
 <!-- SCREENSHOT file=bilder/aufgaben-01.png role=manager url=/team/aufgaben show="Aufgaben mit den Kennzahlen, den Reitern Offen und Entschieden und mehreren offenen Anträgen mit den Buttons Ablehnen und Genehmigen" -->
 
+![Aufgaben mit den Kennzahlen, den Reitern Offen und Entschieden und mehreren offenen Anträgen mit den Buttons Ablehnen und Genehmigen](../bilder/aufgaben-01.png)
+
 ## Abwesenheitsanträge entscheiden
 
 1. Öffne **Team › Aufgaben**.
