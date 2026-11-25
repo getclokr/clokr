@@ -25,6 +25,7 @@ function secondMondayOfNextMonth(now = new Date()): { iso: string; year: number 
 defineVisibilityWalkthrough({
   title: "Heute im Salon Aufgaben Seitenwechsel",
   path: "/team/heute",
+  heavySeed: true,
   seed: async ({ request, tenant }) => {
     const { iso, year } = secondMondayOfNextMonth();
     for (let i = 1; i <= 7; i++) {
@@ -60,6 +61,7 @@ defineVisibilityWalkthrough({
 defineVisibilityWalkthrough({
   title: "Personen Seitenwechsel",
   path: "/verwalten/personen",
+  heavySeed: true,
   seed: async ({ request, tenant }) => {
     for (let i = 1; i <= 27; i++) {
       await createEmployee(request, tenant, {

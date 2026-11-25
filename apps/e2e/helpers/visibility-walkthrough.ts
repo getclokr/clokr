@@ -73,6 +73,16 @@ export interface VisibilityWalkthrough {
   steps: WalkthroughStep[];
   /** Screenshot directory; defaults to `VISIBILITY_SHOTS_DIR`. */
   outDir?: string;
+  /**
+   * The seed is heavy: it creates many persons through the API (Issue #1028: 27 persons for a table
+   * with a second page). Every person creation hashes a password with bcryptjs (cost 12, pure JS, about
+   * 0.35 s of the API's ONE event loop), so six cells that seed side by side on four workers share that
+   * one core: each seed then takes four times as long, outlasts the 30 s test timeout and the
+   * API's 5 s interactive-transaction limit answers 500 „Interner Serverfehler“. With this flag the cells
+   * of THIS walkthrough run one after another (one seeding stream) and each gets three times the test
+   * time. No assertion changes; only when and how long the seed may take.
+   */
+  heavySeed?: boolean;
 }
 
 const slug = (s: string) =>
@@ -125,6 +135,7 @@ export async function signInForWalkthrough(
 /** Registers the width x theme matrix of one walkthrough as Playwright tests. */
 export function defineVisibilityWalkthrough(w: VisibilityWalkthrough): void {
   test.describe(`Sichtbarkeits-Durchlauf — ${w.title}`, () => {
+    if (w.heavySeed) test.describe.configure({ mode: "serial" });
     for (const viewport of WALKTHROUGH_VIEWPORTS) {
       for (const mode of WALKTHROUGH_MODES) {
         test(`${viewport.width} px, ${mode === "light" ? "hell" : "dunkel"}`, async ({
@@ -132,6 +143,7 @@ export function defineVisibilityWalkthrough(w: VisibilityWalkthrough): void {
           request,
           tenant,
         }) => {
+          if (w.heavySeed) test.slow();
           const shotsDir = w.outDir ?? process.env.VISIBILITY_SHOTS_DIR;
           if (shotsDir) mkdirSync(shotsDir, { recursive: true });
           await page.setViewportSize(viewport);
