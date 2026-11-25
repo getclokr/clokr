@@ -27,6 +27,7 @@ describe("recentDaySaldoSeries", () => {
       recentDaySaldoSeries("SHIFT_BASED", series),
       new Set(),
       totals,
+      "Europe/Berlin",
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].saldoMinutes).toBeNull();
@@ -40,6 +41,7 @@ describe("recentDaySaldoSeries", () => {
         recentDaySaldoSeries(type, series),
         new Set(),
         totals,
+        "Europe/Berlin",
       );
       expect(rows[0].saldoMinutes).toBe(2641 - 2708);
     },

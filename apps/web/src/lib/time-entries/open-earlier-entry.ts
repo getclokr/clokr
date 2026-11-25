@@ -14,6 +14,7 @@
  * and ending it goes through the unchanged `PUT /time-entries/:id` of the Zeiten edit dialog.
  */
 import { isTravelRow, type TravelRowFields } from "$lib/time-entries/travel-entry-form";
+import { tenantDay } from "$lib/utils/tenant-day"; // Issue #1072
 
 /**
  * How far back Mein Tag looks for an open entry: the window of the team's „Ausstempeln fehlt“
@@ -40,25 +41,31 @@ export interface OpenEarlierEntry {
   count: number;
 }
 
-/** The calendar day of a row: its `date` column, else the local day of its start. */
-export function entryDay(e: Pick<OpenEntryCandidate, "date" | "startTime">): string {
+/**
+ * The calendar day of a row: its `date` column, else the tenant day of its start (Issue #1072 - the
+ * server files a stamp under the tenant's day, never under the device's).
+ */
+export function entryDay(
+  e: Pick<OpenEntryCandidate, "date" | "startTime">,
+  timeZone: string,
+): string {
   if (e.date) return e.date.split("T")[0];
-  const d = new Date(e.startTime);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return tenantDay(new Date(e.startTime), timeZone);
 }
 
 /**
  * The oldest open entry of a day before `today` (it is closest to the month close), with the number
  * of such entries. A locked row (closed month) cannot be ended any more and is skipped; a travel row
- * is always closed and never a candidate. `null` when nothing is open.
+ * is always closed and never a candidate. `null` when nothing is open. `timeZone` is the tenant's.
  */
 export function openEarlierEntry(
   rows: readonly OpenEntryCandidate[],
   today: string,
+  timeZone: string,
 ): OpenEarlierEntry | null {
   const open = rows
     .filter((e) => e.endTime === null && e.isLocked !== true && !isTravelRow(e))
-    .map((e) => ({ e, day: entryDay(e) }))
+    .map((e) => ({ e, day: entryDay(e, timeZone) }))
     .filter((x) => x.day < today)
     .sort((a, b) =>
       a.day === b.day ? a.e.startTime.localeCompare(b.e.startTime) : a.day.localeCompare(b.day),

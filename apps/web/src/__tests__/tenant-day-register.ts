@@ -40,23 +40,6 @@ export const TENANT_DAY_EXCEPTIONS: ReadonlyArray<TenantDayException> = [
   { file: "lib/operator/support-audit.ts", rule: "device-default-param", reason: OPERATOR_REASON },
   { file: "lib/operator/support-audit.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
   // Temporary migration entries, removed by the task that fixes the file.
-  { file: "lib/me/zeiten-kpis.ts", rule: "now-calendar-field", reason: migration(2) },
-  { file: "routes/(app)/ich/konto/+page.svelte", rule: "now-calendar-field", reason: migration(2) },
-  {
-    file: "routes/(app)/team/time-entries/+page.svelte",
-    rule: "device-calendar-field",
-    reason: migration(2),
-  },
-  {
-    file: "routes/(app)/team/time-entries/+page.svelte",
-    rule: "format-device-day",
-    reason: migration(2),
-  },
-  {
-    file: "routes/(app)/team/time-entries/+page.svelte",
-    rule: "now-calendar-field",
-    reason: migration(2),
-  },
   {
     file: "lib/components/admin/monatsabschluss/MonthStatusTable.svelte",
     rule: "browser-day-helper",

@@ -9,6 +9,8 @@
   import { onMount } from "svelte";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
+  import { tenantFeatures } from "$stores/tenant-features"; // Issue #1072
+  import { tenantDayAnchor } from "$lib/utils/tenant-day"; // Issue #1072
   import { toasts } from "$stores/toast";
   import { pageLabel } from "$lib/nav/page-labels";
   import PageHeader from "$components/ui/PageHeader.svelte";
@@ -22,6 +24,7 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
+  import { standGesternText } from "$lib/me/zeiten-kpis"; // Issue #1072: the one „Stand gestern“ wording
   import { forecastLabel } from "$lib/saldo/forecast-label";
   import { mapVacationBalance, type VacationEntitlementRow } from "$lib/leave/vacation-balance";
   import {
@@ -60,13 +63,11 @@
     hireDate: string;
   }
 
-  const now = new Date();
-  const today = { year: now.getFullYear(), month: now.getMonth() + 1 };
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const yesterdayLabel = yesterday.toLocaleDateString("de-DE", {
-    day: "numeric",
-    month: "numeric",
-  });
+  // Issue #1072 - "today", the open months and the vacation year are the TENANT's calendar, never the
+  // device's. The anchor carries the tenant day in its local fields; load() awaits the settled zone
+  // before it requests anything derived from now.
+  const todayAnchor = $derived(tenantDayAnchor(new Date(), $tenantFeatures.timezone));
+  const today = $derived({ year: todayAnchor.getFullYear(), month: todayAnchor.getMonth() + 1 });
 
   let loading = $state(true);
   let failed = $state(false);
@@ -90,7 +91,7 @@
   const lastClosed = $derived(rows.find((r) => r.status === "CLOSED") ?? null);
   // A carry-over deadline is only news while it lies ahead.
   const carryDeadline = $derived(
-    vacation?.carryOverDeadline && new Date(vacation.carryOverDeadline) >= now
+    vacation?.carryOverDeadline && new Date(vacation.carryOverDeadline) >= new Date()
       ? new Date(vacation.carryOverDeadline)
       : null,
   );
@@ -105,7 +106,7 @@
         : "Stundenkonto",
       value: totalMinutes === null ? "–" : fmtBalance(totalMinutes),
       unit: "h",
-      explanation: `Stand gestern, ${yesterdayLabel}`,
+      explanation: standGesternText(todayAnchor),
       deltaTone: totalMinutes !== null && totalMinutes < 0 ? "bad" : "neutral",
     },
     {
@@ -161,6 +162,8 @@
     loading = true;
     failed = false;
     try {
+      // Issue #1072 (R-A): the entitlement year and the open months derive from now
+      await tenantFeatures.loadTimezone();
       const [ot, snaps, me, ent] = await Promise.all([
         api.get<OvertimeAnswer>(`/overtime/${id}`),
         api.get<KontoSnapshot[]>(`/overtime/snapshots/${id}`),

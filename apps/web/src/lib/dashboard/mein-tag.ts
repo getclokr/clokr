@@ -16,6 +16,7 @@
  */
 import { fmtBalance } from "$lib/utils/format-minutes";
 import { forecastLabel } from "$lib/saldo/forecast-label";
+import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1072
 
 export type ScheduleType = "FIXED_SCHEDULE" | "FLEXTIME" | "MONTHLY_HOURS" | "SHIFT_BASED";
 
@@ -262,6 +263,8 @@ export function weekStripText(
 /** One closed entry of `GET /time-entries` as „Letzte Tage“ reads it. */
 export interface RecentEntry {
   id: string;
+  /** The entry's own calendar day (`@db.Date`, ISO), as the list sends it. */
+  date?: string | null;
   startTime: string;
   endTime: string | null;
   breakMinutes?: number | null;
@@ -320,12 +323,14 @@ export function recentDays(
   cumulativeByDate: ReadonlyMap<string, number>,
   breakDays: ReadonlySet<string>,
   totalsOf: (rows: RecentEntry[]) => { breakMinutes: number; workingMinutes: number },
+  /** The tenant's zone: a row without a `date` column is filed under the tenant day of its start. */
+  timeZone: string,
   limit = 4,
 ): RecentDay[] {
   const byDay = new Map<string, RecentEntry[]>();
   for (const e of entries) {
     if (!e.endTime) continue;
-    const day = localDay(e.startTime);
+    const day = entryDay(e, timeZone);
     byDay.set(day, [...(byDay.get(day) ?? []), e]);
   }
   return [...byDay.keys()]

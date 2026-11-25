@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   openEarlierEntry,
   openEarlierEntryText,
@@ -30,7 +30,7 @@ const TODAY = "2026-11-14";
 
 describe("openEarlierEntry", () => {
   it("finds the open entry of Mo 9.11. (the reported case)", () => {
-    expect(openEarlierEntry([row({})], TODAY)).toEqual({
+    expect(openEarlierEntry([row({})], TODAY, "Europe/Berlin")).toEqual({
       id: "e1",
       day: "2026-11-09",
       startTime: row({}).startTime,
@@ -49,7 +49,7 @@ describe("openEarlierEntry", () => {
         startTime: new Date(2026, 10, 14, 8).toISOString(),
       }),
     ];
-    expect(openEarlierEntry(rows, TODAY)).toBeNull();
+    expect(openEarlierEntry(rows, TODAY, "Europe/Berlin")).toBeNull();
   });
 
   it("picks the oldest open entry and counts all of them", () => {
@@ -57,21 +57,66 @@ describe("openEarlierEntry", () => {
       row({ id: "newer", date: "2026-11-12T00:00:00.000Z" }),
       row({ id: "older", date: "2026-11-05T00:00:00.000Z" }),
     ];
-    const hit = openEarlierEntry(rows, TODAY);
+    const hit = openEarlierEntry(rows, TODAY, "Europe/Berlin");
     expect(hit?.id).toBe("older");
     expect(hit?.count).toBe(2);
   });
 
   it("reads the calendar day from the date column, not the UTC part of the start", () => {
     expect(
-      entryDay({ date: "2026-11-09T00:00:00.000Z", startTime: "2026-11-08T23:27:00.000Z" }),
+      entryDay(
+        { date: "2026-11-09T00:00:00.000Z", startTime: "2026-11-08T23:27:00.000Z" },
+        "Europe/Berlin",
+      ),
     ).toBe("2026-11-09");
   });
 });
 
+// Issue #1072 - a row without a `date` column is filed under the TENANT day of its start, whatever
+// zone the device runs in (23:30 UTC on the 24th is already the 25th in Europe/Berlin).
+describe("a row without a date column follows the tenant zone (#1072)", () => {
+  const original = process.env.TZ;
+  afterAll(() => {
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
+  });
+
+  for (const processZone of ["UTC", "America/New_York"]) {
+    describe(`process TZ ${processZone}`, () => {
+      beforeAll(() => {
+        process.env.TZ = processZone;
+      });
+
+      const late = { startTime: "2026-11-24T23:30:00.000Z" };
+
+      it("entryDay reads the tenant day of the start, not the device day", () => {
+        // the device day would be the 24th in both process zones
+        expect(new Date(late.startTime).getDate()).toBe(24);
+        expect(entryDay(late, "Europe/Berlin")).toBe("2026-11-25");
+        expect(entryDay({ ...late, date: "2026-11-24T00:00:00.000Z" }, "Europe/Berlin")).toBe(
+          "2026-11-24",
+        );
+      });
+
+      it("openEarlierEntry skips a start that is already today in the tenant zone", () => {
+        const todayRow = row({ id: "today", date: null, startTime: late.startTime });
+        const earlier = row({
+          id: "earlier",
+          date: null,
+          startTime: "2026-11-24T10:00:00.000Z",
+        });
+        expect(openEarlierEntry([todayRow], "2026-11-25", "Europe/Berlin")).toBeNull();
+        expect(openEarlierEntry([todayRow, earlier], "2026-11-25", "Europe/Berlin")?.id).toBe(
+          "earlier",
+        );
+      });
+    });
+  }
+});
+
 describe("openEarlierEntryText", () => {
   it("names the day and the start, in du-form", () => {
-    const entry = openEarlierEntry([row({})], TODAY)!;
+    const entry = openEarlierEntry([row({})], TODAY, "Europe/Berlin")!;
     const text = openEarlierEntryText(entry, TODAY);
     expect(text.title).toBe("Dein Eintrag vom Mo, 9.11. ist noch offen – seit 00:27.");
     expect(text.detail).toContain("Trag sein Ende ein");
@@ -80,14 +125,22 @@ describe("openEarlierEntryText", () => {
   });
 
   it("promises nothing about Einstempeln for yesterday's entry while the clock state is unknown", () => {
-    const entry = openEarlierEntry([row({ date: "2026-11-13T00:00:00.000Z" })], TODAY)!;
+    const entry = openEarlierEntry(
+      [row({ date: "2026-11-13T00:00:00.000Z" })],
+      TODAY,
+      "Europe/Berlin",
+    )!;
     expect(openEarlierEntryText(entry, TODAY).detail).not.toContain("Einstempeln");
   });
 
   it("Issue #959: with a known clock state yesterday's entry that reaches the hint blocks nothing", () => {
     // the running cross-day session is shown on the stage and filtered out before; what is left is
     // beyond the tenant bound, so clocking in starts a new entry
-    const entry = openEarlierEntry([row({ date: "2026-11-13T00:00:00.000Z" })], TODAY)!;
+    const entry = openEarlierEntry(
+      [row({ date: "2026-11-13T00:00:00.000Z" })],
+      TODAY,
+      "Europe/Berlin",
+    )!;
     expect(openEarlierEntryText(entry, TODAY, true).detail).toContain(
       "Einstempeln beginnt heute einen neuen Eintrag",
     );
@@ -97,6 +150,7 @@ describe("openEarlierEntryText", () => {
     const entry = openEarlierEntry(
       [row({ id: "a" }), row({ id: "b", date: "2026-11-10T00:00:00.000Z" })],
       TODAY,
+      "Europe/Berlin",
     )!;
     expect(openEarlierEntryText(entry, TODAY).detail).toContain("2 Einträge früherer Tage");
   });
