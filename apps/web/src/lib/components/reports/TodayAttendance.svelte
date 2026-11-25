@@ -9,7 +9,6 @@
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte"; // Issue #542
   import { DAY_STATUS_LABEL, attendanceStatusText } from "$lib/dashboard/day-status-label"; // Issue #587
@@ -36,18 +35,6 @@
     $props();
 
   const showAttendanceActions = $derived(canAddTeamEntry || canRecordTeamAbsence);
-
-  let todayPage = $state(1);
-  let todayPageSize = $state(10);
-  const pagedTodayRows = $derived(
-    (attendance?.employees ?? []).slice((todayPage - 1) * todayPageSize, todayPage * todayPageSize),
-  );
-
-  // A new list returns to page 1.
-  $effect(() => {
-    void attendance?.employees?.length;
-    todayPage = 1;
-  });
 
   const summaryItems = $derived.by((): KpiItem[] => {
     if (attendance === null) return [];
@@ -111,16 +98,13 @@
     <KpiStrip items={summaryItems} ariaLabel="Anwesenheit heute" />
 
     <DataTable
+      listId="team.berichte.anwesenheit-heute"
       {columns}
-      rows={pagedTodayRows}
+      rows={attendance.employees}
+      pageResetKey={attendance.employees.length}
       rowKey={(row) => row.id}
       cell={attendanceCell}
       caption="Anwesenheit heute"
-    />
-    <Pagination
-      total={attendance.employees.length}
-      bind:page={todayPage}
-      bind:pageSize={todayPageSize}
     />
   {/if}
 </section>

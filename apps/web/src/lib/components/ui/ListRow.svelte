@@ -62,6 +62,12 @@
     onPrimary?: () => void;
     /** Issue #845: content before the text in a row without avatar (a status chip). */
     leading?: Snippet;
+    /**
+     * Issue #1028 (task variant): where the `actions` sit. `below` (default) keeps them under the text
+     * until the List is 760px wide; `end` puts them beside the text at the row end at every width and
+     * lets the text end in an ellipsis (the compact rows of a widget).
+     */
+    actionsPlacement?: "below" | "end";
   }
 
   let {
@@ -82,6 +88,7 @@
     highlight = false,
     onPrimary,
     leading,
+    actionsPlacement = "below",
   }: Props = $props();
 
   let colour = $derived(avatarIndex(avatarKey ?? title));
@@ -93,6 +100,7 @@
   class:list-row--bare={!avatar}
   class:list-row--highlight={highlight}
   class:list-row--stretched={!!onPrimary && !href}
+  class:list-row--actions-end={variant === "task" && actionsPlacement === "end"}
   id={rowId}
   data-testid={testId}
   data-kind={kind}
@@ -276,6 +284,26 @@
   }
   .list-row--bare .list-actions {
     grid-column: 1;
+  }
+  /* Issue #1028: the compact variant - the actions stay at the row end at every width, the text may end
+     in an ellipsis instead of pushing them under it. Declared before the container rule below and
+     specific enough that it wins over it. */
+  .list-row--task.list-row--actions-end {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .list-row--bare.list-row--task.list-row--actions-end {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .list-row--task.list-row--actions-end .list-actions {
+    grid-column: auto;
+    align-self: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    margin-top: 0;
+  }
+  .list-row--task.list-row--actions-end .list-subtitle {
+    white-space: nowrap;
   }
   /* #853-19: in a List of at least the narrow breakpoint the task buttons trail the text, as in
      the prototype; below it (phones, narrow cards) they stay under the text. */

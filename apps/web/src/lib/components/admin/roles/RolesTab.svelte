@@ -288,7 +288,14 @@
       <div role="alert"><Note tone="bad">{errorText}</Note></div>
     {/if}
 
-    <DataTable {columns} {rows} rowKey={(row) => row.id} loading={!loaded} caption="Rollen">
+    <DataTable
+      listId="verwalten.rollen.rollen"
+      {columns}
+      {rows}
+      rowKey={(row) => row.id}
+      loading={!loaded}
+      caption="Rollen"
+    >
       {#snippet cell(row, column)}
         {#if column.key === "name"}
           {row.name}

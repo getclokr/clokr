@@ -107,14 +107,19 @@ test.describe("Heute im Salon (#846)", () => {
       expect(box, `${id} rendered`).not.toBeNull();
       expect(box!.y + box!.height, `${id} on the first screen`).toBeLessThanOrEqual(900);
     }
-    for (const [id, status] of [
-      ["kpi-present", "anwesend"],
-      ["kpi-expected", "erwartet"],
-      ["kpi-absent", "abwesend"],
+    // Issue #1028: the filter is a chip group of the list widget (always there, „Da“ is the default); a
+    // Kennzahl link selects its chip for the visit.
+    for (const [id, status, chip] of [
+      ["kpi-present", "anwesend", "Da"],
+      ["kpi-expected", "erwartet", "Erwartet"],
+      ["kpi-absent", "abwesend", "Abwesend"],
     ] as const) {
       await page.getByTestId(id).getByRole("link").click();
       await expect(page).toHaveURL(new RegExp(`/team/heute\\?status=${status}#jetzt$`));
       await expect(page.getByTestId("attendance-filter")).toBeVisible();
+      await expect(
+        page.getByTestId("attendance-filter").getByRole("radio", { checked: true }),
+      ).toContainText(chip);
     }
     await page.getByTestId("kpi-tasks").getByRole("link").click();
     await expect(page).toHaveURL(/\/team\/aufgaben/);

@@ -1772,6 +1772,7 @@
               </List>
             {/if}
             <Pagination
+              listId="ich.abwesenheiten.antraege"
               total={filteredMyRequests.length}
               bind:page={myReqPage}
               bind:pageSize={myReqPageSize}

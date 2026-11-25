@@ -160,6 +160,7 @@
     <Note tone="info">Noch keine Abrufe.</Note>
   {:else}
     <DataTable
+      listId="verwalten.support.abrufe"
       columns={readColumns}
       rows={readRows}
       rowKey={(row) => row.index}

@@ -1,4 +1,13 @@
 <script lang="ts">
+  // Issue #1028 - legacy delegate of the shared `Pager` (block 5 / block 6 sub-part). The props of the
+  // old `Pagination` stay, so a page that pages its own rows keeps working; the markup, the styles and
+  // the „Seite x von y“ text are gone: every pager of the app is the one `Pager` now. A tenant page
+  // passes `listId` and gets the stored size of the register (table sizes); without it the old
+  // `pageSizeOptions` apply and nothing is stored (operator tables).
+  import Pager from "./Pager.svelte";
+  import { listPrefs, saveListPreference } from "$stores/list-prefs";
+  import { pageSizesOf, resolveListPreference, type ListId } from "$lib/lists/list-registry";
+
   interface Props {
     total: number;
     page?: number;
@@ -8,6 +17,8 @@
     labelPlural?: string;
     showWhenSinglePage?: boolean;
     onChange?: (p: { page: number; pageSize: number }) => void;
+    /** Issue #1028 (additive): the register id; the size is then stored per list and person. */
+    listId?: ListId;
   }
 
   let {
@@ -19,142 +30,31 @@
     labelPlural = "Einträge",
     showWhenSinglePage = false,
     onChange,
+    listId,
   }: Props = $props();
 
-  let totalPages = $derived(Math.max(1, Math.ceil(total / pageSize)));
-  let startItem = $derived(total === 0 ? 0 : (page - 1) * pageSize + 1);
-  let endItem = $derived(Math.min(page * pageSize, total));
-  let visible = $derived(showWhenSinglePage || total > pageSizeOptions[0]);
+  const sizes = $derived(listId ? pageSizesOf(listId) : pageSizeOptions);
 
-  $effect(() => {
-    if (page > totalPages) page = totalPages;
+  // With a `listId` the stored (or default) size decides; the caller's bound `pageSize` follows it.
+  const storedSize = $derived(
+    listId ? resolveListPreference(listId, $listPrefs[listId]).pageSize : null,
+  );
+  $effect.pre(() => {
+    if (storedSize !== null && pageSize !== storedSize) pageSize = storedSize;
   });
 
-  function prevPage() {
-    page = Math.max(1, page - 1);
-    onChange?.({ page, pageSize });
-  }
-
-  function nextPage() {
-    page = Math.min(totalPages, page + 1);
-    onChange?.({ page, pageSize });
-  }
-
-  function onPageSizeChange() {
-    page = 1;
-    onChange?.({ page, pageSize });
+  function setSize(next: number) {
+    pageSize = next;
+    if (listId) void saveListPreference(listId, { pageSize: next });
   }
 </script>
 
-{#if visible}
-  <nav class="pag-wrap" aria-label="Seitennavigation">
-    <span class="pag-range" aria-live="polite">
-      <span class="pag-num">{startItem}</span>–<span class="pag-num">{endItem}</span>
-      von
-      <span class="pag-num">{total}</span>
-      {total === 1 ? labelSingular : labelPlural}
-    </span>
-
-    <div class="pag-controls">
-      <label class="pag-size-label" for="pag-size-select">Pro Seite</label>
-      <select
-        id="pag-size-select"
-        class="form-input pag-select"
-        bind:value={pageSize}
-        onchange={onPageSizeChange}
-        aria-label="Zeilen pro Seite"
-      >
-        {#each pageSizeOptions as opt (opt)}
-          <option value={opt}>{opt}</option>
-        {/each}
-      </select>
-
-      <button
-        class="btn btn-sm btn-ghost"
-        disabled={page <= 1}
-        onclick={prevPage}
-        aria-label="Vorherige Seite"
-      >
-        ◀ Zurück
-      </button>
-
-      <span class="pag-page-indicator" aria-current="page">
-        Seite <span class="pag-num">{page}</span> von <span class="pag-num">{totalPages}</span>
-      </span>
-
-      <button
-        class="btn btn-sm btn-ghost"
-        disabled={page >= totalPages}
-        onclick={nextPage}
-        aria-label="Nächste Seite"
-      >
-        Weiter ▶
-      </button>
-    </div>
-  </nav>
-{/if}
-
-<style>
-  .pag-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    padding: 0.875rem 1.25rem;
-    border-top: 1px solid var(--line);
-    font-size: 0.875rem;
-    color: var(--text-2);
-  }
-
-  .pag-range {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .pag-num {
-    font-family: var(--font-ui);
-    color: var(--text);
-    font-weight: 500;
-  }
-
-  .pag-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .pag-size-label {
-    font-size: 0.875rem;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-
-  .pag-select {
-    width: auto;
-    min-width: 4.5rem;
-    padding: 0.375rem 0.625rem;
-    font-size: 0.875rem;
-  }
-
-  .pag-page-indicator {
-    font-size: 0.875rem;
-    color: var(--text-2);
-    white-space: nowrap;
-    padding: 0 0.25rem;
-  }
-
-  @media (max-width: 480px) {
-    .pag-wrap {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .pag-controls {
-      width: 100%;
-      justify-content: flex-start;
-    }
-  }
-</style>
+<Pager
+  {total}
+  bind:page
+  bind:pageSize={() => pageSize, setSize}
+  {sizes}
+  noun={{ one: labelSingular, many: labelPlural }}
+  {showWhenSinglePage}
+  {onChange}
+/>

@@ -167,6 +167,7 @@
         <Skeleton shape="line" />
       {:else if preview}
         <DataTable
+          listId="ich.abwesenheiten.elternzeit-kuerzung"
           caption="Kürzung je Kalenderjahr"
           columns={YEAR_COLUMNS}
           rows={yearRows}

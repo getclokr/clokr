@@ -203,6 +203,7 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.abwesenheiten.betriebsurlaub"
       {columns}
       rows={shutdowns}
       rowKey={(row) => row.id}

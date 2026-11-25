@@ -7,12 +7,12 @@
   list below 760 px of container width. Since Issue #90 the three metric columns come from the dashboard
   route (`metrics`, keyed by tenant id) and an "Inaktiv" badge sits next to the status badge when
   the metrics say the tenant is inactive; a tenant without metrics shows a dash in those cells and
-  no badge. The list is paged client-side above 25 rows.
+  no badge. The list is paged client-side above 25 rows by the DataTable's own pager (Issue #1028; no `listId`:
+  the operator console stores no list preference).
   A phone never scrolls sideways: the card layout prints each column label in front of its value.
 -->
 <script lang="ts">
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import { federalStateLabel, formatOperatorDate, formatOperatorDay } from "$lib/operator/labels";
   import type { OperatorDashboardTenant, OperatorTenant } from "$lib/operator/types";
 
@@ -41,15 +41,15 @@
     { key: "activity", label: "Letzte Aktivität" },
     { key: "status", label: "Status" },
   ];
-
-  const visible = $derived(tenants.slice((page - 1) * pageSize, page * pageSize));
 </script>
 
 <div data-testid="op-tenants-table">
   <DataTable
     caption="Mandanten"
     columns={COLUMNS}
-    rows={visible}
+    rows={tenants}
+    bind:page
+    bind:pageSize
     rowKey={(tenant) => tenant.id}
     rowTestId={(tenant) => `op-tenant-row-${tenant.id}`}
   >
@@ -116,19 +116,6 @@
   </DataTable>
 </div>
 
-{#if tenants.length > 25}
-  <div class="pagination-wrap" data-testid="op-tenants-pagination">
-    <Pagination
-      total={tenants.length}
-      bind:page
-      bind:pageSize
-      pageSizeOptions={[25, 50, 100]}
-      labelSingular="Mandant"
-      labelPlural="Mandanten"
-    />
-  </div>
-{/if}
-
 <style>
   /* A 200-character name wraps inside its own width instead of widening the table (the block keeps
      cells on one line). */
@@ -181,9 +168,5 @@
     line-height: 1.5;
     color: var(--text-2);
     overflow-wrap: anywhere;
-  }
-
-  .pagination-wrap {
-    margin-top: 16px;
   }
 </style>

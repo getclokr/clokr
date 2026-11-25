@@ -25,20 +25,20 @@ apart by colour, not by slant. Colours and sizes come from `tokens.css` roles (`
 
 Every block is a Svelte 5 component built on bits-ui (the only primitive library, exact pin in `apps/web/package.json`) and styled with scoped CSS on the `tokens.css` roles. Pages use the entry component; the sub-parts are listed so nobody builds them again. The example page `/admin/bausteine` renders every block in all six theme × mode frames and is the visual and keyboard proof.
 
-| #   | Block             | Entry component                              | Sub-parts                                                                                             | Legacy delegates (props kept)                                          |
-| --- | ----------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 1   | Seitenkopf        | `PageHeader`                                 | `PageTabs` (page tabs, bits-ui Tabs)                                                                  | `layout/PageHead` (markup-free, same props, D-843-14)                  |
-| 2   | Periodenwahl      | `PeriodPicker`                               | zoom `SegmentedControl`                                                                               | `MonthBar`, `PeriodSwitcher`                                           |
-| 3   | Kennzahlenleiste  | `KpiStrip`                                   | `KpiCell` (label · value · explanation · „Herleitung →“)                                              | `KPIStat` (renders a `KpiCell`)                                        |
-| 4   | Bühne             | `Stage`                                      | `actions` snippet                                                                                     | —                                                                      |
-| 5   | Liste             | `List`                                       | `ListRow` (`default` and `task` variant)                                                              | —                                                                      |
-| 6   | Tabelle + Toolbar | `DataTable`                                  | `TableToolbar`, `SortHeader`, `$lib/table/url-state.ts`, `$lib/table/search.ts`                       | —                                                                      |
-| 7   | Formular-Satz     | `FormField`                                  | `SaveBar`, `SegmentedControl` (the Segment), `Combobox`, `DatePicker`, `DayGrid`, `BulkPreviewDialog` | —                                                                      |
-| 8   | Chips & Hinweise  | `Chip`                                       | `Note`, `InfoHint` (Issue #1058)                                                                      | the `.badge-*` recipes in `app.css` stay as written                    |
-| 9   | Rückmeldung       | `Toast` (mounted once in the root layout)    | `ToastItem`, the `toasts` store (`success` / `error` / `info`), `$lib/feedback/action-messages.ts`    | —                                                                      |
-| 10  | Zustände          | `Skeleton`                                   | `EmptyState` (`noData` / `noMatches`), `ErrorState`                                                   | —                                                                      |
-| 11  | Dialog / Sheet    | `Dialog`                                     | `DialogPanel` (the bare panel for the example page)                                                   | `Modal`, `ConfirmDialog`, `ReasonDialog` (wrappers, callers untouched) |
-| 12  | Bewegung          | `$lib/motion` (`fade`, `countUp`, `stagger`) | `reducedMotion` store                                                                                 | `.card-animate` reveal (steps 35 ms)                                   |
+| #   | Block             | Entry component                              | Sub-parts                                                                                              | Legacy delegates (props kept)                                          |
+| --- | ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| 1   | Seitenkopf        | `PageHeader`                                 | `PageTabs` (page tabs, bits-ui Tabs)                                                                   | `layout/PageHead` (markup-free, same props, D-843-14)                  |
+| 2   | Periodenwahl      | `PeriodPicker`                               | zoom `SegmentedControl`                                                                                | `MonthBar`, `PeriodSwitcher`                                           |
+| 3   | Kennzahlenleiste  | `KpiStrip`                                   | `KpiCell` (label · value · explanation · „Herleitung →“)                                               | `KPIStat` (renders a `KpiCell`)                                        |
+| 4   | Bühne             | `Stage`                                      | `actions` snippet                                                                                      | —                                                                      |
+| 5   | Liste             | `List`                                       | `ListRow` (`default` and `task` variant), `ListWidget`, `Pager` (Issue #1028)                          | `Pagination` (renders `Pager`)                                         |
+| 6   | Tabelle + Toolbar | `DataTable`                                  | `TableToolbar`, `SortHeader`, `Pager` (Issue #1028), `$lib/table/url-state.ts`, `$lib/table/search.ts` | `Pagination` (renders `Pager`)                                         |
+| 7   | Formular-Satz     | `FormField`                                  | `SaveBar`, `SegmentedControl` (the Segment), `Combobox`, `DatePicker`, `DayGrid`, `BulkPreviewDialog`  | —                                                                      |
+| 8   | Chips & Hinweise  | `Chip`                                       | `Note`, `InfoHint` (Issue #1058)                                                                       | the `.badge-*` recipes in `app.css` stay as written                    |
+| 9   | Rückmeldung       | `Toast` (mounted once in the root layout)    | `ToastItem`, the `toasts` store (`success` / `error` / `info`), `$lib/feedback/action-messages.ts`     | —                                                                      |
+| 10  | Zustände          | `Skeleton`                                   | `EmptyState` (`noData` / `noMatches`), `ErrorState`                                                    | —                                                                      |
+| 11  | Dialog / Sheet    | `Dialog`                                     | `DialogPanel` (the bare panel for the example page)                                                    | `Modal`, `ConfirmDialog`, `ReasonDialog` (wrappers, callers untouched) |
+| 12  | Bewegung          | `$lib/motion` (`fade`, `countUp`, `stagger`) | `reducedMotion` store                                                                                  | `.card-animate` reveal (steps 35 ms)                                   |
 
 ### Block rules
 
@@ -81,6 +81,39 @@ Sources: `KpiStrip.svelte` (`items`, `band?`, `ariaLabel?`, `extra?` — one mor
 Sources: `List.svelte` (`ariaLabel`, `children`), `ListRow.svelte` (`title`, `subtitle?`, `avatar?` + `avatarKey?`, `variant` `default | task`, `wrap?` (title and subtitle wrap instead of ending in an ellipsis), `href?`, `trailing?`, `actions?`). 44 px rows with a stable avatar colour; the `task` variant puts the buttons under the text.
 
 Additive props (Issue #853, all optional, output unchanged without them): `List.testId?` (`data-testid` of the `ul`); `ListRow.meta?` (chips under the subtitle, both variants; in the `task` variant between subtitle and actions), `rowId?` (`id` of the `li`, a deep-link target), `testId?`, `kind?` (`data-kind`, a control value never shown), `highlight?` (tints the row with `--brand-tint`), `onPrimary?` (the title becomes the row's one `<button type="button">`, stretched over the row; `actions` and `trailing` stay siblings above it so nothing interactive is nested; same pattern as `ApprovalRow.onPrimary`, ignored when `href` is set).
+
+### `<ListWidget>`, `<Pager>` (Issue #1028)
+
+Sub-parts of block 5 „Liste“; `Pager` is also a sub-part of block 6 (`DataTable` embeds it), not a thirteenth block. `Pagination` stays as a legacy delegate: same props, plus `listId?`, rendering `Pager` (so there is one pager in the app). The register of every list id is `packages/types/list-preferences.json`; the guard is `src/__tests__/list-caps-1028.test.ts`.
+
+**Sizes (the rule).** A list of kind `widget` offers 5 · 10 · 20 rows per page (default 5); a list of kind `table` offers 25 · 50 · 100 (default 25; a table may name another default inside those sizes in the register, e.g. 50 for the days of a month). The pager shows only while the row count exceeds the smallest size of its kind, so a short list looks as it did before paging.
+
+**Storage.** The page size and the filter a person picks are stored per list and person through `PUT /me/preferences` (key `lists`, `$stores/list-prefs`), come back from the server on any device and are never written to `localStorage` or `sessionStorage`. A missing, unknown or invalid stored value shows the list's default (`resolveListPreference`). A PUT is silent on success; a failed one keeps the local choice and shows a toast. A list without `listId` (operator console, catalogue demos) keeps its choice for the visit only. A new list id is a new entry in the register, nothing else.
+
+`Pager`: `total`, bindable `page` / `pageSize`, `sizes`, `noun?`, `onChange?`, `testId?`, `showWhenSinglePage?`. „1–5 von 44“ in a polite live region, ‹ › buttons „Vorherige Seite“ / „Nächste Seite“, the select „Zeilen pro Seite“. It owns no row and no storage; `$lib/lists/list-page.ts` holds the arithmetic (`pageSlice`, `clampPage`, `pageOfIndex`, `rangeLabel`).
+
+`ListWidget` (generic): `listId?`, `title`, `meta?`, `titleExtra?` (an `InfoHint` beside the heading), `items` (every row, already filtered), `itemKey`, `filters?` (`{ value, label, count }`, the counts come from the caller's data - never recomputed in the widget), bindable `filter`, `initialFilter?` (a URL value that wins for the visit), `onFilterChange?`, `moreHref` + `moreLabel` (the „mehr“ link of the head, always a link to the full page), the `row` snippet (rendered in a `List`) or the `body` snippet (a table widget gets the rows of the page), `empty`, `loading`, `testId`, `filterTestId`, `rowHeight`. Filter chips are a bits-ui `RadioGroup` (single choice, arrow keys) with scoped CSS on `tokens.css` roles. The body reserves the height of a full page while paging, so neighbouring widgets do not jump; because a shorter last page then leaves blank space above the pager, a page or size change made through the pager scrolls the widget's top under the top bar when the first row of the new page is not on screen at all (`lib/lists/reveal-list.ts`; a `DataTable` reserves nothing and needs no such scroll - found by the visibility walkthrough of Issue #710 at 390 and 360 px). A chip click returns to page 1; a new `items` array (a poll) keeps the page and only clamps it.
+
+`ListRow.actionsPlacement?: "below" | "end"` (task variant, default `below`): `end` puts the actions beside the text at every container width, for the compact rows of a widget.
+
+`DataTable` paging (additive, without these props a table of up to 25 rows renders as before): `listId?`, bindable `page` (a deep link sets it with `pageOfIndex()`), bindable `pageSize` (a caller that owns the size, e.g. a server limit, still adopts an explicitly stored size), `total?` + `onPageChange?` (server mode: `rows` is the page the caller loaded and is never sliced; Protokoll), `pageResetKey?` (a change returns to page 1; a change of `sort` does it too). The header checkbox of a selectable table acts on the shown page; keys of other pages stay selected.
+
+**The guard.** A hard-coded cap fails `list-caps-1028.test.ts`: an `{#each … .slice(…)}`, `.slice(0, NAMED_CONSTANT)`, a numeric `.slice(0, n)` (other than the string widths 2, 4, 7, 10), a literal `limit=` / `take=` / `pageSize=` read and a „N weitere“ summary. Every exception is registered with its reason; a tenant `DataTable` or `ListWidget` without `listId` fails the same test.
+
+```svelte
+<ListWidget
+  listId="team.heute.aufgaben"
+  title="Aufgaben"
+  items={rows}
+  itemKey={(row) => row.key}
+  filters={chips}
+  bind:filter
+  moreHref="/team/aufgaben"
+  moreLabel="Alle Aufgaben"
+>
+  {#snippet row(task)}<TaskRow row={task} />{/snippet}
+</ListWidget>
+```
 
 ### `<DataTable>`, `<TableToolbar>`, `<SortHeader>`
 

@@ -6,6 +6,7 @@
 // the Zeitnachtrag dialog are not sent by a plain approval, the permission gates stay hints.
 import { describe, expect, it } from "vitest";
 import inboxSource from "../routes/(app)/inbox/+page.svelte?raw";
+import { pageSlice } from "../lib/lists/list-page";
 import dialogSource from "../lib/components/leave/LeaveReviewDialog.svelte?raw";
 
 const flat = inboxSource.replace(/\s+/g, " ");
@@ -99,7 +100,10 @@ describe("Issue #853-19 - the in-row decision on /inbox", () => {
     expect(flat).toContain("createLeaveContextLoader(");
     expect(flat).toContain('hasPermission($authStore.user, "leave-entitlement:read:ZUGEWIESEN")');
     expect(flat).toContain("{ canReadEntitlement: canReadEntitlementFact }");
-    expect(flat).toContain("const CONTEXT_ROWS = 40;");
+    // Issue #1028 re-target, with reason: the context lines are read for the rows of the SHOWN PAGE, not
+    // for the first 40 rows (`CONTEXT_ROWS` is gone, no row of a later page is left without its line).
+    expect(flat).not.toContain("CONTEXT_ROWS");
+    expect(flat).toContain('pagedTaskRows.filter((r) => r.kind === "urlaub" && !r.decided)');
     expect(flat).toContain("context={request ? (rowContext[request.id] ?? null) : null}");
     // Only open leave rows of the open view are read, and a decision makes the figures stale.
     expect(flat).toContain('r.kind === "urlaub" && !r.decided');
@@ -119,5 +123,30 @@ describe("Issue #853-19 - the in-row decision on /inbox", () => {
     expect(body).toContain("await submitReview(status,");
     expect(body).not.toContain("api.patch");
     expect(dialogSource.split("api.patch(`/leave/requests/${ctx.id}/review`").length - 1).toBe(1);
+  });
+});
+
+describe("Issue #1028 - the Aufgaben list pages and reads context lines per page", () => {
+  it("the page pages with the register id of the full task list and the shared Pager", () => {
+    expect(flat).toContain('const TASK_LIST_ID = "team.aufgaben.liste";');
+    expect(flat).toContain("<Pager");
+    expect(flat).toContain("{#each pagedTaskRows as row (row.key)}");
+    expect(flat).not.toContain("{#each visibleTaskRows");
+  });
+
+  it("30 open rows at size 25 read 25 context lines, page 2 reads the other 5", () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ key: `r${i}` }));
+    expect(pageSlice(rows, 1, 25)).toHaveLength(25);
+    expect(pageSlice(rows, 2, 25)).toHaveLength(5);
+    // The reads iterate the shown page only (one read per row, cached per request in `requested`).
+    expect(flat).toContain("for (const row of rows) {");
+    expect(flat).toContain("reads.requested.has(req.id)");
+  });
+
+  it("a § 9 deep link pages to its row", () => {
+    expect(flat).toContain(
+      'visibleTaskRows.findIndex((r) => r.kind === "paragraf9" && r.sourceId === id)',
+    );
+    expect(flat).toContain("taskPage = pageOfIndex(at, taskPageSize);");
   });
 });

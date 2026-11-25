@@ -2,12 +2,15 @@
  * Issue #614 (AC-614-4, D-05) — "Bevorstehende Urlaube" (`GET /api/v1/dashboard/team-upcoming-leave`)
  * never lists a request of a DSGVO-anonymized person, also for the Bestand: persons anonymized
  * before this phase have no exit date and still hold an APPROVED future leave. The filter lives in
- * the absence facade query (`getApprovedLeaveEndingOnOrAfter`), so the route's own `slice(0, 8)`
- * counts only listable rows.
+ * the absence facade query (`getApprovedLeaveEndingOnOrAfter`).
  *
  * The fixture sets the pre-614 end state directly (sentinel names, inactive user, no exit date).
  * Non-vacuity is built into the test: before the persons are turned into the sentinel shape the
- * nine earlier requests crowd the listable person out of the eight-item limit.
+ * nine earlier requests ARE listed next to the listable person's.
+ *
+ * Issue #1028 (P-06) changed the control on purpose: the route no longer cuts at eight, so the
+ * former control (“the limit crowds the listable person out”) became “every request is listed”.
+ * The proof that the anonymized persons disappear is unchanged and now rests on the filter alone.
  *
  * No person names in fixtures; dates are relative to the tenant-local today.
  */
@@ -124,10 +127,12 @@ describe("Issue #614 — upcoming leave never lists an anonymized person", () =>
     await closeTestApp();
   });
 
-  it("control: before the persons are anonymized the limit crowds the listable person out", async () => {
+  it("control: before the persons are anonymized every request is listed, the nine and the listable one", async () => {
     const body = await upcoming();
-    expect(body.items).toHaveLength(8);
-    expect(body.items.map((i) => i.id)).not.toContain(listableRequestId);
+    expect(body.items).toHaveLength(10);
+    const ids = body.items.map((i) => i.id);
+    for (const b of bestand) expect(ids).toContain(b.requestId);
+    expect(ids).toContain(listableRequestId);
   });
 
   describe("after the pre-614 anonymization end state (sentinel names, no exit date)", () => {
@@ -153,7 +158,7 @@ describe("Issue #614 — upcoming leave never lists an anonymized person", () =>
       expect(body.items[0].employeeId).toBe(listableEmployeeId);
     });
 
-    it("the limit counts only listable rows (nine earlier anonymized requests do not crowd it out)", async () => {
+    it("no anonymized request is listed, the listable one is", async () => {
       const body = await upcoming();
       const ids = body.items.map((i) => i.id);
       for (const b of bestand) expect(ids).not.toContain(b.requestId);

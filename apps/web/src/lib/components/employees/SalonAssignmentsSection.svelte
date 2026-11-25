@@ -243,6 +243,7 @@
     {:else}
       <div data-testid="salon-assignments-table">
         <DataTable
+          listId="verwalten.personen.salonzuordnungen"
           {columns}
           {rows}
           rowKey={(row) => row.id}

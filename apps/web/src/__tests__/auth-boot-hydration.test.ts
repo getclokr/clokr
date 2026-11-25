@@ -343,3 +343,34 @@ describe("Issue #976 — the operator console never hydrates a tenant session's 
     }
   });
 });
+
+describe("Issue #1028 — the stored list choices follow the session", () => {
+  it("boot hydration fills the list store from the server answer and logout empties it", async () => {
+    seedSession();
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/me/preferences")) {
+        return jsonResponse({
+          ...VALID_PREFS,
+          lists: { "team.heute.aufgaben": { pageSize: 10, filter: "urlaub" } },
+        });
+      }
+      return errorResponse(404);
+    });
+
+    vi.resetModules();
+    const { authStore } = await import("$stores/auth");
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { listPrefs } = await import("$stores/list-prefs");
+
+    await vi.waitFor(() => expect(get(prefsHydrated)).toBe(true));
+    expect(get(listPrefs)).toEqual({ "team.heute.aufgaben": { pageSize: 10, filter: "urlaub" } });
+
+    authStore.logout();
+    expect(get(listPrefs)).toEqual({});
+    // Nothing of it ever reached the browser storage.
+    expect(localStorage.getItem("lists")).toBeNull();
+    expect(
+      JSON.stringify([...Array(localStorage.length).keys()].map((i) => localStorage.key(i))),
+    ).not.toContain("list");
+  });
+});

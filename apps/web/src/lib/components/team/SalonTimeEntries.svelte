@@ -94,6 +94,7 @@
       <SalonScopeLabel label={salonNameLabel(salonName)} />
     {/if}
     <DataTable
+      listId="team.zeiten.salon-eintraege"
       columns={COLUMNS}
       {rows}
       rowKey={(row) => row.id}

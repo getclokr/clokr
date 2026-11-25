@@ -191,6 +191,7 @@
   </div>
   {#if sorted.length > 10}
     <Pagination
+      listId="ich.verfuegbarkeit.einzeltage"
       total={sorted.length}
       bind:page
       bind:pageSize

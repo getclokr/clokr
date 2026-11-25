@@ -138,6 +138,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/platform/api/audit-logs.ts": "unterbau", // reads AuditLog only
   "src/contexts/platform/audit-log-read.ts": "unterbau", // Issue #854 (#583) — the filter parser and where-builder shared by GET /audit-logs and its CSV export; reads AuditLog only
   "src/contexts/platform/audit-csv.ts": "unterbau", // Issue #854 (#583) — pure CSV formatting of AuditLog rows with the shared German labels; no Prisma, no rule
+  "src/contexts/platform/list-preferences.ts": "unterbau", // Issue #1028 — validates and reads User.uiPreferences.lists against the list register; pure, no Prisma
   "src/contexts/platform/api/support-accesses.ts": "unterbau", // Issue #93: tenant view of SupportAccess
   "src/contexts/platform/api/auth.ts": "unterbau", // writes OtpToken/RefreshToken/User
   "src/contexts/platform/api/avatars.ts": "unterbau", // writes Employee.avatarUrl only

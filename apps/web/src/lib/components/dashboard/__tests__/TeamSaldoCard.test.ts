@@ -38,7 +38,7 @@ vi.mock("$api/client", () => ({
 vi.mock("$lib/utils/logger", () => ({ clientLogger: { warn: vi.fn(), error: vi.fn() } }));
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen } from "@testing-library/svelte";
+import { cleanup, fireEvent, screen } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import TeamSaldoCard from "../TeamSaldoCard.svelte";
 import type { TeamSaldoRow } from "$lib/reports/team-saldo";
@@ -177,7 +177,8 @@ describe("TeamSaldoCard (Issue #588)", () => {
     expect(onOpenPerson).not.toHaveBeenCalled();
   });
 
-  it("lists excluded persons with their reason, the first five and then 'und N weitere'", () => {
+  it("lists every excluded person with its reason, five per page, no 'und N weitere' line", async () => {
+    // Issue #1028: the former „first five, then 'und N weitere'“ cut is a pager of the shared list block.
     const excluded = Array.from({ length: 7 }, (_, i) =>
       row(10 + i, 0, { trackOnly: true, openMonthMinutes: 0 }),
     );
@@ -186,7 +187,10 @@ describe("TeamSaldoCard (Issue #588)", () => {
     expect(section).toHaveTextContent("Nicht in der Kennzahl");
     expect(section.querySelectorAll("li")).toHaveLength(5);
     expect(section).toHaveTextContent("nur Zeiterfassung");
-    expect(section).toHaveTextContent("und 2 weitere");
+    expect(section).not.toHaveTextContent("weitere");
+    expect(screen.getByTestId("pager-range")).toHaveTextContent("1–5 von 7");
+    await fireEvent.click(screen.getByRole("button", { name: "Nächste Seite" }));
+    expect(section.querySelectorAll("li")).toHaveLength(2);
   });
 
   it("names the reason of each excluded person", () => {

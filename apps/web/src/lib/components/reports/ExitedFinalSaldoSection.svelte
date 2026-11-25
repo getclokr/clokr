@@ -4,6 +4,8 @@
   // order and their bound; this component displays them and says how many are not shown.
   import Icon from "$components/Icon.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
+  import { authStore } from "$stores/auth";
+  import { mayOpenPath } from "$lib/nav/routes";
   import {
     exitDateLabel,
     exitedMoreCount,
@@ -25,6 +27,12 @@
   let { rows, total, asOfNote }: Props = $props();
 
   let more = $derived(exitedMoreCount(total, rows.length));
+  // Issue #1028: the persons beyond the server's bound are listed on Verwalten › Personen (status „alle“);
+  // the sentence is a link there for a reader who may open that page, plain text otherwise.
+  const PERSONEN_PATH = "/verwalten/personen";
+  const morePersonsHref = $derived(
+    mayOpenPath($authStore.user, PERSONEN_PATH) ? `${PERSONEN_PATH}?status=alle` : null,
+  );
   // Issue #588 (D-588-4): the forecast header names the window the rows really have.
   let forecastHeader = $derived(forecastColumnLabel(rows));
 
@@ -77,6 +85,7 @@
     {/if}
     {#if rows.length > 0}
       <DataTable
+        listId="team.berichte.ausgetreten-endsaldo"
         {columns}
         rows={rows as TableRow[]}
         rowKey={(row) => row.id}
@@ -85,7 +94,13 @@
       />
     {/if}
     {#if more > 0}
-      <p class="settings-group-desc exited-more" data-testid="exited-more">und {more} weitere</p>
+      <p class="settings-group-desc exited-more" data-testid="exited-more">
+        {#if morePersonsHref}
+          <a href={morePersonsHref}>und {more} weitere</a>
+        {:else}
+          und {more} weitere
+        {/if}
+      </p>
     {/if}
   </section>
 {/if}

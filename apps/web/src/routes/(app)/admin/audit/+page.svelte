@@ -46,7 +46,6 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import PageTabs from "$components/ui/PageTabs.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
 
@@ -162,7 +161,7 @@
     }
   });
 
-  // Writable derived: the URL is the state, Pagination may move it locally until the URL write lands.
+  // Writable derived: the URL is the state, the table may move it locally until the URL write lands.
   let pageNumber = $derived(urlFilters.page);
 
   // ── The person filter (offered only to a caller who may read people) ──
@@ -305,8 +304,13 @@
           <ErrorState message={loadError} onRetry={() => listQuery && loadLogs(listQuery)} />
         {:else}
           <DataTable
+            listId="verwalten.protokoll.eintraege"
             {columns}
             rows={logs}
+            {total}
+            bind:page={pageNumber}
+            bind:pageSize
+            onPageChange={(next) => listUrl.write({ page: next.page })}
             rowKey={(row) => row.id}
             rowTestId={(row) => `admin-audit-row-${row.id}`}
             onRowClick={(row) => goto(detailHref(row.id))}
@@ -444,16 +448,6 @@
               {/if}
             {/snippet}
           </DataTable>
-          {#if !loading && total > 0}
-            <Pagination
-              {total}
-              bind:page={pageNumber}
-              bind:pageSize
-              onChange={(next) => listUrl.write({ page: next.page })}
-              labelSingular="Eintrag"
-              labelPlural="Einträge"
-            />
-          {/if}
         {/if}
       {:else if value === "aufbewahrung"}
         {#if retention.status === "loading"}

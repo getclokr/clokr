@@ -24,9 +24,20 @@
     onOpen?: () => void;
     /** The buttons under the text. */
     actions?: Snippet;
+    /** Issue #1028: `end` puts the buttons at the row end at every width (the compact widget row). */
+    actionsPlacement?: "below" | "end";
   }
 
-  let { row, typeLabel, context, rowId, highlight = false, onOpen, actions }: Props = $props();
+  let {
+    row,
+    typeLabel,
+    context,
+    rowId,
+    highlight = false,
+    onOpen,
+    actions,
+    actionsPlacement = "below",
+  }: Props = $props();
 
   const STATUS: Record<string, { label: string; tone: ChipTone }> = {
     PENDING: { label: "Ausstehend", tone: "warn" },
@@ -55,6 +66,7 @@
   {highlight}
   onPrimary={onOpen}
   {actions}
+  {actionsPlacement}
 >
   {#snippet meta()}
     {#if row.kind === "urlaub" && row.typeCode}

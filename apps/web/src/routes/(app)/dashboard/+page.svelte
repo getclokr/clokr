@@ -39,7 +39,8 @@
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features"; // Issue #1066: the tenant's zone
   import { tenantDay, tenantTimeOfDay } from "$lib/utils/tenant-day"; // Issue #1066
-  import Pagination from "$components/ui/Pagination.svelte";
+  import ListWidget from "$components/ui/ListWidget.svelte"; // Issue #1028
+  import TaskRow from "$lib/components/team/aufgaben/TaskRow.svelte"; // Issue #1028: the shared task row
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import ClockSalonSelect from "$lib/components/dashboard/ClockSalonSelect.svelte"; // Issue #87
@@ -47,13 +48,10 @@
   import TodayEntriesList from "$lib/components/dashboard/TodayEntriesList.svelte"; // Issue #70
   import {
     summarizeKarenzOverrun,
-    karenzNudgeHref,
     KARENZ_NUDGE_EMPTY,
-    KARENZ_NUDGE_TOOLTIP,
     type KarenzOverrunResponse,
     type KarenzNudgeSummary,
   } from "$lib/leave/karenz-nudge";
-  import { summarizeUnconfirmedBreakDays, breakNudgeHref } from "$lib/breaks/break-nudge";
   import {
     resolveDayState,
     upsertDayEntry,
@@ -96,7 +94,6 @@
   import { format, addDays } from "date-fns";
   import Stage from "$components/ui/Stage.svelte"; // Issue #845: the clock stage
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
-  import List from "$components/ui/List.svelte";
   import ListRow from "$components/ui/ListRow.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import Note from "$components/ui/Note.svelte";
@@ -136,17 +133,17 @@
   import {
     attendanceBand,
     attendanceFilterOf,
+    attendanceFilterCounts,
     filterAttendance,
     ATTENDANCE_FILTERS,
-    TEAM_WEEK_PAGE_SIZE,
-    openTeamLeaveTasks,
+    upcomingTypeFilters,
     leaveTypeLabel,
     pastWeeksOfMonth,
     missingDaysOfMonth,
     type TeamTaskLeave,
-    capMissingDays,
   } from "$lib/dashboard/heute-im-salon"; // Issue #846, #987
-  import { invalidEntryRows, type InvalidEntryDay } from "$lib/dashboard/invalid-entry-rows"; // Issue #1020
+  import type { InvalidEntryDay } from "$lib/dashboard/invalid-entry-rows"; // Issue #1020
+  import { forYouItems } from "$lib/dashboard/for-you"; // Issue #1028: the rows of „Für dich“
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
@@ -157,8 +154,18 @@
     openTaskBreakdown,
     openTaskSummary,
     taskGates,
-    type OpenTaskSummary,
   } from "$lib/team/task-sources"; // Issue #948: the count of Team › Aufgaben, one rule
+  import {
+    filterByKind,
+    rowsForView,
+    taskKindLabel,
+    taskRowsFrom,
+    TASK_KIND_VALUES,
+    type LeaveTaskSource,
+    type TaskKind,
+    type TaskRowModel,
+    type TaskSources,
+  } from "$lib/team/task-model"; // Issue #1028: the Aufgaben widget lists the rows the KPI counts
   import { fmtBalance } from "$lib/utils/format-minutes";
   import { de } from "date-fns/locale";
   import { salonContext } from "$stores/salon-context"; // Issue #84 (D-01)
@@ -346,12 +353,6 @@
 
   let stats: DashboardStats | null = $state(null);
   let teamWeek = $state<TeamWeek | null>(null);
-  let teamPage = $state(1);
-  // Issue #846 (D-02): the week is always the current one; pages only from 25 persons on.
-  let teamPageSize = $state(TEAM_WEEK_PAGE_SIZE);
-  let pagedTeam = $derived(
-    teamWeek ? teamWeek.team.slice((teamPage - 1) * teamPageSize, teamPage * teamPageSize) : [],
-  );
   // Phase 267 (#267, D-04): shaped after `GET /shifts/my-week`'s `ownShifts[]`, which is already
   // narrowed to the caller server-side. The former `template: { name, color }` is gone — /my-week
   // returns `templateName`/`templateColor` flat, and the markup below renders only label,
@@ -441,8 +442,18 @@
     endDate: string;
     days: number;
     type: string;
+    /** Issue #1028: the leave type code, the control value of the type chips. */
+    typeCode: string;
   }
   let upcomingLeaves: UpcomingLeave[] = $state([]);
+  // Issue #1028: the type chip of „Demnächst abwesend“ (the effective filter, set by the list widget).
+  let upcomingFilter = $state<string | undefined>(undefined);
+  const upcomingChips = $derived(upcomingTypeFilters(upcomingLeaves));
+  const shownUpcoming = $derived(
+    upcomingFilter === undefined || upcomingFilter === "alle"
+      ? upcomingLeaves
+      : upcomingLeaves.filter((l) => l.typeCode === upcomingFilter),
+  );
 
   // Issue #84 (D-01, D-11): the Team block follows the salon context of #82 through ONE guarded
   // decision. `teamFilter` is a primitive (a salon id or null), so a navigation reload that sets an
@@ -603,7 +614,8 @@
 
       // Activity feed (row 2 / col-5) — role-gated server-side
       try {
-        const res = await api.get<{ items: ActivityItem[] }>("/activity?limit=5");
+        // Issue #1028 (P-08): the API maximum - the list widget pages it (it was 5 before).
+        const res = await api.get<{ items: ActivityItem[] }>("/activity?limit=20");
         activityItems = res.items ?? [];
       } catch {
         activityItems = [];
@@ -751,7 +763,6 @@
     teamUnavailable = false;
     teamWeek = null;
     pastWeeks = null;
-    teamPage = 1;
     upcomingLeaves = [];
     attendance = null;
     teamMonth = null;
@@ -825,16 +836,66 @@
   let attendance = $state<TodayAttendanceData | null>(null);
   let teamMonth = $state<TeamTrendMonth | null>(null);
   let teamMonthResponse = $state<TeamTrendResponse | null>(null);
-  let pendingLeave = $state<TeamTaskLeave[]>([]);
-  // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
-  let openTasks = $state<OpenTaskSummary | null>(null);
+  // Issue #1028 (P-04): the Aufgaben widget lists exactly the rows the cell „Aufgaben“ counts - the
+  // open rows of ONE `loadOpenTaskSources()` answer, through the model of Team › Aufgaben. So a counted
+  // task is always listable and chip, cell and list are one figure. `null` = not loaded yet.
+  let taskSources = $state<TaskSources | null>(null);
   let reviewOpen = $state(false);
   let reviewRequest = $state<TeamTaskLeave | null>(null);
-  const canDecideLeave = $derived(
-    hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),
-  );
   // Issue #948: the cell and the section are offered exactly to whom the page is (its gate).
   const taskSourceGates = $derived(taskGates($authStore.user));
+  // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
+  const openTasks = $derived(taskSources ? openTaskSummary(taskSources, taskSourceGates) : null);
+  const openTaskRows = $derived.by((): TaskRowModel[] =>
+    taskSources
+      ? rowsForView(
+          taskRowsFrom(taskSources, {
+            leaveDays: (r) => leaveDaysLabel(Number(r.days), r.halfDay, r.typeCode),
+            ownEmployeeId: $authStore.user?.employeeId ?? null,
+          }),
+          "offen",
+        )
+      : [],
+  );
+  // The filter chips: „Alle“ plus the kinds with open rows; every count is the KPI cell's own.
+  const taskChips = $derived(
+    openTasks && openTasks.total > 0
+      ? [
+          { value: "alle", label: "Alle", count: openTasks.total },
+          ...openTasks.kinds
+            .filter((kind) => openTasks.counts[kind] > 0)
+            .map((kind) => ({
+              value: kind as string,
+              label: taskKindLabel(kind),
+              count: openTasks.counts[kind],
+            })),
+        ]
+      : undefined,
+  );
+  let taskFilter = $state<string | undefined>(undefined);
+  const shownTaskRows = $derived(
+    filterByKind(
+      openTaskRows,
+      (TASK_KIND_VALUES as readonly string[]).includes(taskFilter ?? "")
+        ? (taskFilter as TaskKind)
+        : "alle",
+    ),
+  );
+
+  /**
+   * The leave request behind a task row the caller may decide here: PENDING and not the caller's own
+   * (four-eyes, mirrored from the review route so no impossible decision is offered). Looked up in the
+   * same `GET /leave/requests?status=PENDING` answer the row came from; that answer carries every field
+   * of the review dialog's request type, which the task model's narrower source type does not name,
+   * hence the one cast.
+   */
+  function decidableLeave(row: TaskRowModel): TeamTaskLeave | null {
+    if (row.kind !== "urlaub" || row.status !== "PENDING") return null;
+    const source = taskSources?.leave?.find((l: LeaveTaskSource) => l.id === row.sourceId);
+    if (!source) return null;
+    const request = source as unknown as TeamTaskLeave;
+    return request.employeeId === ($authStore.user?.employeeId ?? null) ? null : request;
+  }
 
   async function loadTodayAttendance() {
     const filter = teamFilter;
@@ -876,39 +937,43 @@
   }
 
   // D-03: the open leave requests decided here go through the SAME dialog as Aufgaben
-  // (LeaveReviewDialog) — this page never writes a decision of its own. The list follows the salon
-  // context; the count of the „Aufgaben“ cell is the page's own (Issue #948): the same sources, gates
-  // and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon selection (#558).
+  // (LeaveReviewDialog) - this page never writes a decision of its own. Issue #1028 (P-04, replaces
+  // #84 D-07 for this one list): the widget and the count of the „Aufgaben“ cell are one set - the same
+  // sources, gates and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon
+  // selection (#558, #948). The old „N weitere Aufgaben warten“ row covered other kinds, other salons
+  // and rows past five; without it a counted task must be listable.
   async function loadTeamTasks() {
-    const filter = teamFilter;
     const generation = teamGeneration;
     const gates = taskSourceGates;
-    const [leaveR, sourcesR] = await Promise.allSettled([
-      canDecideLeave
-        ? api.get<TeamTaskLeave[]>(withSalonId("/leave/requests?status=PENDING", filter))
-        : Promise.resolve([] as TeamTaskLeave[]),
-      gates.page
-        ? loadOpenTaskSources(<T,>(path: string) => api.get<T>(path), gates)
-        : Promise.resolve(null),
-    ]);
+    let sources: TaskSources | null = null;
+    if (gates.page) {
+      try {
+        sources = await loadOpenTaskSources(<T,>(path: string) => api.get<T>(path), gates);
+      } catch {
+        // Every source is read calmly; a failure of the whole read shows an empty list, not a skeleton.
+        sources = {};
+      }
+    }
     if (generation !== teamGeneration) return;
-    pendingLeave =
-      leaveR.status === "fulfilled"
-        ? openTeamLeaveTasks(leaveR.value, $authStore.user?.employeeId)
-        : [];
-    openTasks =
-      sourcesR.status === "fulfilled" && sourcesR.value
-        ? openTaskSummary(sourcesR.value, gates)
-        : null;
+    taskSources = sources;
   }
 
-  /** The open tasks the section does not list by name (other kinds, other salons, more than five). */
-  const moreTaskCount = $derived(
-    Math.max(0, (openTasks?.total ?? 0) - Math.min(pendingLeave.length, 5)),
-  );
-
   // D-01: every Kennzahl opens its list — the attendance filter lives in the URL (`?status=`).
-  const attendanceFilter = $derived(attendanceFilterOf(page.url.searchParams.get("status")));
+  // Issue #1028 (P-05): `?status=` of a Kennzahl link wins for that visit; a chip click stores the choice
+  // and drops the parameter, so URL and chip never disagree. The widget reports the effective filter.
+  const urlStatus = $derived.by((): string | undefined => {
+    const value = page.url.searchParams.get("status");
+    return value !== null && value in ATTENDANCE_FILTERS ? value : undefined;
+  });
+  let attendanceFilterValue = $state<string | undefined>(undefined);
+  const attendanceFilter = $derived(attendanceFilterOf(attendanceFilterValue));
+  function dropStatusParam() {
+    const params = new URLSearchParams(page.url.search);
+    if (!params.has("status")) return;
+    params.delete("status");
+    const q = params.toString();
+    replaceState(`${page.url.pathname}${q ? `?${q}` : ""}${page.url.hash}`, page.state);
+  }
   function statusHref(key: string): string {
     const params = new URLSearchParams(page.url.search);
     if (key === "alle") params.delete("status");
@@ -918,6 +983,16 @@
   }
   const nowRows = $derived(filterAttendance(attendance?.employees ?? [], attendanceFilter));
   const band = $derived(attendanceBand(attendance));
+  // The chips: Da · Erwartet · Abwesend are the cells of the Kennzahlen-Band, „Alle“ is everyone with
+  // something today (Issue #1028, AC4: no second count).
+  const attendanceChips = $derived.by(() => {
+    const counts = attendanceFilterCounts(band, attendance?.employees ?? []);
+    return (["anwesend", "erwartet", "abwesend", "alle"] as const).map((key) => ({
+      value: key as string,
+      label: ATTENDANCE_FILTERS[key].label,
+      count: counts[key],
+    }));
+  });
 
   function attendanceSubtitle(row: TodayEmployee): string {
     if (row.status === "missing" && row.expectedStart)
@@ -1671,98 +1746,22 @@
   });
 
   // ── Issue #845: „Für dich“ (D-06, D-845-06) ───────────────────────────────────────────────────
-  interface ForYouItem {
-    key: string;
-    title: string;
-    subtitle?: string;
-    chip: string;
-    tone: "ok" | "warn" | "bad" | "info" | "brand" | "neutral";
-    href: string;
-    action: string;
-    testId?: string;
-    hint?: string;
-  }
   function missingDayLabel(iso: string): string {
     return dayShort(iso);
   }
   function dayShort(iso: string): string {
     return format(new Date(iso + "T12:00:00"), "EEEEEE d.M.", { locale: de });
   }
-  let forYou = $derived.by((): ForYouItem[] => {
-    const out: ForYouItem[] = [];
-    // one row per break finding of the server's day check, each with its own day link
-    for (const d of [...breakDaySet].sort()) {
-      out.push({
-        key: `break-${d}`,
-        title: `${dayShort(d)} ohne Pause`,
-        subtitle: "Pause nachtragen oder Tag bestätigen.",
-        chip: "Prüfen",
-        tone: "warn",
-        href: breakNudgeHref(summarizeUnconfirmedBreakDays([d])),
-        action: "Öffnen",
-        testId: out.length === 0 ? "dashboard-break-nudge" : undefined,
-      });
-    }
-    // Issue #987: the server names the month's gaps; the window list only matters when the month
-    // list is absent (an older answer), so the union keeps both without a second derivation.
-    // Owner 16.11.2026: at most five days by name, the rest as one row that opens Zeiten.
-    const missing = capMissingDays([
-      ...(openItems?.missingDays ?? []),
-      ...(openItems?.missingDaysInMonth ?? []),
-    ]);
-    for (const missDate of missing.shown) {
-      out.push({
-        key: `miss-${missDate}`,
-        title: `${dayShort(missDate)} ohne Zeiteintrag`,
-        subtitle: "An diesem Arbeitstag fehlt deine Zeit.",
-        chip: "Fehlt",
-        tone: "bad",
-        href: `/ich/zeiten?view=list&date=${missDate}`,
-        action: "Nachtragen",
-      });
-    }
-    if (missing.more > 0) {
-      out.push({
-        key: "miss-more",
-        title:
-          missing.more === 1
-            ? "1 weiterer Tag ohne Zeiteintrag"
-            : `${missing.more} weitere Tage ohne Zeiteintrag`,
-        subtitle: "Alle fehlenden Tage siehst du unter Zeiten.",
-        chip: "Fehlt",
-        tone: "bad",
-        href: "/ich/zeiten?view=list",
-        action: "Ansehen",
-        testId: "dashboard-missing-more",
-      });
-    }
-    out.push(...invalidEntryRows(openItems, dayShort)); // Issue #1020
-    if (karenzNudge.count > 0) {
-      out.push({
-        key: "karenz",
-        title: karenzNudge.label,
-        subtitle: KARENZ_NUDGE_TOOLTIP,
-        chip: "Info",
-        tone: "info",
-        href: karenzNudgeHref(karenzNudge),
-        action: "Öffnen",
-        testId: "dashboard-karenz-nudge",
-      });
-    }
-    if ((openItems?.pendingRequests ?? 0) > 0) {
-      const n = openItems!.pendingRequests;
-      out.push({
-        key: "pending",
-        title: n === 1 ? "Dein Antrag wartet" : `${n} Anträge warten`,
-        subtitle: "Du bekommst Bescheid, sobald entschieden ist.",
-        chip: "Offen",
-        tone: "neutral",
-        href: "/ich/abwesenheiten?tab=antraege",
-        action: "Ansehen",
-      });
-    }
-    return out;
-  });
+  let breakDaySet = $derived(new Set(openItems?.unconfirmedBreakDays ?? []));
+  // Issue #1028: the derivation is the pure `forYouItems()`; the list widget pages every row.
+  const forYou = $derived(
+    forYouItems({
+      breakDays: breakDaySet,
+      openItems,
+      karenz: karenzNudge,
+      dayShort,
+    }),
+  );
 
   // Owner acceptance (item 5): only the person's own events in everyday language — no system lines
   // (the month close, audit entries); the sentences come from the one API text source.
@@ -1775,7 +1774,6 @@
       ? format(d, "HH:mm")
       : format(d, "EEEEEE", { locale: de });
   }
-  let breakDaySet = $derived(new Set(openItems?.unconfirmedBreakDays ?? []));
   let recentDayRows = $derived(
     recentDays(
       recentEntries,
@@ -2069,104 +2067,124 @@
             </ol>
           </section>
 
-          <section class="mt-sec card-animate" style="--card-idx: 4;" aria-labelledby="mt-recent">
-            <h2 id="mt-recent" class="mt-h2">
-              Letzte Tage <a class="mt-h2-link" href="/ich/zeiten">Alle Zeiten</a>
-            </h2>
-            {#if !meinTagLoaded}
-              <Skeleton shape="row" count={3} />
-            {:else if recentDayRows.length === 0}
-              <p class="mt-quiet">In den letzten zwei Wochen ist nichts erfasst.</p>
-            {:else}
-              <div class="mt-table-wrap">
-                <table class="mt-table" data-testid="mein-tag-recent">
-                  <thead>
-                    <tr>
-                      <th scope="col">Tag</th>
-                      <th scope="col">Zeiten</th>
-                      <th scope="col" class="r mt-col-break">Pause</th>
-                      <th scope="col" class="r">Netto</th>
-                      <th scope="col" class="r"><span class="sr-only">Saldo</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each recentDayRows as r (r.date)}
+          <div class="mt-sec card-animate" style="--card-idx: 4;">
+            <ListWidget
+              listId="ich.tag.letzte-tage"
+              title="Letzte Tage"
+              items={recentDayRows}
+              itemKey={(r) => r.date}
+              moreHref="/ich/zeiten"
+              moreLabel="Alle Zeiten"
+              loading={!meinTagLoaded}
+              rowHeight={44}
+              testId="mein-tag-recent-widget"
+            >
+              {#snippet body(rows)}
+                <div class="mt-table-wrap">
+                  <table class="mt-table" data-testid="mein-tag-recent">
+                    <thead>
                       <tr>
-                        <td
-                          >{format(new Date(r.date + "T12:00:00"), "EEEEEE d.M.", {
-                            locale: de,
-                          })}</td
-                        >
-                        <td>{r.start}–{r.end}</td>
-                        <td class="r mt-col-break"
-                          >{r.breakMinutes > 0 ? fmtClock(r.breakMinutes) : "—"}</td
-                        >
-                        <td class="r">{fmtClock(r.workingMinutes)}</td>
-                        <td class="r">
-                          {#if r.breakMissing}
-                            <Chip tone="warn">Pause fehlt</Chip>
-                          {:else if r.saldoMinutes !== null}
-                            <Chip
-                              tone={r.saldoMinutes > 0
-                                ? "ok"
-                                : r.saldoMinutes < 0
-                                  ? "bad"
-                                  : "neutral"}
-                              >{r.saldoMinutes === 0 ? "±0" : fmtBalance(r.saldoMinutes)}</Chip
-                            >
-                          {/if}
-                        </td>
+                        <th scope="col">Tag</th>
+                        <th scope="col">Zeiten</th>
+                        <th scope="col" class="r mt-col-break">Pause</th>
+                        <th scope="col" class="r">Netto</th>
+                        <th scope="col" class="r"><span class="sr-only">Saldo</span></th>
                       </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {/if}
-          </section>
+                    </thead>
+                    <tbody>
+                      {#each rows as r (r.date)}
+                        <tr>
+                          <td
+                            >{format(new Date(r.date + "T12:00:00"), "EEEEEE d.M.", {
+                              locale: de,
+                            })}</td
+                          >
+                          <td>{r.start}–{r.end}</td>
+                          <td class="r mt-col-break"
+                            >{r.breakMinutes > 0 ? fmtClock(r.breakMinutes) : "—"}</td
+                          >
+                          <td class="r">{fmtClock(r.workingMinutes)}</td>
+                          <td class="r">
+                            {#if r.breakMissing}
+                              <Chip tone="warn">Pause fehlt</Chip>
+                            {:else if r.saldoMinutes !== null}
+                              <Chip
+                                tone={r.saldoMinutes > 0
+                                  ? "ok"
+                                  : r.saldoMinutes < 0
+                                    ? "bad"
+                                    : "neutral"}
+                                >{r.saldoMinutes === 0 ? "±0" : fmtBalance(r.saldoMinutes)}</Chip
+                              >
+                            {/if}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/snippet}
+              {#snippet empty()}
+                <p class="mt-quiet">In den letzten zwei Wochen ist nichts erfasst.</p>
+              {/snippet}
+            </ListWidget>
+          </div>
         </div>
-
         <div class="mt-col">
-          <section class="mt-sec card-animate" style="--card-idx: 3;" aria-labelledby="mt-for-you">
-            <h2 id="mt-for-you" class="mt-h2">Für dich</h2>
-            {#if openItems === null && !meinTagLoaded}
-              <Skeleton shape="row" count={2} />
-            {:else if forYou.length === 0}
-              <p class="mt-quiet">Nichts offen. Alles erledigt.</p>
-            {:else}
-              <List ariaLabel="Für dich">
-                {#each forYou as item (item.key)}
-                  <ListRow title={item.title} subtitle={item.subtitle} avatar={false} wrap>
-                    {#snippet leading()}
-                      <Chip tone={item.tone}>{item.chip}</Chip>
-                    {/snippet}
-                    {#snippet trailing()}
-                      {#if item.href}
-                        <a
-                          class="btn btn-outline btn-sm"
-                          href={item.href}
-                          data-testid={item.testId}
-                          title={item.hint}>{item.action}</a
-                        >
-                      {/if}
-                    {/snippet}
-                  </ListRow>
-                {/each}
-              </List>
-            {/if}
-          </section>
+          <div class="mt-sec card-animate" style="--card-idx: 3;">
+            <ListWidget
+              listId="ich.tag.fuer-dich"
+              title="Für dich"
+              items={forYou}
+              itemKey={(item) => item.key}
+              loading={openItems === null && !meinTagLoaded}
+              rowHeight={64}
+              testId="mein-tag-for-you"
+            >
+              {#snippet row(item)}
+                <ListRow title={item.title} subtitle={item.subtitle} avatar={false} wrap>
+                  {#snippet leading()}
+                    <Chip tone={item.tone}>{item.chip}</Chip>
+                  {/snippet}
+                  {#snippet trailing()}
+                    {#if item.href}
+                      <a
+                        class="btn btn-outline btn-sm"
+                        href={item.href}
+                        data-testid={item.testId}
+                        title={item.hint}>{item.action}</a
+                      >
+                    {/if}
+                  {/snippet}
+                </ListRow>
+              {/snippet}
+              {#snippet empty()}
+                <p class="mt-quiet">Nichts offen. Alles erledigt.</p>
+              {/snippet}
+            </ListWidget>
+          </div>
 
-          <section class="mt-sec card-animate" style="--card-idx: 5;" aria-labelledby="mt-history">
-            <h2 id="mt-history" class="mt-h2">Verlauf</h2>
-            {#if history.length === 0}
-              <p class="mt-quiet">Noch keine Ereignisse.</p>
-            {:else}
-              <ul class="mt-history" data-testid="mein-tag-history">
-                {#each history as h (h.id)}
-                  <li><span class="mt-when">{historyWhen(h.when)}</span><span>{h.text}</span></li>
-                {/each}
-              </ul>
-            {/if}
-          </section>
+          <div class="mt-sec card-animate" style="--card-idx: 5;">
+            <ListWidget
+              listId="ich.tag.verlauf"
+              title="Verlauf"
+              items={history}
+              itemKey={(h) => h.id}
+              rowHeight={36}
+              testId="mein-tag-history-widget"
+            >
+              {#snippet body(events)}
+                <ul class="mt-history" data-testid="mein-tag-history">
+                  {#each events as h (h.id)}
+                    <li><span class="mt-when">{historyWhen(h.when)}</span><span>{h.text}</span></li>
+                  {/each}
+                </ul>
+              {/snippet}
+              {#snippet empty()}
+                <p class="mt-quiet">Noch keine Ereignisse.</p>
+              {/snippet}
+            </ListWidget>
+          </div>
         </div>
       </div>
     </div>
@@ -2188,55 +2206,111 @@
           {/if}
         </div>
 
-        <div class="ts-grid">
-          <div class="ts-col">
-            <section class="ts-sec" id="jetzt" aria-labelledby="ts-now">
-              <h2 id="ts-now" class="mt-h2">
-                Jetzt im Salon
-                {#if attendanceFilter !== "alle"}
-                  <span class="ts-filter-on" data-testid="attendance-filter">
-                    <Chip tone="brand">{ATTENDANCE_FILTERS[attendanceFilter].label}</Chip>
-                    <a class="mt-h2-link" href={statusHref("alle")} data-sveltekit-reset="false"
-                      >Alle zeigen</a
-                    >
-                  </span>
-                {/if}
-              </h2>
-              {#if attendance === null}
-                <Skeleton shape="row" count={4} />
-              {:else if nowRows.length === 0}
-                <p class="mt-quiet">
-                  {attendanceFilter === "alle"
-                    ? "Heute ist niemand eingeplant."
-                    : "Niemand in dieser Auswahl."}
-                </p>
-              {:else}
-                <List ariaLabel="Jetzt im Salon">
-                  {#each nowRows as row (row.id)}
-                    <ListRow
-                      title={row.name}
-                      subtitle={attendanceSubtitle(row)}
-                      avatarKey={row.id}
-                      href={canOpenTeamDay
-                        ? (teamDayHref(row.id, attendance.date) ?? undefined)
-                        : undefined}
-                    >
-                      {#snippet trailing()}
-                        <Chip tone={statusTone(row.status)}>{DAY_STATUS_LABEL[row.status]}</Chip>
-                      {/snippet}
-                    </ListRow>
-                  {/each}
-                </List>
-              {/if}
-            </section>
-          </div>
+        <!-- Issue #1028: the four list widgets in two rows of two (Jetzt im Salon | Aufgaben, Fehlende
+             Zeiten | Demnächst abwesend); a widget that is absent leaves its cell to the next one, and
+             below 760 px of the container width they stack. Every widget pages through the shared block. -->
+        <div class="ts-widgets">
+          <div class="ts-grid" data-testid="team-widgets">
+            <div class="ts-cell" id="jetzt">
+              <ListWidget
+                listId="team.heute.jetzt"
+                title="Jetzt im Salon"
+                items={nowRows}
+                itemKey={(row) => row.id}
+                filters={attendance === null ? undefined : attendanceChips}
+                bind:filter={attendanceFilterValue}
+                initialFilter={urlStatus}
+                onFilterChange={dropStatusParam}
+                loading={attendance === null}
+                rowHeight={52}
+                testId="team-now"
+                filterTestId="attendance-filter"
+              >
+                {#snippet row(row)}
+                  <ListRow
+                    title={row.name}
+                    subtitle={attendanceSubtitle(row)}
+                    avatarKey={row.id}
+                    href={canOpenTeamDay
+                      ? (teamDayHref(row.id, attendance?.date ?? "") ?? undefined)
+                      : undefined}
+                  >
+                    {#snippet trailing()}
+                      <Chip tone={statusTone(row.status)}>{DAY_STATUS_LABEL[row.status]}</Chip>
+                    {/snippet}
+                  </ListRow>
+                {/snippet}
+                {#snippet empty()}
+                  <p class="mt-quiet">
+                    {attendanceFilter === "alle"
+                      ? "Heute ist niemand eingeplant."
+                      : "Niemand in dieser Auswahl."}
+                  </p>
+                {/snippet}
+              </ListWidget>
+            </div>
 
-          <div class="ts-col">
+            {#if taskSourceGates.page}
+              <div class="ts-cell">
+                <ListWidget
+                  listId="team.heute.aufgaben"
+                  title="Aufgaben"
+                  items={shownTaskRows}
+                  itemKey={(task) => task.key}
+                  filters={taskChips}
+                  bind:filter={taskFilter}
+                  moreHref="/team/aufgaben"
+                  moreLabel="Alle Aufgaben"
+                  loading={taskSources === null}
+                  rowHeight={88}
+                  testId="team-tasks"
+                  filterTestId="team-tasks-filter"
+                >
+                  {#snippet row(task)}
+                    {@const request = decidableLeave(task)}
+                    <TaskRow
+                      row={task}
+                      typeLabel={task.typeCode ? leaveTypeLabel(task.typeCode) : undefined}
+                      actionsPlacement="end"
+                    >
+                      {#snippet actions()}
+                        {#if request}
+                          <button
+                            type="button"
+                            class="btn btn-outline btn-sm"
+                            onclick={() => openReview(request)}>Ablehnen</button
+                          >
+                          <button
+                            type="button"
+                            class="btn btn-primary btn-sm"
+                            onclick={() => openReview(request)}>Genehmigen</button
+                          >
+                        {:else}
+                          <a class="btn btn-outline btn-sm" href={`/team/aufgaben?typ=${task.kind}`}
+                            >Öffnen</a
+                          >
+                        {/if}
+                      {/snippet}
+                    </TaskRow>
+                  {/snippet}
+                  {#snippet empty()}
+                    <p class="mt-quiet">Nichts zu entscheiden.</p>
+                  {/snippet}
+                </ListWidget>
+              </div>
+            {/if}
+
             {#if missingMonthRows !== null && missingMonthRows.length > 0}
-              <section class="ts-sec" aria-labelledby="ts-missing" data-testid="team-missing-days">
-                <h2 id="ts-missing" class="mt-h2">Fehlende Zeiten</h2>
-                <List ariaLabel="Fehlende Zeiten">
-                  {#each missingMonthRows as row (row.id)}
+              <div class="ts-cell">
+                <ListWidget
+                  listId="team.heute.fehlende-zeiten"
+                  title="Fehlende Zeiten"
+                  items={missingMonthRows}
+                  itemKey={(row) => row.id}
+                  rowHeight={52}
+                  testId="team-missing-days"
+                >
+                  {#snippet row(row)}
                     <ListRow
                       title={row.name}
                       subtitle={row.days.map(missingDayLabel).join(" · ")}
@@ -2251,144 +2325,106 @@
                         >
                       {/snippet}
                     </ListRow>
-                  {/each}
-                </List>
-              </section>
+                  {/snippet}
+                </ListWidget>
+              </div>
             {/if}
 
-            {#if taskSourceGates.page}
-              <section class="ts-sec" aria-labelledby="ts-tasks">
-                <h2 id="ts-tasks" class="mt-h2">
-                  Aufgaben <a class="mt-h2-link" href="/team/aufgaben">Alle Aufgaben</a>
-                </h2>
-                {#if pendingLeave.length === 0 && moreTaskCount === 0}
-                  <p class="mt-quiet">Nichts zu entscheiden.</p>
-                {:else}
-                  <List ariaLabel="Aufgaben">
-                    {#each pendingLeave.slice(0, 5) as req (req.id)}
-                      <ListRow
-                        variant="task"
-                        avatar={false}
-                        title={`${leaveTypeLabel(req.typeCode)} · ${req.employee.firstName} ${req.employee.lastName} · ${formatShortDate(req.startDate)}–${formatShortDate(req.endDate)}`}
-                        subtitle={leaveDaysLabel(Number(req.days), req.halfDay, req.typeCode)}
-                      >
-                        {#snippet actions()}
-                          <button
-                            type="button"
-                            class="btn btn-outline btn-sm"
-                            onclick={() => openReview(req)}>Ablehnen</button
-                          >
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm"
-                            onclick={() => openReview(req)}>Genehmigen</button
-                          >
-                        {/snippet}
-                      </ListRow>
-                    {/each}
-                    {#if moreTaskCount > 0}
-                      <ListRow
-                        avatar={false}
-                        title={moreTaskCount === 1
-                          ? "1 weitere Aufgabe wartet"
-                          : `${moreTaskCount} weitere Aufgaben warten`}
-                        href="/team/aufgaben"
-                      />
-                    {/if}
-                  </List>
-                {/if}
-              </section>
-            {/if}
-
-            <section class="ts-sec" aria-labelledby="ts-upcoming">
-              <h2 id="ts-upcoming" class="mt-h2">
-                Demnächst abwesend <a class="mt-h2-link" href="/team/abwesenheiten">Kalender</a>
-              </h2>
-              {#if upcomingLeaves.length === 0}
-                <p class="mt-quiet">In den nächsten Wochen ist niemand abwesend.</p>
-              {:else}
-                <List ariaLabel="Demnächst abwesend">
-                  {#each upcomingLeaves as leave (leave.id)}
-                    <ListRow
-                      title={`${leave.employeeName} · ${formatShortDate(leave.startDate)}–${formatShortDate(leave.endDate)}`}
-                      avatar={false}
-                    >
-                      {#snippet leading()}
-                        <Chip tone="neutral">{leave.type}</Chip>
-                      {/snippet}
-                      {#snippet trailing()}
-                        <span class="mt-quiet">{formatDayCount(leave.days)}</span>
-                      {/snippet}
-                    </ListRow>
-                  {/each}
-                </List>
-              {/if}
-            </section>
+            <div class="ts-cell">
+              <ListWidget
+                listId="team.heute.demnaechst"
+                title="Demnächst abwesend"
+                items={shownUpcoming}
+                itemKey={(leave) => leave.id}
+                filters={upcomingLeaves.length > 0 ? upcomingChips : undefined}
+                bind:filter={upcomingFilter}
+                moreHref="/team/abwesenheiten"
+                moreLabel="Kalender"
+                rowHeight={48}
+                testId="team-upcoming"
+                filterTestId="team-upcoming-filter"
+              >
+                {#snippet row(leave)}
+                  <ListRow
+                    title={`${leave.employeeName} · ${formatShortDate(leave.startDate)}–${formatShortDate(leave.endDate)}`}
+                    avatar={false}
+                  >
+                    {#snippet leading()}
+                      <Chip tone="neutral">{leave.type}</Chip>
+                    {/snippet}
+                    {#snippet trailing()}
+                      <span class="mt-quiet">{formatDayCount(leave.days)}</span>
+                    {/snippet}
+                  </ListRow>
+                {/snippet}
+                {#snippet empty()}
+                  <p class="mt-quiet">In den nächsten Wochen ist niemand abwesend.</p>
+                {/snippet}
+              </ListWidget>
+            </div>
           </div>
         </div>
-        <!-- Owner 13.11.2026: the Team-Woche spans the full width below both columns; in the left
-             column seven days with status chips did not fit and the table scrolled sideways. -->
+        <!-- Owner 13.11.2026: the Team-Woche spans the full width below the widgets; in a column
+             seven days with status chips did not fit and the table scrolled sideways. -->
         {#if teamWeek}
-          <section class="ts-sec ts-week-sec" aria-labelledby="ts-week">
-            <h2 id="ts-week" class="mt-h2">
-              Team-Woche
-              <span class="ts-h2-meta"
-                >KW {getWeekNumber(teamWeek.weekStart)} · {formatShortDate(teamWeek.weekStart)} –
-                {formatShortDate(teamWeek.weekEnd)}</span
-              >
-            </h2>
-            <div class="mt-table-wrap">
-              <table class="mt-table ts-week" data-testid="team-week">
-                <thead>
-                  <tr>
-                    <th scope="col">Person</th>
-                    {#each teamWeekDays as d (d)}
-                      <th scope="col" class:ts-today={isToday(d)}>
-                        {dayLabel(d)}
-                        {dayNum(d)}
-                      </th>
-                    {/each}
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each pagedTeam as member (member.id)}
-                    <tr>
-                      <td class="ts-name">{member.name}</td>
-                      {#each member.days as day (day.date)}
-                        {#if teamWeekDays.includes(day.date)}
-                          {@const href = teamDayHref(member.id, day.date)}
-                          <td class="team-grid__cell" class:ts-today={isToday(day.date)}>
-                            {#if canOpenTeamDay && href !== null}
-                              <a
-                                class="team-grid__link"
-                                {href}
-                                aria-label={teamCellAriaLabel(
-                                  member.name,
-                                  day.date,
-                                  teamCellStatusText(day),
-                                )}
-                              >
-                                {@render teamCellContent(day)}
-                              </a>
-                            {:else}
-                              {@render teamCellContent(day)}
+          <div class="ts-week-sec">
+            <ListWidget
+              listId="team.heute.team-woche"
+              title="Team-Woche"
+              meta={`KW ${getWeekNumber(teamWeek.weekStart)} · ${formatShortDate(teamWeek.weekStart)} – ${formatShortDate(teamWeek.weekEnd)}`}
+              items={teamWeek.team}
+              itemKey={(member) => member.id}
+              rowHeight={44}
+              testId="team-week-widget"
+            >
+              {#snippet body(members)}
+                <div class="mt-table-wrap">
+                  <table class="mt-table ts-week" data-testid="team-week">
+                    <thead>
+                      <tr>
+                        <th scope="col">Person</th>
+                        {#each teamWeekDays as d (d)}
+                          <th scope="col" class:ts-today={isToday(d)}>
+                            {dayLabel(d)}
+                            {dayNum(d)}
+                          </th>
+                        {/each}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each members as member (member.id)}
+                        <tr>
+                          <td class="ts-name">{member.name}</td>
+                          {#each member.days as day (day.date)}
+                            {#if teamWeekDays.includes(day.date)}
+                              {@const href = teamDayHref(member.id, day.date)}
+                              <td class="team-grid__cell" class:ts-today={isToday(day.date)}>
+                                {#if canOpenTeamDay && href !== null}
+                                  <a
+                                    class="team-grid__link"
+                                    {href}
+                                    aria-label={teamCellAriaLabel(
+                                      member.name,
+                                      day.date,
+                                      teamCellStatusText(day),
+                                    )}
+                                  >
+                                    {@render teamCellContent(day)}
+                                  </a>
+                                {:else}
+                                  {@render teamCellContent(day)}
+                                {/if}
+                              </td>
                             {/if}
-                          </td>
-                        {/if}
+                          {/each}
+                        </tr>
                       {/each}
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-            {#if teamWeek.team.length > TEAM_WEEK_PAGE_SIZE}
-              <Pagination
-                total={teamWeek.team.length}
-                bind:page={teamPage}
-                bind:pageSize={teamPageSize}
-              />
-            {/if}
-          </section>
+                    </tbody>
+                  </table>
+                </div>
+              {/snippet}
+            </ListWidget>
+          </div>
         {/if}
       </div>
       <LeaveReviewDialog
@@ -2571,11 +2607,6 @@
     margin: 0 0 var(--s-2);
     font-size: var(--fs-h2);
     font-weight: 600;
-  }
-  .mt-h2-link {
-    font-size: var(--fs-sm);
-    font-weight: 500;
-    color: var(--brand);
   }
   .mt-quiet {
     margin: 0;
@@ -2778,26 +2809,23 @@
     flex-direction: column;
     gap: var(--s-5);
   }
+  /* Issue #1028: two rows of two list widgets; the container (not the viewport) decides when they stack. */
+  .ts-widgets {
+    container-type: inline-size;
+  }
   .ts-grid {
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--s-6) var(--s-5);
   }
-  .ts-col {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-6);
-    min-width: 0;
-  }
-  .ts-sec {
+  .ts-cell {
     min-width: 0;
     scroll-margin-top: 64px;
   }
-  .ts-h2-meta {
-    font-size: var(--fs-sm);
-    font-weight: 500;
-    color: var(--text-2);
-    font-variant-numeric: tabular-nums;
+  @container (max-width: 759.98px) {
+    .ts-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .ts-week-sec {
     margin-top: var(--s-6);
@@ -2819,11 +2847,6 @@
     gap: var(--s-2);
     justify-content: flex-end;
   }
-  .ts-filter-on {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s-2);
-  }
   .ts-pill {
     display: inline-block;
     padding: 1px var(--s-2);
@@ -2844,15 +2867,5 @@
   .ts-week .team-grid__link:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
-  }
-  @media (min-width: 1800px) {
-    .ts-grid {
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    }
-  }
-  @media (max-width: 1099.98px) {
-    .ts-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>

@@ -19,7 +19,6 @@
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import {
     endedByLabel,
     formatInZone,
@@ -92,8 +91,13 @@
   />
 {:else}
   <DataTable
+    listId="verwalten.support.zugriffe"
     {columns}
     {rows}
+    {total}
+    bind:page
+    bind:pageSize
+    onPageChange={() => onPageChange()}
     rowKey={(row) => row.id}
     caption="Support-Zugriffe, neueste zuerst"
     {loading}
@@ -117,20 +121,6 @@
       {/if}
     {/snippet}
   </DataTable>
-
-  {#if !loading}
-    <div class="sa-pagination">
-      <Pagination
-        {total}
-        bind:page
-        bind:pageSize
-        pageSizeOptions={[25, 50, 100]}
-        labelSingular="Zugriff"
-        labelPlural="Zugriffe"
-        onChange={onPageChange}
-      />
-    </div>
-  {/if}
 {/if}
 
 <style>
@@ -171,9 +161,5 @@
     margin-left: var(--s-2);
     font-size: var(--fs-sm);
     color: var(--text-2);
-  }
-
-  .sa-pagination {
-    margin-top: var(--s-3);
   }
 </style>

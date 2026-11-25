@@ -7,6 +7,11 @@ import { isMultiSalonTenant, listSalons } from "../facade/salons";
 import { packagesForDisplay } from "../tenant-packages";
 import { PERSONAL_EMAIL_OPT_OUT_FIELDS } from "../notification-email-policy";
 import {
+  listPreferencesInput,
+  storedListPreferences,
+  type StoredListPreference,
+} from "../list-preferences";
+import {
   LEGACY_UI_THEME_IDS,
   UI_THEME_IDS,
   normalizeUiTheme,
@@ -40,6 +45,9 @@ const updatePreferencesSchema = z.object({
   mode: modeEnum.optional(),
   language: languageEnum.optional(),
   emailOptOut: emailOptOutInput.optional(),
+  // Issue #1028: the stored page size and filter per list, validated against the register
+  // `packages/types/list-preferences.json`. Merged one level deep (per list id) on write.
+  lists: listPreferencesInput.optional(),
 });
 
 // Phase 110 (D-10/AK-10): the version string is echoed back to the client and stored, so it is
@@ -60,6 +68,8 @@ interface UiPreferences {
   mode: z.infer<typeof modeEnum>;
   language: z.infer<typeof languageEnum>;
   emailOptOut: z.infer<typeof emailOptOutInput>;
+  // Issue #1028: `{ [listId]: { pageSize?, filter? } }`, only entries that are valid for the register.
+  lists: Record<string, StoredListPreference>;
 }
 
 const DEFAULT_PREFERENCES: UiPreferences = {
@@ -69,6 +79,7 @@ const DEFAULT_PREFERENCES: UiPreferences = {
   mode: "system",
   language: "de",
   emailOptOut: [],
+  lists: {},
 };
 
 /**
@@ -94,6 +105,7 @@ function mergePreferences(stored: unknown, tenantDefault: UiThemeId): UiPreferen
           (PERSONAL_EMAIL_OPT_OUT_FIELDS as readonly unknown[]).includes(v),
         )
       : [],
+    lists: storedListPreferences(partial.lists),
   };
 }
 
@@ -116,7 +128,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default",
+        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default. `lists` holds the stored page size and filter per list id (only entries that are valid for the list register)",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -142,7 +154,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. The answer has the same shape as GET",
+        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. `lists` is merged one level deep: an entry for one list id replaces that list's stored entry and never touches another list's. The answer has the same shape as GET",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -163,14 +175,38 @@ export async function meRoutes(app: FastifyInstance) {
       // jsonb_typeof(...) = 'object' guards the CASE so a non-object stored value (SQL NULL,
       // JSON null, array, scalar) falls back to '{}'::jsonb before the merge, rather than making
       // the `||` operator build an array or throw.
+      //
+      // Issue #1028: `lists` is merged one level deep inside the SAME statement. A plain top-level
+      // `||` would replace the whole stored `lists` object, so a PUT for one list would drop every
+      // other list's entry; here the stored `lists` (an object, else '{}') is merged with the patch's
+      // `lists` and written back under `lists`, while every other key keeps the top-level merge. An
+      // entry for one list id is replaced as a whole (the web always sends the complete entry).
+      const { lists, ...topLevel } = body;
       const rows = await app.prisma.$queryRaw<{ uiPreferences: unknown }[]>`
         UPDATE "User"
         SET "uiPreferences" = (
+              (
+                CASE
+                  WHEN jsonb_typeof("uiPreferences") = 'object' THEN "uiPreferences"
+                  ELSE '{}'::jsonb
+                END
+              ) || ${JSON.stringify(topLevel)}::jsonb
+            ) || (
               CASE
-                WHEN jsonb_typeof("uiPreferences") = 'object' THEN "uiPreferences"
+                WHEN ${lists !== undefined}::boolean THEN jsonb_build_object(
+                  'lists',
+                  (
+                    CASE
+                      WHEN jsonb_typeof("uiPreferences") = 'object'
+                        AND jsonb_typeof("uiPreferences" -> 'lists') = 'object'
+                      THEN "uiPreferences" -> 'lists'
+                      ELSE '{}'::jsonb
+                    END
+                  ) || ${JSON.stringify(lists ?? {})}::jsonb
+                )
                 ELSE '{}'::jsonb
               END
-            ) || ${JSON.stringify(body)}::jsonb,
+            ),
             "updatedAt" = now()
         WHERE "id" = ${userId}
         RETURNING "uiPreferences"

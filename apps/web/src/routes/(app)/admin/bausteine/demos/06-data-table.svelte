@@ -7,6 +7,7 @@
       "components/ui/DataTable.svelte",
       "components/ui/TableToolbar.svelte",
       "components/ui/SortHeader.svelte",
+      "components/ui/Pager.svelte",
     ],
   };
 </script>
@@ -32,6 +33,15 @@
     { id: 4, name: "Person D", email: "person-d@beispiel.test", status: "Aktiv" },
     { id: 5, name: "Person E", email: "person-e@beispiel.test", status: "Ausgetreten" },
   ];
+
+  // Issue #1028: forty rows page with the shared Pager (25 per page, 25 · 50 · 100). The demo passes no
+  // `listId`, so the chosen size lives for the visit only.
+  const MANY_ROWS: DemoRow[] = Array.from({ length: 40 }, (_, i) => ({
+    id: 100 + i,
+    name: `Person ${i + 1}`,
+    email: `person-${i + 1}@beispiel.test`,
+    status: i % 4 === 3 ? "Ausgetreten" : "Aktiv",
+  }));
 
   const NO_ROWS: DemoRow[] = [];
 
@@ -104,6 +114,13 @@
       {/if}
     {/snippet}
   </DataTable>
+
+  <DataTable
+    {columns}
+    rows={MANY_ROWS}
+    rowKey={(r) => r.id}
+    caption="Beispieltabelle mit 40 Zeilen und Seitenwechsel"
+  />
 
   <DataTable
     {columns}

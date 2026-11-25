@@ -7,7 +7,8 @@
   import { authStore } from "$stores/auth";
   import { homeSalonMarksApply, salonContext } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
-  import Pagination from "$components/ui/Pagination.svelte";
+  import { listPrefs } from "$stores/list-prefs";
+  import { resolveListPreference } from "$lib/lists/list-registry";
   import PageTabs from "$components/ui/PageTabs.svelte"; // Issue #853 (D-853-18)
   import PeriodSwitcher from "$components/ui/PeriodSwitcher.svelte"; // Issue #853 (D-853-11)
   import SegmentedControl from "$components/ui/SegmentedControl.svelte";
@@ -947,7 +948,7 @@
     return mayCancelRequest($authStore.user, own) && resolveStornoAction(req.status, own) !== null;
   }
 
-  // ── Anträge-Filter + Pagination ───────────────────────────────────────────
+  // ── Anträge-Filter + paging ───────────────────────────────────────────
   // #840 (E-02): the status filter lives in the URL (`status`), so a deep link and the back button
   // carry it; the type filter stays page-local.
   const filterLeaveStatus = $derived<LeaveStatusFilter | "">(urlState.status ?? "");
@@ -955,7 +956,12 @@
   // Issue #853: the Anträge search by person name (page-local, like the type filter).
   let requestQuery = $state("");
   let teamReqPage = $state(1);
-  let teamReqPageSize = $state(10);
+  // The size of the Anträge table (Issue #1028): the stored or default size of its register id, the one
+  // `DataTable` shows - `focusRequest` needs it to find the page of a deep-linked request.
+  const teamReqPageSize = $derived(
+    resolveListPreference("team.abwesenheiten.antraege", $listPrefs["team.abwesenheiten.antraege"])
+      .pageSize,
+  );
 
   // The list that feeds the Anträge tab: the year list, plus every open request of any year when
   // the status filter asks for open ones (an open request is never hidden by the year).
@@ -972,10 +978,6 @@
       }
       return true;
     }),
-  );
-
-  let pagedTeamRequests = $derived(
-    filteredTeamRequests.slice((teamReqPage - 1) * teamReqPageSize, teamReqPage * teamReqPageSize),
   );
 
   $effect(() => {
@@ -995,7 +997,9 @@
     { key: "note", label: "Anmerkung" },
     { key: "actions", label: "Aktionen" },
   ];
-  const requestRows: RequestRow[] = $derived(pagedTeamRequests.map((req) => ({ id: req.id, req })));
+  const requestRows: RequestRow[] = $derived(
+    filteredTeamRequests.map((req) => ({ id: req.id, req })),
+  );
   const requestRowKey = (row: RequestRow) => row.id;
   const requestRowTestId = (row: RequestRow) => `leave-team-row-${row.id}`;
   const requestRowTone = (row: RequestRow): DataTableRowTone | undefined =>
@@ -1258,6 +1262,7 @@
 
       {#if loading}
         <DataTable
+          listId="team.abwesenheiten.antraege"
           caption="Anträge"
           columns={REQUEST_COLUMNS}
           rows={[]}
@@ -1281,9 +1286,11 @@
             </div>
           {:else}
             <DataTable
+              listId="team.abwesenheiten.antraege"
               caption="Anträge"
               columns={REQUEST_COLUMNS}
               rows={requestRows}
+              bind:page={teamReqPage}
               rowKey={requestRowKey}
               toolbar={requestsToolbar}
               rowTestId={requestRowTestId}
@@ -1425,11 +1432,6 @@
                 {/if}
               {/snippet}
             </DataTable>
-            <Pagination
-              total={filteredTeamRequests.length}
-              bind:page={teamReqPage}
-              bind:pageSize={teamReqPageSize}
-            />
           {/if}
         </div>
       {/if}

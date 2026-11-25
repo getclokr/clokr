@@ -47,7 +47,6 @@
   import ErrorState from "$components/ui/ErrorState.svelte";
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
-  import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
@@ -68,9 +67,6 @@
   let sourcesError = $state("");
   // Shown once after the creation, then forgotten (T-854-34).
   let newRawKey = $state("");
-  let srcPage = $state(1);
-  let srcPageSize = $state(10);
-  const pagedSources = $derived(sources.slice((srcPage - 1) * srcPageSize, srcPage * srcPageSize));
 
   const sourceColumns: DataTableColumn[] = [
     { key: "name", label: "Name", primary: true },
@@ -176,8 +172,6 @@
   let devicesLastRefreshed = $state<Date | null>(null);
   let deviceAssigning = $state<Record<string, boolean>>({}); // mac -> saving
   let devPage = $state(1);
-  let devPageSize = $state(10);
-  const pagedDevices = $derived(devices.slice((devPage - 1) * devPageSize, devPage * devPageSize));
   const activeSources = $derived(sources.filter((src) => !src.revokedAt));
 
   const deviceColumns: DataTableColumn[] = [
@@ -294,9 +288,6 @@
   let optedIn: OptedInEmployee[] = $state([]);
   let optInLoading = $state(false);
   let optInError = $state("");
-  let optPage = $state(1);
-  let optPageSize = $state(10);
-  const pagedOptedIn = $derived(optedIn.slice((optPage - 1) * optPageSize, optPage * optPageSize));
 
   const optInColumns: DataTableColumn[] = [
     { key: "name", label: "Mitarbeiter", primary: true },
@@ -390,8 +381,9 @@
     {/if}
   {:else}
     <DataTable
+      listId="verwalten.integrationen.praesenz-quellen"
       columns={sourceColumns}
-      rows={pagedSources}
+      rows={sources}
       rowKey={(row) => row.id}
       caption="Präsenz-Quellen mit Schlüssel und Status"
     >
@@ -421,7 +413,6 @@
         {/if}
       {/snippet}
     </DataTable>
-    <Pagination total={sources.length} bind:page={srcPage} bind:pageSize={srcPageSize} />
   {/if}
 </section>
 
@@ -487,8 +478,10 @@
     <Skeleton shape="card" count={1} lines={3} />
   {:else if devices.length > 0}
     <DataTable
+      listId="verwalten.integrationen.wlan-geraete"
       columns={deviceColumns}
-      rows={pagedDevices}
+      rows={devices}
+      bind:page={devPage}
       rowKey={(row) => row.mac}
       caption="WLAN-Geräte mit Status und zugewiesenem Mitarbeiter"
     >
@@ -532,7 +525,6 @@
         {/if}
       {/snippet}
     </DataTable>
-    <Pagination total={devices.length} bind:page={devPage} bind:pageSize={devPageSize} />
   {:else if devicesLastRefreshed}
     <EmptyState
       icon="wifi"
@@ -566,8 +558,9 @@
     />
   {:else}
     <DataTable
+      listId="verwalten.integrationen.wlan-personen"
       columns={optInColumns}
-      rows={pagedOptedIn}
+      rows={optedIn}
       rowKey={(row) => row.id}
       caption="Mitarbeiter mit WLAN-Präsenzerkennung"
     >
@@ -595,7 +588,6 @@
         {/if}
       {/snippet}
     </DataTable>
-    <Pagination total={optedIn.length} bind:page={optPage} bind:pageSize={optPageSize} />
   {/if}
 </section>
 

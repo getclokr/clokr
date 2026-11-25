@@ -88,7 +88,7 @@ describe("the runs", () => {
     const table = await screen.findByRole("table", { name: /Verlauf der Abgleiche/ });
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("Fehler")).toBeTruthy();
-    expect(get).toHaveBeenCalledWith("/integrations/phorest/sync-runs?limit=10&page=0");
+    expect(get).toHaveBeenCalledWith("/integrations/phorest/sync-runs?limit=25&page=0");
     expect(screen.getByTestId("h-latest").textContent).toBe("SUCCESS");
   });
 

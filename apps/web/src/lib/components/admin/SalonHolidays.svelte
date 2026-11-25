@@ -223,6 +223,7 @@
       />
     {:else}
       <DataTable
+        listId="verwalten.salons.feiertage-zusaetzlich"
         columns={manualColumns}
         rows={manual}
         rowKey={(holiday) => holiday.id}
@@ -256,6 +257,7 @@
       />
     {:else}
       <DataTable
+        listId="verwalten.salons.feiertage-gesetzlich"
         columns={statutoryColumns}
         rows={statutory}
         rowKey={(holiday) => holiday.id}

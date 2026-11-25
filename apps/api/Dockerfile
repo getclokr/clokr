@@ -295,6 +295,14 @@ RUN cd /app/apps/api && node -e "const { loadReleaseNotes } = require('./dist/ut
 # and fails the build unless it loads and knows a word for EXPORT that is not the shared fallback.
 RUN cd /app/apps/api && node -e "const m = require('./dist/contexts/platform/audit-csv'); if (typeof m.auditLogCsv !== 'function') { console.error('FATAL: audit-csv did not export auditLogCsv'); process.exit(1); } const known = m.auditActionLabel('EXPORT'); const fallback = m.auditActionLabel('NO_SUCH_AUDIT_ACTION'); if (!known || known === fallback) { console.error('FATAL: audit-csv cannot resolve @clokr/types/audit-labels.json inside the image -- check packages/types/package.json exports and the COPY of packages/'); process.exit(1); } console.log('audit labels baked:', known, '/', fallback);"
 
+# Build gate (Issue #1028, T-1028-07): the stored list preferences are validated against
+# packages/types/list-preferences.json, which tsc does NOT copy into dist/ and which node resolves at
+# runtime through the @clokr/types exports map, exactly like the audit labels above. A missing or
+# unresolvable file would turn PUT /me/preferences (and the GET answer) into a 500 with nothing failing
+# earlier. Runs the real compiled module and fails the build unless it loads and keeps a valid entry of
+# the register's team.heute.aufgaben list.
+RUN cd /app/apps/api && node -e "const m = require('./dist/contexts/platform/list-preferences'); if (typeof m.storedListPreferences !== 'function') { console.error('FATAL: list-preferences did not export storedListPreferences'); process.exit(1); } const kept = m.storedListPreferences({ 'team.heute.aufgaben': { pageSize: 10, filter: 'urlaub' } }); const entry = kept['team.heute.aufgaben']; if (!entry || entry.pageSize !== 10 || entry.filter !== 'urlaub') { console.error('FATAL: list-preferences cannot resolve @clokr/types/list-preferences.json inside the image -- check packages/types/package.json exports and the COPY of packages/'); process.exit(1); } console.log('list preferences baked:', JSON.stringify(kept));"
+
 # apps/api/node_modules/typescript and packages/db/node_modules/typescript are each
 # workspace package's own local symlink into the root .pnpm/typescript@* entry just removed
 # above (inherited unchanged from the build stage's full install) — would dangle otherwise.

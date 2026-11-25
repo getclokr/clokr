@@ -175,6 +175,7 @@
   />
 {:else}
   <DataTable
+    listId="verwalten.salons.liste"
     {columns}
     {rows}
     rowKey={(row) => row.id}

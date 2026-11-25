@@ -183,7 +183,11 @@ describe("Issue #948 - one count for the Aufgaben cell and the page", () => {
     expect(inboxSource).toContain('rowsForView(allTaskRows, "offen")');
     expect(dashboardSource).toContain('from "$lib/team/task-sources"');
     expect(dashboardSource).toContain("loadOpenTaskSources(");
-    expect(dashboardSource).toContain("openTaskSummary(sourcesR.value, gates)");
+    // Issue #1028 (P-04) moved the wiring, not the rule: the sources of ONE load now sit in state and the
+    // cell (`openTaskSummary`) and the Aufgaben widget (`rowsForView(..., "offen")`) both derive from
+    // them, so the count and the listed rows are one set.
+    expect(dashboardSource).toContain("openTaskSummary(taskSources, taskSourceGates)");
+    expect(dashboardSource).toContain('"offen",');
     expect(dashboardSource).toContain("value: openTasks?.total ?? 0,");
     // No count of its own: the old sum of two reads is gone.
     expect(dashboardSource).not.toMatch(/pendingLeave\.length \+/);

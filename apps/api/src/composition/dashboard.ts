@@ -2653,8 +2653,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // the Stammsalon of its remaining days (D-04): a request is kept when the person is homed in the
   // salon on at least one day from the later of its start and today to its end, so a request that
   // spans a Stammsalon change appears under both salons. The rule itself is
-  // `filterLeaveRowsToHomeSalon()` of the Abwesenheiten context (Issue #558). The limit applies
-  // after the filter.
+  // `filterLeaveRowsToHomeSalon()` of the Abwesenheiten context (Issue #558).
+  //
+  // Issue #1028 (P-06): every upcoming item is answered, in start order, after the filter. The former
+  // cut at eight was the size of the old dashboard card, not a rule: the read below already loads
+  // every row, and the web list widget pages and filters them (page size and type filter stored per
+  // person). Same permission, reach, salon filter and fields - only the number of rows grows.
   app.get("/team-upcoming-leave", {
     schema: {
       tags: ["Dashboard"],
@@ -2662,7 +2666,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       summary: "Upcoming approved leave of the team",
       description:
         "The next approved leave requests of the persons in the caller's team-overview reach, " +
-        "ending today or later, ordered by start date, at most eight. With salonId only requests " +
+        "ending today or later, ordered by start date, every item (the web pages them). With salonId only requests " +
         "of persons whose Stammsalon is that salon on at least one remaining day.",
     },
     preHandler: requirePermission("team-overview:read:ZUGEWIESEN"),
@@ -2710,7 +2714,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       return {
         salonId: filterSalonId,
-        items: rows.slice(0, 8).map((r) => ({
+        items: rows.map((r) => ({
           id: r.id,
           employeeId: r.employeeId,
           employeeName: `${r.employee.firstName} ${r.employee.lastName}`,

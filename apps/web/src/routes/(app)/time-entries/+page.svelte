@@ -2726,6 +2726,7 @@
           </ul>
         {:else if allEntries.length > 0}
           <DataTable
+            listId="ich.zeiten.eintraege"
             caption="Zeiteinträge {format(calMonth, 'MMMM yyyy', { locale: de })}"
             columns={listColumns}
             rows={allEntries}

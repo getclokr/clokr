@@ -7,9 +7,22 @@
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import type { DayCheck } from "$lib/breaks/day-break-violation";
-// The #987 cap (the 5 newest days named, the rest counted). Issue #1028's shared list block will
-// replace it; until that exists this is the one cap in use (P-1029-05).
-import { capMissingDays, FOR_YOU_MISSING_DAYS_SHOWN } from "$lib/dashboard/heute-im-salon";
+
+/**
+ * How many days the sentence names; the rest is counted and opens the full list view.
+ *
+ * Issue #1028 (P-07) deliberately KEEPS this cap: the line is ONE sentence above the Zeiten calendar -
+ * the shape #1029 accepted - not a list widget, and its „N weitere“ already is a button that opens the
+ * full list. It has its own constant (it used to borrow the #987 one of Mein Tag, which #1028 removed).
+ */
+export const DAY_CHECK_LINE_NAMED_DAYS = 5;
+
+/** The newest `max` distinct days in chronological order, and how many further days there are. */
+function newestDays(dates: readonly string[], max: number): { shown: string[]; more: number } {
+  const sorted = [...new Set(dates)].sort();
+  const shown = sorted.slice(Math.max(0, sorted.length - max));
+  return { shown, more: sorted.length - shown.length };
+}
 
 /**
  * Whether the day-break panel has anything to render for this check. This is THE rule of
@@ -31,7 +44,7 @@ export function dayBreakPanelVisible(check: DayCheck): boolean {
 }
 
 export interface DayCheckGroup {
-  /** The days named in the line, chronological (at most `FOR_YOU_MISSING_DAYS_SHOWN`). */
+  /** The days named in the line, chronological (at most `DAY_CHECK_LINE_NAMED_DAYS`). */
   days: string[];
   /** How many further days of this group are not named. */
   more: number;
@@ -47,7 +60,7 @@ export interface DayCheckLineModel {
 }
 
 function group(days: string[]): DayCheckGroup {
-  const { shown, more } = capMissingDays(days, FOR_YOU_MISSING_DAYS_SHOWN);
+  const { shown, more } = newestDays(days, DAY_CHECK_LINE_NAMED_DAYS);
   return { days: shown, more, total: days.length };
 }
 

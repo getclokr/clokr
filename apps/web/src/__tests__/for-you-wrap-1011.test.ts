@@ -35,11 +35,14 @@ function releasesTitleAndSubtitle(style: string): boolean {
   );
 }
 
-/** The opening `<ListRow …>` tag of the "Für dich" list, or null. */
+/**
+ * The opening `<ListRow …>` tag of the "Für dich" list, or null. Issue #1028: the list is a `ListWidget`
+ * of the register id `ich.tag.fuer-dich`; its rows are the `ListRow`s of the widget's `row` snippet.
+ */
 function forYouRowTag(source: string): string | null {
-  const start = source.indexOf('<List ariaLabel="Für dich">');
+  const start = source.indexOf('listId="ich.tag.fuer-dich"');
   if (start === -1) return null;
-  const end = source.indexOf("</List>", start);
+  const end = source.indexOf("</ListWidget>", start);
   const block = source.slice(start, end);
   const tag = block.match(/<ListRow\b[^>]*>/);
   return tag ? tag[0] : null;
@@ -96,7 +99,7 @@ describe("Mein Tag - Für dich passes wrap", () => {
   });
 
   it("control: the pin fails on a copy of the block without wrap", () => {
-    const start = dashboardSource.indexOf('<List ariaLabel="Für dich">');
+    const start = dashboardSource.indexOf('listId="ich.tag.fuer-dich"');
     const stripped =
       dashboardSource.slice(0, start) +
       dashboardSource.slice(start).replace(/(<ListRow\b[^>]*?)\swrap(?=[\s>])/, "$1");

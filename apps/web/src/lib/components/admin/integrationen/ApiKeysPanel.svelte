@@ -237,6 +237,7 @@
     {/if}
   {:else}
     <DataTable
+      listId="verwalten.integrationen.api-schluessel"
       {columns}
       rows={keys}
       rowKey={(row) => row.id}

@@ -40,9 +40,6 @@
     details: ImportResult[];
   }
 
-  /** The preview shows this many rows at most; the import itself always takes the whole text. */
-  const PREVIEW_LIMIT = 50;
-
   const canEmployees = $derived(hasPermission($authStore.user, "employee:import:ZUGEWIESEN"));
   const canTimeEntries = $derived(hasPermission($authStore.user, "time-entry:import:ZUGEWIESEN"));
   const modeOptions = $derived([
@@ -171,9 +168,7 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
     { key: "__row", label: "Zeile", primary: true },
     ...Object.keys(preview[0] ?? {}).map((key) => ({ key, label: key })),
   ]);
-  const previewRows = $derived(
-    preview.slice(0, PREVIEW_LIMIT).map((row, i) => ({ ...row, __row: String(i + 1) })),
-  );
+  const previewRows = $derived(preview.map((row, i) => ({ ...row, __row: String(i + 1) })));
 
   const refusedRows = $derived(importResponse?.details.filter((d) => d.status === "error") ?? []);
   const resultColumns = $derived<DataTableColumn[]>([
@@ -301,14 +296,11 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
         {preview.length}
         {preview.length === 1 ? "Zeile" : "Zeilen"} erkannt. Noch ist nichts übernommen.
       </p>
-      {#if preview.length > PREVIEW_LIMIT}
-        <Note tone="info">
-          Die Vorschau zeigt die ersten {PREVIEW_LIMIT} Zeilen. Beim Import werden alle Zeilen übernommen.
-        </Note>
-      {/if}
       <DataTable
+        listId="verwalten.import.vorschau"
         columns={previewColumns}
         rows={previewRows}
+        pageResetKey={preview.length}
         rowKey={(row) => row.__row}
         caption="Vorschau der erkannten CSV-Zeilen"
       />
@@ -334,6 +326,7 @@ anna@firma.de;Anna;Schmidt;1002;15.03.2024;MANAGER;38.5;;<Salon-ID>`;
 
       {#if refusedRows.length > 0}
         <DataTable
+          listId="verwalten.import.abgelehnt"
           columns={resultColumns}
           rows={refusedRows}
           rowKey={(row) => row.row}

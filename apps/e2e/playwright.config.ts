@@ -297,6 +297,10 @@ export default defineConfig({
       //     the profile option returns to it, Verwalten > System > Allgemein changes it with a toast, the
       //     operator console stays salz without a /me/preferences request, the sign-in page keeps the
       //     device's last shown Farbwelt); tenant fixture only, no seed, no date dependency
+      //   - list-block-visibility-1028.spec.ts (Issue #1028: the Visibility-Durchlauf of the shared list
+      //     block - „Nächste Seite“ of the Aufgaben widget on Heute im Salon and of the Personen table;
+      //     the pager range and the first row of page 2 lie in the viewport); tenant fixture, API seed
+      //     of synthetic persons and open requests of next month's second Monday, no sleeps
       //
       // Issue #1066 added a further file:
       //   - mein-tag-device-zone-1066.spec.ts (Mein Tag in a browser zone on another calendar day than
@@ -321,6 +325,7 @@ export default defineConfig({
         /leave-plan\.spec\.ts/,
         /reports-period\.spec\.ts/,
         /role-editor-visibility-710\.spec\.ts/,
+        /list-block-visibility-1028\.spec\.ts/,
         /push-pwa\.spec\.ts/,
         /leave-area-840\.spec\.ts/,
         /navigation-v2\.spec\.ts/,

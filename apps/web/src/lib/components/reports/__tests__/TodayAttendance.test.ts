@@ -171,10 +171,12 @@ describe("TodayAttendance - summary and table", () => {
     expect(screen.getAllByText("anderer Salon")).toHaveLength(1);
   });
 
-  it("pages the rows (10 per page by default)", async () => {
-    const many = Array.from({ length: 12 }, (_, i) => person(i + 1));
+  it("pages the rows (25 per page by default)", async () => {
+    // Issue #1028 re-target, with reason: every table pages with the shared Pager and its table default
+    // of 25 rows (was 10 here); the assertion is the same - page 1 is full, page 2 holds the rest.
+    const many = Array.from({ length: 27 }, (_, i) => person(i + 1));
     renderWithTheme(TodayAttendance, props({ attendance: data(many) }));
-    expect(within(screen.getAllByRole("rowgroup")[1]).getAllByRole("row")).toHaveLength(10);
+    expect(within(screen.getAllByRole("rowgroup")[1]).getAllByRole("row")).toHaveLength(25);
     await fireEvent.click(screen.getByRole("button", { name: /nächste/i }));
     expect(within(screen.getAllByRole("rowgroup")[1]).getAllByRole("row")).toHaveLength(2);
   });
