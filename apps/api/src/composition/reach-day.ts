@@ -20,6 +20,8 @@ import {
 // Issue #714 generalises the month rule to a period: for a person whose exit lies inside the period
 // the exit day, else the last calendar day of the period's last month. A single month is the period
 // from = to, so every single-month caller keeps its exact behaviour.
+// Issue #1030 generalises the period to any run of calendar days (the week of the Salonansicht): the
+// Stichtag rule is stated once in `windowReachDay`; the month and period functions delegate to it.
 // This module carries no business rule of its own: it only picks the day and delegates.
 
 /** Tenant-local calendar day (UTC-midnight Date) of "today" for a reach lookup. */
@@ -29,6 +31,36 @@ export function reachToday(tz: string): Date {
 
 /** A calendar month, as the period route and the single-month callers name it. */
 export type ReachMonth = { year: number; month: number };
+
+/**
+ * A window of consecutive tenant-local calendar days a Stammsalon reach is judged over (Issue
+ * #1030): `start` and `end` are the instants of the first day's 00:00 and the last day's
+ * 23:59:59.999, `lastDay` is the last calendar day as a UTC-midnight `@db.Date` value. A month, a
+ * period of months and a week are each one such window.
+ */
+export type ReachWindow = { start: Date; end: Date; lastDay: Date };
+
+/**
+ * The calendar day a person's reach is judged on for `window` (Issue #1030): the tenant-local exit
+ * day when `exitDate` lies inside the window, else the window's last calendar day. This is the one
+ * statement of the Stichtag rule; the month (#679) and period (#714) rules are this rule on a
+ * month window.
+ */
+export function windowReachDay(exitDate: Date | null, window: ReachWindow, tz: string): Date {
+  if (exitDate !== null && exitDate >= window.start && exitDate <= window.end) {
+    return new Date(`${dateStrInTz(exitDate, tz)}T00:00:00Z`);
+  }
+  return window.lastDay;
+}
+
+/** The window from the first day of month `from` to the last day of month `to`. */
+function periodWindow(from: ReachMonth, to: ReachMonth, tz: string): ReachWindow {
+  return {
+    start: monthRangeUtc(from.year, from.month, tz).start,
+    end: monthRangeUtc(to.year, to.month, tz).end,
+    lastDay: monthDateRange(to.year, to.month, tz).lastDay,
+  };
+}
 
 /**
  * The calendar day a person's reach is judged on for the period `from`..`to` (Issue #714, the
@@ -42,13 +74,7 @@ export function periodReachDay(
   to: ReachMonth,
   tz: string,
 ): Date {
-  const { start } = monthRangeUtc(from.year, from.month, tz);
-  const { end } = monthRangeUtc(to.year, to.month, tz);
-  const { lastDay } = monthDateRange(to.year, to.month, tz);
-  if (exitDate !== null && exitDate >= start && exitDate <= end) {
-    return new Date(`${dateStrInTz(exitDate, tz)}T00:00:00Z`);
-  }
-  return lastDay;
+  return windowReachDay(exitDate, periodWindow(from, to, tz), tz);
 }
 
 /**
@@ -57,6 +83,45 @@ export function periodReachDay(
  */
 export function monthReachDay(exitDate: Date | null, y: number, m: number, tz: string): Date {
   return periodReachDay(exitDate, { year: y, month: m }, { year: y, month: m }, tz);
+}
+
+/**
+ * List mode over a window (Issue #1030): every person in `reach` for `window`, each judged on their
+ * own reach day ({@link windowReachDay}). `wholeTenant` -> `"all"` without a query.
+ */
+export async function resolveWindowReachIds(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  reach: AccessReach,
+  window: ReachWindow,
+  tz: string,
+): Promise<"all" | string[]> {
+  if (reach.kind === "wholeTenant") return "all";
+  const homeOn = async (calendarDay: Date): Promise<Set<string>> => {
+    const ids = await resolveStammsalonScopedEmployeeIds(db, tenantId, reach, calendarDay);
+    return new Set(ids === "all" ? [] : ids);
+  };
+
+  const leavers = await db.employee.findMany({
+    where: { tenantId, exitDate: { gte: window.start, lte: window.end } },
+    select: { id: true, exitDate: true },
+  });
+  const leaverIds = new Set(leavers.map((l) => l.id));
+  const members = new Set<string>();
+  for (const id of await homeOn(window.lastDay)) {
+    if (!leaverIds.has(id)) members.add(id);
+  }
+  const byExitDay = new Map<string, string[]>();
+  for (const leaver of leavers) {
+    // The Stichtag rule lives in windowReachDay only; a leaver here lies inside the window.
+    const exitDay = windowReachDay(leaver.exitDate, window, tz).toISOString().slice(0, 10);
+    byExitDay.set(exitDay, [...(byExitDay.get(exitDay) ?? []), leaver.id]);
+  }
+  for (const [exitDay, ids] of byExitDay) {
+    const home = await homeOn(new Date(`${exitDay}T00:00:00Z`));
+    for (const id of ids) if (home.has(id)) members.add(id);
+  }
+  return [...members];
 }
 
 /**
@@ -71,35 +136,7 @@ export async function resolvePeriodReachIds(
   to: ReachMonth,
   tz: string,
 ): Promise<"all" | string[]> {
-  if (reach.kind === "wholeTenant") return "all";
-  const { start } = monthRangeUtc(from.year, from.month, tz);
-  const { end } = monthRangeUtc(to.year, to.month, tz);
-  const { lastDay } = monthDateRange(to.year, to.month, tz);
-  const homeOn = async (calendarDay: Date): Promise<Set<string>> => {
-    const ids = await resolveStammsalonScopedEmployeeIds(db, tenantId, reach, calendarDay);
-    return new Set(ids === "all" ? [] : ids);
-  };
-
-  const leavers = await db.employee.findMany({
-    where: { tenantId, exitDate: { gte: start, lte: end } },
-    select: { id: true, exitDate: true },
-  });
-  const leaverIds = new Set(leavers.map((l) => l.id));
-  const members = new Set<string>();
-  for (const id of await homeOn(lastDay)) {
-    if (!leaverIds.has(id)) members.add(id);
-  }
-  const byExitDay = new Map<string, string[]>();
-  for (const leaver of leavers) {
-    // The Stichtag rule lives in periodReachDay only; a leaver here lies inside the period.
-    const exitDay = periodReachDay(leaver.exitDate, from, to, tz).toISOString().slice(0, 10);
-    byExitDay.set(exitDay, [...(byExitDay.get(exitDay) ?? []), leaver.id]);
-  }
-  for (const [exitDay, ids] of byExitDay) {
-    const home = await homeOn(new Date(`${exitDay}T00:00:00Z`));
-    for (const id of ids) if (home.has(id)) members.add(id);
-  }
-  return [...members];
+  return resolveWindowReachIds(db, tenantId, reach, periodWindow(from, to, tz), tz);
 }
 
 /**

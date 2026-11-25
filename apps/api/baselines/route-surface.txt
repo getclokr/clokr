@@ -228,6 +228,8 @@
 ├── /api/v1/retro-entry-requests (POST, GET, HEAD)
 ├── /api/v1/role-assignments (GET, HEAD, POST)
 ├── /api/v1/roles (GET, HEAD, POST)
+├── /api/v1/salon-hours (GET, HEAD)
+│   └── /csv (GET, HEAD)
 ├── /api/v1/salons (GET, HEAD, POST)
 ├── /api/v1/section9-documents/:creditId (POST, GET, HEAD)
 ├── /api/v1/settings/employees (GET, HEAD)

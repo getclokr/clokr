@@ -121,7 +121,10 @@
     "team.dienstplan.planungsbedarf": {
       "kind": "table"
     },
-    "team.zeiten.salon-eintraege": {
+    "team.zeiten.salon-austausch": {
+      "kind": "table"
+    },
+    "team.zeiten.salon-stunden": {
       "kind": "table",
       "defaultPageSize": 50
     },

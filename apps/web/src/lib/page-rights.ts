@@ -155,6 +155,19 @@ export function salonAdminRights(user: Caller): SalonAdminRights {
   };
 }
 
+/** Team › Zeiten › Salonansicht, the hours raster of one salon (Issue #1030). */
+export interface SalonHoursRights {
+  /** `GET /salon-hours` - team-overview:read. The tab is offered with this (and a multi-salon tenant). */
+  view: boolean;
+  /** `GET /salon-hours/csv` - team-overview:read AND report:export. The Salonmanager template has no export. */
+  export: boolean;
+}
+
+export function salonHoursRights(user: Caller): SalonHoursRights {
+  const view = hasPermission(user, "team-overview:read:ZUGEWIESEN");
+  return { view, export: view && hasPermission(user, "report:export:ZUGEWIESEN") };
+}
+
 /** `/admin/salons/:id`, section „Feiertage“: what `POST`/`DELETE /holidays` would accept (Issue #579). */
 export interface SalonHolidayRights {
   /** `POST /holidays`, `DELETE /holidays/:id` - holiday:manage. Reading the list needs no permission. */

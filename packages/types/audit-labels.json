@@ -204,7 +204,8 @@
     "MONTHLY_EXPORT_PDF": "Monatsexport (PDF)",
     "MONTHLY_PDF": "Stundennachweis (PDF)",
     "PERIOD_ABSENCES_CSV": "Abwesenheiten des Zeitraums (CSV)",
-    "PERIOD_CSV": "Zeitraumbericht (CSV)"
+    "PERIOD_CSV": "Zeitraumbericht (CSV)",
+    "SALON_HOURS_CSV": "Austausch zwischen Salons (CSV)"
   },
   "fields": {
     "*": {

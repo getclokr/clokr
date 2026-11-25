@@ -13,6 +13,7 @@ import {
   reportRights,
   salonAdminRights,
   salonHolidayRights,
+  salonHoursRights,
 } from "$lib/page-rights";
 import personas from "$lib/nav/__tests__/fixtures/system-role-permissions.json";
 
@@ -526,5 +527,36 @@ describe("salonHolidayRights (/admin/salons/:id, section Feiertage, Issue #579)"
   it("holds nothing without a permission list, whatever the compat role says", () => {
     expect(salonHolidayRights(adminRoleNoPermissions).canManage).toBe(false);
     expect(salonHolidayRights(noList).canManage).toBe(false);
+  });
+});
+
+describe("salonHoursRights (Team › Zeiten › Salonansicht, Issue #1030)", () => {
+  it("the Salonmanager sees the raster but has no export", () => {
+    expect(salonHoursRights({ permissions: p.SALON_MANAGER })).toEqual({
+      view: true,
+      export: false,
+    });
+  });
+
+  it("admin, owner and manager see the raster and may export", () => {
+    for (const key of ["ADMIN", "OWNER", "MANAGER"]) {
+      expect(salonHoursRights({ permissions: p[key] }), key).toEqual({ view: true, export: true });
+    }
+  });
+
+  it("the trainer, the employee and HR see nothing", () => {
+    for (const key of ["TRAINER", "EMPLOYEE", "HR"]) {
+      expect(salonHoursRights({ permissions: p[key] }), key).toEqual({
+        view: false,
+        export: false,
+      });
+    }
+  });
+
+  it("the export alone opens nothing, and a compat role never decides", () => {
+    expect(salonHoursRights(customExporter)).toEqual({ view: false, export: false });
+    expect(salonHoursRights(adminRoleNoPermissions)).toEqual({ view: false, export: false });
+    expect(salonHoursRights(noList)).toEqual({ view: false, export: false });
+    expect(salonHoursRights(null)).toEqual({ view: false, export: false });
   });
 });

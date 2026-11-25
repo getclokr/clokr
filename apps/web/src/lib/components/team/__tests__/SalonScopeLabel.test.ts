@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 // The label imports the shared texts from page-scope, which pulls in the api client; a stand-in
-// (as in SalonTimeEntries.test.ts) keeps this file free of the auth store bootstrap.
+// (as in team-view.test.ts) keeps this file free of the auth store bootstrap.
 vi.mock("$api/client", () => ({
   api: { get: vi.fn() },
   ApiError: class ApiError extends Error {},

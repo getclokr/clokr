@@ -199,9 +199,10 @@ export type PeriodSalonHelper = {
  * Issue #714 (D-06, P-714-04): the working minutes of a person's closed, valid WORK entries recorded
  * in the salon through tenant-local yesterday - today never counts (#438); a travel row counts for
  * its departure salon (#92). The very derivation of the filtered `GET /reports/monthly` (#542 P-02),
- * so the two Ist figures of the salon are one number.
+ * so the two Ist figures of the salon are one number. Issue #1030: exported, the second reader is the
+ * Salonansicht's hours raster (`salon-hours-cells.ts`), which never derives a minute any other way.
  */
-function salonWorkedMinutesOf(
+export function salonWorkedMinutesOf(
   entries: ReadonlyArray<{ salonId: string; date: Date } & Parameters<typeof addWorkingMinutes>[1]>,
   salonId: string,
   yesterday: Date,

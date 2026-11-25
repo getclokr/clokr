@@ -90,6 +90,13 @@ interface CapException {
  */
 export const CAP_EXCEPTIONS: readonly CapException[] = [
   {
+    file: "lib/team/salon-hours.ts",
+    detector: "slice-const",
+    count: 1,
+    reason:
+      "Issue #1030: MAX_ELSEWHERE_NAMES spells out at most two salon names inside one cell chip of the Salonansicht and counts the rest as „+N“ („in Süd, Ost +1“); it is a chip text of one day cell, not a list.",
+  },
+  {
     file: "lib/components/breaks/DayCheckLine.svelte",
     detector: "weitere",
     count: 1,

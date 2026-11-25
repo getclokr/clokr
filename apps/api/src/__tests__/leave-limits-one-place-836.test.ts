@@ -185,6 +185,12 @@ const HOME_SALON_REGISTER: readonly HomeSalonCaller[] = [
     reason: "attributes the monthly report's sick and § 9 days to a salon filter (Issue #542)",
   },
   {
+    file: "composition/salon-hours.ts",
+    region: "function assembleSalonHours",
+    reason:
+      "resolves the Stammteam and the helpers' Stammsalon per day for the Salonansicht hours raster (Issue #1030); a home-salon read, never a leave count",
+  },
+  {
     file: "contexts/scheduling/api/shifts.ts",
     region: "get /week",
     reason:
