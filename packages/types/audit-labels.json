@@ -321,6 +321,7 @@
       "consolidationGapHours": "Zusammenfassen von Einträgen: Lücke in Stunden",
       "dataRetentionYears": "Aufbewahrung in Jahren",
       "datevBeraterNr": "DATEV-Beraternummer",
+      "datevFreistellungNr": "DATEV-Lohnart Bezahlte Freistellung",
       "datevKrankNr": "DATEV-Lohnart Krankheit",
       "datevMandantenNr": "DATEV-Mandantennummer",
       "datevNormalstundenNr": "DATEV-Lohnart Normalstunden",

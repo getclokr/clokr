@@ -1,12 +1,14 @@
 <!--
   DatevPanel - the „DATEV“ tab of Verwalten › System › Integrationen (Issue #951; the numbers used to sit on
   Daten › Export, which now only downloads). Registry section `export-datev-einrichtung`: Berater-Nr.,
-  Mandantennummer and the four Lohnarten; the save sends exactly those six keys to `PUT /settings/work` and the
-  panel keeps no copy of the other settings (#878). The section keeps the permission alternatives of the
+  Mandantennummer and the Lohnarten (four required, the optional „Bezahlte Freistellung“ of #1082); the save
+  sends exactly those seven keys to `PUT /settings/work` and the panel keeps no copy of the other settings (#878). The section keeps the permission alternatives of the
   export page it came from (`report:export`, D-854-05).
 
-  A cleared Berater- or Mandantennummer is an explicit null („nicht eingerichtet“), which the API accepts for
-  these two only; the DATEV export is refused while either is unset.
+  A cleared Berater- or Mandantennummer is an explicit null („nicht eingerichtet“); the DATEV export is refused
+  while either is unset. A cleared „Bezahlte Freistellung“ is an explicit null too: it means „no DATEV row for
+  the paid release days of a Betriebsurlaub“, the file stays as it was before the Lohnart existed. The API
+  accepts null for exactly these three.
 
   Props:
     active - true while the tab is the selected one
@@ -43,6 +45,8 @@
     // No default: null means "not configured", and the export refuses to run (409) rather than shipping 0/0.
     datevBeraterNr?: number | null;
     datevMandantenNr?: number | null;
+    // Issue #1082: no default, null means "no DATEV row for the paid release days".
+    datevFreistellungNr?: number | null;
   }
   type DatevValues = {
     datevBeraterNr: number | null;
@@ -51,6 +55,7 @@
     datevUrlaubNr: number | null;
     datevKrankNr: number | null;
     datevSonderurlaubNr: number | null;
+    datevFreistellungNr: number | null;
   };
 
   const datevFrom = (c: DatevConfig): DatevValues => ({
@@ -60,6 +65,7 @@
     datevUrlaubNr: Number(c.datevUrlaubNr ?? 300),
     datevKrankNr: Number(c.datevKrankNr ?? 200),
     datevSonderurlaubNr: Number(c.datevSonderurlaubNr ?? 302),
+    datevFreistellungNr: typeof c.datevFreistellungNr === "number" ? c.datevFreistellungNr : null,
   });
 
   let datev = $state<DatevValues>(datevFrom({}));
@@ -96,6 +102,11 @@
       min: 1,
       max: 9999,
     }),
+    datevFreistellungNr: wholeNumberProblem("Bezahlte Freistellung", datev.datevFreistellungNr, {
+      min: 1,
+      max: 9999,
+      optional: true,
+    }),
   });
   const datevErrorCount = $derived(Object.values(datevProblems).filter((p) => p !== null).length);
 
@@ -123,8 +134,9 @@
     if (!snapshotsReady || datevErrorCount > 0) return;
     datevSaving = true;
     try {
-      // Exactly the six keys of the registry section: a cleared Berater- or Mandantennummer is an explicit
-      // null ("not configured"), which the API accepts for these two only.
+      // Exactly the seven keys of the registry section: a cleared Berater- or Mandantennummer is an explicit
+      // null ("not configured"), a cleared Lohnart "Bezahlte Freistellung" one too (no DATEV row); the API
+      // accepts null for these three only.
       await api.put(
         "/settings/work",
         pickSection(
@@ -289,6 +301,26 @@
           step="1"
           class="form-input"
           bind:value={datev.datevSonderurlaubNr}
+          disabled={!canEditSettings || datevSaving}
+          aria-describedby={describedBy}
+          aria-invalid={invalid}
+        />
+      {/snippet}
+    </FormField>
+    <FormField
+      label="Bezahlte Freistellung"
+      hint="Lohnart für die Tage eines Betriebsurlaubs ohne Urlaubsabzug. Leer lassen, wenn deine Lohnabrechnung dafür keine eigene Zeile braucht."
+      error={datevProblems.datevFreistellungNr ?? undefined}
+    >
+      {#snippet field({ id, describedBy, invalid })}
+        <input
+          {id}
+          type="number"
+          min="1"
+          max="9999"
+          step="1"
+          class="form-input"
+          bind:value={datev.datevFreistellungNr}
           disabled={!canEditSettings || datevSaving}
           aria-describedby={describedBy}
           aria-invalid={invalid}

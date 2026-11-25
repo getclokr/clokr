@@ -7,8 +7,8 @@
 // What this pins (T-109-38):
 // - D-01: `saveDatev` (the DATEV-Einrichtung, registry section `export-datev-einrichtung`) writes only via its
 //   section's SaveBar, never on a field event.
-// - The payload is `pickSection(datev, settingsSection("export-datev-einrichtung").keys)` - exactly the six
-//   `datev*` keys, no spread of loaded settings (the former `_gOtherFields` spread was the N-09 lost-update race,
+// - The payload is `pickSection(datev, settingsSection("export-datev-einrichtung").keys)` - exactly the seven
+//   `datev*` keys (Issue #1082 added the optional `datevFreistellungNr`), no spread of loaded settings (the former `_gOtherFields` spread was the N-09 lost-update race,
 //   Issue #878; `settings-pages-854` pins the exact key set of the registry section).
 // - `saveDatev` is a provable no-op after a failed load (`if (!snapshotsReady) return;`), and the unsaved marker
 //   is gated on the same flag (WR-01): a "Nicht gespeichert" marker on a page whose save cannot write is a lie.
@@ -20,6 +20,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
+
+import { settingsSection } from "$lib/settings/settings-pages";
 
 // fileURLToPath decodes the %28/%29 that the "(app)" route group produces in import.meta.url.
 function readRouteFile(relativeFromHere: string, relativeFromCwd: string): string {
@@ -107,7 +109,7 @@ describe("saveDatev payload census", () => {
     expect(PAGE).not.toContain("_gOtherFields");
   });
 
-  it("the form value carries exactly the six datev* keys", () => {
+  it("the form value carries exactly the seven datev* keys", () => {
     const start = PAGE.indexOf("type DatevValues = {");
     expect(start).toBeGreaterThan(-1);
     const slice = PAGE.slice(start, PAGE.indexOf("};", start));
@@ -118,10 +120,40 @@ describe("saveDatev payload census", () => {
         "datevUrlaubNr",
         "datevKrankNr",
         "datevSonderurlaubNr",
+        "datevFreistellungNr",
         "datevBeraterNr",
         "datevMandantenNr",
       ]),
     );
+  });
+
+  // Issue #1082: the Lohnart "Bezahlte Freistellung" is optional. A missing or non-number value is "not
+  // configured" (null, no default number - a default would put a row into every DATEV file), and a cleared
+  // field is checked as optional, so the explicit null reaches the API instead of a blocked save.
+  it("datevFrom maps a missing or non-number Freistellung to null, with no default number", () => {
+    const start = PAGE.indexOf("const datevFrom = ");
+    expect(start).toBeGreaterThan(-1);
+    const body = PAGE.slice(start, PAGE.indexOf("});", start));
+    expect(body).toMatch(
+      /datevFreistellungNr:\s*typeof c\.datevFreistellungNr === "number" \? c\.datevFreistellungNr : null/,
+    );
+    expect(body).not.toMatch(/datevFreistellungNr:\s*Number\(/);
+  });
+
+  it("the problem check of datevFreistellungNr passes optional: true, with the 1-9999 range", () => {
+    const start = PAGE.indexOf("datevFreistellungNr: wholeNumberProblem(");
+    expect(start).toBeGreaterThan(-1);
+    const call = PAGE.slice(start, PAGE.indexOf("}),", start));
+    expect(call).toContain('"Bezahlte Freistellung"');
+    expect(call).toContain("min: 1");
+    expect(call).toContain("max: 9999");
+    expect(call).toContain("optional: true");
+  });
+
+  it("the registry section carries the key and the form shows the labelled field", () => {
+    expect(settingsSection("export-datev-einrichtung").keys).toContain("datevFreistellungNr");
+    expect(PAGE).toContain('label="Bezahlte Freistellung"');
+    expect(PAGE).toContain("bind:value={datev.datevFreistellungNr}");
   });
 });
 

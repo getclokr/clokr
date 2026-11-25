@@ -215,6 +215,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   defaultDays: "Tage",
   totalDays: "Urlaubstage",
   federalState: "Bundesland",
+  datevFreistellungNr: "Bezahlte Freistellung", // Issue #1082
 };
 
 export interface ValidationIssue {
