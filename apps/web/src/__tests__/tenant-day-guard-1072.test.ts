@@ -174,6 +174,28 @@ describe("tenant-day guard (#1072)", () => {
       }
     });
 
+    it("register: no temporary migration entry is left, and none may come back", () => {
+      const temporary = TENANT_DAY_EXCEPTIONS.filter((e) =>
+        /^Issue #1072 migration/i.test(e.reason),
+      ).map((e) => `${e.file} × ${e.rule}`);
+      expect(temporary).toEqual([]);
+      // control: the matcher does catch the reason text the migration used
+      expect(
+        /^Issue #1072 migration/i.test(
+          "Issue #1072 migration: moves onto the tenant day in Task 3 of the 1072 quick plan",
+        ),
+      ).toBe(true);
+    });
+
+    it("register: only the operator console's two helpers remain, two rules each", () => {
+      expect(TENANT_DAY_EXCEPTIONS.map((e) => `${e.file} × ${e.rule}`).sort()).toEqual([
+        "lib/operator/support-audit.ts × device-default-param",
+        "lib/operator/support-audit.ts × now-calendar-field",
+        "lib/operator/support-month.ts × device-default-param",
+        "lib/operator/support-month.ts × now-calendar-field",
+      ]);
+    });
+
     it("register: no entry is stale - its rule still hits that file", () => {
       for (const e of TENANT_DAY_EXCEPTIONS) {
         const stillHits = ALL_HITS.some((h) => h.file === e.file && h.rule === e.rule);

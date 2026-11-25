@@ -17,6 +17,7 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
   import { toasts } from "$stores/toast";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import TeamSection from "$lib/components/team/TeamSection.svelte";
@@ -54,16 +55,21 @@
   let loadError = $state("");
   let busyKey = $state<string | null>(null);
 
-  // Local calendar days (never toISOString, which is the UTC day — see #849).
-  function localDay(offsetDays: number): string {
-    const d = new Date();
+  // Tenant calendar days (Issue #1072; never the UTC or the device day, see #849): the anchor's
+  // local fields are the tenant's day, so stepping the date by `offsetDays` stays on tenant days.
+  function tenantDayOffset(zone: string, offsetDays: number): string {
+    const d = tenantDayAnchor(new Date(), zone);
     d.setDate(d.getDate() + offsetDays);
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
-  let fromDate = $state(localDay(-30));
-  let toDate = $state(localDay(60));
+  // The default window starts from the store's zone (the default zone until the (app) layout's read
+  // settles); `onMount` moves what the person has not changed once the tenant zone is known.
+  const initFrom = tenantDayOffset($tenantFeatures.timezone, -30);
+  const initTo = tenantDayOffset($tenantFeatures.timezone, 60);
+  let fromDate = $state(initFrom);
+  let toDate = $state(initTo);
 
   async function load() {
     loading = true;
@@ -95,7 +101,13 @@
     }
   }
 
-  onMount(load);
+  onMount(async () => {
+    // The window of the first request is the tenant's: wait for the zone (Issue #1072).
+    const zone = await tenantFeatures.loadTimezone();
+    if (fromDate === initFrom) fromDate = tenantDayOffset(zone, -30);
+    if (toDate === initTo) toDate = tenantDayOffset(zone, 60);
+    await load();
+  });
 </script>
 
 <svelte:head>

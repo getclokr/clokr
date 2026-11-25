@@ -4,6 +4,8 @@
   // (mode="oneoff"). Wraps the existing $components/ui/Modal.svelte primitive
   // (role="dialog"; alertdialog is reserved for destructive confirms).
 
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import SegmentedControl from "$lib/components/ui/SegmentedControl.svelte";
@@ -46,8 +48,9 @@
     { value: 0, label: "Sonntag" },
   ];
 
+  // The tenant's calendar day (Issue #1072), the day the server files a stamp under.
   function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   // Local form state — initialised on first open via the $effect below.

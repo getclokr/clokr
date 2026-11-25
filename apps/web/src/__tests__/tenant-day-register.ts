@@ -5,10 +5,9 @@
 // (a stale exception is a hole the guard would otherwise silently keep open). The register only
 // ever shrinks: a new place that needs "today" derives it through `$lib/utils/tenant-day`.
 //
-// The operator console is the one lasting exception. While Issue #1072 is being migrated the list
-// additionally carries a temporary entry per file that has not moved yet (falling-only, like the
-// repo's ratchets): the task that fixes a file removes its entries, and the last task leaves only
-// the operator console.
+// The operator console is the one lasting exception. During the migration of Issue #1072 the list
+// carried a temporary entry per file that had not moved yet; none is left, and the guard fails on
+// any reason that names a migration, so the register only holds reasoned, lasting exceptions.
 
 export type TenantDayRule =
   | "format-device-day"
@@ -29,38 +28,9 @@ export interface TenantDayException {
 const OPERATOR_REASON =
   "Operator console (Phase 88/93): the operator principal holds no tenant session and never reads GET /settings/work; the value is only the starting filter the operator changes, and the API validates every month and window.";
 
-/** Temporary: the file moves onto the tenant day in Task `task` of the 1072 quick plan. */
-function migration(task: number): string {
-  return `Issue #1072 migration: moves onto the tenant day in Task ${task} of the 1072 quick plan`;
-}
-
 export const TENANT_DAY_EXCEPTIONS: ReadonlyArray<TenantDayException> = [
   { file: "lib/operator/support-month.ts", rule: "device-default-param", reason: OPERATOR_REASON },
   { file: "lib/operator/support-month.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
   { file: "lib/operator/support-audit.ts", rule: "device-default-param", reason: OPERATOR_REASON },
   { file: "lib/operator/support-audit.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
-  // Temporary migration entries, removed by the task that fixes the file.
-  {
-    file: "lib/components/availability/AvailabilityEditModal.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(6),
-  },
-  {
-    file: "lib/components/availability/AvailabilityOneOffList.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(6),
-  },
-  {
-    file: "lib/components/availability/AvailabilityWeekGrid.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(6),
-  },
-  { file: "lib/settings/phorest.ts", rule: "device-default-param", reason: migration(6) },
-  { file: "lib/settings/phorest.ts", rule: "utc-day-of-now", reason: migration(6) },
-  {
-    file: "routes/(app)/admin/availability/[employeeId]/+page.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(6),
-  },
-  { file: "routes/(app)/availability/+page.svelte", rule: "utc-day-of-now", reason: migration(6) },
 ];

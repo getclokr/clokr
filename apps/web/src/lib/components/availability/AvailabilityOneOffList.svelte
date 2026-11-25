@@ -3,6 +3,8 @@
   // and destructive delete. Used by both /availability (MA-Self-Service) and
   // /admin/availability (Admin) pages.
 
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
   import Pagination from "$components/ui/Pagination.svelte";
   import AvailabilityStatusPill from "./AvailabilityStatusPill.svelte";
@@ -28,8 +30,9 @@
 
   let { entries = $bindable([]), disabled = false }: Props = $props();
 
+  // The tenant's calendar day (Issue #1072), the day the server files a stamp under.
   function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   function formatDE(iso: string): string {

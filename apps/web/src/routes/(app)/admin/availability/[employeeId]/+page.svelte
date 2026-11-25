@@ -13,6 +13,7 @@
   import { page } from "$app/state";
   import { api, ApiError } from "$api/client";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
   import ListDetail from "$lib/components/admin/ListDetail.svelte";
@@ -51,8 +52,9 @@
     entries: ApiAvailabilityEntry[];
   }
 
+  // The tenant's calendar day (Issue #1072), the day the server files a stamp under.
   function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   const employeeId = $derived(page.params.employeeId);
@@ -167,6 +169,9 @@
         api.get<Employee>(`/employees/${employeeId}`),
         api.get<AvailabilityListResponse>(`/employees/${employeeId}/availability`),
       ]);
+      // An entry without a start day falls back to the tenant's today (Issue #1072): the zone is
+      // known before the entries are mapped.
+      await tenantFeatures.loadTimezone();
 
       if (empRes.status === "fulfilled") {
         employee = empRes.value;

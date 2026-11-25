@@ -18,6 +18,8 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
   import Chip from "$components/ui/Chip.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
@@ -62,7 +64,8 @@
   async function load() {
     loading = true;
     failed = false;
-    const start = new Date();
+    // "Today" is the tenant's day (Issue #1072): a calendar anchor whose local fields are that day.
+    const start = tenantDayAnchor(new Date(), await tenantFeatures.loadTimezone());
     const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + DAYS - 1);
     // Whole ISO weeks: the week rule of the agenda needs the shifts of the days before today as well.
     const fetchFrom = mondayOf(start);

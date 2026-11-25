@@ -21,6 +21,7 @@
   } from "$lib/me/calendar-feed";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Card from "$components/ui/Card.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import AvailabilityWeekGrid, {
@@ -50,8 +51,9 @@
     entries: ApiAvailabilityEntry[];
   }
 
+  // The tenant's calendar day (Issue #1072), the day the server files a stamp under.
   function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   let view = $state<string>("plan");
