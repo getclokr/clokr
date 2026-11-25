@@ -314,7 +314,14 @@
       employeeId: string;
       date: string;
       reason:
-        "leave" | "absence" | "existing" | "no-pattern" | "open-day" | "availability-unavailable";
+        | "leave"
+        | "absence"
+        | "existing"
+        | "no-pattern"
+        | "open-day"
+        | "availability-unavailable"
+        | "jarbschg"; // Issue #1057
+      message?: string;
     }>;
     committed: boolean;
   }
@@ -339,7 +346,8 @@
     skip: Array<{
       employeeId: string;
       date: string;
-      reason: "leave" | "absence" | "existing" | "availability-unavailable";
+      reason: "leave" | "absence" | "existing" | "availability-unavailable" | "jarbschg"; // Issue #1057
+      message?: string;
     }>;
     committed: boolean;
   }
@@ -387,6 +395,8 @@
         return "Frei nach Muster";
       case "availability-unavailable":
         return "Nicht verfügbar";
+      case "jarbschg":
+        return "Jugendarbeitsschutz";
       case "no-pattern":
       default:
         return "Kein Muster";
@@ -445,6 +455,8 @@
         return "Übersprungen — Schicht existiert bereits";
       case "availability-unavailable":
         return "Übersprungen — nicht verfügbar";
+      case "jarbschg":
+        return "Übersprungen — Jugendarbeitsschutz";
       default:
         return "Übersprungen";
     }
@@ -2155,7 +2167,7 @@
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
-              <span class="sp-gen-reason sp-gen-reason--{s.reason}"
+              <span class="sp-gen-reason sp-gen-reason--{s.reason}" title={s.message}
                 >{skipReasonLabel(s.reason)}</span
               >
             </div>
@@ -2242,7 +2254,7 @@
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
-              <span class="sp-gen-reason sp-gen-reason--{s.reason}"
+              <span class="sp-gen-reason sp-gen-reason--{s.reason}" title={s.message}
                 >{copySkipReasonLabel(s.reason)}</span
               >
             </div>
@@ -2491,7 +2503,8 @@
   .sp-gen-reason--open-day {
     color: var(--text-2);
   }
-  .sp-gen-reason--availability-unavailable {
+  .sp-gen-reason--availability-unavailable,
+  .sp-gen-reason--jarbschg {
     color: var(--bad);
     border-color: var(--bad);
   }

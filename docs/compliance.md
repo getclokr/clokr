@@ -57,10 +57,56 @@ Sobald MA bereits eine Pause eingegeben hat (z.B. nur 15min), greift Auto-Break 
 - **„Im Voraus feststehend“ (§ 4 Satz 1):** Die Pausen müssen im Voraus feststehen. Das lässt sich aus Zeitstempeln nicht prüfen; ein erfasstes, abgeschlossenes Pausensegment gilt als Ruhepause.
 - **Ältere Einträge ohne Pausenlage:** Nur als Summe gespeicherte Pausen erzeugen den Hinweis `BREAK_POSITION_UNKNOWN`, nie einen Verstoß. Vor dem Einschalten von `blockMonthCloseOnUnconfirmedBreak` den Probelauf `audit-511-break-placement.ts` lesen.
 - **Fahrzeit zwischen Salons:** wird seit Issue #92 als eigener Eintrag erfasst (Abschnitt „Fahrzeit zwischen Salons“). Eine Lücke zwischen zwei Salons, für die keine Fahrzeit erfasst ist, bleibt die Grenzfall-Rechnung (`UNCLEAR`); das System erkennt eine Fahrt nicht selbst.
-- **Jugendliche:** § 8 JArbSchG (Tages- und Wochenhöchstzeit) wird nicht geprüft (Issue #524). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
+- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
 - **Geschlossene Monate** werden nie neu bewertet.
 - **Tätigkeitsart (#81):** Die Tätigkeitsart ändert keine Arbeitszeit-, Pausen- oder Ruhezeitprüfung. Ein Fahrzeiteintrag (#92) zählt wie jeder Eintrag voll als Arbeitszeit; die Art „Fahrzeit“ selbst verändert auch hier keine Prüfung.
 - **Rechtsgrund im Befund:** Der Verweis auf § 11 JArbSchG im Befundtext lässt auf Minderjährigkeit schließen; Geburtsdatum und Alter werden nie ausgegeben.
+
+---
+
+## § 8 / § 12 JArbSchG — Schichtplanung (Issue #1057)
+
+Wer eine Schicht für eine Person plant, die am Schichttag unter 18 ist, bekommt die Grenzen des Jugendarbeitsschutzgesetzes geprüft. Die Prüfung liegt in `apps/api/src/contexts/scheduling/minor-shift-limits.ts`; sie liest nur und schreibt weder Schicht noch Audit noch Saldo.
+
+### Geltung
+
+- Für eine Person unter 18 gilt das JArbSchG anstelle des ArbZG (§ 18 Abs. 2 ArbZG). „Unter 18“ wird **je Schichttag** entschieden (`isMinorAtDate`); der 18. Geburtstag selbst zählt schon als volljährig (§ 187 Abs. 2 Satz 2 BGB). Eine Woche mit Geburtstag wird deshalb tageweise geprüft.
+- Fehlt das Geburtsdatum, gilt die Person als volljährig: Verhalten unverändert (§ 3 und § 5 ArbZG, kein neuer Code).
+- Die Prüfung läuft vor der § 3-ArbZG-Prüfung und meldet eigene Codes.
+
+### Regeln
+
+Arbeitszeit ist die geplante Schichtzeit **abzüglich der Ruhepause** nach § 11 JArbSchG (dieselbe Pausenregel wie die Erfassung, `breakAmountFor`) plus die Berufsschulzeit des Tages nach § 9 Abs. 2 JArbSchG (die bestehende Anrechnung des Arbeitszeitkontos, nur gelesen).
+
+| Grenze               | Wert                                                                                                               | Rechtsgrund                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Tag                  | höchstens 8 Stunden                                                                                                | § 8 Abs. 1 JArbSchG                         |
+| Tag, verkürzte Woche | bis 8,5 Stunden, wenn ein anderer Werktag (Mo–Sa) derselben Woche weniger als 8 Stunden Arbeitszeit hat            | § 8 Abs. 2a JArbSchG                        |
+| Woche                | höchstens 40 Stunden, Montag bis Sonntag, nur Tage als Jugendliche, Berufsschulzeit eingerechnet                   | § 8 Abs. 1, § 4 Abs. 4, § 9 Abs. 2 JArbSchG |
+| Schichtzeit          | höchstens 10 Stunden vom ersten Beginn bis zum letzten Ende des Tages, Pausen und Teildienst-Lücken eingeschlossen | § 12 JArbSchG                               |
+
+Lesart zu § 8 Abs. 2a: Ein Werktag ohne jede Arbeit zählt als „auf weniger als acht Stunden verkürzt“ (Wortlaut). Die engere Lesart (nur ein gearbeiteter kurzer Tag) würde rechtmäßige Wochen mit Urlaubs- oder Feiertag hart sperren, ohne Ausnahmemöglichkeit.
+
+### Meldung
+
+- POST und PUT `/api/v1/shifts` antworten 422 mit `error: "JArbSchG-Verstoß"`, `canForce: false` und einem der Codes `JARBSCHG_VIOLATION_DAILY_MAX`, `JARBSCHG_VIOLATION_WEEKLY_MAX`, `JARBSCHG_VIOLATION_SHIFT_TIME`. `?force=true` ändert nichts. Die Meldung ist deutsch und nennt Tag und Grenze.
+- Sammelzuweisung (`/bulk`) lehnt bei einem Verstoß die **ganze** Anfrage ab (atomar). Wiederherstellen einer durch die Berufsschul-Bereinigung gelöschten Schicht wird wie eine neue Schicht geprüft.
+- „Muster anwenden“ (generate-week) und „Woche kopieren“ (copy-week) überspringen die betroffene Zelle mit dem Grund „Jugendarbeitsschutz“, in Vorschau und Übernahme gleich.
+- Abgelehnt wird nur, was einen Verstoß **erzeugt oder vergrößert** (Tageswert, Schichtzeit oder Wochensumme wächst). Ein bereits unzulässiger Plan (Altbestand, Phorest-Import) sperrt den Dienstplan nicht: Verkürzen, Verschieben weg vom Tag und reine Textänderungen bleiben möglich.
+- Eine abgelehnte Anfrage schreibt keine Schicht und keinen Audit-Eintrag; Saldo, Soll und Arbeitszeitkonto sind nicht berührt.
+
+### Bekannte Grenzen
+
+- **§ 4 Abs. 4 Satz 2 JArbSchG (Feiertag):** Die wegen eines gesetzlichen Feiertags ausfallende Arbeitszeit wird nicht auf die Woche angerechnet. Welche Arbeitszeit für eine schichtgeplante Person „ausfällt“, ist eine offene Owner-Entscheidung; bis dahin ist eine Feiertagswoche zu niedrig gezählt.
+- **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
+- **Phorest-Import** (`services/phorest/sync-shifts.ts`) wird nicht geprüft: Phorest führt, ein Abgleich kann keine Schicht ablehnen.
+- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) werden im Dienstplan nicht geprüft.
+- **Zeiterfassung:** erfasste Zeiten werden nicht nach § 8 JArbSchG geprüft (Issue #524).
+- Alle Schreibwege sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` nach Aufrufmuster mit Urteil erfasst.
+
+### Datenschutz
+
+Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Der Verweis auf § 8/§ 12 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
 
 ---
 

@@ -4,6 +4,12 @@ import { requireAuth } from "../../../middleware/auth";
 import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
+import {
+  findMinorShiftLimitViolation,
+  loadMinorShiftWeeks,
+  minorShiftLimitReplyBody,
+  type MinorShiftWeek,
+} from "../minor-shift-limits"; // Issue #1057 — § 8 / § 12 JArbSchG for a minor's shift
 import { getEffectiveBreakDuration, getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
 import { classifyLeaveTypeCode, type AvailabilityBucket } from "../shift-availability"; // Phase 98 (T3, plan 03) — the two classifiers' new home
 import {
@@ -2712,6 +2718,30 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
+      // Issue #1057 — § 8 / § 12 JArbSchG replace the ArbZG for a person under 18 on the shift date
+      // (§ 18 Abs. 2 ArbZG). Not overridable: the force flag is not read here.
+      {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          req.user.tenantId,
+          [body.employeeId],
+          new Date(body.date + "T00:00:00Z"),
+        );
+        const minorWeek = minorWeeks.get(body.employeeId);
+        if (minorWeek) {
+          const minorHit = findMinorShiftLimitViolation(minorWeek, {
+            add: [
+              {
+                date: new Date(body.date + "T00:00:00Z"),
+                startTime: body.startTime,
+                endTime: body.endTime,
+              },
+            ],
+          });
+          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
+        }
+      }
+
       // Phase 47.4 — ArbZG § 3 Hart-Block: max 10h Tagesarbeitszeit.
       // Not overridable — force flag is ignored here.
       // Phase 76.10 — break duration is resolved via Employee + TenantConfig
@@ -3110,6 +3140,33 @@ export async function shiftRoutes(app: FastifyInstance) {
             message: storeHit.message,
             canForce: true,
           });
+        }
+      }
+
+      // Issue #1057 — § 8 / § 12 JArbSchG on the effective (post-update) person, date and times
+      // (§ 18 Abs. 2 ArbZG). Not overridable. Removing this shift's own stored row from the week
+      // makes a label-only edit and a move within the week neutral, and a move onto another
+      // person a pure addition.
+      {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          req.user.tenantId,
+          [effEmployeeId],
+          new Date(effDateIso + "T00:00:00Z"),
+        );
+        const minorWeek = minorWeeks.get(effEmployeeId);
+        if (minorWeek) {
+          const minorHit = findMinorShiftLimitViolation(minorWeek, {
+            removeShiftId: id,
+            add: [
+              {
+                date: new Date(effDateIso + "T00:00:00Z"),
+                startTime: effStartTime,
+                endTime: effEndTime,
+              },
+            ],
+          });
+          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
         }
       }
 
@@ -3588,7 +3645,14 @@ export async function shiftRoutes(app: FastifyInstance) {
         employeeId: string;
         date: string;
         reason:
-          "leave" | "absence" | "existing" | "no-pattern" | "open-day" | "availability-unavailable";
+          | "leave"
+          | "absence"
+          | "existing"
+          | "no-pattern"
+          | "open-day"
+          | "availability-unavailable"
+          | "jarbschg"; // Issue #1057
+        message?: string;
       }> = [];
 
       for (const emp of employees) {
@@ -3675,6 +3739,47 @@ export async function shiftRoutes(app: FastifyInstance) {
             endTime: pat.template.endTime,
             label: pat.template.name,
           });
+        }
+      }
+
+      // Issue #1057 — § 8 / § 12 JArbSchG: a cell that would put a person under 18 into an illegal
+      // week is skipped with its German reason, in date order per person (the walk follows
+      // `toCreate`, which lists each person's days in calendar order). Preview and commit both use
+      // the filtered list.
+      {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          tenantId,
+          Array.from(new Set(toCreate.map((c) => c.employeeId))),
+          monday,
+        );
+        if (minorWeeks.size > 0) {
+          const kept: typeof toCreate = [];
+          for (const c of toCreate) {
+            const week = minorWeeks.get(c.employeeId);
+            if (!week) {
+              kept.push(c);
+              continue;
+            }
+            const draft = {
+              date: new Date(c.date + "T00:00:00Z"),
+              startTime: c.startTime,
+              endTime: c.endTime,
+            };
+            const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
+            if (minorHit) {
+              skip.push({
+                employeeId: c.employeeId,
+                date: c.date,
+                reason: "jarbschg",
+                message: minorHit.message,
+              });
+              continue;
+            }
+            week.shifts.push({ ...draft, id: `generate-draft-${kept.length}` });
+            kept.push(c);
+          }
+          toCreate.splice(0, toCreate.length, ...kept);
         }
       }
 
@@ -4018,7 +4123,8 @@ export async function shiftRoutes(app: FastifyInstance) {
       type CopySkip = {
         employeeId: string;
         date: string;
-        reason: "leave" | "absence" | "existing" | "availability-unavailable";
+        reason: "leave" | "absence" | "existing" | "availability-unavailable" | "jarbschg"; // Issue #1057
+        message?: string;
       };
 
       const toCreate: CopyCreate[] = [];
@@ -4082,6 +4188,47 @@ export async function shiftRoutes(app: FastifyInstance) {
           note: src.note ?? null,
           sourceShiftId: src.id,
         });
+      }
+
+      // Issue #1057 — § 8 / § 12 JArbSchG on the TARGET week: a cell that would put a person under
+      // 18 into an illegal week is skipped with its German reason, in source order (date, then
+      // start time, so each person's days are walked in calendar order). Preview and commit both
+      // use the filtered list.
+      {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          tenantId,
+          Array.from(new Set(toCreate.map((c) => c.employeeId))),
+          targetMonday,
+        );
+        if (minorWeeks.size > 0) {
+          const kept: typeof toCreate = [];
+          for (const c of toCreate) {
+            const week = minorWeeks.get(c.employeeId);
+            if (!week) {
+              kept.push(c);
+              continue;
+            }
+            const draft = {
+              date: new Date(c.date + "T00:00:00Z"),
+              startTime: c.startTime,
+              endTime: c.endTime,
+            };
+            const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
+            if (minorHit) {
+              skip.push({
+                employeeId: c.employeeId,
+                date: c.date,
+                reason: "jarbschg",
+                message: minorHit.message,
+              });
+              continue;
+            }
+            week.shifts.push({ ...draft, id: `copy-draft-${kept.length}` });
+            kept.push(c);
+          }
+          toCreate.splice(0, toCreate.length, ...kept);
+        }
       }
 
       // Preview mode — return the diff without persisting
@@ -4345,6 +4492,49 @@ export async function shiftRoutes(app: FastifyInstance) {
             .send(bulkCachedTenantDefault.reply.body);
         }
         bulkResolvedSalonByEmployeeDate.set(key, bulkCachedTenantDefault.salon.id);
+      }
+
+      // (d) Issue #1057 — § 8 / § 12 JArbSchG for every item whose person is under 18 on a day of
+      // its week. Each week is loaded once per Monday, the items are walked in input order and an
+      // accepted item joins the week the next one is judged against; the first violation answers
+      // for the WHOLE atomic batch, like (a)-(c).
+      {
+        const mondayIsoOf = (iso: string): string =>
+          mondayOfWeekUtc(new Date(iso + "T00:00:00Z"))
+            .toISOString()
+            .slice(0, 10);
+        const employeesByMonday = new Map<string, Set<string>>();
+        for (const s of shiftDefs) {
+          const monIso = mondayIsoOf(s.date);
+          const set = employeesByMonday.get(monIso) ?? new Set<string>();
+          set.add(s.employeeId);
+          employeesByMonday.set(monIso, set);
+        }
+        const minorWeekByKey = new Map<string, MinorShiftWeek>();
+        for (const [monIso, ids] of employeesByMonday) {
+          const weeks = await loadMinorShiftWeeks(
+            app.prisma,
+            req.user.tenantId,
+            Array.from(ids),
+            new Date(monIso + "T00:00:00Z"),
+          );
+          for (const [employeeId, week] of weeks) {
+            minorWeekByKey.set(`${employeeId}::${monIso}`, week);
+          }
+        }
+        let bulkDraftSeq = 0;
+        for (const s of shiftDefs) {
+          const week = minorWeekByKey.get(`${s.employeeId}::${mondayIsoOf(s.date)}`);
+          if (!week) continue;
+          const draft = {
+            date: new Date(s.date + "T00:00:00Z"),
+            startTime: s.startTime,
+            endTime: s.endTime,
+          };
+          const minorHit = findMinorShiftLimitViolation(week, { add: [draft] });
+          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
+          week.shifts.push({ ...draft, id: `bulk-draft-${bulkDraftSeq++}` });
+        }
       }
 
       // Phase 107 (D-14/D-15): converted from the batch `$transaction([...])` form to the
@@ -4888,6 +5078,25 @@ export async function shiftRoutes(app: FastifyInstance) {
           error: "Monat ist abgeschlossen — Wiederherstellung nicht möglich",
           code: "SHIFT_LOCKED_MONTH",
         });
+      }
+
+      // Issue #1057 — bringing a Berufsschule-cleanup shift back adds working time again, so it is
+      // checked like a new shift (§ 8 / § 12 JArbSchG). The flag-clearing branch below adds no
+      // time and needs no check; the soft-deleted row is not part of the loaded week.
+      if (shift.deletedAt && shift.deletedReason === "AUTO_BS_DAY_CLEANUP") {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          req.user.tenantId,
+          [shift.employeeId],
+          shift.date,
+        );
+        const minorWeek = minorWeeks.get(shift.employeeId);
+        if (minorWeek) {
+          const minorHit = findMinorShiftLimitViolation(minorWeek, {
+            add: [{ date: shift.date, startTime: shift.startTime, endTime: shift.endTime }],
+          });
+          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
+        }
       }
 
       // Branch on what's being restored:

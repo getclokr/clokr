@@ -419,6 +419,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/scheduling/shift-availability.ts": "schichtplanung", // EmployeeAvailability/Shift availability checks
   "src/contexts/scheduling/shift-cleanup.ts": "schichtplanung", // soft-deletes/flags Shift rows on VOCATIONAL_SCHOOL Absence creation — Shift is the model it manipulates
   "src/contexts/scheduling/shift-netto.ts": "schichtplanung", // net Shift-hours calculation
+  "src/contexts/scheduling/minor-shift-limits.ts": "schichtplanung", // Issue #1057 — § 8/§ 12 JArbSchG roster check; reads Shift/Employee/WorkSchedule/TenantConfig, the Berufsschule credit through the Arbeitszeitkonto index, never writes
   "src/contexts/scheduling/shift-leave-conflict-notify.ts": "schichtplanung", // Phase 430 (D-02) — Shift is the model it flags/audits; shared by leave.ts, sync-shifts.ts and this context's own routes
   "src/contexts/scheduling/shift-week-capacity.ts": "schichtplanung", // Phase 430 (D-05..D-07) — Shift is the model it counts; shared by sync-shifts.ts and this context's own routes
   "src/contexts/scheduling/shift-leave-rule.ts": "schichtplanung", // Issue #744 — dependency-free half-day rule, shared by the shift routes, the facade and the Phorest sync
