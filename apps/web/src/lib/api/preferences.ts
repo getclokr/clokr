@@ -22,12 +22,20 @@ export interface UiPreferences {
    * answer of an older server = nothing stored.
    */
   lists?: Partial<Record<ListId, ListPreference>>;
+  /**
+   * Issue #606: true once the person closed the „Warum stempeln?“ intro on any device. Absent in an
+   * answer of an older server = unknown (the card does not show).
+   */
+  whyClockIntroSeen?: boolean;
 }
 
-/** What a PUT may carry; `theme: null` removes the own choice (back to the tenant default). */
+/**
+ * What a PUT may carry; `theme: null` removes the own choice (back to the tenant default). The seen
+ * state of the intro is written only as `true` - the server refuses `false`.
+ */
 export type UiPreferencesPartial = Partial<
-  Omit<UiPreferences, "theme" | "themeChoice" | "tenantDefaultTheme">
-> & { theme?: Theme | null };
+  Omit<UiPreferences, "theme" | "themeChoice" | "tenantDefaultTheme" | "whyClockIntroSeen">
+> & { theme?: Theme | null; whyClockIntroSeen?: true };
 
 /** Fetch the authenticated user's preferences (merged with server-side defaults). */
 export function fetchPreferences(): Promise<UiPreferences> {

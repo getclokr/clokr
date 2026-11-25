@@ -15,10 +15,15 @@
   import List from "$components/ui/List.svelte";
   import ListRow from "$components/ui/ListRow.svelte";
   import Note from "$components/ui/Note.svelte";
+  import Dialog from "$components/ui/Dialog.svelte";
+  import { authStore } from "$stores/auth";
+  import { hasPermission } from "$lib/permissions";
+  import WhyClockIntroContent from "$lib/components/transparency/WhyClockIntroContent.svelte";
   import {
     COVERAGE_TEXT,
     PROGRAMS_TEXT,
     READERS_TEXT,
+    WHY_CLOCK_TEXT,
     purposeLine,
   } from "$lib/transparency/time-transparency";
 
@@ -56,6 +61,10 @@
   }
 
   onMount(load);
+
+  // The intro can be reopened by a person who can clock for themself (D-11); it writes nothing.
+  let introOpen = $state(false);
+  const canClock = $derived(hasPermission($authStore.user, "time-entry:create:EIGENE"));
 
   const isEmpty = $derived(
     answer !== null && answer.groups.length === 0 && !answer.connectedPrograms,
@@ -102,8 +111,26 @@
         <Note tone="info">{PROGRAMS_TEXT.supportNote}</Note>
       </div>
     {/if}
+    <p class="legal" data-testid="time-entry-readers-legal">{WHY_CLOCK_TEXT.legalBasis}</p>
+    {#if canClock}
+      <div class="reopen">
+        <button type="button" class="btn btn-secondary btn-sm" onclick={() => (introOpen = true)}
+          >{WHY_CLOCK_TEXT.reopen}</button
+        >
+      </div>
+    {/if}
   </Section>
 </div>
+
+<!-- Reopen the intro (Issue #606, D-11): the same content, nothing is written. -->
+<Dialog bind:open={introOpen} title={WHY_CLOCK_TEXT.title}>
+  <WhyClockIntroContent onLinkClick={() => (introOpen = false)} />
+  {#snippet footer()}
+    <button type="button" class="btn btn-secondary" onclick={() => (introOpen = false)}
+      >{WHY_CLOCK_TEXT.close}</button
+    >
+  {/snippet}
+</Dialog>
 
 <style>
   .intro {
@@ -112,6 +139,15 @@
     font-size: var(--fs-sm);
   }
   .support-note {
+    margin-top: var(--s-3);
+  }
+  .legal {
+    margin: var(--s-3) 0 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: 1.5;
+  }
+  .reopen {
     margin-top: var(--s-3);
   }
   .purpose {

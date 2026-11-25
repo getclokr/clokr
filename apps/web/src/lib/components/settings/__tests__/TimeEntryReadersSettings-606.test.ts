@@ -18,9 +18,25 @@ vi.mock("$stores/salon-context", async () => {
   };
 });
 
+const savePreferences = vi.fn();
+vi.mock("$api/preferences", () => ({
+  savePreferences: (p: unknown) => savePreferences(p),
+  fetchPreferences: vi.fn(),
+}));
+const authState = vi.hoisted(() => ({
+  set: (_permissions: string[]) => {},
+}));
+vi.mock("$stores/auth", async () => {
+  const { writable } = await import("svelte/store");
+  const store = writable({ user: { permissions: ["time-entry:create:EIGENE"] } });
+  authState.set = (permissions) => store.set({ user: { permissions } });
+  return { authStore: { subscribe: store.subscribe } };
+});
+
 import TimeEntryReadersSettings from "../TimeEntryReadersSettings.svelte";
 
 beforeEach(() => {
+  authState.set(["time-entry:create:EIGENE"]);
   fetchTimeEntryReaders.mockResolvedValue({
     groups: [
       { roleName: "Admin", coverage: "wholeTenant", purposes: ["hours", "payroll", "protection"] },
@@ -91,6 +107,37 @@ describe("TimeEntryReadersSettings", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the legal basis of the processing under the list", async () => {
+    renderWithTheme(TimeEntryReadersSettings, {});
+    const legal = await screen.findByTestId("time-entry-readers-legal");
+    expect(legal).toHaveTextContent("Art. 6 Abs. 1 lit. b und c DSGVO");
+    expect(legal).toHaveTextContent(
+      "Die vollständigen Datenschutzhinweise bekommst du von deinem Unternehmen.",
+    );
+  });
+
+  it("„Warum stempeln?“ ansehen opens the intro in a dialog without sending any request, Escape closes it", async () => {
+    renderWithTheme(TimeEntryReadersSettings, {});
+    await screen.findByText("Admin");
+    await fireEvent.click(screen.getByRole("button", { name: "„Warum stempeln?“ ansehen" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Das Gesetz verlangt es");
+    expect(dialog).toHaveTextContent("Jede Minute zählt für dein Konto");
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(fetchTimeEntryReaders).toHaveBeenCalledTimes(1);
+    await fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("offers no reopen button to a person who cannot clock for themself", async () => {
+    authState.set(["time-entry:read:EIGENE"]);
+    renderWithTheme(TimeEntryReadersSettings, {});
+    await screen.findByText("Admin");
+    expect(
+      screen.queryByRole("button", { name: "„Warum stempeln?“ ansehen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the empty state when no other role can read the times", async () => {
     fetchTimeEntryReaders.mockResolvedValue({ groups: [], connectedPrograms: false });
     renderWithTheme(TimeEntryReadersSettings, {});
@@ -102,7 +149,7 @@ describe("TimeEntryReadersSettings", () => {
   it("shows an error with a retry that asks the server again", async () => {
     fetchTimeEntryReaders.mockRejectedValueOnce(new Error("boom"));
     renderWithTheme(TimeEntryReadersSettings, {});
-    expect(await screen.findByText(/Die Liste ließ sich nicht laden/)).toBeInTheDocument();
+    expect(await screen.findByText(/Die Liste konnte nicht abgerufen werden/)).toBeInTheDocument();
     await fireEvent.click(screen.getByRole("button", { name: /Erneut versuchen/ }));
     await waitFor(() => expect(fetchTimeEntryReaders).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Admin")).toBeInTheDocument();

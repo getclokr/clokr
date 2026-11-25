@@ -97,3 +97,11 @@ export function leaveDecided(
   const verb = status === "APPROVED" ? "genehmigt" : "abgelehnt";
   return `${subject} von ${personName} ${verb} · ${leavePeriod(startDate, endDate)}`;
 }
+
+/**
+ * Issue #606: the acknowledgement of closing the „Warum stempeln?“ intro on Mein Tag (both buttons);
+ * it says where to find the content again.
+ */
+export function whyClockIntroHidden(): string {
+  return "Ausgeblendet. „Warum stempeln?“ findest du jederzeit im Profil.";
+}

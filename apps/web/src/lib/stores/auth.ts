@@ -8,6 +8,7 @@ import { ApiError, loadPermissionsIfMissing } from "$api/client";
 import { clientLogger } from "$lib/utils/logger";
 import { salonContext } from "$stores/salon-context";
 import { resetListPrefs } from "$stores/list-prefs";
+import { resetWhyClockIntro } from "$stores/why-clock-intro";
 
 export interface AuthUser {
   id: string;
@@ -180,6 +181,8 @@ function createAuthStore() {
       tenantDefaultTheme.set(undefined);
       // Issue #1028: the stored list choices belong to the person, never to the device.
       resetListPrefs();
+      // Issue #606: the seen state of the „Warum stempeln?“ intro belongs to the person, never to the device.
+      resetWhyClockIntro();
       // Issue #82 (D-09): the salon selection belongs to the person — forget it and every stored
       // selection on this device. Runtime-only call: this module and salon-context.ts reach each
       // other through $api/client, safe because neither calls the other during module evaluation.

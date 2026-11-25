@@ -50,6 +50,9 @@ const updatePreferencesSchema = z.object({
   // Issue #1028: the stored page size and filter per list, validated against the register
   // `packages/types/list-preferences.json`. Merged one level deep (per list id) on write.
   lists: listPreferencesInput.optional(),
+  // Issue #606: the person closed the „Warum stempeln?“ intro. Only `true` is accepted - there is no
+  // way back (the profile reopens the content without writing anything).
+  whyClockIntroSeen: z.literal(true).optional(),
 });
 
 // Phase 110 (D-10/AK-10): the version string is echoed back to the client and stored, so it is
@@ -72,6 +75,8 @@ interface UiPreferences {
   emailOptOut: z.infer<typeof emailOptOutInput>;
   // Issue #1028: `{ [listId]: { pageSize?, filter? } }`, only entries that are valid for the register.
   lists: Record<string, StoredListPreference>;
+  // Issue #606: true once the person closed the „Warum stempeln?“ intro on any device.
+  whyClockIntroSeen: boolean;
 }
 
 const DEFAULT_PREFERENCES: UiPreferences = {
@@ -82,6 +87,7 @@ const DEFAULT_PREFERENCES: UiPreferences = {
   language: "de",
   emailOptOut: [],
   lists: {},
+  whyClockIntroSeen: false,
 };
 
 /**
@@ -108,6 +114,7 @@ function mergePreferences(stored: unknown, tenantDefault: UiThemeId): UiPreferen
         )
       : [],
     lists: storedListPreferences(partial.lists),
+    whyClockIntroSeen: partial.whyClockIntroSeen === true,
   };
 }
 
@@ -130,7 +137,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default. `lists` holds the stored page size and filter per list id (only entries that are valid for the list register)",
+        "Get the current user's UI preferences merged with defaults. `theme` is the resolved Farbwelt (own choice, else the tenant default, else pflaume), `themeChoice` the own choice (null = none) and `tenantDefaultTheme` the tenant default. `lists` holds the stored page size and filter per list id (only entries that are valid for the list register). `whyClockIntroSeen` is true once the person closed the first-sign-in intro on any device",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
@@ -156,7 +163,7 @@ export async function meRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Mein Bereich"],
       description:
-        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. `lists` is merged one level deep: an entry for one list id replaces that list's stored entry and never touches another list's. The answer has the same shape as GET",
+        "Update the current user's UI preferences (partial update, merge semantics). `theme: null` removes the own choice so the tenant default applies. `lists` is merged one level deep: an entry for one list id replaces that list's stored entry and never touches another list's. `whyClockIntroSeen` accepts only `true` (no way back). The answer has the same shape as GET",
       security: [{ bearerAuth: [] }],
     },
     handler: async (req, reply) => {
