@@ -23,7 +23,9 @@
 import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Same default as fixtures/tenant.ts: the tenant these tests use is bootstrapped on the TEST stack
+// (4001). A 4000 default sends the calls to a developer's dev API, which answers 401 for its token.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 const TEST_PASSWORD = "test1234";
 
 /**

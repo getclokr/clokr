@@ -44,6 +44,13 @@ async function signIn(page: Page, request: APIRequestContext, tenant: TestTenant
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
+// The fixture tenant lives in Europe/Berlin (test-bootstrap.ts) and the server names "today" in that zone,
+// while Mein Tag asks for today's rows by the date of the BROWSER. The runner's browser is UTC, so between
+// 23:00 and 24:00 UTC the two dates differ: the clock-in entry (tenant day) is missing from the page's
+// "today" reload, the stage falls back to idle and the Pause button vanishes (Issue #1065). The browser of
+// these specs therefore runs in the tenant's zone, as the Issue #942 / #959 groups below already state.
+test.use({ timezoneId: "Europe/Berlin" });
+
 test("the four stage states, each action acknowledged (AC-2, AC-3)", async ({
   page,
   request,

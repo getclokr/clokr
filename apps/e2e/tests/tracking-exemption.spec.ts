@@ -25,7 +25,8 @@ import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 import type { Page } from "@playwright/test";
 
-const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4000";
+// Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
+const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 
 // Mirror admin-pausendauer.spec.ts — login through the real form so the
 // JWT + tenant-features hydrate exactly as in production.
