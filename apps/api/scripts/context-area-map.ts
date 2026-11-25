@@ -324,6 +324,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/plugins/vocational-school-generator.ts": "abwesenheiten", // cron wrapper around utils/vocational-school-generator.ts's Absence generation
   "src/contexts/absence/plugins/employment-exit-decorate.ts": "abwesenheiten", // Issue #614 — composition-root decoration plugin exposing employment-exit.ts as app.absenceExit
   "src/contexts/absence/employment-exit.ts": "abwesenheiten", // Issue #614 (D-02) — the one rule that ends a person's absences after the exit day on anonymization; writes LeaveRequest/Absence/LeaveEntitlement
+  "src/contexts/absence/leave-cancellation.ts": "abwesenheiten", // Issue #1069 (extracted unchanged from employment-exit.ts, #614) - the one cancellation core for system-ordered cancellations; writes LeaveRequest/LeaveEntitlement/Section9Credit
   "src/contexts/absence/leave-correction.ts": "abwesenheiten", // Issue #614 — correction core extracted from the /correct route (plan/apply/finish behind an audit port); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-calendar-masking.ts": "abwesenheiten", // Issue #840 (D-840-19) - pure masking kernel of the leave calendar and the planner read (zero runtime imports); reads no model
   "src/contexts/absence/company-shutdown/constants.ts": "abwesenheiten", // Issue #1069 - Betriebsurlaub booking codes, texts and audit markers (pure, writes nothing)

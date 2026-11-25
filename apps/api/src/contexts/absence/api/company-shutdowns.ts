@@ -5,8 +5,11 @@ import { requireAuth } from "../../../middleware/auth";
 import { requirePermission } from "../../platform";
 import {
   bookCompanyShutdown,
+  emptyBookingCounts,
   findOverlappingShutdown,
+  rebookCompanyShutdown,
   resolveShutdownActor,
+  reverseCompanyShutdown,
 } from "../company-shutdown/booking";
 import { COMPANY_SHUTDOWN_MESSAGES, COMPANY_SHUTDOWN_OVERLAP } from "../company-shutdown/constants";
 
@@ -17,6 +20,11 @@ const shutdownBodySchema = z.object({
   deductsFromVacation: z.boolean().default(true),
   notes: z.string().optional(),
 });
+
+/** `YYYY-MM-DD` of a stored `@db.Date` value. */
+function dayString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 export async function companyShutdownRoutes(app: FastifyInstance) {
   // ── GET /company-shutdowns ──────────────────────────────────────────────────
@@ -130,49 +138,94 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       });
       if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
 
-      const updated = await app.prisma.companyShutdown.update({
-        where: { id },
-        data: {
-          ...(body.name !== undefined && { name: body.name }),
-          ...(body.startDate !== undefined && { startDate: new Date(body.startDate) }),
-          ...(body.endDate !== undefined && { endDate: new Date(body.endDate) }),
-          ...(body.deductsFromVacation !== undefined && {
-            deductsFromVacation: body.deductsFromVacation,
-          }),
-          ...(body.notes !== undefined && { notes: body.notes }),
-        },
-        include: {
-          exceptions: {
-            include: {
-              employee: {
-                select: { id: true, firstName: true, lastName: true, employeeNumber: true },
+      // Issue #1069 (D-11): the edited period may not share a day with another active Betriebsurlaub.
+      const newStart = body.startDate ?? existing.startDate.toISOString().slice(0, 10);
+      const newEnd = body.endDate ?? existing.endDate.toISOString().slice(0, 10);
+      if (
+        (body.startDate !== undefined || body.endDate !== undefined) &&
+        (await findOverlappingShutdown(app, tenantId, newStart, newEnd, id))
+      ) {
+        return reply.status(409).send({
+          error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_OVERLAP],
+          code: COMPANY_SHUTDOWN_OVERLAP,
+        });
+      }
+
+      const request = { ip: req.ip, headers: req.headers as Record<string, string> };
+      const applyUpdate = async () => {
+        const updated = await app.prisma.companyShutdown.update({
+          where: { id },
+          data: {
+            ...(body.name !== undefined && { name: body.name }),
+            ...(body.startDate !== undefined && { startDate: new Date(body.startDate) }),
+            ...(body.endDate !== undefined && { endDate: new Date(body.endDate) }),
+            ...(body.deductsFromVacation !== undefined && {
+              deductsFromVacation: body.deductsFromVacation,
+            }),
+            ...(body.notes !== undefined && { notes: body.notes }),
+          },
+          include: {
+            exceptions: {
+              include: {
+                employee: {
+                  select: { id: true, firstName: true, lastName: true, employeeNumber: true },
+                },
               },
             },
           },
+        });
+
+        await app.audit({
+          userId: req.user.sub,
+          action: "UPDATE",
+          entity: "CompanyShutdown",
+          entityId: id,
+          oldValue: {
+            name: existing.name,
+            startDate: existing.startDate,
+            endDate: existing.endDate,
+            deductsFromVacation: existing.deductsFromVacation,
+          },
+          newValue: {
+            name: updated.name,
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            deductsFromVacation: updated.deductsFromVacation,
+          },
+          request,
+        });
+        return updated;
+      };
+
+      // Issue #1069 (D-09): a changed period or deduction flag cancels the generated rows of open
+      // months and books again, in ONE locked run; the update itself runs inside the lock, so a
+      // contended lock (409) changes nothing. A change of name or notes books nothing.
+      const rebooks =
+        (body.startDate !== undefined && body.startDate !== dayString(existing.startDate)) ||
+        (body.endDate !== undefined && body.endDate !== dayString(existing.endDate)) ||
+        (body.deductsFromVacation !== undefined &&
+          body.deductsFromVacation !== existing.deductsFromVacation);
+      if (!rebooks) {
+        const updated = await applyUpdate();
+        return { ...updated, booking: emptyBookingCounts() };
+      }
+      let updated: Awaited<ReturnType<typeof applyUpdate>> | undefined;
+      const booking = await rebookCompanyShutdown(app, {
+        tenantId,
+        shutdownId: id,
+        actor: await resolveShutdownActor(app, req),
+        request,
+        applyChange: async () => {
+          updated = await applyUpdate();
         },
       });
-
-      await app.audit({
-        userId: req.user.sub,
-        action: "UPDATE",
-        entity: "CompanyShutdown",
-        entityId: id,
-        oldValue: {
-          name: existing.name,
-          startDate: existing.startDate,
-          endDate: existing.endDate,
-          deductsFromVacation: existing.deductsFromVacation,
-        },
-        newValue: {
-          name: updated.name,
-          startDate: updated.startDate,
-          endDate: updated.endDate,
-          deductsFromVacation: updated.deductsFromVacation,
-        },
-        request: { ip: req.ip, headers: req.headers as Record<string, string> },
-      });
-
-      return updated;
+      if (!booking.ok) {
+        return reply.status(409).send({
+          error: COMPANY_SHUTDOWN_MESSAGES[booking.code],
+          code: booking.code,
+        });
+      }
+      return { ...updated!, booking: booking.counts };
     },
   );
 
@@ -189,25 +242,42 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       });
       if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
 
-      // Issue #1069 (D-10): the row is the source of payroll-relevant bookings - soft delete, never removed.
-      await app.prisma.companyShutdown.updateMany({
-        where: { id, tenantId, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
-
-      await app.audit({
-        userId: req.user.sub,
-        action: "DELETE",
-        entity: "CompanyShutdown",
-        entityId: id,
-        oldValue: {
-          name: existing.name,
-          startDate: existing.startDate,
-          endDate: existing.endDate,
-          deductsFromVacation: existing.deductsFromVacation,
+      // Issue #1069 (D-10): the row is the source of payroll-relevant bookings - soft delete, never
+      // removed. The delete runs inside the shutdown's lock, then its generated rows of open months
+      // are cancelled (D-09); a contended lock answers 409 with nothing changed.
+      const request = { ip: req.ip, headers: req.headers as Record<string, string> };
+      const reversal = await reverseCompanyShutdown(app, {
+        tenantId,
+        shutdownId: id,
+        reason: "DELETED",
+        actorUserId: req.user.sub,
+        request,
+        applyChange: async () => {
+          await app.prisma.companyShutdown.updateMany({
+            where: { id, tenantId, deletedAt: null },
+            data: { deletedAt: new Date() },
+          });
+          await app.audit({
+            userId: req.user.sub,
+            action: "DELETE",
+            entity: "CompanyShutdown",
+            entityId: id,
+            oldValue: {
+              name: existing.name,
+              startDate: existing.startDate,
+              endDate: existing.endDate,
+              deductsFromVacation: existing.deductsFromVacation,
+            },
+            request,
+          });
         },
-        request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
+      if (!reversal.ok) {
+        return reply.status(409).send({
+          error: COMPANY_SHUTDOWN_MESSAGES[reversal.code],
+          code: reversal.code,
+        });
+      }
 
       return reply.status(204).send();
     },
@@ -251,6 +321,18 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
 
+      // Issue #1069 (D-09, D-22): a person who is now exempt keeps no booking in an open month. The
+      // employee was looked up in the caller's tenant above, so this never reaches a foreign person.
+      await reverseCompanyShutdown(app, {
+        tenantId,
+        shutdownId: id,
+        employeeIds: [employee.id],
+        reason: "EXCEPTION_ADDED",
+        actorUserId: req.user.sub,
+        request: { ip: req.ip, headers: req.headers as Record<string, string> },
+        lock: "wait",
+      });
+
       return reply.status(201).send(exception);
     },
   );
@@ -288,6 +370,23 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         oldValue: existing ? { shutdownId: id, employeeId, reason: existing.reason } : null,
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
+
+      // Issue #1069 (D-09, D-22): a person who takes part again is booked, only for an employee of
+      // the caller's tenant; a foreign or unknown id is a no-op with the unchanged answer.
+      const employee = await app.prisma.employee.findFirst({
+        where: { id: employeeId, tenantId },
+        select: { id: true },
+      });
+      if (employee) {
+        await bookCompanyShutdown(app, {
+          tenantId,
+          shutdownId: id,
+          actor: await resolveShutdownActor(app, req),
+          employeeIds: [employee.id],
+          request: { ip: req.ip, headers: req.headers as Record<string, string> },
+          lock: "wait",
+        });
+      }
 
       return reply.status(204).send();
     },

@@ -17,6 +17,22 @@ export const COMPANY_SHUTDOWN_TRIGGER = "COMPANY_SHUTDOWN";
 /** Audit action of the one summary row a booking run writes on the CompanyShutdown (ids and counts only). */
 export const COMPANY_SHUTDOWN_BOOKED = "COMPANY_SHUTDOWN_BOOKED";
 
+/** Audit action of the one summary row a reversal run writes on the CompanyShutdown (ids and counts only). */
+export const COMPANY_SHUTDOWN_REVERSED = "COMPANY_SHUTDOWN_REVERSED";
+
+/** Value of `newValue.trigger` on every audit row a reversal writes (the marker of the cancellation core). */
+export const COMPANY_SHUTDOWN_REVERSED_TRIGGER = "COMPANY_SHUTDOWN_REVERSED";
+
+/** Why the generated rows of a Betriebsurlaub are cancelled (D-09). */
+export type ShutdownReversalReason = "CHANGED" | "DELETED" | "EXCEPTION_ADDED";
+
+/** The German `auditReason` of each reversal reason - display only, the code above is the control value. */
+export const REVERSAL_AUDIT_REASONS: Readonly<Record<ShutdownReversalReason, string>> = {
+  CHANGED: "Betriebsurlaub geändert",
+  DELETED: "Betriebsurlaub gelöscht",
+  EXCEPTION_ADDED: "Ausnahme vom Betriebsurlaub",
+};
+
 /** Two active Betriebsurlaube of one tenant may not overlap (409). */
 export const COMPANY_SHUTDOWN_OVERLAP = "COMPANY_SHUTDOWN_OVERLAP";
 

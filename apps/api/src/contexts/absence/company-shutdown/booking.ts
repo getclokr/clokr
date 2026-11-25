@@ -22,6 +22,12 @@
  * A (person, month) whose month is closed is never written (D-08); a run is idempotent per person
  * and month (an active absence of this shutdown there means it was booked).
  *
+ * Reversal (O-5, D-09): `reverseCompanyShutdown` / `rebookCompanyShutdown` cancel the generated rows
+ * of OPEN months - requests through the cancellation core shared with the employment exit
+ * (`leave-cancellation.ts`: Urlaub booked back, § 9 credits superseded, entries revalidated),
+ * absences soft-deleted - and an edit books again, all inside the one lock of the shutdown. A
+ * closed month is never changed (the Monatskorrektur, #599, corrects it).
+ *
  * Deliberately NOT re-exported from `contexts/absence/index.ts` (import-cycle cap 22); importers:
  * `api/company-shutdowns.ts`. The only writer of the code COMPANY_SHUTDOWN (vocabulary guard G5).
  */
@@ -68,16 +74,27 @@ import {
 } from "../leave-decision";
 import { absenceTypeFields } from "../leave-type";
 import {
+  cancelLeaveRequestInTx,
+  planLeaveCancellation,
+  type LeaveCancellationAuditPort,
+  type LeaveCancellationMarker,
+} from "../leave-cancellation";
+import {
   COMPANY_SHUTDOWN_BOOKING_RUNNING,
+  COMPANY_SHUTDOWN_REVERSED_TRIGGER,
   COMPANY_SHUTDOWN_TRIGGER,
+  REVERSAL_AUDIT_REASONS,
   companyShutdownLockName,
   limitExceptionReasonFor,
   type COMPANY_SHUTDOWN_BOOKED,
+  type COMPANY_SHUTDOWN_REVERSED,
+  type ShutdownReversalReason,
 } from "./constants";
 
 // A same-file literal (not the imported constant) so the audit-label walk resolves the action; the
 // type ties it to the constant of `constants.ts`.
 const BOOKED_ACTION: typeof COMPANY_SHUTDOWN_BOOKED = "COMPANY_SHUTDOWN_BOOKED";
+const REVERSED_ACTION: typeof COMPANY_SHUTDOWN_REVERSED = "COMPANY_SHUTDOWN_REVERSED";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ONE_AND_HALF_MS_NS = 1_500_000n;
 
@@ -253,10 +270,29 @@ export async function bookCompanyShutdown(
     lock?: "try" | "wait";
   },
 ): Promise<BookOutcome> {
-  const name = companyShutdownLockName(input.shutdownId);
+  const locked = await withShutdownLock(app, input.shutdownId, input.lock, () =>
+    runBooking(app, input, emptyBookingCounts()),
+  );
+  return locked.ok ? { ok: true, counts: locked.value } : locked;
+}
+
+type Locked<T> =
+  { ok: true; value: T } | { ok: false; code: typeof COMPANY_SHUTDOWN_BOOKING_RUNNING };
+
+/**
+ * Runs `run` while holding the shutdown's transaction-scoped advisory lock on a pinned connection
+ * (see {@link bookCompanyShutdown}). `try` answers `{ ok: false }` when another run holds it.
+ */
+async function withShutdownLock<T>(
+  app: FastifyInstance,
+  shutdownId: string,
+  mode: "try" | "wait" | undefined,
+  run: () => Promise<T>,
+): Promise<Locked<T>> {
+  const name = companyShutdownLockName(shutdownId);
   return app.prisma.$transaction(
     async (lockTx) => {
-      if (input.lock === "wait") {
+      if (mode === "wait") {
         await lockTx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${name}, 0))`;
       } else {
         const rows = await lockTx.$queryRaw<
@@ -266,7 +302,7 @@ export async function bookCompanyShutdown(
           return { ok: false, code: COMPANY_SHUTDOWN_BOOKING_RUNNING } as const;
         }
       }
-      return { ok: true, counts: await runBooking(app, input) } as const;
+      return { ok: true, value: await run() } as const;
     },
     { timeout: BOOKING_RUN_TIMEOUT_MS },
   );
@@ -281,9 +317,9 @@ async function runBooking(
     employeeIds?: readonly string[];
     request: AuditRequestMeta;
   },
+  counts: ShutdownBookingCounts,
 ): Promise<ShutdownBookingCounts> {
   const { tenantId, actor } = input;
-  const counts = emptyBookingCounts();
 
   // Re-read after the lock: a run that waited behind a delete finds nothing to do.
   const shutdown = await app.prisma.companyShutdown.findFirst({
@@ -709,4 +745,272 @@ async function runBooking(
   });
 
   return counts;
+}
+
+// ── Reversal (Issue #1069, O-5, D-08, D-09) ───────────────────────────────────────────────────────
+
+/** Thrown inside one cancellation transaction when a planned request changed meanwhile. */
+class ShutdownReversalConflictError extends Error {
+  constructor(entity: string, id: string) {
+    super(`company shutdown reversal: ${entity} ${id} changed concurrently`);
+  }
+}
+
+type ReversalInput = {
+  tenantId: string;
+  shutdownId: string;
+  /** Narrows the run to these persons (an exception was added); absent = everybody. */
+  employeeIds?: readonly string[];
+  reason: ShutdownReversalReason;
+  actorUserId: string;
+  request: AuditRequestMeta;
+};
+
+/**
+ * Cancels the generated rows of one Betriebsurlaub in OPEN months (D-09): every generated request
+ * (PENDING, APPROVED, CANCELLATION_REQUESTED) through the cancellation core the employment exit
+ * shares (`leave-cancellation.ts`: Urlaub booked back, § 9 credits superseded, entries
+ * revalidated), every active COMPANY_SHUTDOWN absence soft-deleted. REJECTED and CANCELLED rows are
+ * never touched. A row in a closed month is left exactly as it is and counted (D-08). Reads no
+ * CompanyShutdown row: a soft-deleted shutdown is reversed the same way (its rows carry the link).
+ */
+async function runReversal(
+  app: FastifyInstance,
+  input: ReversalInput,
+  counts: ShutdownBookingCounts,
+): Promise<ShutdownBookingCounts> {
+  const { tenantId, shutdownId, actorUserId } = input;
+  const marker: LeaveCancellationMarker = {
+    auditReason: REVERSAL_AUDIT_REASONS[input.reason],
+    trigger: COMPANY_SHUTDOWN_REVERSED_TRIGGER,
+    companyShutdownId: shutdownId,
+  };
+  const personFilter = input.employeeIds ? { employeeId: { in: [...input.employeeIds] } } : {};
+  const tz = await getTenantTimezone(app.prisma, tenantId);
+  const today = todayInTz(tz);
+  const currentMonthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
+  const auditIn =
+    (tx: Prisma.TransactionClient): LeaveCancellationAuditPort =>
+    (entry) =>
+      app.audit({ userId: actorUserId, ...entry, request: input.request, tx });
+
+  const skippedMonths = new Set<string>();
+  const touchedEmployeeIds = new Set<string>();
+  const cancelledRequestIds: string[] = [];
+  const refreshEmployeeIds = new Set<string>();
+  const closedKey = (employeeId: string, start: Date) =>
+    `${employeeId}:${dayOf(start).slice(0, 7)}`;
+
+  const requests = await app.prisma.leaveRequest.findMany({
+    where: {
+      companyShutdownId: shutdownId,
+      employee: { tenantId },
+      deletedAt: null,
+      status: { in: ["PENDING", "APPROVED", "CANCELLATION_REQUESTED"] },
+      ...personFilter,
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      leaveTypeId: true,
+      status: true,
+      days: true,
+      halfDay: true,
+      overtimeCompMinutes: true,
+      startDate: true,
+      endDate: true,
+      updatedAt: true,
+      leaveType: { select: { code: true } },
+    },
+    orderBy: [{ startDate: "asc" }, { id: "asc" }],
+  });
+  for (const row of requests) {
+    const closed = await findClosedMonthsInRange(
+      app.prisma,
+      row.employeeId,
+      tenantId,
+      row.startDate,
+      row.endDate,
+    );
+    if (closed.length > 0) {
+      skippedMonths.add(closedKey(row.employeeId, row.startDate));
+      continue;
+    }
+    const action = await planLeaveCancellation(app.prisma, app.log, {
+      tenantId,
+      employeeId: row.employeeId,
+      row,
+      tenantTz: async () => tz,
+    });
+    try {
+      await app.prisma.$transaction(async (tx) => {
+        await cancelLeaveRequestInTx(tx, {
+          tenantId,
+          employeeId: row.employeeId,
+          action,
+          marker,
+          audit: auditIn(tx),
+          conflict: (entity, id) => new ShutdownReversalConflictError(entity, id),
+        });
+      });
+    } catch (err) {
+      if (err instanceof ShutdownReversalConflictError) {
+        // The request changed between the plan and the write (decided, edited): it stays as it is.
+        bump(counts.refused, "REVERSAL_CONFLICT");
+        continue;
+      }
+      throw err;
+    }
+    counts.reversedRequests += 1;
+    cancelledRequestIds.push(row.id);
+    touchedEmployeeIds.add(row.employeeId);
+    if (row.status !== "PENDING" && row.startDate.getTime() <= currentMonthEnd.getTime()) {
+      refreshEmployeeIds.add(row.employeeId);
+    }
+  }
+
+  const absences = await app.prisma.absence.findMany({
+    where: {
+      companyShutdownId: shutdownId,
+      employee: { tenantId },
+      deletedAt: null,
+      type: "COMPANY_SHUTDOWN",
+      ...personFilter,
+    },
+    orderBy: [{ startDate: "asc" }, { id: "asc" }],
+  });
+  for (const absence of absences) {
+    const closed = await findClosedMonthsInRange(
+      app.prisma,
+      absence.employeeId,
+      tenantId,
+      absence.startDate,
+      absence.endDate,
+    );
+    if (closed.length > 0) {
+      skippedMonths.add(closedKey(absence.employeeId, absence.startDate));
+      continue;
+    }
+    const deleted = await app.prisma.$transaction(async (tx) => {
+      const { count } = await tx.absence.updateMany({
+        where: { id: absence.id, employee: { tenantId }, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (count !== 1) return false;
+      await app.audit({
+        userId: actorUserId,
+        action: "DELETE",
+        entity: "Absence",
+        entityId: absence.id,
+        oldValue: {
+          type: absence.type,
+          startDate: dayOf(absence.startDate),
+          endDate: dayOf(absence.endDate),
+          days: Number(absence.days),
+          source: absence.source,
+          companyShutdownId: shutdownId,
+        },
+        newValue: { deleted: true, ...marker },
+        request: input.request,
+        tx,
+      });
+      return true;
+    });
+    if (!deleted) continue;
+    counts.reversedAbsences += 1;
+    touchedEmployeeIds.add(absence.employeeId);
+  }
+  counts.skippedClosedMonths += skippedMonths.size;
+
+  // Reactive tail (ADR 0002 Entscheidung 10): the managers' notices of the cancelled requests are
+  // dismissed and the stored overtime balance refreshed once per person; failures are logged only.
+  for (const requestId of cancelledRequestIds) {
+    try {
+      await app.dismissByRelated("LeaveRequest", requestId);
+    } catch (err) {
+      app.log.warn({ err, requestId }, "Betriebsurlaub reversal: notification dismissal failed");
+    }
+  }
+  for (const employeeId of refreshEmployeeIds) {
+    try {
+      await updateOvertimeAccount(app, employeeId);
+    } catch (err) {
+      app.log.warn(
+        { err, employeeId },
+        "Failed to refresh the overtime balance after a Betriebsurlaub reversal",
+      );
+    }
+  }
+
+  // One summary row per run that changed or protected something: ids and counts only (D-20).
+  if (counts.reversedRequests + counts.reversedAbsences + counts.skippedClosedMonths > 0) {
+    await app.audit({
+      userId: actorUserId,
+      action: REVERSED_ACTION,
+      entity: "CompanyShutdown",
+      entityId: shutdownId,
+      newValue: {
+        reason: input.reason,
+        reversedRequests: counts.reversedRequests,
+        reversedAbsences: counts.reversedAbsences,
+        skippedClosedMonths: counts.skippedClosedMonths,
+        refused: counts.refused,
+        employeeIds: [...touchedEmployeeIds],
+      },
+      request: input.request,
+    });
+  }
+  return counts;
+}
+
+/**
+ * Reverses the generated rows of a Betriebsurlaub in open months under the shutdown's lock.
+ * `applyChange` (the route's update or soft delete of the CompanyShutdown row) runs INSIDE the lock
+ * and before the reversal, so a contended lock answers COMPANY_SHUTDOWN_BOOKING_RUNNING with
+ * nothing changed.
+ */
+export async function reverseCompanyShutdown(
+  app: FastifyInstance,
+  input: ReversalInput & { lock?: "try" | "wait"; applyChange?: () => Promise<void> },
+): Promise<BookOutcome> {
+  const locked = await withShutdownLock(app, input.shutdownId, input.lock, async () => {
+    await input.applyChange?.();
+    return runReversal(app, input, emptyBookingCounts());
+  });
+  return locked.ok ? { ok: true, counts: locked.value } : locked;
+}
+
+/**
+ * An edit of the period or of the deduction flag (D-09): reverse the generated rows of open months
+ * and book again from the changed shutdown, in ONE locked run. `applyChange` writes the changed
+ * CompanyShutdown row inside the lock, before the reversal.
+ */
+export async function rebookCompanyShutdown(
+  app: FastifyInstance,
+  input: {
+    tenantId: string;
+    shutdownId: string;
+    actor: ShutdownActor;
+    request: AuditRequestMeta;
+    lock?: "try" | "wait";
+    applyChange?: () => Promise<void>;
+  },
+): Promise<BookOutcome> {
+  const locked = await withShutdownLock(app, input.shutdownId, input.lock, async () => {
+    await input.applyChange?.();
+    const counts = emptyBookingCounts();
+    await runReversal(
+      app,
+      {
+        tenantId: input.tenantId,
+        shutdownId: input.shutdownId,
+        reason: "CHANGED",
+        actorUserId: input.actor.userId,
+        request: input.request,
+      },
+      counts,
+    );
+    return runBooking(app, input, counts);
+  });
+  return locked.ok ? { ok: true, counts: locked.value } : locked;
 }

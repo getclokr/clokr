@@ -27,6 +27,7 @@
     "CLOCK_OUT": "Ausgestempelt",
     "CLOCK_REOPEN": "Zeiteintrag wieder geöffnet",
     "COMPANY_SHUTDOWN_BOOKED": "Betriebsurlaub gebucht",
+    "COMPANY_SHUTDOWN_REVERSED": "Betriebsurlaub zurückgenommen",
     "COPY": "Kopiert",
     "CREATE": "Angelegt",
     "CROSS_TENANT_ACCESS_DENIED": "Zugriff auf fremdes Unternehmen abgelehnt",

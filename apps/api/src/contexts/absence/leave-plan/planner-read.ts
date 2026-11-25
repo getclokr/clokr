@@ -291,7 +291,13 @@ export async function readPlanner(
           getCalendarLeaveOverlapping(db, scope, yearStart, yearEnd),
           getAbsencesOverlapping(db, scope, yearStart, yearEnd),
           db.companyShutdown.findMany({
-            where: { tenantId, startDate: { lte: yearEnd }, endDate: { gte: yearStart } },
+            // Issue #1069 (D-10): a soft-deleted Betriebsurlaub is gone for every reader.
+            where: {
+              tenantId,
+              deletedAt: null,
+              startDate: { lte: yearEnd },
+              endDate: { gte: yearStart },
+            },
             select: {
               startDate: true,
               endDate: true,
@@ -354,6 +360,10 @@ export async function readPlanner(
     }
   }
   for (const a of absenceRows) {
+    // Issue #1069 (D-02): the generated COMPANY_SHUTDOWN absence is the booking side of a
+    // Betriebsurlaub; the planner shows it through the derived COMPANY_SHUTDOWN row below (one row
+    // per person), never as a second ABSENCE row and never as a masked range of its own.
+    if (a.type === "COMPANY_SHUTDOWN") continue;
     const isOwn = viewer.employeeId !== null && a.employeeId === viewer.employeeId;
     const startDate = dayOf(a.startDate);
     const endDate = dayOf(a.endDate);
