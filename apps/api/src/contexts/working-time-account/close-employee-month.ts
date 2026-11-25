@@ -523,11 +523,16 @@ export function monthlyHoursMonthSollMinutes(input: {
  * the former assumption that the generator's conflict checks kept the two apart no longer
  * holds (resolveLeaveDays() prices a range containing BS days at 0 leave days for them, D-02,
  * but the range itself is still a single approved request). Both leave loops below therefore
- * skip every date in `bsDatesInMonth` (ANY source, PATTERN or MANUAL — see that Set's own
- * comment) for credit AND for claiming, so the day's only Soll reduction is the BS credit
+ * skip every Berufsschultag (ANY source, PATTERN or MANUAL — see `bsDayPriority()` below) for
+ * credit AND for claiming, so the day's only Soll reduction is the BS credit
  * (subtract-then-recredit above) — "Berufsschule hat Vorrang". `isBsAbsence()` itself keeps
- * its narrower PATTERN-only scope below; it only decides the ABSENCE-loop carve-out, which is
- * unrelated to and unchanged by this rule.
+ * its narrower PATTERN-only scope below; it only decides the ABSENCE-loop carve-out of a
+ * VOCATIONAL_SCHOOL row itself.
+ *
+ * Issue #1080: the same priority holds for every other Absence code (OTHER, MATERNITY,
+ * PARENTAL, and later ones such as COMPANY_SHUTDOWN of #1069). Both absence loops route those
+ * rows through `bsDayPriority()` too, so a Berufsschultag inside such an absence is credited by
+ * the Berufsschule alone instead of being reduced a second time.
  */
 type DedupRow = { id?: string; startDate: Date; endDate: Date; halfDay?: boolean | null };
 
@@ -548,7 +553,13 @@ function sortForDedup<T extends DedupRow>(rows: T[]): T[] {
  * date into sbClaimed/nsClaimed, or a MANUAL-source BS Absence row touching the SAME date
  * would lose its own Ø-Method credit to the (unrelated) dedup this set exists for.
  */
-function claimDays(from: Date, to: Date, tz: string, into: Set<string>, skip?: Set<string>): void {
+function claimDays(
+  from: Date,
+  to: Date,
+  tz: string,
+  into: Set<string>,
+  skip?: ReadonlySet<string>,
+): void {
   iterateDaysInTz(from, to, tz, (_dow, dateStr) => {
     if (skip?.has(dateStr)) return;
     into.add(dateStr);
@@ -557,13 +568,52 @@ function claimDays(from: Date, to: Date, tz: string, into: Set<string>, skip?: S
 
 /**
  * PATTERN-only Berufsschultag check — used ONLY by the absence-loop carve-out below (deciding
- * whether an absence row claims a day / is excluded by the dedup set). Issue #448 (D-01): the
- * WIDER "does a Berufsschultag exist on this date" question (both PATTERN and MANUAL source)
- * is answered by `bsDatesInMonth` below, which the two LEAVE loops use to make a Berufsschultag
- * win over a leave day regardless of which source produced it.
+ * whether a VOCATIONAL_SCHOOL row claims a day / is excluded by the dedup set). Issue #448
+ * (D-01): the WIDER "does a Berufsschultag exist on this date" question (both PATTERN and MANUAL
+ * source) is answered by `bsDayPriority()` below, which every leave and non-Berufsschule absence
+ * row goes through to let a Berufsschultag win, regardless of which source produced it.
  */
 function isBsAbsence(ab: { type?: string | null; source?: string | null }): boolean {
   return ab.type === "VOCATIONAL_SCHOOL" && ab.source === "PATTERN";
+}
+
+/**
+ * "Berufsschule hat Vorrang" — the ONE place of the rule (Issue #1080, AC2; leave since
+ * Issue #448 D-03).
+ *
+ * No row other than a VOCATIONAL_SCHOOL absence credits or claims a Berufsschultag: approved
+ * leave of every type (#448) and every other Absence code (OTHER, MATERNITY, PARENTAL and later
+ * ones such as COMPANY_SHUTDOWN of #1069, #1080). The day's Soll relief is the Berufsschule
+ * credit alone (subtract-then-recredit for weekly-hours contracts, an Ist-only credit for
+ * MONTHLY_HOURS), so a day reduces the Soll exactly once. Legal reading: § 15 Abs. 2 BBiG credits
+ * the Berufsschultag as working time, while § 3 MuSchG and the BEEG only suspend the duty to
+ * work; on that day the precedence is balance-neutral, and a Berufsschule-first rule needs no
+ * second suppression rule inside the Berufsschule loop.
+ *
+ * `bsDatesInMonth` is read only through this object (plus its own build and the Berufsschule
+ * credit loop); `close-employee-month-bs-absence-1080.test.ts` fails on a second reader.
+ */
+function bsDayPriority(bsDates: ReadonlySet<string>, tz: string) {
+  return {
+    /** The Berufsschultage themselves, for the contract-week distribution of `leaveDaysPerWeek`. */
+    dates: bsDates,
+    /** True for every row that must give way to a Berufsschultag: all but VOCATIONAL_SCHOOL. */
+    yields(row: { type?: string | null }): boolean {
+      return row.type !== "VOCATIONAL_SCHOOL";
+    },
+    /** True when `dateStr` is already claimed or is a Berufsschultag. */
+    blocks(dateStr: string, claimed: ReadonlySet<string>): boolean {
+      return claimed.has(dateStr) || bsDates.has(dateStr);
+    },
+    /** A NEW set of the claimed days plus the Berufsschultage; `claimed` is never mutated. */
+    exclusion(claimed: ReadonlySet<string>): Set<string> {
+      return new Set([...claimed, ...bsDates]);
+    },
+    /** `claimDays` that never claims a Berufsschultag (a later MANUAL BS row keeps its credit). */
+    claim(from: Date, to: Date, claimed: Set<string>): void {
+      claimDays(from, to, tz, claimed, bsDates);
+    },
+  };
 }
 
 /**
@@ -839,6 +889,8 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
     }
   }
+  // Issue #1080: the one rule of "Berufsschule hat Vorrang" (see bsDayPriority above).
+  const bsPriority = bsDayPriority(bsDatesInMonth, tz);
 
   // Group BS dates by ISO week key ("YYYY-Www") for block-week cap computation.
   // ISO week: Monday-based. Monday = day 1 (0=Sun → 6=Sat in Date.getUTCDay).
@@ -1066,7 +1118,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
         // spanning a BS Tuesday credit the SAME 4 days, with the SAME per-date share, as two
         // separate rows priced around the BS date (the D-03 equivalence oracle). D-05's "no
         // statutory holidays on this side" is unaffected — this Set carries ONLY Berufsschultage.
-        bsDatesInMonth,
+        bsPriority.dates,
         usualWorkDaysFrom(schedule as { type?: string | null; usualWorkDays?: number[] | null }),
       ),
       contractWorkDaysPerWeek,
@@ -1089,11 +1141,11 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // first-claim rule applies to both bases, so a mixed sick + vacation day is reduced once.
       // Issue #448 (D-03): a Berufsschultag contributes NO leave credit either — it is type-
       // agnostic, so this skip covers BOTH credit bases (the CONTRACT lookup above already
-      // excludes it via bsDatesInMonth in leaveDaysPerWeek; the ROSTER planned-netto lookup
+      // excludes it via bsDayPriority in leaveDaysPerWeek; the ROSTER planned-netto lookup
       // does not exclude it on its own, so this explicit check is load-bearing for ROSTER rows).
       let rowCredit = 0;
       iterateDaysInTz(leaveStart, leaveEnd, tz, (_dow, dateStr) => {
-        if (sbClaimed.has(dateStr) || bsDatesInMonth.has(dateStr)) return;
+        if (bsPriority.blocks(dateStr, sbClaimed)) return;
         rowCredit +=
           lr.creditBasis === "ROSTER"
             ? (plannedNettoByDate.get(dateStr) ?? 0) * (lr.halfDay ? 0.5 : 1)
@@ -1107,7 +1159,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // Absence row touching the same date must still receive its own Ø-Method credit below
       // (isBsAbsence() is PATTERN-only, so a MANUAL BS row is NOT exempted from the sbClaimed
       // exclusion there; seeding the date here would silently erase that row's own credit).
-      claimDays(leaveStart, leaveEnd, tz, sbClaimed, bsDatesInMonth);
+      bsPriority.claim(leaveStart, leaveEnd, sbClaimed);
     }
 
     let sbAbsenceCredit = 0;
@@ -1132,12 +1184,17 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       const absStart = ab.startDate < effectiveStart ? effectiveStart : ab.startDate;
       const absEnd = ab.endDate > sollRangeEnd ? sollRangeEnd : ab.endDate;
       if (absStart > absEnd) continue;
+      // Issue #1080: a row of any code other than VOCATIONAL_SCHOOL gives way to a
+      // Berufsschultag (bsDayPriority) — the day's only Soll relief is the BS credit, so it is
+      // neither credited here nor claimed.
+      const yields = bsPriority.yields(ab);
       const bs = isBsAbsence(ab);
       sbAbsenceCredit += calcLeaveAbsenceMinutesTz(schedule, absStart, absEnd, tz, {
         halfDay: Boolean(ab.halfDay),
-        excludeHolidays: bs ? undefined : sbClaimed,
+        excludeHolidays: yields ? bsPriority.exclusion(sbClaimed) : bs ? undefined : sbClaimed,
       });
-      if (!bs) claimDays(absStart, absEnd, tz, sbClaimed);
+      if (yields) bsPriority.claim(absStart, absEnd, sbClaimed);
+      else if (!bs) claimDays(absStart, absEnd, tz, sbClaimed);
     }
 
     // C_net: contract Soll net of leave/absence credits (incl. the BS day's Ø-Method day
@@ -1270,7 +1327,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // no separate half-day override is needed here (unlike the pricing-side kernels).
       const rowCredit = calcLeaveAbsenceMinutesTz(schedule, leaveStart, leaveEnd, tz, {
         halfDay: Boolean(lr.halfDay),
-        excludeHolidays: new Set([...nsClaimed, ...bsDatesInMonth]), // D-06 holidays + D-15 claimed days + D-03 BS days
+        excludeHolidays: bsPriority.exclusion(nsClaimed), // D-06 holidays + D-15 claimed days + D-03 BS days
         defaultWorkDays: tenantConfig?.defaultWorkDays, // Issue #433 (D-05) — MONTHLY_HOURS only
       });
       leaveMinutes += rowCredit;
@@ -1279,7 +1336,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // Issue #448 (D-03): do not claim a Berufsschultag into nsClaimed — see the matching
       // comment on the SHIFT_BASED leave loop above for why (a MANUAL BS Absence row must
       // keep its own Ø-Method credit).
-      claimDays(leaveStart, leaveEnd, tz, nsClaimed, bsDatesInMonth);
+      bsPriority.claim(leaveStart, leaveEnd, nsClaimed);
     }
 
     for (const ab of sortForDedup(absences)) {
@@ -1299,13 +1356,23 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // VOCATIONAL_SCHOOL row regardless of source (PATTERN or MANUAL); FIXED/FLEXTIME
       // keep the existing subtract-then-recredit behaviour via isBsAbsence() below.
       if (scheduleType === "MONTHLY_HOURS" && ab.type === "VOCATIONAL_SCHOOL") continue;
+      // Issue #1080: a row of any code other than VOCATIONAL_SCHOOL gives way to a
+      // Berufsschultag (bsDayPriority) — credited by the BS loop (or, for weekly-hours contracts,
+      // subtracted-then-recredited there), so it is neither credited here nor claimed.
+      const yields = bsPriority.yields(ab);
       const bs = isBsAbsence(ab);
       absenceMinutes += calcLeaveAbsenceMinutesTz(schedule, absStart, absEnd, tz, {
         halfDay: Boolean(ab.halfDay),
-        excludeHolidays: bs ? holidayExcludeSet : nsClaimed, // D-06 holidays (+ D-15 for non-BS)
+        // D-06 holidays (+ D-15 claimed days and #1080 Berufsschultage for yielding rows)
+        excludeHolidays: yields
+          ? bsPriority.exclusion(nsClaimed)
+          : bs
+            ? holidayExcludeSet
+            : nsClaimed,
         defaultWorkDays: tenantConfig?.defaultWorkDays, // Issue #433 (D-05) — MONTHLY_HOURS only
       });
-      if (!bs) claimDays(absStart, absEnd, tz, nsClaimed);
+      if (yields) bsPriority.claim(absStart, absEnd, nsClaimed);
+      else if (!bs) claimDays(absStart, absEnd, tz, nsClaimed);
     }
 
     // Add bsExpectedMinutes to expectedMinutes for non-MONTHLY_HOURS Soll-bearing types.
