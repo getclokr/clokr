@@ -161,12 +161,15 @@ describe("Section9Credit — model shape (Phase 104 Plan 01)", () => {
     expect(files.length).toBeGreaterThan(0);
     const src = files.map((f) => readFileSync(f, "utf8")).join("\n");
 
-    // Every absence.create(Many) call site in the tree must be a VOCATIONAL_SCHOOL write,
-    // never a SICK/SICK_CHILD one.
+    // Every absence.create(Many) call site in the tree must write exactly one of the imposed
+    // codes VOCATIONAL_SCHOOL or COMPANY_SHUTDOWN, never a SICK/SICK_CHILD one. Issue #1069:
+    // COMPANY_SHUTDOWN is the second imposed absence (the Betriebsurlaub booking in
+    // contexts/absence/company-shutdown/booking.ts); it is imposed, not requested, and not
+    // sickness. Any other code at a create site stays a failure here.
     const createBlocks = src.match(/absence\.create(Many)?\(\{[\s\S]{0,600}?\}\)/g) ?? [];
     expect(createBlocks.length).toBeGreaterThan(0);
     for (const b of createBlocks) {
-      expect(b).toMatch(/VOCATIONAL_SCHOOL/);
+      expect(b).toMatch(/VOCATIONAL_SCHOOL|COMPANY_SHUTDOWN/);
       expect(b).not.toMatch(/type:\s*"SICK/);
     }
 
