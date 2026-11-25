@@ -205,6 +205,19 @@ describe("#842 IN-06 - the web legacy map agrees with the API's", () => {
     }
   });
 
+  it("#976: the theme store never calls savePreferences, also with prefsHydrated true", async () => {
+    const { theme } = await bootWith({});
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { savePreferences } = await import("$api/preferences");
+    prefsHydrated.set(true);
+
+    theme.set("petrol");
+    theme.set("salz");
+
+    expect(get(theme)).toBe("salz");
+    expect(savePreferences).not.toHaveBeenCalled();
+  });
+
   it("control: a hard-coded table of the web mapping, including its web-only ids", async () => {
     const { normalizeTheme } = await bootWith({});
     const expected = {

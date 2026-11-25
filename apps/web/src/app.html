@@ -3,6 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Issue #975: runs before the first paint so no light flash happens on a dark device; the stores
+         take over on hydration. hooks.server.ts adds the CSP nonce to this tag. Only allow-listed
+         literals reach setAttribute; no network, no other DOM write. -->
+    <script id="clokr-look">
+      (function () {
+        var root = document.documentElement;
+        var mode = null;
+        var theme = null;
+        try {
+          mode = localStorage.getItem("mode");
+          theme = localStorage.getItem("theme");
+        } catch (e) {}
+        if (theme === "pflaume" || theme === "salz" || theme === "petrol") {
+          root.setAttribute("data-theme", theme);
+        }
+        if (mode !== "light" && mode !== "dark") {
+          mode = "light";
+          try {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+              mode = "dark";
+            }
+          } catch (e) {}
+        }
+        root.setAttribute("data-mode", mode);
+      })();
+    </script>
     <meta name="theme-color" content="#faf8f7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#17141a" media="(prefers-color-scheme: dark)" />
     <link rel="manifest" href="/manifest.json" />

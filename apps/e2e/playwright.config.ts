@@ -286,6 +286,18 @@ export default defineConfig({
       //     in the mail settings exactly when the server cannot deliver, the Personalabteilung lands
       //     there); tenant fixture plus an API-created person with the HR template
       //
+      // Issue #975 added a further file:
+      //   - appearance-mode-975.spec.ts (the colour mode follows the device with every app script
+      //     blocked, so only the pre-paint script of app.html and its CSP nonce can set data-mode;
+      //     live device follow, an account choice wins, Wie Gerät follows again); tenant fixture only,
+      //     no seed, no date dependency
+      //
+      // Issue #976 added a further file:
+      //   - tenant-theme-976.spec.ts (the tenant default Farbwelt: a person without an own choice sees it,
+      //     the profile option returns to it, Verwalten > System > Allgemein changes it with a toast, the
+      //     operator console stays salz without a /me/preferences request, the sign-in page keeps the
+      //     device's last shown Farbwelt); tenant fixture only, no seed, no date dependency
+      //
       // This is the ONLY place the CI selection is listed — do not add files here
       // without also updating that registry, and do not let the CI job pass a file
       // list of its own (D-04: one visible place, cannot grow silently).
@@ -317,6 +329,8 @@ export default defineConfig({
         /shift-notices-850\.spec\.ts/,
         /verwalten-854\.spec\.ts/,
         /team-pages-853\.spec\.ts/,
+        /appearance-mode-975\.spec\.ts/,
+        /tenant-theme-976\.spec\.ts/,
       ],
       use: {
         ...devices["Desktop Chrome"],

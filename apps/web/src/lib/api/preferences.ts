@@ -7,13 +7,21 @@ export type EmailOptOutField =
   "emailOnLeaveDecision" | "emailOnRetroEntry" | "emailOnMissingEntries" | "emailOnLeaveRequest";
 
 export interface UiPreferences {
+  /** Issue #976: the RESOLVED Farbwelt (own choice, else tenant default, else pflaume), decided on the server. */
   theme: Theme;
-  mode: "light" | "dark";
+  /** The own choice; null = none, the tenant default applies. */
+  themeChoice: Theme | null;
+  /** The tenant's Standard-Farbwelt. */
+  tenantDefaultTheme: Theme;
+  mode: "light" | "dark" | "system";
   language: "de" | "en";
   emailOptOut: EmailOptOutField[];
 }
 
-export type UiPreferencesPartial = Partial<UiPreferences>;
+/** What a PUT may carry; `theme: null` removes the own choice (back to the tenant default). */
+export type UiPreferencesPartial = Partial<
+  Omit<UiPreferences, "theme" | "themeChoice" | "tenantDefaultTheme">
+> & { theme?: Theme | null };
 
 /** Fetch the authenticated user's preferences (merged with server-side defaults). */
 export function fetchPreferences(): Promise<UiPreferences> {

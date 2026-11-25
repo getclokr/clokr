@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
-  import { mode } from "$stores/mode";
+  import { mode, resolvedMode } from "$stores/mode";
   import { authStore } from "$stores/auth";
   import { salonContext, roleNamesLabel } from "$stores/salon-context";
   import { avatarVersion } from "$stores/avatar";
@@ -181,7 +181,8 @@
 
   // ── Mode toggle (SHELL-04) ─────────────────────────────────────
   function toggleMode() {
-    mode.set($mode === "dark" ? "light" : "dark");
+    // #975: the toggle stores the explicit opposite of what is DRAWN, also while the choice is "system".
+    mode.set($resolvedMode === "dark" ? "light" : "dark");
   }
 
   // ── Avatar initials ────────────────────────────────────────────
@@ -294,10 +295,10 @@
       class="icon-btn"
       type="button"
       onclick={toggleMode}
-      title={$mode === "dark" ? "Hellmodus" : "Dunkelmodus"}
-      aria-label={$mode === "dark" ? "Hellmodus aktivieren" : "Dunkelmodus aktivieren"}
+      title={$resolvedMode === "dark" ? "Hellmodus" : "Dunkelmodus"}
+      aria-label={$resolvedMode === "dark" ? "Hellmodus aktivieren" : "Dunkelmodus aktivieren"}
     >
-      {#if $mode === "dark"}{@render iconSun()}{:else}{@render iconMoon()}{/if}
+      {#if $resolvedMode === "dark"}{@render iconSun()}{:else}{@render iconMoon()}{/if}
     </button>
 
     <div class="bell-wrap">

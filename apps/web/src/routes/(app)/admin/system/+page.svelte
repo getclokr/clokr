@@ -2,10 +2,13 @@
   Verwalten › System › Allgemein (Issue #854, D-854-03): what is left of the former System page once the
   working-time defaults, the closing settings, the mail settings, the roster settings and the integrations
   moved to their own pages - the company and its region, and the security of the sign-in (two-factor,
-  password policy, sessions). The page is a settings page without tabs: four sections, each with its own
-  save (lib/settings/settings-pages.ts). Themes are a personal setting that lives under the profile.
+  password policy, sessions) - plus, since Issue #976, the Standard-Farbwelt. The page is a settings page
+  without tabs: five sections (lib/settings/settings-pages.ts). The Standard-Farbwelt is the tenant default
+  that everyone without an own choice sees, and it saves instantly like the two-factor switch; the choice of a
+  person (and light or dark) stays personal and lives under the profile.
 
-  The company section reads `GET /settings/work`, the three security sections read `GET /settings/security`.
+  The company section and the Standard-Farbwelt read `GET /settings/work` (one request shared by both), the
+  three security sections read `GET /settings/security`.
   A section whose data could not be loaded shows that instead of an editable form with made-up defaults:
   saving those would overwrite the stored values (the former page swallowed a failed security load). Each
   section keeps its own snapshot and sends only its own fields (#878).
@@ -17,11 +20,13 @@
   import { markUnsaved } from "$stores/unsaved";
   import { pageLabel } from "$lib/nav/page-labels";
   import { mayOpenSection, settingsSection } from "$lib/settings/settings-pages";
-  import type { CompanyConfig, SecurityConfig } from "$lib/settings/allgemein";
+  import type { CompanyConfig, SecurityConfig, ThemeDefaultConfig } from "$lib/settings/allgemein";
+  import { hasPermission } from "$lib/permissions";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import CompanySection from "$lib/components/admin/allgemein/CompanySection.svelte";
+  import ThemeDefaultSection from "$lib/components/admin/allgemein/ThemeDefaultSection.svelte";
   import PasswordSection from "$lib/components/admin/allgemein/PasswordSection.svelte";
   import SessionSection from "$lib/components/admin/allgemein/SessionSection.svelte";
   import TwoFactorSection from "$lib/components/admin/allgemein/TwoFactorSection.svelte";
@@ -35,12 +40,14 @@
     | { status: "ready"; data: T }
     | { status: "failed"; message: string };
 
-  let company = $state<Loaded<CompanyConfig>>({ status: "idle" });
+  // `GET /settings/work` answers both the company section and the Standard-Farbwelt.
+  let company = $state<Loaded<CompanyConfig & ThemeDefaultConfig>>({ status: "idle" });
   let security = $state<Loaded<SecurityConfig>>({ status: "idle" });
 
   const user = $derived($authStore.user);
   const show = $derived({
     unternehmen: mayOpenSection(user, settingsSection("allgemein-unternehmen")),
+    farbwelt: mayOpenSection(user, settingsSection("allgemein-farbwelt")),
     zweiFaktor: mayOpenSection(user, settingsSection("allgemein-zwei-faktor")),
     passwort: mayOpenSection(user, settingsSection("allgemein-passwort")),
     sitzungen: mayOpenSection(user, settingsSection("allgemein-sitzungen")),
@@ -58,8 +65,8 @@
 
   // Each endpoint is asked once, as soon as the person is known to be allowed to open a section that needs it.
   $effect(() => {
-    if (show.unternehmen && untrack(() => company.status) === "idle") {
-      void load<CompanyConfig>("/settings/work", (next) => (company = next));
+    if ((show.unternehmen || show.farbwelt) && untrack(() => company.status) === "idle") {
+      void load<CompanyConfig & ThemeDefaultConfig>("/settings/work", (next) => (company = next));
     }
   });
   $effect(() => {
@@ -69,8 +76,8 @@
   });
 
   // The unsaved counts of the sections, summed into ONE registration (a second registration under the
-  // same id would let one section's cleanup disarm the others). The two-factor switch saves instantly and
-  // is never unsaved.
+  // same id would let one section's cleanup disarm the others). The Standard-Farbwelt and the two-factor
+  // switch save instantly and are never unsaved.
   const changes = $state({ unternehmen: 0, passwort: 0, sitzungen: 0 });
   const totalChanges = $derived(changes.unternehmen + changes.passwort + changes.sitzungen);
 
@@ -84,7 +91,8 @@
   });
 
   const loading = $derived(
-    (show.unternehmen && (company.status === "idle" || company.status === "loading")) ||
+    ((show.unternehmen || show.farbwelt) &&
+      (company.status === "idle" || company.status === "loading")) ||
       (showSecurity && (security.status === "idle" || security.status === "loading")),
   );
 </script>
@@ -97,7 +105,7 @@
 <div data-testid="admin-system-page" style="display: contents;">
   <PageHead
     title={pageLabel("/admin/system")}
-    sub="Hier legst du den Namen, die Region und die Sicherheit der Anmeldung für das ganze Unternehmen fest."
+    sub="Hier legst du den Namen, die Region, die Standard-Farbwelt und die Sicherheit der Anmeldung für das ganze Unternehmen fest."
   />
 
   {#if loading}
@@ -109,6 +117,17 @@
       <CompanySection config={company.data} bind:changes={changes.unternehmen} />
     {:else if company.status === "failed"}
       <div role="alert"><Note tone="bad">{LOAD_ERROR} (Unternehmen & Region)</Note></div>
+    {/if}
+  {/if}
+
+  {#if show.farbwelt}
+    {#if company.status === "ready"}
+      <ThemeDefaultSection
+        config={company.data}
+        canEdit={hasPermission(user, "tenant-settings:update:ZUGEWIESEN")}
+      />
+    {:else if company.status === "failed"}
+      <div role="alert"><Note tone="bad">{LOAD_ERROR} (Standard-Farbwelt)</Note></div>
     {/if}
   {/if}
 

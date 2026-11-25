@@ -87,6 +87,15 @@ enum TenantModule {
   ANALYTICS
 }
 
+// Issue #976 — the tenant default Farbwelt. The values follow the UPPER_SNAKE enum convention; the
+// web theme ids (`data-theme` in apps/web/src/tokens.css, lowercase) are mapped to and from them in
+// exactly one place, contexts/platform/ui-theme.ts (uiThemeToDb / uiThemeFromDb), pinned by a unit test.
+enum UiTheme {
+  PFLAUME
+  SALZ
+  PETROL
+}
+
 // Phase 64b (issue #64) — Unterbau level below Tenant (ADR 0001): a Salon is never hard-deleted,
 // only deactivated (isActive/deactivatedAt). openingHours has the shape of the former
 // tenant-level opening hours column (dropped in #638):
@@ -377,6 +386,9 @@ model TenantConfig {
   retroEntryWindowDays              Int      @default(10)
   // Phase 76.29 CFG-01 — allows cron/manual month-close to proceed when open gaps exist (gap-warning only, not blocking)
   closeMonthWithGapsAllowed         Boolean  @default(true)
+  // Issue #976 — the Farbwelt every person without an own choice sees. The resolution order lives
+  // in contexts/platform/ui-theme.ts resolveUiTheme(); existing tenants keep PFLAUME.
+  defaultUiTheme                    UiTheme  @default(PFLAUME)
   createdAt                         DateTime @default(now()) @db.Timestamptz
   updatedAt                         DateTime @updatedAt @db.Timestamptz
 

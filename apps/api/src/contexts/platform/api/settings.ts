@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { permissionReach, requirePermission } from "../request-permissions";
-import { FederalState, type TenantConfig, type Prisma } from "@clokr/db";
+import { FederalState, type TenantConfig, type UiTheme, type Prisma } from "@clokr/db";
 import { encrypt } from "../../../utils/crypto";
 // eslint-disable-next-line no-restricted-imports -- E-3: PUT /settings/work/:employeeId triggers saldo recalculation and shift cancellation as side effects of a contract change — same defect class as E-1. Disappears in Block 2 via a schedule-changed event. ADR 0001 Eintrag H.
 import { recalculateSnapshots } from "../../working-time-account/recalculate-snapshots";
@@ -62,6 +62,7 @@ import {
 import { validateUsualWorkDays } from "../usual-work-days"; // Phase 436 (D-02)
 import { NOT_ANONYMIZED_EMPLOYEE_WHERE } from "../employee-anonymization-filter"; // Issue #569
 import { requestAuditFields } from "../request-audit-fields";
+import { UI_THEME_IDS, uiThemeFromDb, uiThemeToDb } from "../ui-theme"; // Issue #976
 import { changedFieldsAudit } from "../../../utils/audit-diff"; // Issue #450 (D-08) — attributes the recompute's audit to the acting user
 
 const VALID_FEDERAL_STATES = Object.values(FederalState) as string[];
@@ -188,6 +189,10 @@ const tenantConfigSchema = z
     // only one of the 23 nullable TenantConfig columns still missing it (measured against
     // schema.prisma, not assumed). See CLAUDE.md § Zod .optional() vs .nullable().
     holidayRulesValidFromYear: z.number().int().min(2020).max(2100).nullable().optional(),
+    // Issue #976 (Unterbau-Erweiterung): the tenant default Farbwelt. Only the three current ids; a
+    // retired id is a 400 and never mapped, because the tenant value is set on purpose. The handler
+    // stores it as the `UiTheme` enum through uiThemeToDb() (the web ids are lowercase).
+    defaultUiTheme: z.enum(UI_THEME_IDS).optional(),
     // Leave config
     vacationLeadTimeDays: z.number().int().min(0).max(365).optional(),
     vacationMaxAdvanceMonths: z.number().int().min(0).max(24).optional(),
@@ -816,6 +821,9 @@ export async function settingsRoutes(app: FastifyInstance) {
 
       return {
         ...base,
+        // Issue #976: served as the web theme id (lowercase), never the stored enum value; a tenant
+        // without a config row reads Pflaume.
+        defaultUiTheme: uiThemeFromDb((base as { defaultUiTheme?: UiTheme }).defaultUiTheme),
         federalState: tenant?.federalState ?? "NIEDERSACHSEN",
         tenantName: tenant?.name ?? "",
         // Phase 63 D-24 — fail-open defaults when config row has null/missing values.
@@ -877,6 +885,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         previewFingerprint,
         effectiveFrom,
         sickNoteRequiredAfterDays,
+        defaultUiTheme,
         ...configBody
       } = body;
 
@@ -919,6 +928,9 @@ export async function settingsRoutes(app: FastifyInstance) {
         ...(sickNoteRequiredAfterDays !== undefined
           ? { sickNoteRequiredAfterDays: sickNoteRequiredAfterDays ?? 3 }
           : {}),
+        // Issue #976: web id to the stored enum; the UPDATE audit row (changedFieldsAudit) records
+        // the enum value before and after, like every other enum field of the config.
+        ...(defaultUiTheme !== undefined ? { defaultUiTheme: uiThemeToDb(defaultUiTheme) } : {}),
       };
 
       // Build tenant update data (name + federalState live on Tenant model)
@@ -1202,6 +1214,7 @@ export async function settingsRoutes(app: FastifyInstance) {
 
       return {
         ...config,
+        defaultUiTheme: uiThemeFromDb(config.defaultUiTheme),
         federalState: federalState ?? undefined,
         appliedCount,
         skippedModelSwitch,

@@ -1,8 +1,8 @@
 import { writable } from "svelte/store";
 import { browser } from "$app/env";
-import { theme, normalizeTheme } from "$stores/theme";
-import { mode } from "$stores/mode";
+import { themeChoice, tenantDefaultTheme } from "$stores/theme";
 import { prefsHydrated } from "$stores/prefs-state";
+import { applyServerPreferences } from "$stores/apply-preferences";
 import { fetchPreferences } from "$api/preferences";
 import { ApiError, loadPermissionsIfMissing } from "$api/client";
 import { clientLogger } from "$lib/utils/logger";
@@ -52,16 +52,27 @@ function loadUser(): AuthUser | null {
  *
  * Failures are silent: localStorage already holds last-used values as offline fallback.
  */
+/**
+ * The operator console (`/betreiber`, Phase 89) pins theme salz and is blind to tenant data
+ * (.claude/rules/operator-and-tenants.md). A tenant session lying in the same browser must not
+ * have its preferences fetched or applied there: since Issue #976 the answer carries the tenant
+ * default Farbwelt, which would overwrite the console's pin.
+ */
+function onOperatorConsole(): boolean {
+  const path = window.location.pathname;
+  return path === "/betreiber" || path.startsWith("/betreiber/");
+}
+
 async function hydratePreferencesFromServer(): Promise<void> {
-  if (!browser) return;
+  if (!browser || onOperatorConsole()) return;
   try {
     const prefs = await fetchPreferences();
-    // Apply in order. Subscribers will still write to localStorage + DOM attribute
-    // (those are unconditional), but skip the server PUT because prefsHydrated === false.
-    // #842 D-842-17: a server value of a retired theme id (the API maps them too, but an older
-    // server or a cached response may still serve one) is mapped before it reaches data-theme.
-    theme.set(normalizeTheme(prefs.theme));
-    mode.set(prefs.mode);
+    // The one place that applies a server answer (apply-preferences.ts): the resolved `theme`
+    // (Issue #976: own choice, else tenant default, else Pflaume, decided on the server) and the
+    // mode choice (#975: "system", also for a person who never chose, follows the device). The
+    // subscribers still write localStorage + the DOM attributes (unconditional) but skip the server
+    // PUT because the gate is closed meanwhile.
+    applyServerPreferences(prefs);
     // Language store doesn't exist yet (planned). Once it does, set it here.
     prefsHydrated.set(true);
   } catch (err) {
@@ -161,6 +172,11 @@ function createAuthStore() {
       // Stop background PUTs for the previous user. The next login will re-hydrate
       // and flip this back to true once values from the server are applied.
       prefsHydrated.set(false);
+      // Issue #976: the own choice and the tenant default belong to the person and the tenant; the
+      // applied theme itself stays (localStorage.theme, the device's last shown Farbwelt, is what the
+      // sign-in page shows, documented in theme.ts).
+      themeChoice.set(undefined);
+      tenantDefaultTheme.set(undefined);
       // Issue #82 (D-09): the salon selection belongs to the person — forget it and every stored
       // selection on this device. Runtime-only call: this module and salon-context.ts reach each
       // other through $api/client, safe because neither calls the other during module evaluation.

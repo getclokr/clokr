@@ -1,14 +1,22 @@
 <!--
   Ich › Profil › Erscheinungsbild (Issue #854 D-854-03, moved from Verwalten › System by #951): the colour world, the mode and the language of
   the app, rebuilt on the blocks of #843. The choice is a PERSONAL preference: it is saved for the signed-in
-  account through the preference stores (`PUT /me/preferences`) and gives the tenant no default. Three
-  `.settings-group`s, no SaveBar: a theme or mode click is a presentation choice that saves at once
+  account through the preference stores (`PUT /me/preferences`). The tenant can set a Standard-Farbwelt (Issue
+  #976, Verwalten › System › Allgemein) that everyone without an own choice sees; the last card returns to it.
+  The Farbwelt that is shown comes from the server's answer. Three `.settings-group`s, no SaveBar: a theme or mode click is a presentation choice that saves at once
   (docs/ADMIN_STRUCTURE.md §3.2.1).
 -->
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
-  import { theme, themes, type Theme } from "$stores/theme";
+  import { theme, themes, themeChoice, tenantDefaultTheme, type Theme } from "$stores/theme";
   import { mode, type Mode } from "$stores/mode";
+  import {
+    APPEARANCE_SAVE_ERROR,
+    MODE_OPTIONS,
+    THEME_DEFAULT_VALUE,
+    THEME_OPTIONS,
+  } from "$lib/settings/appearance-options";
+  import { toasts } from "$stores/toast";
   import { applyPreferences } from "$stores/apply-preferences";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
@@ -22,18 +30,29 @@
     { id: "dark", label: "Dunkel" },
   ];
 
-  const modeOptions = [
-    { value: "light", label: "Hell" },
-    { value: "dark", label: "Dunkel" },
-  ];
+  const modeOptions = MODE_OPTIONS;
 
-  /** Theme click: one PUT through applyPreferences (Issue #392 rationale). */
-  function selectTheme(id: Theme) {
-    applyPreferences({ theme: id });
+  /** Cards: the three themes, then the way back to the Standard des Unternehmens (a card without own choice). */
+  const cardLabel = new Map(THEME_OPTIONS.map((o) => [o.value, o.label]));
+  const defaultCardLabel = cardLabel.get(THEME_DEFAULT_VALUE) ?? "";
+
+  /** Active card: the own choice; while it is not loaded, the applied theme. */
+  function themeActive(id: Theme, choice: Theme | null | undefined, applied: Theme): boolean {
+    return choice === undefined ? applied === id : choice === id;
+  }
+
+  function fail() {
+    toasts.error(APPEARANCE_SAVE_ERROR);
+  }
+
+  /** Theme click: one PUT through applyPreferences (Issue #392 rationale); null = the tenant default. */
+  function selectTheme(id: Theme | null) {
+    applyPreferences({ theme: id }).catch(fail);
   }
 
   function selectMode(value: string) {
-    mode.set(value === "dark" ? "dark" : "light");
+    const next = MODE_OPTIONS.find((o) => o.value === value)?.value;
+    if (next) mode.set(next);
   }
 </script>
 
@@ -51,7 +70,7 @@
   <p class="settings-group-desc">Wähle die Farbwelt, jeweils in Hell und Dunkel gezeigt.</p>
   <div class="theme-grid" role="group" aria-label="Farbwelt auswählen">
     {#each themes as t (t.id)}
-      {@const active = $theme === t.id}
+      {@const active = themeActive(t.id, $themeChoice, $theme)}
       <button
         type="button"
         class="theme-card"
@@ -79,12 +98,40 @@
         </div>
       </button>
     {/each}
+    <button
+      type="button"
+      class="theme-card"
+      class:active={$themeChoice === null}
+      aria-pressed={$themeChoice === null}
+      onclick={() => selectTheme(null)}
+    >
+      {#if $tenantDefaultTheme}
+        <div class="theme-previews">
+          {#each previewModes as m (m.id)}
+            <div class="theme-preview" data-theme={$tenantDefaultTheme} data-mode={m.id}>
+              <div class="tp-bar"></div>
+              <div class="tp-card">
+                <span class="tp-brand"></span>
+                <span class="tp-text"></span>
+              </div>
+              <span class="tp-caption">{m.label}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <div class="theme-body">
+        <span class="theme-label">{defaultCardLabel}</span>
+        {#if $themeChoice === null}
+          <Chip tone="brand">Aktiv</Chip>
+        {/if}
+      </div>
+    </button>
   </div>
 </section>
 
 <section class="settings-group" aria-labelledby="themes-modus-title">
   <h2 class="settings-group-title" id="themes-modus-title">Modus</h2>
-  <p class="settings-group-desc">Hell oder dunkel, unabhängig von der Farbwelt.</p>
+  <p class="settings-group-desc">Hell, dunkel oder wie dein Gerät, unabhängig von der Farbwelt.</p>
   <!-- A block wrapper keeps the control as wide as its options (the group stretches its children). -->
   <div>
     <SegmentedControl
@@ -100,8 +147,13 @@
 <style>
   .theme-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--s-4);
+  }
+  @media (min-width: 1100px) {
+    .theme-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
   }
   @media (max-width: 720px) {
     .theme-grid {

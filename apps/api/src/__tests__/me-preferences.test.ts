@@ -12,6 +12,9 @@
 // unfixed handler.
 // #842 D-842-18: skin and density are retired, three keys remain; theme ids are mapped by
 // normalizeUiTheme().
+// #976: the answer additionally carries `themeChoice` (the own choice, null = none) and
+// `tenantDefaultTheme`; `theme` is the resolved value. The exact-key expectations below were updated
+// to that contract on purpose, not loosened. #975: mode is light|dark|system, an absent mode reads "system".
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
@@ -23,7 +26,9 @@ import type { JwtPayload } from "../middleware/auth";
 // list of e-mail groups the person switched off.
 const DEFAULTS = {
   theme: "pflaume",
-  mode: "light",
+  themeChoice: null,
+  tenantDefaultTheme: "pflaume",
+  mode: "system",
   language: "de",
   emailOptOut: [],
 };
@@ -84,13 +89,15 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
         // #602: the answer also names the (unchanged, empty) e-mail opt-out list.
         expect(body, `round ${round} (target set ${round % 2 === 0 ? "A" : "B"})`).toEqual({
           ...target,
+          themeChoice: target.theme,
+          tenantDefaultTheme: "pflaume",
           emailOptOut: [],
         });
       }
     },
   );
 
-  it("a single partial PUT on a fresh state returns 200 with exactly the 4 default-merged keys", async () => {
+  it("a single partial PUT on a fresh state returns 200 with exactly the 6 default-merged keys", async () => {
     const res = await app.inject({
       method: "PUT",
       url: "/api/v1/me/preferences",
@@ -100,8 +107,15 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(Object.keys(body).sort()).toEqual(["emailOptOut", "language", "mode", "theme"]);
-    expect(body).toEqual({ ...DEFAULTS, theme: "petrol" });
+    expect(Object.keys(body).sort()).toEqual([
+      "emailOptOut",
+      "language",
+      "mode",
+      "tenantDefaultTheme",
+      "theme",
+      "themeChoice",
+    ]);
+    expect(body).toEqual({ ...DEFAULTS, theme: "petrol", themeChoice: "petrol" });
   });
 
   // #842 D-842-18: the three current ids and the legacy mapping, on the wire and in storage.
@@ -140,7 +154,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
       payload: { skin: "modern", density: "compact" },
     });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "salz" });
+    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "salz", themeChoice: "salz" });
     const row = await app.prisma.user.findUnique({
       where: { id: data.adminUser.id },
       select: { uiPreferences: true },
@@ -160,8 +174,68 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(Object.keys(body).sort()).toEqual(["emailOptOut", "language", "mode", "theme"]);
-    expect(body).toEqual({ theme: "petrol", mode: "dark", language: "de", emailOptOut: [] });
+    expect(Object.keys(body).sort()).toEqual([
+      "emailOptOut",
+      "language",
+      "mode",
+      "tenantDefaultTheme",
+      "theme",
+      "themeChoice",
+    ]);
+    expect(body).toEqual({
+      theme: "petrol",
+      themeChoice: "petrol",
+      tenantDefaultTheme: "pflaume",
+      mode: "dark",
+      language: "de",
+      emailOptOut: [],
+    });
+  });
+
+  // #975: "system" (follow the device) is a stored value, and an absent mode reads "system".
+  it("PUT mode system is stored and returned; light and dark stay as they are; an absent mode reads system", async () => {
+    await app.prisma.user.update({
+      where: { id: data.adminUser.id },
+      data: { uiPreferences: Prisma.DbNull },
+    });
+    const absent = await app.inject({
+      method: "GET",
+      url: "/api/v1/me/preferences",
+      headers: { authorization: `Bearer ${data.adminToken}` },
+    });
+    expect(JSON.parse(absent.body).mode).toBe("system");
+
+    for (const value of ["dark", "light", "system"]) {
+      const res = await app.inject({
+        method: "PUT",
+        url: "/api/v1/me/preferences",
+        headers: { authorization: `Bearer ${data.adminToken}` },
+        payload: { mode: value },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).mode).toBe(value);
+      const read = await app.inject({
+        method: "GET",
+        url: "/api/v1/me/preferences",
+        headers: { authorization: `Bearer ${data.adminToken}` },
+      });
+      expect(JSON.parse(read.body).mode).toBe(value);
+      const row = await app.prisma.user.findUnique({
+        where: { id: data.adminUser.id },
+        select: { uiPreferences: true },
+      });
+      expect((row?.uiPreferences as Record<string, unknown>).mode).toBe(value);
+    }
+  });
+
+  it("PUT mode auto is a 400", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/preferences",
+      headers: { authorization: `Bearer ${data.empToken}` },
+      payload: { mode: "auto" },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("an unknown theme id (lila) still returns 400", async () => {
@@ -188,7 +262,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
     });
     expect(res.statusCode).toBe(200);
     // #842 D-842-18: "wald" is stored as "petrol".
-    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "petrol" });
+    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "petrol", themeChoice: "petrol" });
 
     const stored = await app.prisma.user.findUnique({
       where: { id: data.empUser.id },
@@ -211,7 +285,7 @@ describe("PUT /api/v1/me/preferences (Issue #392, lost-update race)", () => {
     });
     expect(res.statusCode).toBe(200);
     // #842 D-842-18: "wald" is stored as "petrol".
-    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "petrol" });
+    expect(JSON.parse(res.body)).toEqual({ ...DEFAULTS, theme: "petrol", themeChoice: "petrol" });
 
     const stored = await app.prisma.user.findUnique({
       where: { id: data.empUser.id },

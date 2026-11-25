@@ -3,9 +3,9 @@
   import "../app.css";
   // Tailwind token pipeline (Issue #843): utilities layer only, after the real stylesheets.
   import "../tailwind-theme.css";
-  // Stores apply data-theme / data-mode to <html> at
-  // module init via their own module-scope subscribe() calls
-  // (see theme.ts / mode.ts).
+  // The pre-paint script of app.html (Issue #975) sets data-theme / data-mode on <html> first, before
+  // the first paint; the stores then take over and apply them at module init via their own
+  // module-scope subscribe() calls (see theme.ts / mode.ts).
   // Import order matters: theme BEFORE mode, because theme.ts seeds localStorage.mode
   // for legacy 'hell' / 'dunkel' users (one-time, only if no mode key exists).
   import "$stores/theme";

@@ -5,11 +5,22 @@
 // Issue #854 (plan 16): the page is built from a PageHead and three `.settings-group` sections (Farbwelt, Modus,
 // Sprache) and promises no version; the choice is still saved through the preference stores only.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/svelte";
 import { get } from "svelte/store";
 
+// #976: the server answers the resolved state; the stub resolves like the real handler for a tenant whose
+// Standard-Farbwelt is petrol.
 const { saveSpy } = vi.hoisted(() => ({
-  saveSpy: vi.fn(() => Promise.resolve({})),
+  saveSpy: vi.fn((partial: { theme?: string | null; mode?: string }) =>
+    Promise.resolve({
+      theme: partial.theme ?? "petrol",
+      themeChoice: partial.theme ?? null,
+      tenantDefaultTheme: "petrol",
+      mode: partial.mode ?? "light",
+      language: "de",
+      emailOptOut: [],
+    }),
+  ),
 }));
 
 vi.mock("$api/preferences", () => ({
@@ -30,7 +41,7 @@ vi.hoisted(() => {
 
 import Page from "../routes/(app)/settings/erscheinungsbild/+page.svelte";
 import { prefsHydrated } from "$stores/prefs-state";
-import { theme } from "$stores/theme";
+import { theme, themeChoice, tenantDefaultTheme } from "$stores/theme";
 import { mode } from "$stores/mode";
 
 beforeEach(() => {
@@ -38,6 +49,8 @@ beforeEach(() => {
   prefsHydrated.set(false);
   mode.set("light");
   theme.set("pflaume");
+  themeChoice.set(undefined);
+  tenantDefaultTheme.set(undefined);
   saveSpy.mockClear();
 });
 
@@ -46,26 +59,33 @@ function cards(container: HTMLElement): HTMLButtonElement[] {
 }
 
 describe("#842 D-842-22 - theme cards with light and dark previews", () => {
-  it("shows three cards labelled Pflaume, Salz and Petrol", () => {
+  // #976: the fourth card returns to the Standard-Farbwelt of the Unternehmen.
+  it("shows four cards: Pflaume, Salz, Petrol and Standard des Unternehmens", () => {
     const { container } = render(Page);
     const found = cards(container);
-    expect(found).toHaveLength(3);
+    expect(found).toHaveLength(4);
     expect(found.map((c) => c.querySelector(".theme-label")?.textContent?.trim())).toEqual([
       "Pflaume",
       "Salz",
       "Petrol",
+      "Standard des Unternehmens",
     ]);
   });
 
   it("each card holds exactly two previews: its own data-theme with data-mode light and dark", () => {
     const { container } = render(Page);
     const expected = ["pflaume", "salz", "petrol"];
-    cards(container).forEach((card, i) => {
-      const previews = [...card.querySelectorAll<HTMLElement>(".theme-preview")];
-      expect(previews).toHaveLength(2);
-      expect(previews.map((p) => p.getAttribute("data-theme"))).toEqual([expected[i], expected[i]]);
-      expect(previews.map((p) => p.getAttribute("data-mode"))).toEqual(["light", "dark"]);
-    });
+    cards(container)
+      .slice(0, 3)
+      .forEach((card, i) => {
+        const previews = [...card.querySelectorAll<HTMLElement>(".theme-preview")];
+        expect(previews).toHaveLength(2);
+        expect(previews.map((p) => p.getAttribute("data-theme"))).toEqual([
+          expected[i],
+          expected[i],
+        ]);
+        expect(previews.map((p) => p.getAttribute("data-mode"))).toEqual(["light", "dark"]);
+      });
   });
 
   it("previews draw with tokens only: no inline colour or background on the page", () => {
@@ -76,7 +96,7 @@ describe("#842 D-842-22 - theme cards with light and dark previews", () => {
   it("marks the active theme with aria-pressed and a visible Aktiv chip", () => {
     const { container } = render(Page);
     const pressed = cards(container).map((c) => c.getAttribute("aria-pressed"));
-    expect(pressed).toEqual(["true", "false", "false"]);
+    expect(pressed).toEqual(["true", "false", "false", "false"]);
     expect(container.querySelectorAll(".chip-brand")).toHaveLength(1);
   });
 });
@@ -112,21 +132,76 @@ describe("#842 D-842-02 - selecting saves instantly as a personal preference", (
     const salz = cards(container)[1];
     await fireEvent.click(salz);
 
-    expect(get(theme)).toBe("salz");
+    // The shown theme is the server's answer, applied after the PUT (#976).
+    await waitFor(() => expect(get(theme)).toBe("salz"));
     expect(saveSpy).toHaveBeenCalledTimes(1);
     expect(saveSpy).toHaveBeenCalledWith({ theme: "salz" });
-    expect(salz.getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(salz.getAttribute("aria-pressed")).toBe("true"));
   });
 
-  it("the Modus control offers Hell and Dunkel and sets the mode store", async () => {
+  // #976: the fourth card is active without an own choice, previews the tenant default and goes back to it.
+  it("the Standard des Unternehmens card is active without an own choice and previews the tenant default", () => {
+    themeChoice.set(null);
+    tenantDefaultTheme.set("petrol");
+    const { container } = render(Page);
+    const found = cards(container);
+    expect(found.map((c) => c.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "false",
+      "false",
+      "true",
+    ]);
+    const previews = [...found[3].querySelectorAll<HTMLElement>(".theme-preview")];
+    expect(previews.map((p) => p.getAttribute("data-theme"))).toEqual(["petrol", "petrol"]);
+    expect(previews.map((p) => p.getAttribute("data-mode"))).toEqual(["light", "dark"]);
+  });
+
+  it("the Standard des Unternehmens card shows its label only while the tenant default is unknown", () => {
+    themeChoice.set(null);
+    const { container } = render(Page);
+    expect(cards(container)[3].querySelectorAll(".theme-preview")).toHaveLength(0);
+  });
+
+  it("a theme card is active when the own choice equals its id", () => {
+    themeChoice.set("salz");
+    theme.set("salz");
+    const { container } = render(Page);
+    expect(cards(container).map((c) => c.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+      "false",
+    ]);
+  });
+
+  it("clicking the Standard des Unternehmens card sends { theme: null } once and applies the answer", async () => {
+    prefsHydrated.set(true);
+    themeChoice.set("salz");
+    theme.set("salz");
+    const { container } = render(Page);
+    await fireEvent.click(cards(container)[3]);
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy).toHaveBeenCalledWith({ theme: null });
+    await waitFor(() => expect(get(theme)).toBe("petrol"));
+    expect(get(themeChoice)).toBeNull();
+    await waitFor(() => expect(cards(container)[3].getAttribute("aria-pressed")).toBe("true"));
+  });
+
+  it("the Modus control offers Hell, Dunkel and Wie Gerät and sets the mode store", async () => {
     render(Page);
     const hell = screen.getByRole("radio", { name: "Hell" });
     const dunkel = screen.getByRole("radio", { name: "Dunkel" });
+    const system = screen.getByRole("radio", { name: "Wie Gerät" });
     expect(hell.getAttribute("aria-checked")).toBe("true");
 
     await fireEvent.click(dunkel);
     expect(get(mode)).toBe("dark");
     expect(dunkel.getAttribute("aria-checked")).toBe("true");
+
+    await fireEvent.click(system);
+    expect(get(mode)).toBe("system");
+    expect(system.getAttribute("aria-checked")).toBe("true");
   });
 });
 

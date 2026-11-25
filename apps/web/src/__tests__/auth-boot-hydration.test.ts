@@ -232,6 +232,61 @@ describe("#842 D-842-17 — a retired server theme id hydrates as its successor"
   });
 });
 
+describe("#976 — the server's resolved theme is applied, the choice is kept apart", () => {
+  it("a person without an own choice gets the tenant default on <html data-theme> and themeChoice null", async () => {
+    seedSession();
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/me/preferences")) {
+        return jsonResponse({
+          ...VALID_PREFS,
+          theme: "salz",
+          themeChoice: null,
+          tenantDefaultTheme: "salz",
+        });
+      }
+      return errorResponse(404);
+    });
+
+    vi.resetModules();
+    await import("$stores/auth");
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { themeChoice, tenantDefaultTheme } = await import("$stores/theme");
+
+    await vi.waitFor(() => {
+      expect(get(prefsHydrated)).toBe(true);
+    });
+    expect(document.documentElement.getAttribute("data-theme")).toBe("salz");
+    expect(get(themeChoice)).toBeNull();
+    expect(get(tenantDefaultTheme)).toBe("salz");
+    // hydration never PUT the applied default back as an own choice
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "PUT"),
+    ).toBe(false);
+  });
+});
+
+describe("#975 — a server mode of system hydrates the mode store", () => {
+  it("a server mode 'system' hydrates the mode store as system and a garbage mode as system", async () => {
+    seedSession();
+    fetchMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/me/preferences")) {
+        return jsonResponse({ ...VALID_PREFS, mode: "system" });
+      }
+      return errorResponse(404);
+    });
+
+    vi.resetModules();
+    await import("$stores/auth");
+    const { prefsHydrated } = await import("$stores/prefs-state");
+    const { mode } = await import("$stores/mode");
+
+    await vi.waitFor(() => {
+      expect(get(prefsHydrated)).toBe(true);
+    });
+    expect(get(mode)).toBe("system");
+  });
+});
+
 describe("Phase 412 (#412) — structural regression guard (D-08)", () => {
   it("boot block wraps hydratePreferencesFromServer() in its own queueMicrotask call", async () => {
     const { readFileSync } = await import("node:fs");
@@ -261,5 +316,30 @@ describe("Phase 412 (#412) — structural regression guard (D-08)", () => {
     // Discretion").
     const microtaskCount = body.split("queueMicrotask(").length - 1;
     expect(microtaskCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("Issue #976 — the operator console never hydrates a tenant session's preferences", () => {
+  it("a module boot on /betreiber/… with a tenant token sends no /me/preferences request", async () => {
+    // Since #976 the answer carries the tenant default Farbwelt, which would overwrite the
+    // console's salz pin (Phase 89). Control: the first test of this file proves the same boot
+    // on a tenant path does fetch.
+    const before = window.location.pathname;
+    window.history.replaceState(null, "", "/betreiber/anmelden");
+    try {
+      seedSession();
+      fetchMock.mockImplementation(() => jsonResponse(VALID_PREFS));
+
+      vi.resetModules();
+      await import("$stores/auth");
+      const { prefsHydrated } = await import("$stores/prefs-state");
+      await new Promise((r) => setTimeout(r, 50));
+
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.filter((u) => u.includes("/me/preferences"))).toEqual([]);
+      expect(get(prefsHydrated)).toBe(false);
+    } finally {
+      window.history.replaceState(null, "", before);
+    }
   });
 });
