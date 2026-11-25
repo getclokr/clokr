@@ -281,4 +281,22 @@ describe("suggestedVacationDays and statutoryMinimum", () => {
     expect(statutoryMinimum(draft()).law).toBe("§ 3 BUrlG");
     expect(statutoryMinimum(draft({ birthDate: "2011-06-01" })).law).toBe("§ 19 JArbSchG");
   });
+
+  // Issue #1072: without a hire date the year is the one of the tenant day the draft was started on,
+  // never the device year. Born 2011-06-01 the person is 14 on 1 January 2026 (30 Werktage = 25 days)
+  // and 16 on 1 January 2028 (27 Werktage = 22.5 days), so the two years cannot be confused.
+  function startedOn(day: string, overrides: Partial<CreatePersonDraft>): CreatePersonDraft {
+    return { ...draft(), ...emptyDraft(day), ...overrides };
+  }
+
+  it("reads the year of the draft's start day when the hire date has none", () => {
+    const born = { hireDate: null, birthDate: "2011-06-01" };
+    expect(statutoryMinimum(startedOn("2028-01-01", born)).days).toBe(22.5);
+    expect(statutoryMinimum(startedOn("2026-12-31", born)).days).toBe(25);
+  });
+
+  it("lets the hire date's year win over the start day", () => {
+    const hired = startedOn("2028-01-01", { hireDate: "2026-12-31", birthDate: "2011-06-01" });
+    expect(statutoryMinimum(hired).days).toBe(25);
+  });
 });

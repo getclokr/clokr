@@ -30,6 +30,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "$api/client";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { toasts } from "$stores/toast";
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
@@ -50,6 +51,7 @@
     type PhorestValues,
   } from "$lib/employees/overrides-form";
   import { countChanges, pickSection, sectionErrors } from "$lib/settings/section-state";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
 
   interface Props {
     employee: OverrideEmployee & { id: string };
@@ -80,7 +82,9 @@
   const pauseShown = $derived(pauseChanges > 0 ? pauseMessages(pause) : {});
 
   // § 11 JArbSchG: any person under 18, whatever the classification, decided from the SAVED birth day.
-  let under18 = $derived(isUnder18(dayOf(employee.birthDate)));
+  let under18 = $derived(
+    isUnder18(dayOf(employee.birthDate), tenantDayAnchor(new Date(), $tenantFeatures.timezone)),
+  );
   const bothPauseEmpty = $derived(
     pause.breakOver6hOverride === null && pause.breakOver9hOverride === null,
   );

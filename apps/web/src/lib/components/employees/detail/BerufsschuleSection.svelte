@@ -63,7 +63,8 @@
     type PatternMode,
     type StoredPattern,
   } from "$lib/employees/bs-patterns";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import {
     BS_BLOCK_BOUNDS,
     BS_DAILY_BOUNDS,
@@ -108,7 +109,8 @@
     today: todayProp,
   }: Props = $props();
 
-  const todayIso = untrack(() => todayProp ?? localCalendarDay());
+  // The detail page renders its tabs only after its own load, which settles the tenant zone.
+  const todayIso = untrack(() => todayProp ?? tenantDay(new Date(), $tenantFeatures.timezone));
   const currentYear = Number(todayIso.slice(0, 4));
 
   // ── Berufsschultage (the patterns) ───────────────────────────────────────────

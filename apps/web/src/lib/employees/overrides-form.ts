@@ -149,16 +149,18 @@ export function bsSlotMessages(values: BsSlotValues): Messages<BsSlotKey> {
 // ── Under 18 (§ 11 JArbSchG) ─────────────────────────────────────────────────
 
 /**
- * Full years between `birthDay` (ISO day) and `now`; NaN for a missing or unreadable day. Mirrors
- * `ageAtDate` of `apps/api/src/contexts/absence/jarbschg.ts` (no date library).
+ * Full years between `birthDay` (ISO day) and `on`; NaN for a missing or unreadable day. `on` is the
+ * TENANT day as a calendar anchor (`tenantDayAnchor()` of `$lib/utils/tenant-day`, Issue #1072), read
+ * through its local accessors. Mirrors `ageAtDate` of `apps/api/src/contexts/absence/jarbschg.ts`
+ * (no date library).
  */
-export function ageOn(birthDay: string | null | undefined, now: Date): number {
+export function ageOn(birthDay: string | null | undefined, on: Date): number {
   if (!birthDay) return Number.NaN;
   const born = new Date(birthDay);
   if (Number.isNaN(born.getTime())) return Number.NaN;
-  let age = now.getFullYear() - born.getFullYear();
-  const month = now.getMonth() - born.getMonth();
-  if (month < 0 || (month === 0 && now.getDate() < born.getDate())) age--;
+  let age = on.getFullYear() - born.getFullYear();
+  const month = on.getMonth() - born.getMonth();
+  if (month < 0 || (month === 0 && on.getDate() < born.getDate())) age--;
   return age;
 }
 
@@ -167,8 +169,8 @@ export function ageOn(birthDay: string | null | undefined, now: Date): number {
  * from the birth day alone. No birth date reads as "not under 18" (the API's regime is fail-open
  * to § 4 ArbZG in the same case).
  */
-export function isUnder18(birthDay: string | null | undefined, now: Date = new Date()): boolean {
-  const age = ageOn(birthDay, now);
+export function isUnder18(birthDay: string | null | undefined, on: Date): boolean {
+  const age = ageOn(birthDay, on);
   return Number.isFinite(age) && age < 18;
 }
 

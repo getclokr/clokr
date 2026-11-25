@@ -27,6 +27,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "$api/client";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { toasts } from "$stores/toast";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import DatePicker from "$components/ui/DatePicker.svelte";
@@ -56,6 +57,7 @@
     type PersonValues,
   } from "$lib/employees/person-form";
   import { countChanges, pickSection, sectionErrors } from "$lib/settings/section-state";
+  import { tenantYear } from "$lib/utils/tenant-day";
   import {
     MISSING_BIRTH_DATE_HINT,
     statutoryMinimumFiveDayWeek,
@@ -116,7 +118,7 @@
   const azubiMissingBirthDate = $derived(values.classification === "AZUBI" && !values.birthDate);
   // Issue #435 (D-13): below the statutory minimum of the CURRENT year (display only, the server guards).
   const vacationMinimum = $derived(
-    statutoryMinimumFiveDayWeek(values.birthDate, new Date().getFullYear()),
+    statutoryMinimumFiveDayWeek(values.birthDate, tenantYear(new Date(), $tenantFeatures.timezone)),
   );
   const belowMinimum = $derived(
     values.annualVacationDays !== null && values.annualVacationDays < vacationMinimum.days,

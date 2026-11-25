@@ -53,7 +53,8 @@
   import CreatePersonDialog from "$lib/components/employees/CreatePersonDialog.svelte";
   import { MISSING_BIRTH_DATE_HINT } from "$lib/statutory-minimum-vacation";
   import type { EmployeeClassification } from "$lib/employee-classification";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import {
     activeCount,
     activeCountSentence,
@@ -179,8 +180,8 @@
   let showAnonymized = $state(false);
 
   // ── Rows ────────────────────────────────────────────────────────────────────
-  // Browser-local calendar day: the web has no tenant-local "today" helper.
-  const today = localCalendarDay();
+  // The tenant's calendar day (Issues #1066, #1072), not the device day.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
   const salonNames = $derived(new Map($salonContext.salons.map((salon) => [salon.id, salon.name])));
   const allRows = $derived(
     personenRows(employees, today, salonNames, {

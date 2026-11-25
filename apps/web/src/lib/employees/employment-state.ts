@@ -5,9 +5,8 @@
  * locks it separately (a deliberate split, see the exit-date hint on the detail page).
  *
  * `exitDate` is read by its UTC calendar day, the convention of the employee form (`@db.Timestamptz`
- * holding a UTC-midnight date). Callers still pass the browser-local calendar day from
- * `localCalendarDay()`; the tenant's day is `tenantDay()` in `$lib/utils/tenant-day` (Issue #1066),
- * and moving the callers onto it is a listed follow-up of that issue. A person whose last day is
+ * holding a UTC-midnight date). Callers pass the TENANT's calendar day from `tenantDay()` in
+ * `$lib/utils/tenant-day` (Issues #1066, #1072), never the device day. A person whose last day is
  * today is still employed (EXIT_PLANNED) until the day is over.
  */
 export type EmploymentKind = "EMPLOYED" | "EXIT_PLANNED" | "ENDED";
@@ -16,13 +15,6 @@ export interface EmploymentState {
   kind: EmploymentKind;
   /** „Austritt am TT.MM.JJJJ“ / „Ausgeschieden am TT.MM.JJJJ“; empty for EMPLOYED. */
   label: string;
-}
-
-/** The browser-local calendar day as `YYYY-MM-DD`. */
-export function localCalendarDay(now: Date = new Date()): string {
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${mm}-${dd}`;
 }
 
 function germanDay(isoDay: string): string {

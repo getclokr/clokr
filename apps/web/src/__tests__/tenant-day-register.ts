@@ -41,62 +41,6 @@ export const TENANT_DAY_EXCEPTIONS: ReadonlyArray<TenantDayException> = [
   { file: "lib/operator/support-audit.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
   // Temporary migration entries, removed by the task that fixes the file.
   {
-    file: "lib/components/admin/monatsabschluss/MonthStatusTable.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "lib/components/employees/CreatePersonDialog.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "lib/components/employees/SalonAssignmentsSection.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "lib/components/employees/detail/BerufsschuleSection.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "lib/components/employees/detail/PersonTab.svelte",
-    rule: "device-calendar-field",
-    reason: migration(3),
-  },
-  {
-    file: "lib/components/employees/detail/VertragTab.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  { file: "lib/employees/create-person.ts", rule: "device-calendar-field", reason: migration(3) },
-  { file: "lib/employees/employment-state.ts", rule: "browser-day-helper", reason: migration(3) },
-  { file: "lib/employees/employment-state.ts", rule: "device-default-param", reason: migration(3) },
-  { file: "lib/employees/employment-state.ts", rule: "now-calendar-field", reason: migration(3) },
-  { file: "lib/employees/overrides-form.ts", rule: "device-default-param", reason: migration(3) },
-  { file: "lib/employees/overrides-form.ts", rule: "now-calendar-field", reason: migration(3) },
-  {
-    file: "routes/(app)/admin/employees/+page.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "routes/(app)/admin/employees/[id]/+page.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
-    file: "routes/(app)/admin/employees/[id]/+page.svelte",
-    rule: "device-calendar-field",
-    reason: migration(3),
-  },
-  {
-    file: "routes/(app)/team/personen/+page.svelte",
-    rule: "browser-day-helper",
-    reason: migration(3),
-  },
-  {
     file: "lib/components/admin/SalonHolidays.svelte",
     rule: "device-calendar-field",
     reason: migration(4),

@@ -56,7 +56,8 @@
     contractStatus,
     type ContractHistoryInput,
   } from "$lib/employees/contract-history";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { minijobHint, minijobHintText } from "$lib/employees/minijob";
   import {
     CONTRACT_KEYS,
@@ -114,7 +115,8 @@
     children,
   }: Props = $props();
 
-  const todayIso = untrack(() => todayProp ?? localCalendarDay());
+  // The detail page renders its tabs only after its own load, which settles the tenant zone.
+  const todayIso = untrack(() => todayProp ?? tenantDay(new Date(), $tenantFeatures.timezone));
   const defaultValidFrom = nextMonthFirst(todayIso);
 
   let snapshot = $state<ContractValues>(
