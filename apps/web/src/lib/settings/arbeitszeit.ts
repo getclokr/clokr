@@ -16,6 +16,8 @@ export interface WorkConfig {
   defaultBreakOver9h?: number;
   enforceBreakConfirmation?: boolean;
   retroEntryWindowDays?: number;
+  /** Issue #604: the tenant switch of the appointment comparison; absent reads as OFF. */
+  appointmentTimeHintsEnabled?: boolean;
   defaultWorkDays?: number[];
   defaultCoreStart?: string | null;
   defaultCoreEnd?: string | null;
@@ -149,6 +151,25 @@ export function retroWire(values: RetroValues): Record<RetroField, unknown> {
   return {
     retroEntryWindowDays: Math.trunc(values.retroEntryWindowDays ?? DEFAULT_RETRO_WINDOW_DAYS),
   };
+}
+
+// ── Abgleich mit Terminen (Issue #604) ───────────────────────────────────────────────────────────
+
+export type AppointmentHintValues = {
+  /** Off by default for every tenant (Art. 25 Abs. 2 DSGVO). */
+  appointmentTimeHintsEnabled: boolean;
+};
+
+export type AppointmentHintField = keyof AppointmentHintValues;
+
+export function appointmentHintsFrom(config: WorkConfig): AppointmentHintValues {
+  return { appointmentTimeHintsEnabled: config.appointmentTimeHintsEnabled === true };
+}
+
+export function appointmentHintsWire(
+  values: AppointmentHintValues,
+): Record<AppointmentHintField, unknown> {
+  return { appointmentTimeHintsEnabled: values.appointmentTimeHintsEnabled === true };
 }
 
 // ── Arbeitstage ──────────────────────────────────────────────────────────────────────────────────

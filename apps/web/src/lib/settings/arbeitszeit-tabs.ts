@@ -33,7 +33,11 @@ export const ARBEITSZEIT_TABS: readonly ArbeitszeitTab[] = [
   {
     value: "eintraege",
     label: "Einträge",
-    sections: ["arbeitszeit-offene-eintraege", "arbeitszeit-rueckwirkend"],
+    sections: [
+      "arbeitszeit-offene-eintraege",
+      "arbeitszeit-rueckwirkend",
+      "arbeitszeit-terminabgleich", // Issue #604
+    ],
   },
   { value: "berufsschule", label: "Berufsschule", sections: ["arbeitszeit-berufsschule"] },
 ];
@@ -46,6 +50,7 @@ export const ARBEITSZEIT_TAB_ALIASES: Readonly<Record<string, ArbeitszeitTabId>>
   arbzg: "pausen",
   "offene-eintraege": "eintraege",
   rueckwirkend: "eintraege",
+  terminabgleich: "eintraege", // Issue #604
 };
 
 /** The tabs `user` may open. */

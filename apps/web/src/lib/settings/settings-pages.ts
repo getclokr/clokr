@@ -172,6 +172,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     renderedBy: `${ARBEITSZEIT_DIR}/RetroWindowSection.svelte`,
   },
   {
+    // Issue #604: the tenant switch of the comparison of appointments with recorded time.
+    ...FROM_SYSTEM,
+    id: "arbeitszeit-terminabgleich",
+    title: "Abgleich mit Terminen",
+    endpoint: "/settings/work",
+    keys: ["appointmentTimeHintsEnabled"],
+    renderedBy: `${ARBEITSZEIT_DIR}/AppointmentHintsSection.svelte`,
+  },
+  {
     ...FROM_SYSTEM,
     id: "arbeitszeit-arbeitstage",
     title: "Arbeitstage",

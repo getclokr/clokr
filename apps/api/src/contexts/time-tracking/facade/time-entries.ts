@@ -782,6 +782,9 @@ export async function hardDeleteTimeDataForEmployee(
   // so the day rows go first — otherwise the caller's final `employee.delete` fails on them.
   await db.dayBreakAck.deleteMany({ where: { employeeId } });
   await db.dayBreak.deleteMany({ where: { employeeId } });
+  // Issue #604: `AppointmentHintDismissal` is `onDelete: Restrict` onto Employee like DayBreakAck; it
+  // carries no free text and no appointment data, so it goes with the person's time records (D-14).
+  await db.appointmentHintDismissal.deleteMany({ where: { employeeId } });
   await db.break.deleteMany({ where: { timeEntry: { employeeId } } });
   await db.timeEntry.deleteMany({ where: { employeeId } });
 }

@@ -50,6 +50,7 @@ const EXPECTED_OWN_MODELS = [
   "LeavePlan", // Issue #835 — carries its own tenantId scalar column
   "LeavePlanWish", // Issue #835 — carries its own tenantId scalar column
   "CalendarFeedToken", // Issue #597 — carries its own tenantId scalar column
+  "AppointmentHintDismissal", // Issue #604 — carries its own tenantId scalar column
 ].sort();
 
 describe("delegateName", () => {
@@ -146,9 +147,10 @@ describe("buildModelGraph (live DMMF from @clokr/db)", () => {
   // and Issue #599 (+ MonthCorrectionRequest, relation via `employee`) — 58 -> 59, own count unchanged —
   // and Issue #597 (+ CalendarFeedToken, own: it carries a `tenantId` scalar) — 59 -> 60, own 26 -> 27 —
   // and Issue #1079 (+ CompanyShutdownSalon, relation via `shutdown`: no tenant scalar of its own) — 60 -> 61,
-  // own count unchanged at 27.
-  it("classifies exactly 61 models with no residual category (D-05)", () => {
-    expect(graph.size).toBe(61);
+  // own count unchanged at 27 — and Issue #604 (+ AppointmentHintDismissal, own: it carries a `tenantId`
+  // scalar) — 61 -> 62, own 27 -> 28.
+  it("classifies exactly 62 models with no residual category (D-05)", () => {
+    expect(graph.size).toBe(62);
     for (const [, tenancy] of graph) {
       expect(["own", "relation", "none"]).toContain(tenancy.kind);
     }
@@ -160,7 +162,7 @@ describe("buildModelGraph (live DMMF from @clokr/db)", () => {
     expect(graph.has("apiKey")).toBe(true);
   });
 
-  it("marks exactly the 27 measured models as own, by NAME (not just count)", () => {
+  it("marks exactly the 28 measured models as own, by NAME (not just count)", () => {
     const ownDelegateNames = [...graph]
       .filter(([, v]) => v.kind === "own")
       .map(([k]) => k)

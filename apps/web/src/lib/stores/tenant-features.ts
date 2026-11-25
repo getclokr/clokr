@@ -25,12 +25,18 @@ interface TenantFeatures {
   availabilityEnabled: boolean;
   /** The tenant's IANA zone (Issue #1066). */
   timezone: string;
+  /**
+   * Issue #604: the tenant switch of the appointment hint. Unlike the fail-open flags it defaults to
+   * OFF, so the Art. 13 notice never shows before the server said the comparison is on.
+   */
+  appointmentTimeHintsEnabled: boolean;
   loaded: boolean;
 }
 
 interface SettingsWorkResponse {
   availabilityEnabled?: boolean;
   timezone?: string;
+  appointmentTimeHintsEnabled?: boolean;
   // other fields exist but are not consumed here
 }
 
@@ -38,6 +44,7 @@ function createTenantFeatures() {
   const { subscribe, update } = writable<TenantFeatures>({
     availabilityEnabled: true,
     timezone: DEFAULT_TIMEZONE,
+    appointmentTimeHintsEnabled: false,
     loaded: false,
   });
 
@@ -54,6 +61,7 @@ function createTenantFeatures() {
         availabilityEnabled: cfg.availabilityEnabled ?? true,
         timezone:
           typeof cfg.timezone === "string" && cfg.timezone !== "" ? cfg.timezone : DEFAULT_TIMEZONE,
+        appointmentTimeHintsEnabled: cfg.appointmentTimeHintsEnabled === true,
         loaded: true,
       }));
     } catch {

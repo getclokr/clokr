@@ -11,6 +11,7 @@
     "ACTIVATE": "Aktiviert",
     "ADMIN_INVITATION_RESENT": "Einladung erneut gesendet",
     "ANONYMIZE": "Anonymisiert",
+    "APPOINTMENT_HINT_DISMISSED": "Hinweis auf fehlende Zeit ausgeblendet",
     "APPROVE": "Genehmigt",
     "ARCHIVE": "Archiviert",
     "ASSIGN_DEVICE": "Gerät zugeordnet",
@@ -139,6 +140,7 @@
     "Absence": "Abwesenheit",
     "AccessRole": "Rolle",
     "ApiKey": "API-Schlüssel",
+    "AppointmentHintDismissal": "Hinweis auf fehlende Zeit",
     "AuditLog": "Protokoll",
     "Break": "Pause",
     "CalendarFeedToken": "Kalender-Abo",
@@ -301,6 +303,7 @@
     },
     "TenantConfig": {
       "allowOvertimePayout": "Überstunden auszahlen",
+      "appointmentTimeHintsEnabled": "Abgleich mit Terminen",
       "arbzgEnabled": "Prüfung nach Arbeitszeitgesetz",
       "autoBreakEnabled": "Automatische Pause",
       "autoCalcPartTimeVacation": "Urlaub in Teilzeit automatisch berechnen",

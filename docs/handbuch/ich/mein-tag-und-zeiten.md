@@ -135,6 +135,20 @@ Ein Plus zeigt Clokr mit **+**, ein Minus mit **−**. Urlaub, Feiertage und gen
 
 ![Konto mit den Kennzahlen zu Stundenkonto und Resturlaub, der Tabelle So setzt sich dein Stundenkonto zusammen, den Monatsnachweisen und dem Urlaubskonto](../bilder/mein-tag-und-zeiten-03.png)
 
+## Hinweis auf vermutlich nicht erfasste Zeit
+
+Wenn dein Unternehmen es eingerichtet hat, gleicht Clokr die Termine aus dem Terminkalender deines Salons mit deiner erfassten Zeit ab. Einen Hinweis siehst du in **Für dich** auf **Ich › Mein Tag** und als gelben Kasten auf **Ich › Zeiten**, wenn für einen vergangenen Tag eines davon zutrifft:
+
+- Dein letzter Termin endete mehr als 15 Minuten nach deinem Ausstempeln.
+- Du hattest Termine, aber an dem Tag keine Zeit erfasst.
+
+Der Hinweis nennt den Tag, das Ende deines letzten Termins und, falls du ausgestempelt hast, die Zeit. Du hast zwei Möglichkeiten:
+
+- **Nachtragen** öffnet den Tag. Du trägst deine Zeit selbst ein, Clokr füllt nichts vor.
+- **Stimmt so** blendet den Hinweis für diesen Tag dauerhaft aus, zum Beispiel weil du nach dem letzten Termin wirklich Feierabend hattest. Das wird mit Datum und Uhrzeit festgehalten. Auch deine Führungskraft sieht den Hinweis dann nicht mehr.
+
+Clokr trägt nie selbst Zeit ein und ändert dein Stundenkonto nicht. Hinweise gibt es nur für die Tage, die du noch selbst bearbeiten darfst, nicht für heute, nicht für Tage mit Urlaub oder Krankheit und nicht für abgeschlossene Monate. Unter **Ich › Profil** steht im Abschnitt „Abgleich mit deinen Terminen“, dass abgeglichen wird, solange dein Unternehmen den Abgleich eingeschaltet hat.
+
 ## Stempeln mit dem Handy im WLAN
 
 Wenn dein Unternehmen es eingerichtet hat, erkennt Clokr dich über das Salon-WLAN und stempelt für dich ein und aus. Dafür koppelst du dein Handy einmal:

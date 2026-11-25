@@ -8,6 +8,7 @@
 // (`taskRowsFrom` -> `rowsForView(..., "offen")` -> `taskCounts`, `$lib/team/task-model`). The page is a
 // work queue and not narrowed by the header salon selection (#558), so neither is the count.
 import { hasAnyPermission, hasPermission, type PermissionHolder } from "$lib/permissions";
+import { APPOINTMENT_HINT_PATHS } from "$lib/time-entries/appointment-hints";
 import {
   availableTaskKinds,
   rowsForView,
@@ -22,6 +23,7 @@ import {
   type TaskKind,
   type TaskSources,
 } from "$lib/team/task-model";
+import type { TeamAppointmentHintsAnswer } from "$lib/time-entries/appointment-hints";
 
 /** Which sources the caller is offered (UX hints; every read is scoped by the API). */
 export interface TaskGates {
@@ -35,6 +37,8 @@ export interface TaskGates {
   section9: boolean;
   /** The missing clock-outs for holders of the time-entry reach the read needs. */
   openTasks: boolean;
+  /** Issue #604: the hints on probably unrecorded time, for holders of the same time-entry reach. */
+  appointmentHints: boolean;
 }
 
 export function taskGates(user: PermissionHolder | null | undefined): TaskGates {
@@ -48,6 +52,7 @@ export function taskGates(user: PermissionHolder | null | undefined): TaskGates 
     retro: hasPermission(user, "retro-request:approve:ZUGEWIESEN"),
     section9: hasAnyPermission(user, ["section9:read:ZUGEWIESEN", "section9:decide:ZUGEWIESEN"]),
     openTasks: hasPermission(user, "time-entry:read:ZUGEWIESEN"),
+    appointmentHints: hasPermission(user, "time-entry:read:ZUGEWIESEN"),
   };
 }
 
@@ -61,6 +66,7 @@ export const TASK_SOURCE_PATHS = {
   section9: "/leave/section9",
   notices: "/notifications",
   openTasks: "/tasks/open",
+  appointmentHints: APPOINTMENT_HINT_PATHS.team,
 } as const;
 
 export type TaskGet = <T>(path: string) => Promise<T>;
@@ -76,7 +82,7 @@ async function calm<T>(read: () => Promise<T>, empty: T): Promise<T> {
 
 /** Reads every source of the open tasks the caller is offered, in parallel. */
 export async function loadOpenTaskSources(get: TaskGet, gates: TaskGates): Promise<TaskSources> {
-  const [leave, retro, section9, notices, openTasks] = await Promise.all([
+  const [leave, retro, section9, notices, openTasks, appointmentHints] = await Promise.all([
     gates.leave
       ? calm(() => get<LeaveTaskSource[]>(TASK_SOURCE_PATHS.leaveOpen), [] as LeaveTaskSource[])
       : Promise.resolve([] as LeaveTaskSource[]),
@@ -99,8 +105,15 @@ export async function loadOpenTaskSources(get: TaskGet, gates: TaskGates): Promi
     gates.openTasks
       ? calm(() => get<OpenTasksAnswer>(TASK_SOURCE_PATHS.openTasks), null)
       : Promise.resolve(null),
+    // Issue #604: the reach-filtered team hints; a refusal or a failure is an absent source.
+    gates.appointmentHints
+      ? calm(
+          () => get<TeamAppointmentHintsAnswer>(TASK_SOURCE_PATHS.appointmentHints),
+          null as TeamAppointmentHintsAnswer | null,
+        )
+      : Promise.resolve(null as TeamAppointmentHintsAnswer | null),
   ]);
-  return { leave, retro, section9, notices, openTasks };
+  return { leave, retro, section9, notices, openTasks, appointmentHints };
 }
 
 export interface OpenTaskSummary {
@@ -123,6 +136,7 @@ export function openTaskSummary(sources: TaskSources, gates: TaskGates): OpenTas
     section9: gates.section9,
     breakNoticeCount: counts.pausenbefund,
     openTaskTypes: sources.openTasks?.types ?? [],
+    appointmentHintsEnabled: sources.appointmentHints?.enabled === true,
   });
   return { total: open.length, counts, kinds };
 }

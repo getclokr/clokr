@@ -33,6 +33,7 @@ import { employeeWifiRoutes } from "./contexts/time-tracking/api/employee-wifi";
 import { employeeReminderRoutes } from "./contexts/time-tracking/api/employee-reminders"; // Issue #609 (D-02)
 import { timeEntryRoutes } from "./contexts/time-tracking/api/time-entries";
 import { dayBreakRoutes } from "./contexts/time-tracking/api/day-breaks"; // Issue #80 (D-02..D-06, D-21)
+import { appointmentHintRoutes } from "./contexts/time-tracking/api/appointment-hints"; // Issue #604
 import { leaveRoutes } from "./contexts/absence/api/leave";
 import { leaveLimitRoutes } from "./contexts/absence/api/leave-limits"; // Issue #836
 import { leavePlanRoutes } from "./contexts/absence/api/leave-plans"; // Issue #835
@@ -451,6 +452,7 @@ export async function buildApp() {
   await app.register(employeeRoutes, { prefix: "/api/v1/employees", exitPorts: employeeExitPorts });
   await app.register(timeEntryRoutes, { prefix: "/api/v1/time-entries" });
   await app.register(dayBreakRoutes, { prefix: "/api/v1/day-breaks" }); // Issue #80 (D-02..D-06, D-21)
+  await app.register(appointmentHintRoutes, { prefix: "/api/v1/appointment-hints" }); // Issue #604
   await app.register(leaveRoutes, { prefix: "/api/v1/leave" });
   await app.register(leaveLimitRoutes, { prefix: "/api/v1/leave/limits" }); // Issue #836
   await app.register(leavePlanRoutes, { prefix: "/api/v1/leave/plans" }); // Issue #835

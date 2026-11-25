@@ -44,6 +44,7 @@
     type TaskKind,
     type TaskRowModel,
   } from "$lib/team/task-model"; // Issue #853 (D-853-06)
+  import type { TeamAppointmentHintsAnswer } from "$lib/time-entries/appointment-hints"; // Issue #604
   import { urlState, oneOf } from "$lib/table/url-state"; // Issue #853 (D-853-06)
   import LeaveReviewDialog, {
     SELF_APPROVAL_TEXT,
@@ -207,6 +208,10 @@
   let noticesLoading = $state(true);
   let openTasks = $state<OpenTasksAnswer | null>(null);
   let openTasksLoading = $state(true);
+  // Issue #604: the hints on probably unrecorded time of the persons in reach (kind „Zeit prüfen“),
+  // a calm source like the two above; `enabled: false` = the tenant switch is off.
+  let appointmentHints = $state<TeamAppointmentHintsAnswer | null>(null);
+  let appointmentHintsLoading = $state(true);
 
   // Issue #948: the gates of every source live in `$lib/team/task-sources`, shared with the „Aufgaben“
   // cell of Heute im Salon, so both count the same kinds. All are hints; the API decides.
@@ -229,6 +234,10 @@
   // The missing clock-outs are offered to a caller who holds the time-entry reach the read needs
   // (a UX hint; the API scopes every row by the per-entry reach).
   const canOpenTasks = $derived(gates.openTasks);
+
+  // Issue #604: the same time-entry reach decides the hints on probably unrecorded time (a UX hint;
+  // the API narrows every hint to the person's reach on the hint's own day).
+  const canAppointmentHints = $derived(gates.appointmentHints);
 
   /** Reloads what a § 9 decision can change: the § 9 cases, and the leave list for an approver only. */
   async function reloadAfterSection9() {
@@ -270,6 +279,8 @@
       loads.push(loadNotices());
       if (canOpenTasks) loads.push(loadOpenTasks());
       else openTasksLoading = false;
+      if (canAppointmentHints) loads.push(loadAppointmentHints());
+      else appointmentHintsLoading = false;
       await Promise.all(loads);
       await applyDeepLink(link);
       if (hadLinkParams) stripDeepLinkParams();
@@ -398,7 +409,25 @@
    * the list is read again after every decision, approval and rejection alike.
    */
   function reloadTasksAfterRetroDecision(): Promise<void> {
-    return canOpenTasks ? loadOpenTasks() : Promise.resolve();
+    // Issue #604: a pending Zeitnachtrag removes its day from the hints, so a decision reloads them too.
+    return Promise.all([
+      canOpenTasks ? loadOpenTasks() : Promise.resolve(),
+      canAppointmentHints ? loadAppointmentHints() : Promise.resolve(),
+    ]).then(() => undefined);
+  }
+
+  /** The hint read (Issue #604): a refusal or a failure is an empty source, never an error. */
+  async function loadAppointmentHints() {
+    appointmentHintsLoading = true;
+    try {
+      appointmentHints = await api.get<TeamAppointmentHintsAnswer>(
+        TASK_SOURCE_PATHS.appointmentHints,
+      );
+    } catch {
+      appointmentHints = null;
+    } finally {
+      appointmentHintsLoading = false;
+    }
   }
 
   /** The open-task read (missing clock-outs, D-853-21/22); `types` decides which kinds exist (D-853-23). */
@@ -438,6 +467,7 @@
         section9: section9Cases,
         notices,
         openTasks,
+        appointmentHints,
       },
       {
         leaveDays: (r) => leaveDaysLabel(Number(r.days), r.halfDay, r.typeCode as TypeCode),
@@ -459,6 +489,7 @@
       section9: canSection9,
       breakNoticeCount: taskOpenCounts.pausenbefund,
       openTaskTypes: openTasks?.types ?? [],
+      appointmentHintsEnabled: appointmentHints?.enabled === true, // Issue #604
     }),
   );
   const kpiItems = $derived<KpiItem[]>(
@@ -512,7 +543,8 @@
       (canRetro && retroLoading) ||
       (canSection9 && section9Loading) ||
       noticesLoading ||
-      (canOpenTasks && openTasksLoading),
+      (canOpenTasks && openTasksLoading) ||
+      (canAppointmentHints && appointmentHintsLoading),
   );
 
   function onTypSelected(value: string) {
@@ -1064,7 +1096,7 @@
                     Wieder eröffnen
                   </button>
                 {/if}
-              {:else if row.kind === "pausenbefund" || row.kind === "ausstempeln" || row.kind === "zeitkorrektur"}
+              {:else if row.kind === "pausenbefund" || row.kind === "ausstempeln" || row.kind === "zeitpruefen" || row.kind === "zeitkorrektur"}
                 <!--
                   No decision path of its own: the acknowledgement / correction happens on Zeiten with
                   the existing dialogs. A row whose stored link is not a same-origin app path has no link.

@@ -8,6 +8,12 @@
  * Issue #1028 (P-07) replaces the #987 cap: EVERY missing day and EVERY day with an entry to fix is a row,
  * newest first, reachable through the pager of the list; the summary rows „N weitere Tage …“ are gone.
  * With the default page size of five, page 1 is exactly the five newest days #987 showed.
+ *
+ * Issue #604 adds one row per appointment hint (`appointmentHints`, the server's own answer of
+ * `GET /appointment-hints`): newest day first, right after the break rows. A NO_ENTRY hint names the
+ * same day as the generic `miss-<day>` row and replaces it (D-11); an AFTER_CLOCK_OUT hint is a
+ * different finding and leaves a missing-day row of its day alone. The row links to the day without
+ * any time (D-13) and carries the dismissal („Stimmt so“) the page wires to its button.
  */
 import { breakNudgeHref, summarizeUnconfirmedBreakDays } from "$lib/breaks/break-nudge";
 import {
@@ -16,6 +22,13 @@ import {
   type KarenzNudgeSummary,
 } from "$lib/leave/karenz-nudge";
 import { invalidEntryRows, type InvalidEntryDay } from "$lib/dashboard/invalid-entry-rows";
+import {
+  APPOINTMENT_HINT_TOOLTIP,
+  appointmentHintHref,
+  appointmentHintTexts,
+  type AppointmentHintKind,
+  type OwnAppointmentHint,
+} from "$lib/time-entries/appointment-hints"; // Issue #604
 
 export interface ForYouItem {
   key: string;
@@ -27,6 +40,8 @@ export interface ForYouItem {
   action: string;
   testId?: string;
   hint?: string;
+  /** Issue #604: set on an appointment hint row - the day and kind „Stimmt so“ answers. */
+  dismiss?: { date: string; kind: AppointmentHintKind };
 }
 
 /** The slice of the open-items answer the rows read. */
@@ -47,6 +62,8 @@ export interface ForYouInput {
   karenz: KarenzNudgeSummary;
   /** „Mi 04.11.“ for a `YYYY-MM-DD` day. */
   dayShort: (iso: string) => string;
+  /** Issue #604: the own appointment hints of `GET /appointment-hints` (absent while the switch is off). */
+  appointmentHints?: readonly OwnAppointmentHint[];
 }
 
 /** Distinct days, newest first. */
@@ -72,12 +89,36 @@ export function forYouItems(input: ForYouInput): ForYouItem[] {
     });
   }
 
+  // Issue #604: one row per hint, newest first; a malformed day yields no row. The NO_ENTRY days
+  // replace the generic missing row of the same day (D-11).
+  const noEntryDays = new Set<string>();
+  const hints = [...(input.appointmentHints ?? [])].sort((a, b) =>
+    a.date === b.date ? a.kind.localeCompare(b.kind) : a.date < b.date ? 1 : -1,
+  );
+  for (const h of hints) {
+    const href = appointmentHintHref(h.date);
+    if (href === null) continue;
+    if (h.kind === "NO_ENTRY") noEntryDays.add(h.date);
+    const { title, subtitle } = appointmentHintTexts(h, dayShort(h.date));
+    out.push({
+      key: `termin-${h.date}-${h.kind}`,
+      title,
+      subtitle,
+      chip: "Prüfen",
+      tone: "warn",
+      href,
+      action: "Nachtragen",
+      hint: APPOINTMENT_HINT_TOOLTIP,
+      dismiss: { date: h.date, kind: h.kind },
+    });
+  }
+
   // Issue #987: the server names the month's gaps; the window list only matters when the month list is
   // absent (an older answer), so the union keeps both without a second derivation.
   for (const missDate of newestFirst([
     ...(openItems?.missingDays ?? []),
     ...(openItems?.missingDaysInMonth ?? []),
-  ])) {
+  ]).filter((d) => !noEntryDays.has(d))) {
     out.push({
       key: `miss-${missDate}`,
       title: `${dayShort(missDate)} ohne Zeiteintrag`,

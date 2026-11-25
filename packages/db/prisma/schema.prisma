@@ -53,6 +53,8 @@ model Tenant {
   // Issue #835: Prisma-only back-relations, no column on Tenant (leave plans and wishes of the tenant)
   leavePlans           LeavePlan[]
   leavePlanWishes      LeavePlanWish[]
+  // Issue #604: Prisma-only back-relation, no column on Tenant (appointment hint dismissals of the tenant)
+  hintDismissals       AppointmentHintDismissal[]
   terminalApiKeys      TerminalApiKey[]
   apiKeys              ApiKey[]
   specialLeaveRules    SpecialLeaveRule[]
@@ -391,6 +393,10 @@ model TenantConfig {
   shiftStoreHoursMode               String   @default("DAY_ONLY")
   // Phase 76.29 CFG-01 — retro self-service window (days back from today an employee may submit a retro request)
   retroEntryWindowDays              Int      @default(10)
+  // Issue #604 — the tenant switch of the appointment hint ("Termin ohne erfasste Zeit"). Off by
+  // default for existing and new tenants (Art. 25 Abs. 2 DSGVO; § 87 Abs. 1 Nr. 6 BetrVG where a works
+  // council exists). While off no appointment is read and no hint is shown.
+  appointmentTimeHintsEnabled       Boolean  @default(false)
   // Phase 76.29 CFG-01 — allows cron/manual month-close to proceed when open gaps exist (gap-warning only, not blocking)
   closeMonthWithGapsAllowed         Boolean  @default(true)
   // Issue #976 — the Farbwelt every person without an own choice sees. The resolution order lives
@@ -608,6 +614,9 @@ model Employee {
   // cascade-delete history); Prisma-only back-relations, no column
   dayBreaks                DayBreak[]
   dayBreakAcks             DayBreakAck[]
+  // Issue #604 — "Stimmt so" answers of appointment hints (Restrict FK — never cascade-delete
+  // history); Prisma-only back-relation, no column
+  hintDismissals           AppointmentHintDismissal[]
   // Issue #835 — leave plan wishes (Restrict FK — never cascade-delete history); Prisma-only
   // back-relation, no column (Unterbau Erweiterung named on #835, D-835-02)
   leavePlanWishes          LeavePlanWish[]
@@ -823,6 +832,33 @@ model DayBreakAck {
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([employeeId, date])
+}
+
+// Issue #604 — which finding an appointment hint states (Zeiterfassung).
+enum AppointmentHintKind {
+  AFTER_CLOCK_OUT // the last appointment of the day ends more than 15 minutes after the last clock-out
+  NO_ENTRY // appointments on a day without any recorded work entry
+}
+
+// Issue #604 — a person's "Stimmt so" answer to an appointment hint: "my recorded time of that day
+// is complete". Zeiterfassung record, append-only (no update, no delete route), audited in the same
+// transaction. No free text and no appointment data. FKs onto the Unterbau (Tenant, Employee) are
+// Restrict — never cascade-delete history; the tenant must equal the employee's tenant (enforced by
+// the application).
+model AppointmentHintDismissal {
+  id          String              @id @default(uuid())
+  tenantId    String
+  employeeId  String
+  date        DateTime            @db.Date // tenant-local calendar day as UTC midnight
+  kind        AppointmentHintKind
+  dismissedBy String // user id of the person who answered
+  createdAt   DateTime            @default(now()) @db.Timestamptz
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, date, kind])
+  @@index([tenantId, date])
 }
 
 // ─────────────────────────────────────────────

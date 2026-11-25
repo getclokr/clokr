@@ -36,6 +36,8 @@ export const DUPLICATE_MESSAGES: Readonly<Record<string, string | null>> = {
   TimeEntryActivityShare_timeEntryId_kind_key:
     "Diese Tätigkeitsart ist für den Eintrag bereits erfasst.",
   OvertimeAccount_employeeId_key: null,
+  // Issue #604: one "Stimmt so" answer per person, day and hint kind (a concurrent double click).
+  AppointmentHintDismissal_employeeId_date_kind_key: "Dieser Hinweis ist bereits ausgeblendet.",
   // Issue #597: one feed token per user, a random 256-bit secret — both written by the server only.
   CalendarFeedToken_userId_key: null,
   CalendarFeedToken_tokenHash_key: null,

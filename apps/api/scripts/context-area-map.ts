@@ -298,6 +298,8 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/time-tracking/wifi-device-not-seen.ts": "zeiterfassung", // Issue #610 (D-10) - the daily WLAN re-couple hint: pure decision plus the job over PresenceDevice, Shift (facade) and TimeEntry; writes notices only
   "src/contexts/time-tracking/presence-pairing.ts": "zeiterfassung", // Issue #610 — issue/preview/confirm service of the one-time WLAN pairing code; writes PresencePairingCode/PresenceDevice
   "src/contexts/time-tracking/presence.ts": "zeiterfassung", // WiFi-presence detection helper feeding routes/presence.ts and the missing-entries gap detector
+  "src/contexts/time-tracking/appointment-hints.ts": "zeiterfassung", // Issue #604 — the appointment-hint rule; reads TenantConfig/Employee/RetroEntryRequest/AppointmentHintDismissal and, through facades, appointments, entries, leave and closed months
+  "src/contexts/time-tracking/api/appointment-hints.ts": "zeiterfassung", // Issue #604 — GET /, GET /team and POST /dismissals; writes AppointmentHintDismissal
   "src/contexts/time-tracking/retro-config.ts": "zeiterfassung", // RetroEntryRequest tenant-config toggle
   "src/contexts/time-tracking/retro-correction-apply.ts": "zeiterfassung", // Issue #1021 — applies an approved correction proposal in its approval transaction; writes TimeEntry/Break, flips RetroEntryRequest to USED
   "src/contexts/time-tracking/retro-open-entry-guard.ts": "zeiterfassung", // Issue #1085 — refuses an entry-first Zeitnachtrag that collides with the day's open entry and points to the correction path; reads TimeEntry only
@@ -415,6 +417,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   //    services/phorest/** (D-16 prefix rule) ────────────────────────────────────────────────
   "src/contexts/scheduling/facade/shifts.ts": "schichtplanung", // Phase 100B Plan 05 — S1/S2/S3, Shift's only external access path
   "src/contexts/scheduling/facade/availability.ts": "schichtplanung", // Phase 100B Plan 05 — S4, EmployeeAvailability's only external access path
+  "src/contexts/scheduling/facade/appointments.ts": "schichtplanung", // Issue #604 (O-2) — PhorestAppointment's only external access path: the latest appointment end per person and day
   "src/contexts/scheduling/facade/couplings.ts": "schichtplanung", // Phase 89 (#89, D-12a) — SalonCoupling's only external access path
   "src/contexts/scheduling/api/availability.ts": "schichtplanung", // writes EmployeeAvailability
   "src/contexts/scheduling/api/me-availability.ts": "schichtplanung", // Phase 243 Plan 02 (B3) — moved from contexts/platform/api/me.ts: the caller's own EmployeeAvailability, resolved from JWT.employeeId; the /me URL prefix is a UI grouping, not a context boundary

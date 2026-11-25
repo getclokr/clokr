@@ -19,6 +19,7 @@
   import PasswordStrength from "$components/ui/PasswordStrength.svelte";
   import PushSettings from "$components/settings/PushSettings.svelte";
   import ReminderSettings from "$components/settings/ReminderSettings.svelte";
+  import AppointmentMatchNotice from "$components/settings/AppointmentMatchNotice.svelte"; // Issue #604
   import WifiPresenceSettings from "$components/settings/WifiPresenceSettings.svelte";
   import { onMount } from "svelte";
 
@@ -205,6 +206,8 @@
       <!-- Notifications: push per device and the shift reminders (Issue #608/#609) -->
       <PushSettings />
       <ReminderSettings />
+      <!-- Art. 13 DSGVO notice of the appointment comparison, only while the tenant switch is on (Issue #604) -->
+      <AppointmentMatchNotice />
     </div>
 
     <div class="profile-col">

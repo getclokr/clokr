@@ -112,6 +112,7 @@ export type PrismaModelName =
   | "break"
   | "dayBreak" // Issue #80 — day-level gap break
   | "dayBreakAck" // Issue #80 — cross-salon acknowledgement
+  | "appointmentHintDismissal" // Issue #604 — a person's "Stimmt so" answer to an appointment hint
   | "timeEntryActivityShare" // Issue #81 — activity allocation of an entry
   | "saldoSnapshot"
   | "openingBalance"
@@ -187,11 +188,12 @@ export const MODEL_OWNER: Readonly<Record<PrismaModelName, OwnerArea>> = {
   workSchedule: "platform",
   accessRole: "platform", // Phase 73b (#73) — named permission bundle, an Unterbau model
   roleAssignment: "platform", // Phase 74b (#74) — role assignment with scope, an Unterbau model
-  // time-tracking — 9 (Issue #80: + DayBreak, DayBreakAck, 6 -> 8; Issue #81: + TimeEntryActivityShare, 8 -> 9)
+  // time-tracking — 11 (Issue #80: + DayBreak, DayBreakAck, 6 -> 8; Issue #81: + TimeEntryActivityShare, 8 -> 9; Issue #604: + AppointmentHintDismissal, 10 -> 11)
   timeEntry: "time-tracking",
   break: "time-tracking",
   dayBreak: "time-tracking", // Issue #80 — day-level gap break
   dayBreakAck: "time-tracking", // Issue #80 — cross-salon acknowledgement
+  appointmentHintDismissal: "time-tracking", // Issue #604 — a person's "Stimmt so" answer to an appointment hint
   timeEntryActivityShare: "time-tracking", // Issue #81 — activity allocation of an entry (D-01)
   presenceDevice: "time-tracking",
   presencePairingCode: "time-tracking", // Issue #610 (Phase 610-01) — one-time WLAN pairing code

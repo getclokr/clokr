@@ -656,6 +656,30 @@ Trivy/Dependabot process (update direct/transitive/base-image, justify exception
   `dayDetailsWithheld`, never the empty array, as "withheld". Never decide this anywhere else; the
   409 of `POST /overtime/close-month` is a known unredacted residual (ADR Eintrag Q, Nachtrag
   Phase 86b). Proof: `hr-no-day-level-data-86.test.ts`.
+- **Appointment hint „Termin ohne erfasste Zeit“ (Issue #604).** A prompt, never a booking: it names a past
+  day on which time was probably not recorded and never writes an entry, never prefills the form and never
+  touches a saldo. The rule (`evaluateAppointmentHints`, threshold `APPOINTMENT_HINT_MIN_GAP_MINUTES` = 15,
+  strictly greater) and its loader live ONLY in `contexts/time-tracking/appointment-hints.ts` and are NOT
+  re-exported from `contexts/time-tracking/index.ts` (a module reading three other context indexes would join
+  the measured import cycle, cap 22). Appointments come only from Schichtplanung's `getAppointmentDayEnds()`
+  (the latest end per person and day, nothing else; `phorestAppointment` is a `convertedModels` entry, so a
+  direct read elsewhere fails `measure-foreign-context-access`). The window is the write guard's own
+  self-entry window (`computeRetroLimitStr`, inclusive) through tenant-local yesterday. Recorded = every
+  non-deleted WORK entry of the day, valid or invalid; a day with an open entry gets no hint (AFTER_CLOCK_OUT
+  compares the latest local end of the closed entries, NO_ENTRY needs no entry at all). Excluded days: effective
+  leave (half days included), a pending Zeitnachtrag, a closed month, outside the employment, anonymised and
+  `isTimeTrackingExempt` persons. `TenantConfig.appointmentTimeHintsEnabled` (default false, an Unterbau
+  Erweiterung) gates every computation: off answers `{ enabled: false, hints: [] }` before any appointment,
+  entry or leave read. „Stimmt so“ is `AppointmentHintDismissal` per person, tenant-local day and kind (FKs onto
+  Tenant and Employee, `onDelete: Restrict`), written only by the person themself through `POST
+  /appointment-hints/dismissals`, audited as `APPOINTMENT_HINT_DISMISSED` in the same transaction, permanent
+  (no revoke, no update route), removed by `hardDeleteTimeDataForEmployee`. `GET /appointment-hints/team`
+  follows the #86 Stammsalon rule per hint day (`resolveStammsalonScopedEmployeeIds`) inside the
+  `time-entry:read:ZUGEWIESEN` reach and takes no person or salon parameter, so a person outside the reach is
+  simply absent. Responses carry only day, kind, appointment end and clock-out (plus id and name in the team
+  answer). The web only displays (`$lib/time-entries/appointment-hints`, the kind `zeitpruefen`); the link
+  „Nachtragen“ carries no time. Proofs: `appointment-hints-rule-604`, `appointment-hints-604`,
+  `appointment-hints-dismiss-604`, `appointment-hints-reach-604`.
 
 ## Public Holidays
 

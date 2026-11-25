@@ -842,6 +842,9 @@ export async function cleanupTestData(testApp: FastifyInstance, tenantId: string
   // before prisma.employee.deleteMany below, or the delete fails and leaks fixture rows into the
   // shared test database.
   await prisma.dayBreakAck.deleteMany({ where: { employeeId: { in: employeeIds } } });
+  // Issue #604: AppointmentHintDismissal.employee AND .tenant are onDelete: Restrict — same rule as
+  // DayBreakAck above: the rows must go before prisma.employee.deleteMany below.
+  await prisma.appointmentHintDismissal.deleteMany({ where: { tenantId } });
   await prisma.dayBreak.deleteMany({ where: { employeeId: { in: employeeIds } } });
   // Phase 67b (issue #67): EmployeeSalonAssignment.employee AND .salon are onDelete: Restrict
   // (D-01) — must be deleted before prisma.employee.deleteMany below, or the delete fails and

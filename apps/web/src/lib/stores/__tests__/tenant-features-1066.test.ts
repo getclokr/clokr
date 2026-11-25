@@ -56,6 +56,7 @@ describe("tenant-features timezone (#1066)", () => {
     expect(store.peek()).toEqual({
       availabilityEnabled: false,
       timezone: "America/New_York",
+      appointmentTimeHintsEnabled: false,
       loaded: true,
     });
   });
@@ -126,7 +127,50 @@ describe("tenant-features timezone (#1066)", () => {
     expect(store.peek()).toEqual({
       availabilityEnabled: false,
       timezone: "Asia/Tokyo",
+      appointmentTimeHintsEnabled: false,
       loaded: true,
     });
+  });
+});
+
+// Issue #604 - the tenant switch of the appointment hint. Unlike the fail-open flags it reads as OFF
+// until the server says true, so the Art. 13 notice never shows early.
+describe("tenant-features appointmentTimeHintsEnabled (#604)", () => {
+  beforeEach(() => {
+    apiGet.mockReset();
+  });
+
+  it("is on only when GET /settings/work answers true", async () => {
+    apiGet.mockResolvedValue({ appointmentTimeHintsEnabled: true });
+    const on = await freshStore();
+    await on.fetch();
+    expect(on.peek().appointmentTimeHintsEnabled).toBe(true);
+  });
+
+  it("is off when the field is false, absent or not a boolean, and before and after a failed request", async () => {
+    for (const answer of [
+      { appointmentTimeHintsEnabled: false },
+      {},
+      { appointmentTimeHintsEnabled: "true" },
+      { appointmentTimeHintsEnabled: 1 },
+    ]) {
+      apiGet.mockResolvedValue(answer);
+      const store = await freshStore();
+      expect(store.peek().appointmentTimeHintsEnabled).toBe(false);
+      await store.fetch();
+      expect(store.peek().appointmentTimeHintsEnabled).toBe(false);
+    }
+    apiGet.mockRejectedValue(new Error("network"));
+    const failed = await freshStore();
+    await failed.fetch();
+    expect(failed.peek().appointmentTimeHintsEnabled).toBe(false);
+  });
+
+  it("applyLocal() keeps the loaded switch", async () => {
+    apiGet.mockResolvedValue({ appointmentTimeHintsEnabled: true });
+    const store = await freshStore();
+    await store.fetch();
+    store.applyLocal(false);
+    expect(store.peek().appointmentTimeHintsEnabled).toBe(true);
   });
 });
