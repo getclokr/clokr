@@ -74,6 +74,8 @@ function shutdown(overrides: Partial<CompanyShutdown> = {}): CompanyShutdown {
         employee: EMPLOYEES[0],
       },
     ],
+    salons: [],
+    canManage: true,
     ...overrides,
   };
 }
@@ -84,7 +86,13 @@ const sentBody = () => JSON.parse(JSON.stringify(patch.mock.calls[0][1]));
 beforeEach(() => {
   vi.clearAllMocks();
   get.mockImplementation((path: string) =>
-    Promise.resolve(path.startsWith("/employees") ? { employees: EMPLOYEES } : [shutdown()]),
+    Promise.resolve(
+      path.startsWith("/employees")
+        ? { employees: EMPLOYEES }
+        : path === "/company-shutdowns/scope"
+          ? { canManageAllSalons: true, salons: [] }
+          : [shutdown()],
+    ),
   );
   patch.mockResolvedValue(shutdown());
   post.mockResolvedValue({});

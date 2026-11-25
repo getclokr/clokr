@@ -68,6 +68,8 @@ const SHUTDOWNS: CompanyShutdown[] = [
         employee: { id: "emp1", firstName: "Test", lastName: "Person", employeeNumber: "1" },
       },
     ],
+    salons: [],
+    canManage: true,
   },
   {
     id: "s2",
@@ -77,8 +79,16 @@ const SHUTDOWNS: CompanyShutdown[] = [
     deductsFromVacation: false,
     notes: null,
     exceptions: [],
+    salons: [],
+    canManage: true,
   },
 ];
+
+// Issue #1079: the panel also asks what the caller may name. Every list read answers the shutdowns, the scope
+// read the whole-tenant scope; the single-salon Unternehmen (the store default) shows no scope control.
+const SCOPE = { canManageAllSalons: true, salons: [] };
+const answer = (path: string) =>
+  path === "/company-shutdowns/scope" ? SCOPE : path === "/settings/work" ? undefined : SHUTDOWNS;
 
 // Issue #1072: the panel reads the year in the tenant zone, so the clock is pinned.
 const NOW = new Date("2026-11-24T12:00:00.000Z");
@@ -92,7 +102,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
-  get.mockResolvedValue(SHUTDOWNS);
+  get.mockImplementation((path: string) => Promise.resolve(answer(path)));
   post.mockResolvedValue({ id: "new1" });
   del.mockResolvedValue({});
 });
@@ -198,7 +208,7 @@ describe("BetriebsurlaubPanel", () => {
     // singleton of this file, so the test plays the layout and re-reads the zone before it mounts.
     vi.setSystemTime(new Date("2027-01-01T03:00:00.000Z"));
     get.mockImplementation((path: string) =>
-      Promise.resolve(path === "/settings/work" ? { timezone: "America/New_York" } : SHUTDOWNS),
+      Promise.resolve(path === "/settings/work" ? { timezone: "America/New_York" } : answer(path)),
     );
     try {
       await tenantFeatures.fetch();
@@ -209,7 +219,7 @@ describe("BetriebsurlaubPanel", () => {
       expect(paths).not.toContain("/company-shutdowns?year=2027");
     } finally {
       get.mockImplementation((path: string) =>
-        Promise.resolve(path === "/settings/work" ? { timezone: "Europe/Berlin" } : SHUTDOWNS),
+        Promise.resolve(path === "/settings/work" ? { timezone: "Europe/Berlin" } : answer(path)),
       );
       await tenantFeatures.fetch();
     }
@@ -224,7 +234,9 @@ describe("BetriebsurlaubPanel", () => {
   });
 
   it("an empty year shows the empty state with a create action", async () => {
-    get.mockResolvedValue([]);
+    get.mockImplementation((path: string) =>
+      Promise.resolve(path === "/company-shutdowns/scope" ? SCOPE : []),
+    );
     renderWithTheme(BetriebsurlaubPanel, { active: true });
     expect(await screen.findByText("Keine Betriebsurlaube")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ersten Betriebsurlaub anlegen" })).toBeTruthy();
@@ -361,7 +373,12 @@ describe("BetriebsurlaubPanel", () => {
     expect(gotoMock).not.toHaveBeenCalled();
     await fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
     await waitFor(() => expect(del).toHaveBeenCalledWith("/company-shutdowns/s2"));
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    // The list is read twice (load, reload); the scope read of Issue #1079 comes with each of them.
+    await waitFor(() =>
+      expect(
+        get.mock.calls.filter((call) => String(call[0]).startsWith("/company-shutdowns?year=")),
+      ).toHaveLength(2),
+    );
     expect(success).toHaveBeenCalledWith(
       "Betriebsurlaub gelöscht. Gebuchter Urlaub in offenen Monaten ist storniert, abgeschlossene Monate bleiben unverändert.",
       expect.any(Number),
