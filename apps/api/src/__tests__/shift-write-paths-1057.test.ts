@@ -7,13 +7,17 @@
  * update|updateMany|upsert(` in non-test code under `apps/api/src`, pinned by file, method and COUNT
  * (never by line number). A second assertion pins the six direct calls of
  * `findMinorShiftLimitViolation` in `scheduling/api/shifts.ts` (POST, PUT, restore, bulk,
- * generate-week, copy-week).
+ * generate-week, copy-week), and the one call of `reportMinorShiftLimitViolations` in
+ * `services/phorest/sync-shifts.ts`, which must come after every Shift write of that file.
  *
  * Verdicts:
  *  - `checked`      the write adds or moves working time and the JArbSchG check runs before it.
  *  - `no-time`      the write adds no working time (a flag, a note, a soft delete): no check needed.
- *  - `not-checked`  the write adds working time and is NOT checked — a known gap with its own
- *                   follow-up issue (the Phorest sync leads and cannot refuse a plan).
+ *  - `reported`     the write adds working time that Clokr may not refuse (the Phorest sync
+ *                   leads, Issue #1074) and the end-of-run report `reportMinorShiftLimitViolations`
+ *                   tells the planners about every § 8 / § 12 finding of the week.
+ *  - `not-checked`  the write adds working time and is NOT checked — a known gap that needs its own
+ *                   follow-up issue. None is registered today.
  *
  * A new write path fails here: route it through the check (`loadMinorShiftWeeks` +
  * `findMinorShiftLimitViolation`) and register it as `checked`, or register it with a written reason.
@@ -24,7 +28,8 @@
  * `scripts/measure-saldo-path-parity.ts`, `packages/db/src/seed-demo.ts`) are not seen.
  * Comments and strings are not scanned (AST).
  *
- * Walk count MEASURED 2026-11-25: 351 production files (floor in MIN_WALKED_FILES).
+ * Walk count MEASURED 2026-11-25: 352 production files, 351 before Issue #1074 added the report
+ * module (floor in MIN_WALKED_FILES).
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, extname } from "node:path";
@@ -37,7 +42,7 @@ const SRC_DIR = join(REPO_ROOT, "apps/api/src");
 
 const WRITE_METHODS = ["create", "createMany", "update", "updateMany", "upsert"] as const;
 type WriteMethod = (typeof WRITE_METHODS)[number];
-type Verdict = "checked" | "no-time" | "not-checked";
+type Verdict = "checked" | "no-time" | "reported" | "not-checked";
 
 interface RegisterEntry {
   count: number;
@@ -82,14 +87,14 @@ const REGISTER: Record<string, Partial<Record<WriteMethod, RegisterEntry>>> = {
   "apps/api/src/services/phorest/sync-shifts.ts": {
     update: {
       count: 3,
-      verdict: "not-checked",
+      verdict: "reported",
       reason:
-        "adopt writes padded Phorest times (NOT checked: Phorest leads, a sync cannot refuse, own follow-up issue); PHOREST_REMOVED and PHOREST_REPLACED soft deletes reduce time",
+        "adopt writes padded Phorest times (reported, not refused: Phorest leads, Issue #1074); PHOREST_REMOVED and PHOREST_REPLACED soft deletes reduce time",
     },
     upsert: {
       count: 1,
-      verdict: "not-checked",
-      reason: "import of a Phorest shift (NOT checked: Phorest leads, own follow-up issue)",
+      verdict: "reported",
+      reason: "import of a Phorest shift (reported, not refused: Phorest leads, Issue #1074)",
     },
   },
 };
@@ -99,6 +104,9 @@ const MIN_WALKED_FILES = 299;
 
 const CHECK_FUNCTION = "findMinorShiftLimitViolation";
 const EXPECTED_CHECK_CALLS = 6;
+
+const REPORT_FUNCTION = "reportMinorShiftLimitViolations";
+const PHOREST_SYNC = "apps/api/src/services/phorest/sync-shifts.ts";
 
 function repoRel(absPath: string): string {
   return relative(REPO_ROOT, absPath).split("\\").join("/");
@@ -137,15 +145,15 @@ function shiftWriteCalls(fileName: string, source: string): Partial<Record<Write
   return counts;
 }
 
-/** Number of CallExpressions whose callee is the identifier `findMinorShiftLimitViolation`. */
-function checkCallCount(fileName: string, source: string): number {
+/** Number of CallExpressions whose callee is the identifier `name` (default: the write check). */
+function checkCallCount(fileName: string, source: string, name: string = CHECK_FUNCTION): number {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   let count = 0;
   const visit = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === CHECK_FUNCTION
+      node.expression.text === name
     ) {
       count += 1;
     }
@@ -153,6 +161,34 @@ function checkCallCount(fileName: string, source: string): number {
   };
   visit(sf);
   return count;
+}
+
+/** Start offsets of the identifier calls `name(` and of every `<expr>.shift.<write>(` call. */
+function callPositions(
+  fileName: string,
+  source: string,
+  name: string,
+): { named: number[]; shiftWrites: number[] } {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const named: number[] = [];
+  const shiftWrites: number[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      if (ts.isIdentifier(node.expression) && node.expression.text === name) {
+        named.push(node.getStart(sf));
+      } else if (
+        ts.isPropertyAccessExpression(node.expression) &&
+        (WRITE_METHODS as readonly string[]).includes(node.expression.name.text) &&
+        ts.isPropertyAccessExpression(node.expression.expression) &&
+        node.expression.expression.name.text === "shift"
+      ) {
+        shiftWrites.push(node.getStart(sf));
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { named, shiftWrites };
 }
 
 describe("Issue #1057 — every Shift write path is registered with a verdict", () => {
@@ -198,6 +234,24 @@ describe("Issue #1057 — every Shift write path is registered with a verdict", 
         `// findMinorShiftLimitViolation(w, c)\nimport { findMinorShiftLimitViolation } from "./m";`,
       ),
     ).toBe(0);
+    expect(
+      checkCallCount("x.ts", `await reportMinorShiftLimitViolations(app, i);`, REPORT_FUNCTION),
+    ).toBe(1);
+    expect(
+      checkCallCount(
+        "x.ts",
+        `import { reportMinorShiftLimitViolations } from "./m"; // reportMinorShiftLimitViolations(app, i)`,
+        REPORT_FUNCTION,
+      ),
+    ).toBe(0);
+    const positions = callPositions(
+      "x.ts",
+      `await tx.shift.update({});\nawait reportMinorShiftLimitViolations(app, i);`,
+      REPORT_FUNCTION,
+    );
+    expect(positions.shiftWrites).toHaveLength(1);
+    expect(positions.named).toHaveLength(1);
+    expect(positions.named[0]).toBeGreaterThan(positions.shiftWrites[0]);
   });
 
   it("Shift writes exist only in the registered files, methods and counts", () => {
@@ -224,7 +278,7 @@ describe("Issue #1057 — every Shift write path is registered with a verdict", 
     for (const [file, methods] of Object.entries(REGISTER)) {
       for (const [method, entry] of Object.entries(methods)) {
         expect(entry.reason.length, `${file} ${method} has no reason`).toBeGreaterThan(10);
-        expect(["checked", "no-time", "not-checked"]).toContain(entry.verdict);
+        expect(["checked", "no-time", "reported", "not-checked"]).toContain(entry.verdict);
       }
     }
   });
@@ -235,5 +289,22 @@ describe("Issue #1057 — every Shift write path is registered with a verdict", 
       checkCallCount(abs, readFileSync(abs, "utf8")),
       "POST, PUT, restore, bulk, generate-week and copy-week each call findMinorShiftLimitViolation once",
     ).toBe(EXPECTED_CHECK_CALLS);
+  });
+
+  it("the Phorest sync calls the JArbSchG report exactly once, after every Shift write", () => {
+    const abs = join(REPO_ROOT, PHOREST_SYNC);
+    const source = readFileSync(abs, "utf8");
+    expect(
+      checkCallCount(abs, source, REPORT_FUNCTION),
+      "the Phorest writes are 'reported': the end-of-run report must be called once (Issue #1074)",
+    ).toBe(1);
+    const { named, shiftWrites } = callPositions(abs, source, REPORT_FUNCTION);
+    expect(shiftWrites.length, "no Shift write found in sync-shifts.ts").toBeGreaterThan(0);
+    for (const write of shiftWrites) {
+      expect(
+        named[0],
+        "the report must read the final week: it has to come after every Shift write",
+      ).toBeGreaterThan(write);
+    }
   });
 });

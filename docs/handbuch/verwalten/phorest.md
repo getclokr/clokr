@@ -43,6 +43,10 @@ Der Abschnitt „Letzter Lauf“ und der **Verlauf** zeigen je Lauf den Status u
 
 Kollidiert eine Schicht aus Phorest mit einem Berufsschultag in Clokr, hat die Berufsschule Vorrang. Die Schicht wird beim Abgleich übersprungen.
 
+### Jugendarbeitsschutz
+
+Plant Phorest eine Person unter 18 länger, als das Jugendarbeitsschutzgesetz erlaubt, übernimmt Clokr die Schicht unverändert und benachrichtigt alle, die den Dienstplan des Salons planen. Pass den Plan dann in Phorest an.
+
 ## Termine
 
 Termine aus Phorest hält Clokr nur als schreibgeschützten Zwischenspeicher ohne Personendaten vor. Es werden keine Kundennamen, Leistungen, Preise oder Kontaktdaten gespeichert, nur Mitarbeiter, Datum und Uhrzeit. Auf dieser Grundlage zeigt Clokr Warnungen, wenn sich Urlaub oder eine Schichtänderung mit gebuchten Kundenterminen überschneidet, zum Beispiel „Kundentermine im Zeitraum gebucht“. Clokr verändert dabei nichts in Phorest.

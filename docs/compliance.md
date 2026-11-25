@@ -97,18 +97,28 @@ Lesart zu § 8 Abs. 2a: Ein Werktag ohne jede Arbeit zählt als „auf weniger a
 - Abgelehnt wird nur, was einen Verstoß **erzeugt oder vergrößert** (Tageswert, Schichtzeit oder Wochensumme wächst). Ein bereits unzulässiger Plan (Altbestand, Phorest-Import) sperrt den Dienstplan nicht: Verkürzen, Verschieben weg vom Tag und reine Textänderungen bleiben möglich.
 - Eine abgelehnte Anfrage schreibt keine Schicht und keinen Audit-Eintrag; Saldo, Soll und Arbeitszeitkonto sind nicht berührt.
 
+### Phorest-Import (Issue #1074)
+
+Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder verschieben. Das Gesetz verbietet das Beschäftigen über die Grenzen hinaus; die Ordnungswidrigkeit (§ 58 Abs. 1 Nr. 5 und 8 JArbSchG) entsteht am Arbeitstag. Clokr übernimmt die Schicht deshalb unverändert und meldet den Befund rechtzeitig vor dem Tag.
+
+- Nach jedem erfolgreichen Abgleich prüft Clokr jede Woche, in die der Lauf eine Schicht übernommen hat (Import und Übernahme einer Altschicht), mit **derselben Prüfung wie der Dienstplan**: alle Schichten der Person in allen Salons (§ 4 Abs. 5 JArbSchG), Berufsschulzeit, Alter je Tag. Geprüft wird der gespeicherte Stand der ganzen Woche.
+- Wer die Schichten des Salons plant (Reichweite `shift:plan`), bekommt eine Benachrichtigung mit Tag, Stunden und Grenze. Die Person selbst bekommt keine Meldung.
+- Dieselbe offene Meldung wird nicht wiederholt, ein geänderter Befund (anderer Tag, andere Stunden) kommt neu. Nach dem Ausblenden meldet der nächste Lauf erneut, solange der Plan unzulässig ist.
+- Der Lauf bleibt erfolgreich, auch wenn die Meldung scheitert. Es gibt keinen Audit-Eintrag: Es wird nichts geändert, die Benachrichtigung ist der Nachweis.
+
 ### Bekannte Grenzen
 
 - **§ 4 Abs. 4 Satz 2 JArbSchG (Feiertag):** Die wegen eines gesetzlichen Feiertags ausfallende Arbeitszeit wird nicht auf die Woche angerechnet. Welche Arbeitszeit für eine schichtgeplante Person „ausfällt“, ist eine offene Owner-Entscheidung; bis dahin ist eine Feiertagswoche zu niedrig gezählt.
 - **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
-- **Phorest-Import** (`services/phorest/sync-shifts.ts`) wird nicht geprüft: Phorest führt, ein Abgleich kann keine Schicht ablehnen.
+- **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074, siehe „Phorest-Import“ oben).
 - **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) werden im Dienstplan nicht geprüft.
+- **§ 14 JArbSchG (Nachtruhe)** wird auch in der Phorest-Meldung nicht geprüft: Die Ausnahmen hängen von der Branche ab, die Clokr nicht kennt. Das folgt mit Issue #1076; die Meldung übernimmt es dann ohne zweite Stelle, weil sie dieselbe Prüfung wie der Dienstplan aufruft.
 - **Zeiterfassung:** erfasste Zeiten werden nicht nach § 8 JArbSchG geprüft (Issue #524).
 - Alle Schreibwege sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` nach Aufrufmuster mit Urteil erfasst.
 
 ### Datenschutz
 
-Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Der Verweis auf § 8/§ 12 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
+Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8/§ 12 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
 
 ---
 
