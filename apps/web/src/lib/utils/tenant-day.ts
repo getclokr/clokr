@@ -52,3 +52,9 @@ export function tenantDay(now: Date, timeZone: string): string {
   const p = partsOf(now, timeZone);
   return `${p.year}-${p.month}-${p.day}`;
 }
+
+/** The `HH:mm` wall-clock time of `now` in the tenant's zone (24-hour, zero padded). */
+export function tenantTimeOfDay(now: Date, timeZone: string): string {
+  const p = partsOf(now, timeZone);
+  return `${p.hour}:${p.minute}`;
+}

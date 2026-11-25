@@ -38,7 +38,7 @@
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features"; // Issue #1066: the tenant's zone
-  import { tenantDay } from "$lib/utils/tenant-day"; // Issue #1066
+  import { tenantDay, tenantTimeOfDay } from "$lib/utils/tenant-day"; // Issue #1066
   import Pagination from "$components/ui/Pagination.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import PageHead from "$lib/components/layout/PageHead.svelte";
@@ -611,7 +611,7 @@
 
       // Issue #84: the Team block (charts, upcoming leave, week grid) is loaded by the salon-context
       // effect above, not here; only the personal next leave belongs to this load.
-      loadMyNextLeave();
+      loadMyNextLeave(today);
     } finally {
       loading = false;
     }
@@ -696,7 +696,8 @@
     const weeks = [shiftsNowR, shiftsNextR]
       .filter((r): r is PromiseFulfilledResult<MyShiftWeek> => r.status === "fulfilled")
       .map((r) => r.value);
-    nextShift = nextOwnShift(weeks, today, format(new Date(), "HH:mm"));
+    // Shift rows carry the tenant's wall-clock times, so the comparison reads the tenant's clock
+    nextShift = nextOwnShift(weeks, today, tenantTimeOfDay(new Date(), $tenantFeatures.timezone));
     ownShiftByDate = new Map(
       weeks.flatMap((w) =>
         w.days
@@ -784,8 +785,10 @@
   async function loadPastWeeks() {
     const filter = teamFilter;
     const generation = teamGeneration;
+    // the derived `todayIso` may still carry the store's default zone when the team effect first fires
+    const today = await tenantToday();
     const results = await Promise.allSettled(
-      pastWeeksOfMonth(todayIso).map((monday) =>
+      pastWeeksOfMonth(today).map((monday) =>
         api.get<TeamWeek>(withSalonId(`/dashboard/team-week?date=${monday}`, filter)),
       ),
     );
@@ -798,8 +801,8 @@
     const filter = teamFilter;
     const generation = teamGeneration;
     try {
-      // D-02: always the current week (today marked)
-      const dateParam = format(new Date(), "yyyy-MM-dd");
+      // D-02: always the current week (today marked); the tenant's today (Issue #1066)
+      const dateParam = await tenantToday();
       const week = await api.get<TeamWeek>(
         withSalonId(`/dashboard/team-week?date=${dateParam}`, filter),
       );
@@ -1010,7 +1013,7 @@
   }
 
   // Own next leave (personal, for all users) — unrelated to the salon filter.
-  async function loadMyNextLeave() {
+  async function loadMyNextLeave(today: string) {
     // Load own next leave (for all users)
     try {
       const myEmployeeId = $authStore.user?.employeeId;
@@ -1019,7 +1022,8 @@
       >(
         `/leave/requests?status=APPROVED&upcoming=true${myEmployeeId ? `&employeeId=${myEmployeeId}` : ""}`,
       );
-      const next = (myLeaves ?? []).find((l) => new Date(l.startDate) > new Date());
+      // Issue #1066: "not started yet" in the tenant's calendar, not an instant against UTC midnight
+      const next = (myLeaves ?? []).find((l) => l.startDate.slice(0, 10) > today);
       myNextLeave = next
         ? {
             startDate: next.startDate.split("T")[0],
@@ -1373,7 +1377,7 @@
   }
 
   function isToday(dateStr: string): boolean {
-    return dateStr === format(new Date(), "yyyy-MM-dd");
+    return dateStr === todayIso;
   }
 
   let userName = $derived($authStore.user?.firstName ?? $authStore.user?.email.split("@")[0] ?? "");
@@ -1423,7 +1427,11 @@
   );
 
   // ── Issue #845: the stage view model (D-02, D-03, D-845-01/02/08) ─────────────────────────────
-  let todayIso = $derived(format(currentTime, "yyyy-MM-dd"));
+  // Issue #1066: the tenant's calendar day; the device clock says when now is, the tenant zone which day
+  let todayIso = $derived(tenantDay(currentTime, $tenantFeatures.timezone));
+  let todayLabel = $derived(
+    format(new Date(`${todayIso}T12:00:00`), "EEEE, d. MMMM", { locale: de }),
+  );
   const missingMonthRows = $derived(
     pastWeeks === null
       ? null
@@ -1560,18 +1568,14 @@
   let teamSub = $derived(
     [
       teamLabel ?? ($salonContext.salons.length === 1 ? $salonContext.salons[0].name : null),
-      format(currentTime, "EEEE, d. MMMM", { locale: de }),
+      todayLabel,
       `Stand ${format(currentTime, "HH:mm")}`,
     ]
       .filter((x): x is string => !!x)
       .join(" · "),
   );
   let meinTagSub = $derived(
-    [
-      format(currentTime, "EEEE, d. MMMM", { locale: de }),
-      homeSalonName,
-      goalMin !== null ? `Soll heute ${fmtClock(goalMin)} h` : null,
-    ]
+    [todayLabel, homeSalonName, goalMin !== null ? `Soll heute ${fmtClock(goalMin)} h` : null]
       .filter((x): x is string => !!x)
       .join(" · "),
   );
@@ -1767,7 +1771,7 @@
   );
   function historyWhen(iso: string): string {
     const d = new Date(iso);
-    return format(d, "yyyy-MM-dd") === todayIso
+    return tenantDay(d, $tenantFeatures.timezone) === todayIso
       ? format(d, "HH:mm")
       : format(d, "EEEEEE", { locale: de });
   }

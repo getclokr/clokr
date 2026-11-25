@@ -73,6 +73,9 @@ vi.mock("chart.js", () => {
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { format } from "date-fns";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import { ApiError } from "$api/client";
@@ -100,6 +103,8 @@ interface World {
   entries: Entry[];
   /** The open entry the clock acts on, `null` = none. */
   clockEntry: Entry | null;
+  /** Further exact-path answers (the week strips, own shifts). */
+  routes?: Record<string, unknown>;
 }
 
 let world: World;
@@ -117,6 +122,7 @@ function serve() {
     }
     if (path === dayUrl(world.tenantDay)) return Promise.resolve(world.entries);
     if (path.startsWith("/time-entries?")) return Promise.resolve([]);
+    if (world.routes && path in world.routes) return Promise.resolve(world.routes[path]);
     if (path === "/me/context") {
       return Promise.resolve({
         tenant: { id: "t1", name: "Mandant" },
@@ -318,5 +324,143 @@ describe("the zone is read from the tenant, not assumed (#1066)", () => {
 
     expect(entryReads()).toContain(dayUrl("2026-11-24"));
     expect(entryReads()).not.toContain(dayUrl("2026-11-25"));
+  });
+});
+
+const weekStrip = (days: string[]) => ({
+  scheduleType: "FIXED_SCHEDULE",
+  days: days.map((date) => ({
+    date,
+    expectedHours: 8,
+    isWorkday: true,
+    holidayName: null,
+    leaveType: null,
+    absenceType: null,
+  })),
+});
+
+describe("every other tenant day of the page follows the tenant zone (#1066)", () => {
+  describe("device UTC at the boundary hour", () => {
+    withProcessZone("UTC");
+
+    it("T6: the sub-line and the Deine Woche marker name the tenant day", async () => {
+      vi.setSystemTime(new Date("2026-11-24T23:30:00.000Z"));
+      world = {
+        tenantZone: "Europe/Berlin",
+        tenantDay: "2026-11-25",
+        entries: [],
+        clockEntry: null,
+        routes: {
+          "/dashboard/my-week?date=2026-11-25": weekStrip([
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25",
+            "2026-11-26",
+            "2026-11-27",
+            "2026-11-28",
+            "2026-11-29",
+          ]),
+        },
+      };
+      serve();
+      expect(format(new Date(), "yyyy-MM-dd")).toBe("2026-11-24");
+
+      await tenantFeatures.fetch();
+      renderWithTheme(DashboardPage, {});
+
+      await waitFor(() => expect(screen.getByText(/Mittwoch, 25\. November/)).toBeInTheDocument());
+      expect(screen.queryByText(/Dienstag, 24\. November/)).not.toBeInTheDocument();
+      await waitFor(() => {
+        const marked = document.querySelectorAll('[aria-current="date"]');
+        expect(marked).toHaveLength(1);
+        expect(marked[0].textContent).toContain("25");
+      });
+    });
+  });
+
+  describe("device Pacific/Kiritimati", () => {
+    withProcessZone("Pacific/Kiritimati");
+
+    it("T7: the next shift is judged by the tenant's wall clock, not the device's", async () => {
+      // 09:30 UTC: Berlin 10:30, Kiritimati 23:30 - both on 2026-11-25.
+      vi.setSystemTime(new Date("2026-11-25T09:30:00.000Z"));
+      world = {
+        tenantZone: "Europe/Berlin",
+        tenantDay: "2026-11-25",
+        entries: [],
+        clockEntry: null,
+        routes: {
+          "/shifts/my-week?date=2026-11-25": {
+            days: [
+              {
+                date: "2026-11-25",
+                ownShifts: [{ startTime: "14:00", endTime: "18:00", label: null }],
+              },
+            ],
+          },
+        },
+      };
+      serve();
+      expect(format(new Date(), "yyyy-MM-dd")).toBe("2026-11-25");
+      expect(format(new Date(), "HH:mm")).toBe("23:30");
+
+      await tenantFeatures.fetch();
+      renderWithTheme(DashboardPage, {});
+
+      const cell = await screen.findByTestId("kpi-next-shift");
+      await waitFor(() => expect(cell).toHaveTextContent("Nächste Schicht"));
+      expect(cell).toHaveTextContent("14:00–18:00");
+    });
+  });
+});
+
+describe("the page source reads no browser date for a tenant day (#1066)", () => {
+  function readPage(): string {
+    try {
+      return readFileSync(
+        fileURLToPath(new URL("../routes/(app)/dashboard/+page.svelte", import.meta.url)),
+        "utf8",
+      );
+    } catch {
+      return readFileSync(
+        resolve(process.cwd(), "src/routes/(app)/dashboard/+page.svelte"),
+        "utf8",
+      );
+    }
+  }
+
+  /** The page source without comments, so a banned call quoted in a comment does not count. */
+  function strippedSource(): string {
+    return readPage()
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\s\/\/ .*$/gm, "");
+  }
+
+  const BANNED: Array<[RegExp, string]> = [
+    [
+      /format\((?:new Date\(\)|now|currentTime), "yyyy-MM-dd"\)/,
+      'format(new Date(), "yyyy-MM-dd")',
+    ],
+    [/format\(new Date\(\), "HH:mm"\)/, 'format(new Date(), "HH:mm")'],
+    [/"yyyy-MM-dd"\)\s*===\s*todayIso/, 'format(d, "yyyy-MM-dd") === todayIso'],
+    [/new Date\(l\.startDate\) > new Date\(\)/, "new Date(l.startDate) > new Date()"],
+  ];
+
+  it("G1: positive control - the stripped source is the whole page", () => {
+    expect(strippedSource().length).toBeGreaterThan(50_000);
+  });
+
+  it("G1: matcher control - every banned pattern matches a planted sample of the old line", () => {
+    for (const [re, sample] of BANNED) expect(re.test(sample)).toBe(true);
+  });
+
+  it("G1: none of the banned patterns occurs, and the tenant helpers carry the days", () => {
+    const src = strippedSource();
+    for (const [re] of BANNED) expect(src).not.toMatch(re);
+    expect(src).toContain("tenantDay(currentTime, $tenantFeatures.timezone)");
+    expect(src).toContain("tenantTimeOfDay(");
+    expect(src.match(/await tenantToday\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
   });
 });
