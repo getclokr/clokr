@@ -48,21 +48,21 @@ import {
   getTenantTimezone,
   persistOvertimeBalance,
   recalculateSnapshots,
-  reverseOvertimeCompensation,
 } from "../working-time-account";
-import { revalidateLeaveCancellationEntries } from "../time-tracking";
 import { findClosedMonthsInRange } from "./closed-month-guard";
-import { getHolidayMap, resolveLeaveDays, reverseVacationDays } from "./leave-days";
-import {
-  Section9ConcurrentCorrectionError,
-  supersedeSection9CreditsOfCancelledRequest,
-} from "./section9-supersede";
+import { getHolidayMap, resolveLeaveDays } from "./leave-days";
+import { Section9ConcurrentCorrectionError } from "./section9-supersede";
 import {
   applyLeaveCorrection,
   prepareLeaveCorrection,
   type LeaveCorrectionPlan,
 } from "./leave-correction";
-import { overtimeCompReversalMinutes } from "./overtime-comp-minutes";
+import {
+  cancelLeaveRequestInTx,
+  planLeaveCancellation,
+  type CancelLeaveAction,
+  type OpenLeaveStatus,
+} from "./leave-cancellation";
 import { activeParentalReductions } from "./parental-leave-reduction";
 
 export interface EmploymentExitInput {
@@ -103,23 +103,6 @@ export interface EmploymentExitSkipped {
   id: string;
   /** UPPER_SNAKE reason code. */
   reason: string;
-}
-
-type OpenLeaveStatus = "PENDING" | "APPROVED" | "CANCELLATION_REQUESTED";
-
-/** A leave request lying wholly after the exit day: cancel it and book back what it booked. */
-interface CancelLeaveAction {
-  kind: "cancelLeave";
-  requestId: string;
-  leaveTypeId: string;
-  leaveTypeCode: string;
-  days: number;
-  /** Optimistic guard: the row must still look like this inside the transaction. */
-  guard: { status: OpenLeaveStatus; startDate: Date; endDate: Date; updatedAt: Date };
-  /** Holiday dates of the request range (VACATION only), read before the transaction. */
-  holidayDates: string[];
-  /** The amount to give back for an OVERTIME_COMP booking (stored, else recomputed); else null. */
-  overtimeReversal: { minutes: number; source: "stored" | "recomputed" } | null;
 }
 
 /** An imposed absence (Berufsschule) lying wholly after the exit day: soft-delete it. */
@@ -269,73 +252,9 @@ export async function planEmploymentExit(
         return;
       }
     }
-    // Issue #662: a live § 9 credit no longer protects the row - the cancellation supersedes it
-    // (section9-supersede.ts, the rule the cancellation approval runs). The holiday set is then
-    // needed for the ledger undo of a CONFIRMED credit even on a non-vacation (sick) row.
-    const hasSection9Credit =
-      (await prisma.section9Credit.count({
-        where: {
-          employeeId,
-          employee: { tenantId },
-          status: { not: "SUPERSEDED" },
-          OR: [{ vacationRequestId: row.id }, { sickRequestId: row.id }],
-        },
-      })) > 0;
-
-    // A PENDING request booked nothing; every other status reverses what its approval booked.
-    const booked = row.status !== "PENDING";
-    const code = row.leaveType.code;
-    let holidayDates: string[] = [];
-    if (booked && (code === "VACATION" || hasSection9Credit)) {
-      const holidays = await getHolidayMap(
-        prisma,
-        tenantId,
-        employeeId,
-        row.startDate,
-        row.endDate,
-      );
-      holidayDates = [...holidays.keys()];
-    }
-    let overtimeReversal: CancelLeaveAction["overtimeReversal"] = null;
-    if (booked && code === "OVERTIME_COMP") {
-      // Issue #468 (A-4/D-02): the STORED booking is reversed; only a legacy row is recomputed.
-      overtimeReversal = await overtimeCompReversalMinutes(
-        prisma,
-        tenantId,
-        { ...row, employeeId },
-        async () => {
-          const holidays = await getHolidayMap(
-            prisma,
-            tenantId,
-            employeeId,
-            row.startDate,
-            row.endDate,
-          );
-          return { holidays: new Set(holidays.keys()), tz: await tenantTz() };
-        },
-      );
-      if (overtimeReversal.source === "recomputed") {
-        log.warn(
-          { leaveRequestId: row.id, employeeId },
-          "OVERTIME_COMP reversal without a stored booking — recomputed (Issue #468 A-4 legacy fallback)",
-        );
-      }
-    }
-    actions.push({
-      kind: "cancelLeave",
-      requestId: row.id,
-      leaveTypeId: row.leaveTypeId,
-      leaveTypeCode: code,
-      days: Number(row.days),
-      guard: {
-        status: row.status as OpenLeaveStatus,
-        startDate: row.startDate,
-        endDate: row.endDate,
-        updatedAt: row.updatedAt,
-      },
-      holidayDates,
-      overtimeReversal,
-    });
+    // Issue #662 / #468: the holiday dates, the § 9 undo and the OVERTIME_COMP amount come from the
+    // shared cancellation core (leave-cancellation.ts, also used by the Betriebsurlaub, #1069).
+    actions.push(await planLeaveCancellation(prisma, log, { tenantId, employeeId, row, tenantTz }));
   };
 
   // ── Leave requests wholly after the exit day (all open statuses, every leave type) ──────────
@@ -883,107 +802,18 @@ async function cancelLeave(
   action: CancelLeaveAction,
   audit: EmploymentExitAuditPort,
 ): Promise<void> {
-  const { tenantId, employeeId, exitDay } = input;
-  const marker = markerOf(input);
-
-  // The anonymization is not a review: no reviewedBy / reviewNote change. The guard makes the
-  // update an optimistic lock — 0 rows means the request changed between plan and apply.
-  const { count } = await tx.leaveRequest.updateMany({
-    where: {
-      id: action.requestId,
-      employeeId,
-      employee: { tenantId },
-      deletedAt: null,
-      status: action.guard.status,
-      startDate: action.guard.startDate,
-      endDate: action.guard.endDate,
-      updatedAt: action.guard.updatedAt,
-    },
-    data: { status: "CANCELLED" },
+  // The anonymization is not a review: the shared core changes no reviewedBy / reviewNote
+  // (Issue #1069: extracted unchanged to leave-cancellation.ts, one implementation for every
+  // system-ordered cancellation).
+  await cancelLeaveRequestInTx(tx, {
+    tenantId: input.tenantId,
+    employeeId: input.employeeId,
+    action,
+    marker: { ...markerOf(input) },
+    cancelExtra: { exitDate: isoDay(input.exitDay) },
+    audit,
+    conflict: (entity, id) => new EmploymentExitConflictError(entity, id),
   });
-  if (count !== 1) throw new EmploymentExitConflictError("LeaveRequest", action.requestId);
-
-  if (action.guard.status !== "PENDING") {
-    // Time entries created while a cancellation was pending become valid again (as the approval
-    // does), one UPDATE audit per revalidated row (Issue #370, D-04).
-    const revalidated = await revalidateLeaveCancellationEntries(
-      tx,
-      employeeId,
-      tenantId,
-      action.guard.startDate,
-      action.guard.endDate,
-    );
-    for (const row of revalidated) {
-      await audit({
-        action: "UPDATE",
-        entity: "TimeEntry",
-        entityId: row.id,
-        oldValue: row.oldValue,
-        newValue: { ...row.newValue, ...marker },
-      });
-    }
-
-    if (action.leaveTypeCode === "VACATION") {
-      await reverseVacationDays(
-        tx,
-        employeeId,
-        action.leaveTypeId,
-        action.guard.startDate,
-        action.guard.endDate,
-        action.days,
-        new Set(action.holidayDates),
-        tenantId,
-      );
-    }
-  }
-
-  // Issue #662: a cancelled request leaves no § 9 credit standing - the same shared supersession
-  // the cancellation approval runs (section9-supersede.ts), audited with the anonymization marker.
-  try {
-    await supersedeSection9CreditsOfCancelledRequest(tx, {
-      requestId: action.requestId,
-      employeeId,
-      tenantId,
-      holidays: new Set(action.holidayDates),
-      audit: (entry) => audit({ ...entry, newValue: { ...(entry.newValue ?? {}), ...marker } }),
-    });
-  } catch (err) {
-    if (err instanceof Section9ConcurrentCorrectionError) {
-      throw new EmploymentExitConflictError("LeaveRequest", action.requestId);
-    }
-    throw err;
-  }
-
-  await audit({
-    action: "CANCEL",
-    entity: "LeaveRequest",
-    entityId: action.requestId,
-    oldValue: {
-      status: action.guard.status,
-      startDate: isoDay(action.guard.startDate),
-      endDate: isoDay(action.guard.endDate),
-      days: action.days,
-      leaveTypeCode: action.leaveTypeCode,
-    },
-    newValue: { status: "CANCELLED", ...marker, exitDate: isoDay(exitDay) },
-  });
-
-  if (action.overtimeReversal) {
-    const { minutes, source } = action.overtimeReversal;
-    await reverseOvertimeCompensation(
-      tx,
-      employeeId,
-      tenantId,
-      minutes / 60,
-      `Stornierung Überstundenausgleich ${isoDay(action.guard.startDate)} (${markerOf(input).auditReason})`,
-    );
-    await audit({
-      action: "OVERTIME_COMP_REVERSED",
-      entity: "LeaveRequest",
-      entityId: action.requestId,
-      newValue: { overtimeCompMinutes: minutes, hours: minutes / 60, source },
-    });
-  }
 }
 
 /** Soft-deletes one imposed absence (the row stays; same end state as the BS generator's sweep). */

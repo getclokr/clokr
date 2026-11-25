@@ -7,7 +7,9 @@
   Writes are `POST /company-shutdowns` (a Dialog) and `DELETE /company-shutdowns/:id` (behind a ConfirmDialog);
   each acts at once and answers with a toast (docs/ADMIN_STRUCTURE.md §3.2.1: a list action saves instantly,
   there is no section button). A row opens the shutdown's detail sub-route, where period, notes and exceptions
-  are edited. The API refuses a write in a locked month; its text is shown as the server worded it.
+  are edited. Since Issue #1069 saving really books: the toast after creating names what was booked
+  (`bookingSummaryText`), and a delete cancels the bookings of open months. A closed month is never changed by
+  either. A refusal of the API (overlap, a run still going) is shown as the server worded it.
 
   Props:
     active - true while the tab is the selected one
@@ -34,6 +36,8 @@
     exceptionCountLabel,
     formatShutdownDate,
     SHUTDOWN_NAME_MAX,
+    BOOKING_TOAST_MS,
+    bookingToast,
     shutdownFormMessage,
     shutdownYears,
     type CompanyShutdown,
@@ -125,7 +129,8 @@
         "/company-shutdowns",
         createShutdownBody({ name, startDate, endDate, deductsFromVacation, notes }),
       );
-      toasts.success("Betriebsurlaub angelegt.");
+      const toast = bookingToast(created, "Betriebsurlaub angelegt.");
+      toasts.success(toast.message, toast.duration);
       createOpen = false;
       await goto(`/verwalten/regeln/betriebsurlaub/${created.id}`);
     } catch (err) {
@@ -154,7 +159,10 @@
     if (!deleteConfirm.id) return;
     try {
       await api.delete(`/company-shutdowns/${deleteConfirm.id}`);
-      toasts.success("Betriebsurlaub gelöscht.");
+      toasts.success(
+        "Betriebsurlaub gelöscht. Gebuchter Urlaub in offenen Monaten ist storniert, abgeschlossene Monate bleiben unverändert.",
+        BOOKING_TOAST_MS,
+      );
       await loadShutdowns();
     } catch {
       toasts.error(
@@ -172,7 +180,7 @@
   <div class="hint-row">
     <h2 class="settings-group-title" id="abwesenheiten-betriebsurlaub-title">Betriebsurlaub</h2>
     <InfoHint
-      text="Zeiträume, in denen der ganze Betrieb geschlossen hat. Ein Betriebsurlaub kann vom Urlaubskonto abgezogen werden; einzelne Mitarbeitende nimmst du in der Ansicht des Betriebsurlaubs aus."
+      text="Zeiträume, in denen der ganze Betrieb geschlossen hat. Beim Anlegen wird für alle Mitarbeitenden Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage und alle Tage ohne Urlaubsabzug sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Einzelne Personen nimmst du in der Ansicht des Betriebsurlaubs aus."
       label={hintLabel("Betriebsurlaub")}
     />
   </div>
@@ -309,7 +317,7 @@
     <ToggleField
       bind:checked={deductsFromVacation}
       label="Vom Urlaubskonto abziehen"
-      hint="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
+      hint="Mit Urlaubsabzug wird für jede Person Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Ohne Urlaubsabzug sind alle Tage bezahlte Freistellung. Ausgenommene Personen bleiben außen vor."
       testid="abwesenheiten-betriebsurlaub-deducts"
     />
     <FormField label="Notiz">
@@ -325,6 +333,10 @@
         ></textarea>
       {/snippet}
     </FormField>
+    <Note tone="info">
+      Mit „Anlegen“ wird der Betriebsurlaub sofort gebucht. Abgeschlossene Monate bleiben
+      unverändert.
+    </Note>
     {#if formError}
       <div role="alert"><Note tone="bad">{formError}</Note></div>
     {/if}
@@ -342,7 +354,7 @@
 <ConfirmDialog
   bind:open={deleteConfirm.open}
   title="Betriebsurlaub löschen?"
-  description={`„${deleteConfirm.name}“ wird entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`}
+  description={`„${deleteConfirm.name}“ wird gelöscht. Gebuchte Urlaubstage in offenen Monaten werden storniert und der Urlaub wird zurückgebucht, abgeschlossene Monate bleiben unverändert. Diese Aktion kann nicht rückgängig gemacht werden.`}
   confirmLabel="Löschen"
   danger
   onConfirm={confirmDelete}

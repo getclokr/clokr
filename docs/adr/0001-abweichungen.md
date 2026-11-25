@@ -8250,3 +8250,106 @@ in Abwesenheiten (`ical.ts`, additiv um zeitgebundene Termine und `LOCATION` erw
 Abwesenheiten: `ical.ts` additiv erweitert und über `index.ts` exportiert, sonst keine. Schichtplanung: keine. Arbeitszeitkonto:
 keine. Kompositionsschicht: neue Lese-Route ohne eigene Regel. Unterbau: neues Modell `CalendarFeedToken` (Erweiterung, FKs auf
 `Tenant` Restrict und `User` Cascade), Anonymisierung und Int-Refresh löschen die Tokens.
+
+## AL — Betriebsurlaub wird gebucht: ein Buchungsmodul, ein Stornokern (Phase 1069, Issue #1069)
+
+**Ausgangslage.** `CompanyShutdown.deductsFromVacation` und `CompanyShutdownException` waren gespeichert und wurden angezeigt, aber nichts
+las sie für die Lohnabrechnung: kein Urlaub wurde belastet, die Sollzeit sank nicht, ein Schließtag zählte als fehlender Arbeitstag
+(Minus). Die Oberfläche sagte „Zieht vom Urlaubskonto ab“. Owner-Entscheidung 25.11.2026 („ja setz das so um“): Der Abzug bleibt je
+Betriebsurlaub einstellbar und ist standardmäßig an; ein Betriebsurlaub ist ordentlicher Urlaub auf Anordnung des Arbeitgebers
+(§ 7 Abs. 1 BUrlG), ohne Abzug sind die Tage bezahlte Freistellung (§ 615 BGB).
+
+**Entscheidung.**
+
+- **Eine Stelle bucht.** `contexts/absence/company-shutdown/booking.ts` (bewusst nicht aus `contexts/absence/index.ts` exportiert,
+  Importzyklus-Deckel 22): `bookCompanyShutdown`, `reverseCompanyShutdown`, `rebookCompanyShutdown`, `bookCompanyShutdownsForHire`. Die
+  Routen `POST`/`PATCH`/`DELETE /company-shutdowns` und beide Ausnahme-Routen rufen nur dieses Modul.
+- **Betroffen** ist, wer an einem Schließtag beschäftigt ist (`reportPopulationWhere`, Eintritts- und Austrittstag, nie anonymisiert)
+  und nicht auf der Ausnahmeliste steht. Der Betriebsurlaub bleibt mandantenweit (Berechtigung `company-shutdown:manage`, Scope
+  Mandant).
+- **Darstellung.** Je betroffener Person und Kalendermonat EINE angeordnete `Absence` des neuen Codes `COMPANY_SHUTDOWN`
+  (`DISPLAY_NAME` „Betriebsurlaub“, nur dieses Modul schreibt sie), unabhängig vom Abzug. Sie senkt über das bestehende Tages-Dedup
+  des Saldo-Kerns die Sollzeit genau an den Tagen, die keine genehmigte Abwesenheit und kein Feiertag schon deckt; ein abgelehnter,
+  offener oder stornierter Urlaubsantrag hinterlässt deshalb kein Minus. Kein vorhandener Code passt (`OTHER` ist die
+  Vor-Erfassungs-Brücke ohne Schreiber, `SPECIAL` ist § 616 BGB, `UNPAID` unbezahlt, `EDUCATION` eine andere Rechtsgrundlage). Es gibt
+  keine Ableitung zur Lesezeit aus `CompanyShutdown`: abgeschlossene Monate bleiben unberührt, und jeder Saldo-Aufrufer bräuchte
+  einen neuen Eingang.
+- **Urlaubsteil (nur mit Abzug).** VACATION-Anträge, ganze Tage, einer je zusammenhängendem Lauf freier Tage im Monatsabschnitt, über
+  `createLeaveRequestCore` und `approveLeaveRequestCore` (die Kerne des Urlaubsplaners, #835), verknüpft über
+  `LeaveRequest.companyShutdownId`. Frei = kein offener oder wirksamer Antrag, kein gearbeiteter Tag, keine andere angeordnete
+  Abwesenheit außer Berufsschule. Bei zu wenig Resturlaub wird nur das längste Präfix gebucht, dessen Preis in
+  `remainingDays − pendingDays` passt, der Reihe nach und nur gegen das Jahr, in dem der Tag liegt: kein Minus auf dem
+  Urlaubskonto, kein Vorgriff auf das nächste Jahr; der Rest ist bezahlte Freistellung. `createLeaveRequestCore` bekommt die eine
+  additive Option `employerOrdered`, die nur LEAD_TIME und MAX_ADVANCE überspringt (der Arbeitgeber legt den Zeitpunkt fest);
+  ohne die Option ist der Kern unverändert.
+- **Akteur und Vier-Augen.** Akteur ist, wessen Anfrage die Buchung auslöst. Ein Antrag entsteht nur in dessen
+  `leave-request:create`-Reichweite (für die eigene Zeile `…:EIGENE`), genehmigt wird er nur außerhalb des eigenen Antrags und in der
+  `leave-request:approve`-Reichweite; sonst bleibt er offen und die Genehmigenden werden benachrichtigt. Es gibt keinen
+  System-Genehmiger; `company-shutdown:manage` umgeht die Urlaubsrechte nicht. Die Genehmigung läuft mit einer ausdrücklichen,
+  auditierten Ausnahme der Urlaubsgrenzen (#836, fester Grund aus dem Betriebsurlaub): Während der Betrieb geschlossen ist, kann eine
+  Besetzungsgrenze nicht greifen.
+- **Abgeschlossene Monate** werden nie geschrieben und nie verändert (`findClosedMonthsInRange`); eine Korrektur dort läuft über die
+  Monatskorrektur (#599).
+- **Ein Stornokern.** `contexts/absence/leave-cancellation.ts` (`planLeaveCancellation`, `cancelLeaveRequestInTx`) ist aus
+  `employment-exit.ts` unverändert herausgezogen und wird von der Austrittsregel (#614) und vom Betriebsurlaub benutzt: PENDING →
+  CANCELLED ohne Rückbuchung; genehmigt oder Stornierung angefragt → CANCELLED, `reverseVacationDays`, § 9-Supersede, Revalidierung
+  ungültiger Einträge, Audit mit dem Marker des Aufrufers. Die Audit-Schlüssel der Austrittsregel blieben byte-gleich (die 614/615-Tests
+  laufen unverändert). Änderung von Zeitraum oder Abzug, Löschen und das Hinzufügen einer Ausnahme stornieren die erzeugten
+  Anträge offener Monate und löschen die Abwesenheiten weich; Bearbeiten und Entfernen einer Ausnahme buchen danach neu. Eine zweite
+  Person muss die Stornierung nicht freigeben: Sie ist die Folge der Arbeitgeber-Änderung (Präzedenz #614), auditiert mit Marker.
+- **Weiches Löschen.** `CompanyShutdown.deletedAt`; DELETE setzt es, die Zeile bleibt (sie ist Quelle lohnrelevanter Buchungen), jeder
+  Leser filtert `deletedAt: null`, ein gelöschter Betriebsurlaub antwortet mit derselben 404 wie eine unbekannte Id. Die neuen
+  Fremdschlüssel `LeaveRequest.companyShutdownId` und `Absence.companyShutdownId` sind `onDelete: Restrict`.
+- **Überschneidung.** Zwei aktive Betriebsurlaube eines Mandanten dürfen sich nicht überschneiden (409
+  `COMPANY_SHUTDOWN_OVERLAP`); eine laufende Buchung desselben Betriebsurlaubs antwortet 409 `COMPANY_SHUTDOWN_BOOKING_RUNNING`
+  (Advisory-Lock je Betriebsurlaub, Muster der Übernahme #835).
+- **Spätere Neueinstellung.** `POST /employees` und `POST /imports/employees` rufen nach dem Commit der Anlage
+  `app.companyShutdownHire.bookForNewEmployee` (reaktiv im Sinn von ADR 0002, Entscheidung 10). Die Dekoration kommt aus
+  `plugins/company-shutdown-hire-decorate.ts`, damit der Unterbau keinen Geschäftskontext importiert (Muster
+  `employment-exit-decorate.ts`). Ein Fehler wird mit Ids geloggt und ändert die Antwort der Anlage nie.
+- **Saldo-Kern.** Eine code-spezifische Regel in `closeEmployeeMonth` (beide Abwesenheitsschleifen): Eine `COMPANY_SHUTDOWN`-Abwesenheit
+  schreibt und beansprucht keinen Berufsschultag gut — Berufsschule hat Vorrang (BBiG § 15, die Regel der Urlaubsschleifen seit #448).
+  `calcLeaveAbsenceMinutesTz` bleibt unverändert und ungeteilt; die Invariante „ein Tag senkt die Sollzeit genau einmal“ gilt weiter.
+- **Berichte.** Urlaub läuft über die bestehende Urlaubszeile und die Berichte; ein Freistellungstag bekommt keine DATEV-Lohnart und
+  keine Spalte im Periodenbericht (wie ein Feiertag; `PeriodAbsencesCsvCode` schließt den Code wie `OTHER` aus), der Stundennachweis
+  nennt den Zeitraum „Betriebsurlaub“.
+- **Audit.** Jeder Schreibvorgang ist auditiert: Antrag CREATE/Genehmigung/CANCEL über die Kerne mit dem Auslöser
+  `COMPANY_SHUTDOWN` und `companyShutdownId`, Abwesenheit CREATE/UPDATE (Wiederherstellung einer weich gelöschten Zeile mit gleicher
+  Person und gleichem Beginn)/DELETE, je Lauf eine Zusammenfassung `COMPANY_SHUTDOWN_BOOKED` / `COMPANY_SHUTDOWN_REVERSED` (Ids und
+  Zähler, kein Freitext); die Audits von `CompanyShutdown` tragen jetzt `deductsFromVacation`.
+- **Antworten.** `POST` und `PATCH` liefern zusätzlich `booking` (nur Zähler, keine Ids, keine Namen); `DELETE` bleibt 204; beide
+  Ausnahme-Routen behalten Status und Body byte-gleich (Neutralitätsmatrix unverändert).
+- **Bestand.** `apps/api/scripts/audit-1069-company-shutdown-bookings.ts` listet je (Betriebsurlaub, Person, Monat) read-only
+  `BOOKED` / `MISSING` / `CLOSED_MONTH` / `EXCEPTED` mit Ids und Zählern; was nachgebucht wird, entscheidet der Owner nach dem Lauf.
+- **Importzähler.** `composition-root` in `context-boundary-import-exceptions.json` 69 → 70 (`companyShutdownHireDecoratePlugin`,
+  dieselbe Form wie die Austritts- und Eintrittsdatum-Dekorationen); der Importzyklus-Deckel bleibt 22.
+
+**Bekannte Grenzen.**
+
+- Nur mandantenweit: Ein Betriebsurlaub je Salon ist eine neue Fähigkeit und eine Owner-Frage; die Betroffenenmenge ist die eine Stelle,
+  an der eine Salon-Reichweite ergänzt würde.
+- Ein Datum, an dem schon ein Halbtags-Antrag steht, bleibt bei diesem Antrag (das Dedup beansprucht den Tag); die andere Hälfte wird
+  nicht als Freistellung gebucht.
+- Ein schon früher genehmigter Urlaub unter einem Betriebsurlaub ohne Abzug wird nicht automatisch zurückgebucht; die Führungskraft
+  korrigiert über `/correct`.
+- Eine nachträgliche Änderung des Eintrittsdatums bucht nicht neu (nicht „Anlegen“); das Bestandsskript zeigt die Lücke.
+- Schlägt die Buchung einer Neueinstellung fehl, wird sie nur geloggt; das Bestandsskript listet sie als `MISSING`.
+- Keine DATEV-Lohnart für bezahlte Freistellung (Owner-Frage, ob die Lohnabrechnung eine braucht).
+- Latent, nicht geändert: Andere Abwesenheitscodes außer Berufsschule (`OTHER`, `MATERNITY`, `PARENTAL`) über einem Berufsschultag
+  senken die Sollzeit doppelt. Die Regel für `COMPANY_SHUTDOWN` ist code-spezifisch, weil dieselbe Änderung für die anderen Codes
+  gespeicherte Werte bestehender Zeilen bewegen würde.
+- `skippedClosedMonths` kann bei einer Neubuchung denselben (Person, Monat) zweimal zählen (Stornierung und Buchung); die Oberfläche
+  nennt deshalb keine Zahl.
+
+**Migration.** Eine additive Migration (`20261125093203_company_shutdown_bookings`): `LeaveTypeCode` += `COMPANY_SHUTDOWN`,
+`CompanyShutdown.deletedAt`, `LeaveRequest.companyShutdownId`, `Absence.companyShutdownId` (nullable, Fremdschlüssel `Restrict`,
+indiziert). Kein Backfill.
+
+**Auswirkung auf die Kontexte.** Zeiterfassung: keine — `leave-check.ts` unverändert (eine `COMPANY_SHUTDOWN`-Abwesenheit sperrt keine
+Zeiteinträge, erzeugter Urlaub sperrt wie jeder Urlaub, § 8 BUrlG); der Stornokern revalidiert Einträge wie bisher. Abwesenheiten:
+Buchungsmodul, angeordneter Code `COMPANY_SHUTDOWN`, Verknüpfungen, weiches Löschen, Stornokern geteilt mit der Austrittsregel.
+Schichtplanung: keine — die Konfliktmarkierungen des Entscheidungskerns wie bei jeder Genehmigung; der Planer liest den
+Betriebsurlaub weiter abgeleitet (Zeilen vom Typ `COMPANY_SHUTDOWN` werden dort nicht doppelt gezeigt). Arbeitszeitkonto: eine
+code-spezifische Regel im Saldo-Kern (Berufsschule hat Vorrang), kein neuer Eingang. Unterbau: keine Unterbau-Änderung — die
+Mitarbeiter-Routen rufen eine Dekoration, kein Modell und kein Export ändert sich. Kompositionsschicht: `app.ts` registriert die
+Dekoration, `PeriodAbsencesCsvCode` schließt den Code aus, keine Regel.

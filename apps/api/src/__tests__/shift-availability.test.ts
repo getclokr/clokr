@@ -79,9 +79,10 @@ describe("exhaustiveness — a new enum value cannot be added without extending 
     PARENTAL: "other",
     VOCATIONAL_SCHOOL: "vocational_school",
     OTHER: "other",
+    COMPANY_SHUTDOWN: "other",
   };
 
-  it("every member of the eleven-code vocabulary has an entry in this test's own expectation table", () => {
+  it("every member of the twelve-code vocabulary has an entry in this test's own expectation table", () => {
     for (const code of [...REQUESTABLE_CODES, ...IMPOSED_ONLY_CODES]) {
       expect(EXPECTED_LEAVE_BUCKET).toHaveProperty(code);
       expect(classifyLeaveTypeCode(code)).toBe(EXPECTED_LEAVE_BUCKET[code]);

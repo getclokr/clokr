@@ -108,6 +108,15 @@ export interface CreateLeaveRequestInput {
   auditExtra?: Record<string, unknown>;
   /** Default true. `false` skips the approver recipient lookup and every notification. */
   notifyApprovers?: boolean;
+  /**
+   * Issue #1069 — the request is the employer's own order, not the person's application: a
+   * Betriebsurlaub fixes the timing of the leave (§ 7 Abs. 1 BUrlG). Skips EXACTLY two checks, the
+   * lead time (LEAD_TIME) and the maximum advance (MAX_ADVANCE): both regulate how far ahead a
+   * person must or may APPLY, which an order of the employer is not. Every other check (closed
+   * month, Berufsschule-only, overlap, half day, max days per year, entitlement, special rule,
+   * the price under the employee lock) runs unchanged. Absent, the core is byte-identical.
+   */
+  employerOrdered?: true;
 }
 
 export interface CreateLeaveRequestHooks {
@@ -253,7 +262,8 @@ export async function createLeaveRequestCore(
 
   // ── Lead time check (not for sick types) ──
   const isSickType = ["SICK", "SICK_CHILD"].includes(body.type);
-  if (!isSickType) {
+  // Issue #1069: an employer-ordered request skips the lead time and the maximum advance only.
+  if (!isSickType && input.employerOrdered !== true) {
     const leadTimeDays = leaveType?.leadTimeDays ?? tenantConfig?.vacationLeadTimeDays ?? 0;
     if (leadTimeDays > 0) {
       const today = new Date();

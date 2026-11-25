@@ -26,6 +26,7 @@ export function initialExitDay(preview: Pick<DeactivatePreview, "today" | "store
 const IMPOSED_TYPE_LABELS: Record<string, string> = {
   VOCATIONAL_SCHOOL: "Berufsschule",
   OTHER: "Sonstige Abwesenheit",
+  COMPANY_SHUTDOWN: "Betriebsurlaub",
 };
 
 export function absenceTypeLabel(code: string): string {

@@ -23,6 +23,8 @@
     dayCountLabel,
     formatShutdownDate,
     shutdownFieldMessages,
+    BOOKING_TOAST_MS,
+    bookingToast,
     type CompanyShutdown,
     type ShutdownEmployee,
     type ShutdownException,
@@ -177,9 +179,16 @@
         deductsFromVacation: formDeducts,
         notes: formNotes,
       });
+      // Only a changed period or deduction books again; for a name or note the API answers empty counts,
+      // which must not read as "nobody is affected".
+      const rebooked =
+        formStart !== shutdown.startDate.slice(0, 10) ||
+        formEnd !== shutdown.endDate.slice(0, 10) ||
+        formDeducts !== shutdown.deductsFromVacation;
       shutdown = updated;
       shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes); // the section is clean again
-      toasts.success("Betriebsurlaub gespeichert.");
+      const toast = bookingToast(rebooked ? updated : {}, "Betriebsurlaub gespeichert.");
+      toasts.success(toast.message, toast.duration);
     } catch (err) {
       // A refusal of the API is shown as the server worded it.
       saveError =
@@ -202,7 +211,10 @@
     if (!shutdown) return;
     try {
       await api.delete(`/company-shutdowns/${shutdown.id}`);
-      toasts.success("Betriebsurlaub gelöscht.");
+      toasts.success(
+        "Betriebsurlaub gelöscht. Gebuchter Urlaub in offenen Monaten ist storniert, abgeschlossene Monate bleiben unverändert.",
+        BOOKING_TOAST_MS,
+      );
       // The shutdown is gone: leave without the unsaved guard asking about the form.
       shutdownSnapshot = snap(formName, formStart, formEnd, formDeducts, formNotes);
       await goto("/verwalten/regeln/abwesenheiten#betriebsurlaub");
@@ -227,7 +239,10 @@
         reason: addExceptionReason || undefined,
       });
       exceptionDialogOpen = false;
-      toasts.success("Ausnahme hinzugefügt.");
+      toasts.success(
+        "Ausnahme hinzugefügt. Gebuchte Tage der Person in offenen Monaten sind storniert, sie arbeitet normal.",
+        BOOKING_TOAST_MS,
+      );
       await reloadShutdown();
     } catch {
       toasts.error(
@@ -250,7 +265,10 @@
     if (!shutdown || !removeConfirm.employeeId) return;
     try {
       await api.delete(`/company-shutdowns/${shutdown.id}/exceptions/${removeConfirm.employeeId}`);
-      toasts.success("Ausnahme entfernt.");
+      toasts.success(
+        "Ausnahme entfernt. Der Betriebsurlaub gilt für die Person wieder und wird in offenen Monaten gebucht.",
+        BOOKING_TOAST_MS,
+      );
       await reloadShutdown();
     } catch {
       toasts.error("Ausnahme konnte nicht entfernt werden. Versuche es noch einmal.");
@@ -347,7 +365,7 @@
       <ToggleField
         bind:checked={formDeducts}
         label="Vom Urlaubskonto abziehen"
-        hint="Der Betriebsurlaub wird automatisch vom Jahresurlaub der Mitarbeitenden abgezogen, außer bei Ausnahmen."
+        hint="Mit Urlaubsabzug wird für jede Person Urlaub gebucht, soweit Resturlaub da ist. Die übrigen Tage sind bezahlte Freistellung und mindern die Sollzeit wie ein Feiertag. Ohne Urlaubsabzug sind alle Tage bezahlte Freistellung. Ausgenommene Personen bleiben außen vor."
         disabled={saving}
         testid="shutdown-deducts"
       />
@@ -365,6 +383,10 @@
           ></textarea>
         {/snippet}
       </FormField>
+      <Note tone="info">
+        Ändert sich der Zeitraum oder der Urlaubsabzug, werden die offenen Monate neu gebucht.
+        Abgeschlossene Monate bleiben unverändert, korrigiere sie über eine Monatskorrektur.
+      </Note>
       {#if saveError}
         <div role="alert"><Note tone="bad">{saveError}</Note></div>
       {/if}
@@ -375,7 +397,7 @@
       <div class="hint-row">
         <h2 class="settings-group-title" id="shutdown-exceptions-title">Ausnahmen</h2>
         <InfoHint
-          text="Mitarbeitende in dieser Liste sind vom Betriebsurlaub ausgenommen; ihr Urlaubskonto wird nicht belastet."
+          text="Mitarbeitende in dieser Liste sind vom Betriebsurlaub ausgenommen. Die Personen arbeiten normal, ihre Sollzeit bleibt und ihr Urlaubskonto wird nicht belastet."
           label={hintLabel("Ausnahmen")}
         />
       </div>
@@ -424,7 +446,9 @@
     <section class="settings-group" aria-labelledby="shutdown-delete-title">
       <h2 class="settings-group-title" id="shutdown-delete-title">Betriebsurlaub löschen</h2>
       <p class="settings-group-desc">
-        Der Betriebsurlaub wird unwiderruflich gelöscht. Seine Ausnahmen gehen mit.
+        Gebuchte Urlaubstage in offenen Monaten werden storniert und der Urlaub wird zurückgebucht,
+        abgeschlossene Monate bleiben unverändert. Der Betriebsurlaub verschwindet aus der Liste,
+        seine Ausnahmen gehen mit.
       </p>
       <div>
         <button
@@ -441,7 +465,7 @@
   <ConfirmDialog
     bind:open={deleteConfirmOpen}
     title="Betriebsurlaub löschen?"
-    description={`„${shownShutdown.name}“ wird entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`}
+    description={`„${shownShutdown.name}“ wird gelöscht. Gebuchte Urlaubstage in offenen Monaten werden storniert und der Urlaub wird zurückgebucht, abgeschlossene Monate bleiben unverändert. Diese Aktion kann nicht rückgängig gemacht werden.`}
     confirmLabel="Löschen"
     danger
     onConfirm={confirmDelete}
@@ -450,7 +474,7 @@
   <ConfirmDialog
     bind:open={removeConfirm.open}
     title="Ausnahme entfernen?"
-    description={`${removeConfirm.name} ist danach wieder vom Betriebsurlaub betroffen und ihr oder sein Urlaubskonto wird belastet.`}
+    description={`${removeConfirm.name} ist danach wieder vom Betriebsurlaub betroffen. In offenen Monaten wird der Urlaub wieder gebucht, soweit Resturlaub da ist; die übrigen Tage sind bezahlte Freistellung.`}
     confirmLabel="Entfernen"
     danger
     onConfirm={confirmRemoveException}
@@ -470,7 +494,7 @@
       <FormField
         label="Mitarbeitende"
         required
-        hint="Wer hier ausgenommen wird, bekommt den Betriebsurlaub nicht vom Urlaubskonto abgezogen."
+        hint="Wer hier ausgenommen wird, arbeitet normal und behält die Sollzeit; es wird kein Urlaub gebucht."
       >
         {#snippet field({ id, describedBy })}
           <select
@@ -500,6 +524,10 @@
           />
         {/snippet}
       </FormField>
+      <Note tone="info">
+        Schon gebuchte Tage der Person in offenen Monaten werden storniert und der Urlaub wird
+        zurückgebucht. Abgeschlossene Monate bleiben unverändert.
+      </Note>
     </form>
     {#snippet footer()}
       <button type="button" class="btn btn-secondary" onclick={() => (exceptionDialogOpen = false)}>

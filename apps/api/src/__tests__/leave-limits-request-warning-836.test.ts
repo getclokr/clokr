@@ -203,6 +203,8 @@ describe("Issue #836 — POST /leave/requests warns when a salon limit is exceed
         "attestValidFrom",
         "attestValidTo",
         "cancellationRequestedBy",
+        // Issue #1069: the new nullable LeaveRequest.companyShutdownId column; null for a normal request.
+        "companyShutdownId",
         "createdAt",
         "days",
         "daysProvisional",

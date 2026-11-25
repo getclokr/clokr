@@ -66,6 +66,8 @@ describe("AC-8: the counted codes are an allow-list pinned against the Prisma en
     MATERNITY: false,
     PARENTAL: false,
     VOCATIONAL_SCHOOL: false,
+    // Issue #1069: the business is closed, the booking is an imposed Absence, not requested leave.
+    COMPANY_SHUTDOWN: false,
     OTHER: false,
   };
 

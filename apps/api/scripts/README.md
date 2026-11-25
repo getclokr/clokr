@@ -132,6 +132,17 @@ merge. What the owner decides afterwards: whether and how stored rows are correc
 never below the days already used or approved; a human-written row is only listed) or kept as a
 voluntary grant (§ 13 Abs. 1 BUrlG) — the rule change itself rewrites nothing.
 
+`audit-1069-company-shutdown-bookings.ts` (Issue #1069, O-7) lists every Betriebsurlaub (active and
+soft-deleted) per affected person and calendar month with the booking state `BOOKED` (an active
+COMPANY_SHUTDOWN absence of that shutdown covers the month), `MISSING` (affected, month open, nothing
+booked), `CLOSED_MONTH` (nothing booked, month closed) or `EXCEPTED`, the generated Urlaub requests of
+that month counted by status and the number of days other Urlaub already holds; then a totals line.
+Optional `--tenant <uuid>`. READ-ONLY (strict CLI: `--confirm` / `--apply` are rejected), ids, dates,
+codes and counts only, no name or mail column is ever selected; exit `0` no `MISSING` line / `1` error /
+`2` one or more `MISSING` lines. Run it read-only on int and prod after the deploy; what gets re-booked is
+the owner's decision and then runs through the booking module (re-save the Betriebsurlaub), never by the
+script.
+
 `dry-run-429-leave-contract-days.ts` (Issue #429, D-15) lists, per SHIFT_BASED employee and
 non-superseded MONTHLY `SaldoSnapshot` whose period overlaps at least one `APPROVED`
 `LeaveRequest`, the STORED `expectedMinutes`/`balanceMinutes` next to what `closeEmployeeMonth()`

@@ -324,8 +324,11 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/plugins/vocational-school-generator.ts": "abwesenheiten", // cron wrapper around utils/vocational-school-generator.ts's Absence generation
   "src/contexts/absence/plugins/employment-exit-decorate.ts": "abwesenheiten", // Issue #614 — composition-root decoration plugin exposing employment-exit.ts as app.absenceExit
   "src/contexts/absence/employment-exit.ts": "abwesenheiten", // Issue #614 (D-02) — the one rule that ends a person's absences after the exit day on anonymization; writes LeaveRequest/Absence/LeaveEntitlement
+  "src/contexts/absence/leave-cancellation.ts": "abwesenheiten", // Issue #1069 (extracted unchanged from employment-exit.ts, #614) - the one cancellation core for system-ordered cancellations; writes LeaveRequest/LeaveEntitlement/Section9Credit
   "src/contexts/absence/leave-correction.ts": "abwesenheiten", // Issue #614 — correction core extracted from the /correct route (plan/apply/finish behind an audit port); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-calendar-masking.ts": "abwesenheiten", // Issue #840 (D-840-19) - pure masking kernel of the leave calendar and the planner read (zero runtime imports); reads no model
+  "src/contexts/absence/company-shutdown/constants.ts": "abwesenheiten", // Issue #1069 - Betriebsurlaub booking codes, texts and audit markers (pure, writes nothing)
+  "src/contexts/absence/company-shutdown/booking.ts": "abwesenheiten", // Issue #1069 - the one place a Betriebsurlaub becomes bookings; writes Absence (COMPANY_SHUTDOWN) and, through the leave cores, LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-request-create.ts": "abwesenheiten", // Issue #835 (D-835-12) — create core extracted from POST /leave/requests (refusals as data, hook inside the locked create transaction); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-decision.ts": "abwesenheiten", // Issue #835 (D-835-12) — decision core extracted from PATCH /leave/requests/:id/review (approve/reject a PENDING request); writes LeaveRequest/LeaveEntitlement/Section9Credit
   "src/contexts/absence/overtime-comp-minutes.ts": "abwesenheiten", // Issue #614 — the Überstundenausgleich amount rule moved out of the leave route; read-only over the stored minutes and the schedule
@@ -379,6 +382,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/leave-days.ts": "abwesenheiten", // Phase 101B (Issue #101) — lifted out of api/leave.ts; writes LeaveEntitlement (deduct/reverse/carry-over) primarily, same subject as leave.ts above
   "src/contexts/absence/hire-date-entitlements.ts": "abwesenheiten", // Issue #961 — the reaction to a changed hire date, writes LeaveEntitlement
   "src/contexts/absence/plugins/hire-date-entitlements-decorate.ts": "abwesenheiten", // Issue #961 — decoration handing the hire-date rule to the Unterbau route
+  "src/contexts/absence/plugins/company-shutdown-hire-decorate.ts": "abwesenheiten", // Issue #1069 (D-18) — decoration handing the Betriebsurlaub hire booking to the Unterbau employee routes
 
   "src/contexts/absence/leave-self-heal.ts": "abwesenheiten", // LeaveEntitlement/LeaveRequest/LeaveType self-heal
   "src/contexts/absence/leave-type.ts": "abwesenheiten", // LeaveTypeCode -> German display-name registry

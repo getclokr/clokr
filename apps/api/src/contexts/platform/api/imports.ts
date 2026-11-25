@@ -229,6 +229,7 @@ export async function importRoutes(app: FastifyInstance) {
             ? await bcrypt.hash(data.password!, 12)
             : await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
 
+          let createdEmployeeId: string | null = null;
           await app.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // D-23/D-02 + Issue #531: the same resolver as employee creation, under FOR SHARE.
             // An explicit id of a foreign tenant and one that exists nowhere give the identical
@@ -269,6 +270,7 @@ export async function importRoutes(app: FastifyInstance) {
                 hireDate: new Date(data.hireDate),
               },
             });
+            createdEmployeeId = emp.id;
 
             await tx.workSchedule.create({
               data: {
@@ -320,6 +322,16 @@ export async function importRoutes(app: FastifyInstance) {
               tx,
             });
           });
+
+          // Issue #1069 (O-6, D-18): the row is committed; an active Betriebsurlaub covering days of
+          // the person's employment is booked now (reactive, never throws, answer unchanged).
+          if (createdEmployeeId) {
+            await app.companyShutdownHire.bookForNewEmployee({
+              tenantId: req.user.tenantId,
+              employeeId: createdEmployeeId,
+              req,
+            });
+          }
 
           results.push({ row: i + 1, status: "ok", email: data.email });
         } catch (e: unknown) {

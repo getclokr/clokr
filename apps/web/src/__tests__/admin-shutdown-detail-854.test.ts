@@ -41,7 +41,11 @@ vi.mock("$api/client", () => ({
   },
 }));
 vi.mock("$stores/toast", () => ({
-  toasts: { success: (m: string) => success(m), error: (m: string) => error(m), info: vi.fn() },
+  toasts: {
+    success: (m: string, d?: number) => success(m, d),
+    error: (m: string) => error(m),
+    info: vi.fn(),
+  },
 }));
 
 import { renderWithTheme } from "$tests/test-utils";
@@ -113,6 +117,24 @@ describe("Betriebsurlaub detail", () => {
   });
 
   it("saving sends exactly the five fields, toasts and clears the SaveBar", async () => {
+    patch.mockResolvedValue(
+      shutdown({
+        booking: {
+          persons: 3,
+          absencesWritten: 3,
+          vacationApproved: 2,
+          vacationPending: 1,
+          paidReleaseOnly: 0,
+          partlyPaidRelease: 0,
+          outsideCreateReach: 0,
+          skippedClosedMonths: 0,
+          existingLeavePersons: 0,
+          refused: {},
+          reversedRequests: 0,
+          reversedAbsences: 0,
+        },
+      }),
+    );
     await mount();
     await fireEvent.input(screen.getByLabelText(/^Enddatum/), { target: { value: "2027-01-02" } });
     expect(bar()).toBeTruthy();
@@ -127,7 +149,44 @@ describe("Betriebsurlaub detail", () => {
       notes: "Betriebsferien",
     });
     await waitFor(() => expect(bar()).toBeNull());
-    expect(success).toHaveBeenCalledWith("Betriebsurlaub gespeichert.");
+    expect(success).toHaveBeenCalledWith(
+      "Betriebsurlaub gespeichert. 2 Urlaubsanträge genehmigt und vom Urlaubskonto abgezogen. 1 Urlaubsantrag wartet unter Aufgaben auf Genehmigung.",
+      expect.any(Number),
+    );
+  });
+
+  it("a change of name or note books nothing, so the toast is the plain lead (no „Niemand ist betroffen“)", async () => {
+    patch.mockResolvedValue(
+      shutdown({
+        booking: {
+          persons: 0,
+          absencesWritten: 0,
+          vacationApproved: 0,
+          vacationPending: 0,
+          paidReleaseOnly: 0,
+          partlyPaidRelease: 0,
+          outsideCreateReach: 0,
+          skippedClosedMonths: 0,
+          existingLeavePersons: 0,
+          refused: {},
+          reversedRequests: 0,
+          reversedAbsences: 0,
+        },
+      }),
+    );
+    await mount();
+    await fireEvent.input(screen.getByLabelText(/^Bezeichnung/), { target: { value: "Neu" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Betriebsurlaub speichern" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(success).toHaveBeenCalled());
+    expect(success).toHaveBeenCalledWith("Betriebsurlaub gespeichert.", undefined);
+  });
+
+  it("the delete section and the exception dialog say what happens to booked days", async () => {
+    await mount();
+    expect(document.body.textContent).toContain("abgeschlossene Monate bleiben unverändert");
+    expect(document.body.textContent).not.toContain("unwiderruflich");
+    expect(document.body.textContent).toContain("korrigiere sie über eine Monatskorrektur");
   });
 
   it("an emptied note is sent as an empty note, so it is really cleared", async () => {
@@ -186,7 +245,10 @@ describe("Betriebsurlaub detail", () => {
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0][0]).toBe("/company-shutdowns/s1/exceptions");
     expect(post.mock.calls[0][1]).toEqual({ employeeId: "emp2", reason: "Urlaub" });
-    expect(success).toHaveBeenCalledWith("Ausnahme hinzugefügt.");
+    expect(success).toHaveBeenCalledWith(
+      "Ausnahme hinzugefügt. Gebuchte Tage der Person in offenen Monaten sind storniert, sie arbeitet normal.",
+      expect.any(Number),
+    );
   });
 
   it("removing an exception waits for the confirmation", async () => {
@@ -196,7 +258,10 @@ describe("Betriebsurlaub detail", () => {
     expect(del).not.toHaveBeenCalled();
     await fireEvent.click(within(dialog).getByRole("button", { name: "Entfernen" }));
     await waitFor(() => expect(del).toHaveBeenCalledWith("/company-shutdowns/s1/exceptions/emp1"));
-    expect(success).toHaveBeenCalledWith("Ausnahme entfernt.");
+    expect(success).toHaveBeenCalledWith(
+      "Ausnahme entfernt. Der Betriebsurlaub gilt für die Person wieder und wird in offenen Monaten gebucht.",
+      expect.any(Number),
+    );
   });
 
   it("deleting waits for the confirmation and then returns to the Betriebsurlaub tab", async () => {

@@ -32,7 +32,11 @@ vi.mock("$api/client", () => ({
   },
 }));
 vi.mock("$stores/toast", () => ({
-  toasts: { success: (m: string) => success(m), error: (m: string) => error(m), info: vi.fn() },
+  toasts: {
+    success: (m: string, d?: number) => success(m, d),
+    error: (m: string) => error(m),
+    info: vi.fn(),
+  },
 }));
 
 import { renderWithTheme } from "$tests/test-utils";
@@ -263,7 +267,52 @@ describe("BetriebsurlaubPanel", () => {
     await waitFor(() =>
       expect(gotoMock).toHaveBeenCalledWith("/verwalten/regeln/betriebsurlaub/new1"),
     );
-    expect(success).toHaveBeenCalledWith("Betriebsurlaub angelegt.");
+    // No `booking` in the mocked answer: the plain lead, no summary.
+    expect(success).toHaveBeenCalledWith("Betriebsurlaub angelegt.", undefined);
+  });
+
+  it("the toast after creating names what was booked", async () => {
+    post.mockResolvedValue({
+      id: "new1",
+      booking: {
+        persons: 12,
+        absencesWritten: 12,
+        vacationApproved: 9,
+        vacationPending: 1,
+        paidReleaseOnly: 1,
+        partlyPaidRelease: 1,
+        outsideCreateReach: 0,
+        skippedClosedMonths: 0,
+        existingLeavePersons: 0,
+        refused: {},
+        reversedRequests: 0,
+        reversedAbsences: 0,
+      },
+    });
+    const dialog = await fillCreate();
+    await fireEvent.input(within(dialog).getByLabelText(/^Bezeichnung/), {
+      target: { value: "Sommer" },
+    });
+    await fireEvent.input(within(dialog).getByLabelText(/^Startdatum/), {
+      target: { value: "2026-08-03" },
+    });
+    await fireEvent.input(within(dialog).getByLabelText(/^Enddatum/), {
+      target: { value: "2026-08-14" },
+    });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Anlegen" }));
+    await waitFor(() => expect(success).toHaveBeenCalledTimes(1));
+    const [message, duration] = success.mock.calls[0];
+    expect(message).toContain("Betriebsurlaub angelegt.");
+    expect(message).toContain("9 Urlaubsanträge genehmigt und vom Urlaubskonto abgezogen.");
+    expect(message).toContain("1 Urlaubsantrag wartet unter Aufgaben auf Genehmigung.");
+    expect(message).toContain("1 Person hat zu wenig Resturlaub");
+    expect(duration).toBeGreaterThan(2600);
+  });
+
+  it("the dialog says that creating books at once, and the hint states the paid-release rule", async () => {
+    const dialog = await fillCreate();
+    expect(within(dialog).getByText(/sofort gebucht/)).toBeTruthy();
+    expect(dialog.textContent).toContain("bezahlte Freistellung");
   });
 
   it("an incomplete or backwards period sends nothing", async () => {
@@ -313,7 +362,10 @@ describe("BetriebsurlaubPanel", () => {
     await fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
     await waitFor(() => expect(del).toHaveBeenCalledWith("/company-shutdowns/s2"));
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    expect(success).toHaveBeenCalledWith("Betriebsurlaub gelöscht.");
+    expect(success).toHaveBeenCalledWith(
+      "Betriebsurlaub gelöscht. Gebuchter Urlaub in offenen Monaten ist storniert, abgeschlossene Monate bleiben unverändert.",
+      expect.any(Number),
+    );
   });
 
   it("cancelling the confirmation deletes nothing", async () => {

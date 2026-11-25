@@ -6,6 +6,10 @@
  * counts; a new `LeaveTypeCode` does not count until someone adds it on purpose. It is never derived
  * by excluding the sick codes. `Absence` rows (imposed absences) are never read at all.
  *
+ * COMPANY_SHUTDOWN (Issue #1069) is decided here as NOT counted: the business is closed, so the
+ * booked Betriebsurlaub is an imposed `Absence` (not requested leave) and takes no one's place in a
+ * salon's parallel-leave limit. It stays out of the list below on purpose, not by omission.
+ *
  * This file carries no runtime import except the zero-import leaf `effective-leave-statuses`, so the
  * kernel can never join the absence/scheduling/time-tracking/working-time-account import cycle
  * (`measure-context-boundary-imports.ts --cycles --check 22`).

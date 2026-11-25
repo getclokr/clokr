@@ -3,11 +3,12 @@
 // and no `$app` imports on purpose; `BetriebsurlaubPanel.svelte` and the detail sub-route own the state and the
 // requests.
 //
-// The server stays the authority (the Zod schema of `/company-shutdowns` and the locked-month refusals); the
-// checks here only save a round trip.
+// The server stays the authority (the Zod schema of `/company-shutdowns`, the overlap refusal and the booking
+// itself); the checks here only save a round trip.
 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { countWord, personsLabel } from "../utils/count-word";
 
 // Type aliases, not interfaces: DataTable rows must satisfy `Record<string, unknown>`.
 export type ShutdownEmployee = {
@@ -24,6 +25,27 @@ export type ShutdownException = {
   employee: ShutdownEmployee;
 };
 
+/**
+ * What a booking run of the API did (Issue #1069, D-21): counts only, no ids and no names. `POST` and `PATCH`
+ * answer it as `booking`; the other answers carry none. Request counts (`vacation*`, `reversedRequests`) can
+ * exceed the number of persons, because a person gets one request per run of free days; the closed-month count
+ * can count a (person, month) twice when a change books again, so no text shows it as a number.
+ */
+export type ShutdownBooking = {
+  persons: number;
+  absencesWritten: number;
+  vacationApproved: number;
+  vacationPending: number;
+  paidReleaseOnly: number;
+  partlyPaidRelease: number;
+  outsideCreateReach: number;
+  skippedClosedMonths: number;
+  existingLeavePersons: number;
+  refused: Record<string, number>;
+  reversedRequests: number;
+  reversedAbsences: number;
+};
+
 export type CompanyShutdown = {
   id: string;
   name: string;
@@ -32,7 +54,85 @@ export type CompanyShutdown = {
   deductsFromVacation: boolean;
   notes: string | null;
   exceptions: ShutdownException[];
+  /** Only in the answer of `POST` and `PATCH`. */
+  booking?: ShutdownBooking;
 };
+
+/** How long a booking summary stays on screen: it is read, not just acknowledged. */
+export const BOOKING_TOAST_MS = 9000;
+
+const requestsLabel = (n: number) => countWord(n, "Urlaubsantrag", "Urlaubsanträge");
+
+/**
+ * The toast text after a save: what was booked, in German, du-form. Each clause appears only when its count is
+ * above 0. Closed months get a sentence without a number (see `ShutdownBooking`). `lead` is the first sentence,
+ * e.g. „Betriebsurlaub angelegt.“.
+ */
+export function bookingSummaryText(booking: ShutdownBooking, lead: string): string {
+  const parts: string[] = [lead];
+  const refusedByCore = Object.entries(booking.refused)
+    .filter(([reason]) => !reason.startsWith("APPROVAL_"))
+    .reduce((sum, [, n]) => sum + n, 0);
+
+  if (booking.persons === 0 && booking.reversedRequests === 0 && booking.reversedAbsences === 0) {
+    parts.push("Niemand ist betroffen.");
+  }
+  if (booking.reversedRequests > 0) {
+    parts.push(
+      `${requestsLabel(booking.reversedRequests)} storniert, der Urlaub ist zurückgebucht.`,
+    );
+  }
+  if (booking.vacationApproved > 0) {
+    parts.push(
+      `${requestsLabel(booking.vacationApproved)} genehmigt und vom Urlaubskonto abgezogen.`,
+    );
+  }
+  if (booking.vacationPending > 0) {
+    parts.push(
+      booking.vacationPending === 1
+        ? "1 Urlaubsantrag wartet unter Aufgaben auf Genehmigung."
+        : `${booking.vacationPending} Urlaubsanträge warten unter Aufgaben auf Genehmigung.`,
+    );
+  }
+  if (booking.persons > 0 && booking.paidReleaseOnly === booking.persons) {
+    parts.push("Alle Tage gelten als bezahlte Freistellung.");
+  } else if (booking.paidReleaseOnly > 0) {
+    parts.push(
+      `Für ${personsLabel(booking.paidReleaseOnly)} gelten alle Tage als bezahlte Freistellung.`,
+    );
+  }
+  if (booking.partlyPaidRelease > 0) {
+    parts.push(
+      `${personsLabel(booking.partlyPaidRelease)} ${booking.partlyPaidRelease === 1 ? "hat" : "haben"} zu wenig Resturlaub, die fehlenden Tage gelten als bezahlte Freistellung.`,
+    );
+  }
+  if (booking.outsideCreateReach > 0) {
+    parts.push(
+      "Für Personen außerhalb deiner Zuständigkeit wurde kein Urlaubsantrag angelegt, ihre Tage gelten als bezahlte Freistellung.",
+    );
+  }
+  if (refusedByCore > 0) {
+    parts.push(
+      "Nicht alle Urlaubsanträge konnten gebucht werden, die übrigen Tage gelten als bezahlte Freistellung.",
+    );
+  }
+  if (booking.existingLeavePersons > 0) {
+    parts.push(
+      `Bei ${personsLabel(booking.existingLeavePersons)} stehen in dieser Zeit schon Anträge oder gearbeitete Tage, sie bleiben unverändert.`,
+    );
+  }
+  if (booking.skippedClosedMonths > 0) {
+    parts.push("Abgeschlossene Monate bleiben unverändert.");
+  }
+  return parts.join(" ");
+}
+
+/** The toast after a save: the summary when the API answered one, else the plain `lead`. */
+export function bookingToast(shutdown: Pick<CompanyShutdown, "booking">, lead: string) {
+  return shutdown.booking
+    ? { message: bookingSummaryText(shutdown.booking, lead), duration: BOOKING_TOAST_MS }
+    : { message: lead, duration: undefined };
+}
 
 export type ShutdownForm = {
   name: string;

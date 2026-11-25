@@ -1001,6 +1001,14 @@ export async function employeeRoutes(app: FastifyInstance, opts: EmployeeRoutesO
         newValue: employeeCreatedAuditValue(employee, body, workSchedule, directPassword),
       });
 
+      // Issue #1069 (O-6, D-18): the person is committed; an active Betriebsurlaub that covers days
+      // of their employment is booked now. Reactive - it never throws and never changes the answer.
+      await app.companyShutdownHire.bookForNewEmployee({
+        tenantId: req.user.tenantId,
+        employeeId: employee.id,
+        req,
+      });
+
       // Einladungsmail nur senden wenn kein direktes Passwort
       let emailError: string | undefined;
       if (!directPassword && invitationToken) {

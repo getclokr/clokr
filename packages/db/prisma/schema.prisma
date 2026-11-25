@@ -1103,9 +1103,14 @@ model LeaveRequest {
   parentalLeaveReductions ParentalLeaveReduction[]
   // Issue #835 — the plan wish this request was created from at takeover (at most one)
   leavePlanWish           LeavePlanWish?
+  // Issue #1069 — the Betriebsurlaub this request was generated from; null on every other request.
+  // Set only by the booking module (apps/api/src/contexts/absence/company-shutdown/booking.ts).
+  companyShutdownId       String?
+  companyShutdown         CompanyShutdown?         @relation(fields: [companyShutdownId], references: [id], onDelete: Restrict)
 
   @@index([employeeId])
   @@index([employeeId, status])
+  @@index([companyShutdownId])
   @@index([leaveTypeId])
   @@index([startDate, endDate])
 }
@@ -1328,11 +1333,16 @@ model Absence {
   // Set by admin when a specific BS day deviates from the Jahrgang Stundenplan.
   // Only relevant for Absence.type = VOCATIONAL_SCHOOL; ignored for all other types.
   unterrichtsMinutes Int?
+  // Issue #1069 — the Betriebsurlaub this absence was generated from (type COMPANY_SHUTDOWN only);
+  // null on every other absence. Set only by the booking module.
+  companyShutdownId  String?
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  companyShutdown CompanyShutdown? @relation(fields: [companyShutdownId], references: [id], onDelete: Restrict)
 
   @@unique([employeeId, startDate, type]) // Phase 63 (Pitfall #5): DB-level idempotency for D-23 manual-insert race
   @@index([employeeId])
+  @@index([companyShutdownId])
 }
 
 // ─────────────────────────────────────────────
@@ -1805,6 +1815,10 @@ enum LeaveTypeCode {
   // side by REQUESTABLE_CODES in apps/api/src/utils/leave-type.ts, not by a runtime guard.
   VOCATIONAL_SCHOOL // Berufsschule (BBiG § 15/§ 17) — imposed by the training contract, never requested
   OTHER // pre-tracking bridge rows; see IMPOSED_ONLY_CODES in leave-type.ts for why this value is not removable
+  // Issue #1069: the day of a Betriebsurlaub (the employer closes the business, § 7 Abs. 1 BUrlG /
+  // § 615 BGB). Imposed, never requested: excluded from the request side by REQUESTABLE_CODES and
+  // written only by the booking module (contexts/absence/company-shutdown/booking.ts).
+  COMPANY_SHUTDOWN
 }
 
 // Phase 76.29 — retro self-service approval flow status
@@ -1989,24 +2003,28 @@ enum EmployeeClassification {
 // ─────────────────────────────────────────────
 
 model CompanyShutdown {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   tenantId            String
-  name                String // z.B. "Weihnachtsschließung 2025"
-  startDate           DateTime @db.Date
-  endDate             DateTime @db.Date
-  deductsFromVacation Boolean  @default(true) // zieht vom Urlaubskonto ab
+  name                String // e.g. "Weihnachtsschließung 2025"
+  startDate           DateTime  @db.Date
+  endDate             DateTime  @db.Date
+  deductsFromVacation Boolean   @default(true) // charges the Urlaubskonto
   notes               String?
-  createdAt           DateTime @default(now()) @db.Timestamptz
-  updatedAt           DateTime @updatedAt @db.Timestamptz
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  // Issue #1069 — soft delete: the row is the source of payroll-relevant bookings, never removed.
+  deletedAt           DateTime? @db.Timestamptz
 
-  tenant     Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  exceptions CompanyShutdownException[]
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  exceptions    CompanyShutdownException[]
+  leaveRequests LeaveRequest[]
+  absences      Absence[]
 
   @@index([tenantId])
   @@index([tenantId, startDate])
 }
 
-/// Mitarbeiter, die vom Betriebsurlaub AUSGENOMMEN sind
+/// Employees EXEMPTED from the Betriebsurlaub
 model CompanyShutdownException {
   id         String   @id @default(uuid())
   shutdownId String
