@@ -175,6 +175,20 @@ migrations into a **shadow database**, so this check needs a Postgres service an
 `SHADOW_DATABASE_URL` (wired up in `.github/workflows/ci.yml`; Prisma 7 reads the shadow
 URL from `packages/db/prisma.config.ts`). It is **not** a purely offline check.
 
+## Writing safe migrations
+
+Locked and finalized records must never be mutated silently, so prefer **additive**
+migrations:
+
+- Add new nullable columns, or columns with a safe default, instead of rewriting existing
+  ones.
+- Add indexes and new tables freely.
+- Avoid destructive `DROP` / `TRUNCATE` on tables that hold time entries, leave requests,
+  absences or audit logs. If a column truly has to go, deprecate it in one release and
+  remove it in a later one.
+- Never regenerate or edit `0_init`, and never edit a migration that has already shipped:
+  add a new one.
+
 ## Adding schema changes in later phases
 
 Phases that add columns/indexes (e.g. 76.19/76.20/76.21) create a **new** `migrate dev`

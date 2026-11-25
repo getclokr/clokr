@@ -4,7 +4,9 @@ This is the developer documentation of Clokr. It lives in the repository's `docs
 
 ## Where to start
 
-- [Getting started](../getting-started.md) — run the stack locally.
+- [Getting started](../getting-started.md) — run the stack.
+- [Architecture](architecture.md) — tiers, monorepo layout, contexts and scheduled jobs.
+- [Configuration](configuration.md) — every environment variable of the API and the web container.
 - [Deployment](../deployment.md) — run Clokr on your own infrastructure.
 - [Database migrations](../migrations.md) — how schema changes are created and applied.
 - [Testing](../testing.md) — the test databases and how to run the suites.

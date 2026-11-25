@@ -19,7 +19,9 @@ cp .env.example .env
 Öffne `.env` und trage deine Werte ein:
 
 ```bash
-# Pflichtfelder — zufällige Strings (mind. 32 Zeichen)
+# Pflichtfelder — Datenbankpasswort und zufällige Strings (mind. 32 Zeichen)
+POSTGRES_PASSWORD=<starkes-passwort>
+
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 JWT_SECRET=<generierter-string>
@@ -45,7 +47,7 @@ MINIO_ROOT_USER=<benutzername>
 MINIO_ROOT_PASSWORD=<generierter-string>
 ```
 
-> Alle verfügbaren Umgebungsvariablen sind in [deployment.md](./deployment.md) dokumentiert.
+> Alle Umgebungsvariablen stehen in der [Konfigurations-Referenz](./entwickler/configuration.md), Betrieb und Updates in [deployment.md](./deployment.md).
 
 ## Starten
 
@@ -57,21 +59,25 @@ Clokr ist danach unter **http://localhost:3000** erreichbar.
 
 ## Erster Login
 
-Beim ersten Start werden automatisch Demo-Daten angelegt:
+`docker-compose.prod.yml` legt **keine Demo-Daten** an (`SEED_DEMO_DATA` ist dort fest auf `false`). Das erste Unternehmen mit seinem Administrator legt der Betreiber an: Dafür braucht er ein Betreiber-Konto und `OPERATOR_JWT_SECRET`, siehe das [Runbook Betreiber-Konten](./runbooks/operator-accounts.md).
+
+Demo-Daten gibt es nur im lokalen Entwicklungs-Stack (`docker compose up --build -d` mit `docker-compose.yml`, dort ist `SEED_DEMO_DATA` standardmäßig `true`). Er legt diese Konten an:
 
 | Rolle         | E-Mail         | Passwort        |
 | ------------- | -------------- | --------------- |
 | Administrator | admin@clokr.de | admin1234       |
 | Mitarbeiter   | max@clokr.de   | mitarbeiter5678 |
 
-> **Wichtig:** Demo-Passwörter nach dem ersten Login unbedingt ändern.
+> **Wichtig:** Diese Demo-Zugänge sind öffentlich bekannt und gehören nie auf ein System mit echten Daten.
 
 ## Ersten echten Mitarbeiter anlegen
 
-1. Als Admin anmelden
-2. **Admin → Mitarbeitende → + Mitarbeiter anlegen**
-3. Name, E-Mail und Rolle eingeben
-4. Mitarbeiter erhält eine Einladungs-E-Mail mit Link zur Passwort-Vergabe
+1. Als Administrator anmelden
+2. **Verwalten › Personen**, dann **Person anlegen**
+3. Name, E-Mail, Salon, Rolle und Vertrag eingeben
+4. Die Person erhält eine Einladungs-E-Mail mit Link zur Passwort-Vergabe (der Mailserver ist unter **Verwalten › System › Integrationen** eingerichtet)
+
+Die Schritte im Detail stehen im [Handbuch](./handbuch/verwalten/personen.md).
 
 ## Updates
 
