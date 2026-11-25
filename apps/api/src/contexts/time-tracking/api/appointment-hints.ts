@@ -14,8 +14,32 @@
  * `contexts/time-tracking/index.ts` (D-07, import-cycle cap).
  */
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { accessContextFromRequest, requireAnyPermission } from "../../platform";
 import { appointmentHintWindow, loadAppointmentHints } from "../appointment-hints";
+
+/** One answer for every reason a dismissal is refused: only a currently open own hint can be dismissed. */
+const NO_APPOINTMENT_HINT_MESSAGE = "Für diesen Tag gibt es keinen offenen Hinweis.";
+const NO_APPOINTMENT_HINT_CODE = "NO_APPOINTMENT_HINT";
+
+/**
+ * The body names a day and a kind only. Unknown keys are stripped, so a posted `employeeId` never
+ * reaches the handler: the route acts on the caller's own person and nothing else (D-05).
+ */
+const dismissAppointmentHintSchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(
+      (v) => {
+        const d = new Date(`${v}T00:00:00Z`);
+        // a real calendar day round-trips; "2026-02-30" would roll over and "2026-13-40" is invalid
+        return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(v);
+      },
+      { message: "Ungültiges Datum" },
+    ),
+  kind: z.enum(["AFTER_CLOCK_OUT", "NO_ENTRY"]),
+});
 
 export async function appointmentHintRoutes(app: FastifyInstance) {
   // ── GET /api/v1/appointment-hints — the caller's own hints ──────────────────────────────────────
@@ -51,6 +75,73 @@ export async function appointmentHintRoutes(app: FastifyInstance) {
           clockedOutAt: h.clockedOutAt,
         })),
       };
+    },
+  });
+
+  // ── POST /api/v1/appointment-hints/dismissals — „Stimmt so“ (D-05) ──────────────────────────────
+  app.post("/dismissals", {
+    schema: {
+      tags: ["Zeiterfassung"],
+      summary: 'Dismiss an appointment hint for one day ("Stimmt so")',
+      description:
+        "The calling employee confirms that the recorded time of the day is complete. Hides that hint " +
+        "permanently for the person, the day and the kind, also in the manager view. Never writes a " +
+        "time entry, a break or a saldo figure; one dismissal row and one audit row are written in " +
+        "one transaction. Answers 409 NO_APPOINTMENT_HINT unless the day has a currently open hint " +
+        "of the caller.",
+      security: [{ bearerAuth: [] }],
+    },
+    // The action is always on the caller's own person; either reach of the clock-state pair suffices.
+    preHandler: requireAnyPermission("time-entry:update:EIGENE", "time-entry:update:ZUGEWIESEN"),
+    handler: async (req, reply) => {
+      const body = dismissAppointmentHintSchema.parse(req.body);
+      const { tenantId, employeeId } = req.user;
+      const refuse = () =>
+        reply
+          .code(409)
+          .send({ error: NO_APPOINTMENT_HINT_MESSAGE, code: NO_APPOINTMENT_HINT_CODE });
+      if (!employeeId) return refuse();
+
+      const window = await appointmentHintWindow(app.prisma, tenantId);
+      if (!window.enabled) return refuse();
+      const open = await loadAppointmentHints(app.prisma, {
+        access: accessContextFromRequest(req),
+        employeeIds: [employeeId],
+        window,
+      });
+      const hint = open.find((h) => h.date === body.date && h.kind === body.kind);
+      if (!hint) return refuse();
+
+      const row = await app.prisma.$transaction(async (tx) => {
+        const created = await tx.appointmentHintDismissal.create({
+          data: {
+            tenantId,
+            employeeId,
+            date: new Date(`${body.date}T00:00:00Z`),
+            kind: body.kind,
+            dismissedBy: req.user.sub,
+          },
+        });
+        await app.audit({
+          userId: req.user.sub,
+          action: "APPOINTMENT_HINT_DISMISSED",
+          entity: "AppointmentHintDismissal",
+          entityId: created.id,
+          newValue: {
+            employeeId,
+            date: body.date,
+            kind: body.kind,
+            appointmentsUntil: hint.appointmentsUntil,
+            clockedOutAt: hint.clockedOutAt,
+          },
+          request: { ip: req.ip, headers: req.headers as Record<string, string> },
+          tx,
+        });
+        return created;
+      });
+      return reply.code(201).send({
+        dismissal: { date: body.date, kind: row.kind, createdAt: row.createdAt },
+      });
     },
   });
 }
