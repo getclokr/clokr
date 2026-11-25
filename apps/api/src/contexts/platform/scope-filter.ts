@@ -21,11 +21,15 @@
  *
  * ── Index of the eight functions, one per resource-table row ────────────────────────────────────
  * - TimeEntry (D-09):                    {@link isTimeEntryInScope}, {@link scopedTimeEntryIds}
+ * - TimeEntry coverage (Issue #606):     {@link timeEntryCoverage} - "can this reach read this person's
+ *                                        entries now, or once they record one" (the D-09 rule asked of a
+ *                                        PERSON instead of one entry)
  * - leave/absence/saldo/exports (D-10):  {@link isStammsalonScopeMatch}, {@link resolveStammsalonScopedEmployeeIds}
  * - shifts (D-11):                       {@link isShiftInScope}, {@link shiftScopeWhere}
  * - person master data (D-12):           {@link isPersonMasterDataInScope}, {@link resolvePersonScopedEmployeeIds}
  */
 import { Prisma } from "@clokr/db";
+import type { TimeEntryReaderCoverage } from "@clokr/types";
 import type { AccessReach } from "./access-context";
 import { homeSalonAt, readTenantTimezone } from "./facade/salon-assignments";
 import { dayToDate, tenantLocalDay } from "./salon-assignment-rules";
@@ -130,6 +134,42 @@ export async function scopedTimeEntryIds(
       AND (${salonBranch} OR ${employeeBranch} OR ${homeSalonBranch})
   `);
   return rows.map((r) => r.id);
+}
+
+/**
+ * Issue #606: how far does `reach` cover ONE person's time entries - now or once the person records
+ * one? The D-09 rule ({@link isTimeEntryInScope}) asked of a person instead of one entry, answered in
+ * the order of the strongest cover:
+ *
+ * 1. `wholeTenant` reach -> `"wholeTenant"`.
+ * 2. the person's `employeeId` in `reach.employeeIds` -> `"person"` (PERSONS, salon-independent).
+ * 3. no salon in reach -> `null`.
+ * 4. the person's Stammsalon today (`homeSalonId`) in `reach.salonIds` -> `"homeSalon"` (a new entry is
+ *    in scope by its Stammsalon at the entry date).
+ * 5. one of the person's current or future salon assignments (`assignmentSalonIds`) in
+ *    `reach.salonIds` -> `"workSalon"` (a new entry recorded there is in scope by its own salon).
+ * 6. otherwise `null`.
+ *
+ * Flat parameters (lint-facade-signatures F1/F3). Tenant-scoped; answers a foreign or unknown person
+ * with `null` like every other function of this module.
+ */
+export async function timeEntryCoverage(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  reach: AccessReach,
+  employeeId: string,
+  homeSalonId: string | null,
+  assignmentSalonIds: readonly string[],
+): Promise<TimeEntryReaderCoverage | null> {
+  if (reach.kind === "wholeTenant") return "wholeTenant";
+  if (reach.employeeIds.includes(employeeId)) return "person";
+  if (reach.salonIds.length === 0) return null;
+  if (homeSalonId !== null && reach.salonIds.includes(homeSalonId)) return "homeSalon";
+  if (assignmentSalonIds.some((salonId) => reach.salonIds.includes(salonId))) return "workSalon";
+  // Reserved for the existing-entry branch (the entry-salon / Stammsalon-at-entry-date rule).
+  void db;
+  void tenantId;
+  return null;
 }
 
 // ── Stammsalon-only (D-10): leave/absence/saldo/exports — NO entry-salon fallback ───────────────

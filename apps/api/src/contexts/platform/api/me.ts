@@ -2,7 +2,9 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { API_KEY_SUBJECT_PREFIX, accessContextFromRequest } from "../access-context";
+import { requireAnyPermission } from "../request-permissions";
 import { contextSalonIds, ownRoleNames } from "../facade/role-assignments";
+import { timeEntryReaderGroups } from "../facade/time-entry-readers";
 import { isMultiSalonTenant, listSalons } from "../facade/salons";
 import { packagesForDisplay } from "../tenant-packages";
 import { PERSONAL_EMAIL_OPT_OUT_FIELDS } from "../notification-email-policy";
@@ -324,6 +326,37 @@ export async function meRoutes(app: FastifyInstance) {
         // Issue #538: names of the caller's own roles, a display label only (Topbar, Sidebar,
         // profile). Own data, no new permission; decides nothing.
         roles: await ownRoleNames(app.prisma, tenant.id, user.id),
+      };
+    },
+  });
+
+  // ── Who can read my times (Issue #606) ──────────────────────────────────────
+
+  // GET /api/v1/me/time-entry-readers
+  app.get("/time-entry-readers", {
+    preHandler: requireAnyPermission("time-entry:read:EIGENE", "time-entry:read:ZUGEWIESEN"),
+    schema: {
+      tags: ["Mein Bereich"],
+      description:
+        "Get the roles that can read the caller's own time entries, how far each reaches over the caller and why (categories only: role name, coverage and purposes - never a name, an id or a head count) and whether an API key of the tenant is connected. Derived live from the stored role assignments through the same read rule as GET /time-entries",
+      security: [{ bearerAuth: [] }],
+    },
+    handler: async (req, reply) => {
+      if (req.user.sub.startsWith(API_KEY_SUBJECT_PREFIX)) {
+        return reply.code(400).send({ error: "API-Keys haben keinen Benutzerkontext" });
+      }
+      if (!req.user.employeeId) {
+        return reply.code(400).send({ error: "Kein Mitarbeiterprofil vorhanden" });
+      }
+      return {
+        groups: await timeEntryReaderGroups(
+          app.prisma,
+          req.user.tenantId,
+          req.user.employeeId,
+          req.user.sub,
+          new Date(),
+        ),
+        connectedPrograms: false,
       };
     },
   });

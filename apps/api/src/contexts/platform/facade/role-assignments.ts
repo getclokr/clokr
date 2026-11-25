@@ -160,6 +160,9 @@ export async function userMayApply(
  *   live, never stored on the assignment, same as `decideUserMayApply`'s `targetSalon.isActive`
  *   check).
  *
+ * The per-assignment part (role belongs here, grants, well-formed, active salons) is the private
+ * `grantingAssignmentReaches` (Issue #606); this function only unions its rows.
+ *
  * An unknown `permission` throws — the same fail-loud philosophy as `request-permissions.ts`'s
  * `assertKnownKey`; a typo must never silently read as "no reach".
  */
@@ -176,17 +179,64 @@ export async function resolveAccessReach(
   if (ctx.actor.kind !== "user") {
     return { kind: "wholeTenant" };
   }
-  const userId = ctx.actor.userId;
-  const tenantId = ctx.tenantId;
+  // The per-assignment evaluation lives in grantingAssignmentReaches (Issue #606), so the profile's
+  // "who sees my times" list judges each granting assignment through the very same path.
+  const reaches = await grantingAssignmentReaches(db, ctx.tenantId, ctx.actor.userId, permission);
+  const salonIds = new Set<string>();
+  const employeeIds = new Set<string>();
+  for (const { reach } of reaches) {
+    if (reach.kind === "wholeTenant") return { kind: "wholeTenant" };
+    for (const salonId of reach.salonIds) salonIds.add(salonId);
+    for (const employeeId of reach.employeeIds) employeeIds.add(employeeId);
+  }
 
+  // Zero granting rows: the scoped-empty reach (fail closed).
+  return {
+    kind: "scoped",
+    salonIds: [...salonIds].sort(),
+    employeeIds: [...employeeIds].sort(),
+  };
+}
+
+/** One granting role assignment of a user for one permission, with the reach it grants alone. */
+export interface GrantingAssignmentReach {
+  readonly accessRole: {
+    readonly id: string;
+    readonly name: string;
+    readonly tenantId: string | null;
+    readonly permissions: string[];
+  };
+  readonly reach: AccessReach;
+}
+
+/**
+ * Issue #606: the ONE per-assignment evaluation behind {@link resolveAccessReach}. Every stored
+ * assignment of `userId` in `tenantId` whose role belongs to this tenant (or is a system role),
+ * grants `permission` via `roleGrants` and has a well-formed D-03 shape (a malformed row contributes
+ * nothing, fail closed) yields one entry with the reach THAT assignment grants alone: a TENANT row
+ * is `wholeTenant`, any other row is `scoped` with its salon ids filtered to the currently active
+ * salons of the tenant (ONE batched salon query over all rows) and its person ids, both sorted.
+ * `resolveAccessReach` unions these (`wholeTenant` wins); the profile list "Wer sieht meine Zeiten?"
+ * keeps them apart so each role is judged by its own reach (`facade/time-entry-readers.ts`).
+ * Platform-internal: exported for that sibling facade file only, NOT re-exported from
+ * `contexts/platform/index.ts`.
+ */
+export async function grantingAssignmentReaches(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+  userId: string,
+  permission: PermissionKey,
+): Promise<GrantingAssignmentReach[]> {
   const assignments = await db.roleAssignment.findMany({
     where: { tenantId, userId },
     include: { accessRole: true },
   });
 
-  // Zero rows: the loop below sees nothing and the answer is the scoped-empty reach (fail closed).
+  const granting: {
+    accessRole: GrantingAssignmentReach["accessRole"];
+    scope: NormalizedRoleAssignmentScope;
+  }[] = [];
   const salonIds = new Set<string>();
-  const employeeIds = new Set<string>();
   for (const assignment of assignments) {
     const accessRole = assignment.accessRole;
     const roleBelongsHere = accessRole.tenantId === null || accessRole.tenantId === tenantId;
@@ -195,27 +245,30 @@ export async function resolveAccessReach(
     // 74b review IN-02, mirrored: a row that violates the D-03 shape contributes nothing.
     const scope = storedRoleAssignmentScope(assignment);
     if (scope === null) continue;
-    if (scope.scopeType === "TENANT") {
-      return { kind: "wholeTenant" };
-    }
+    granting.push({ accessRole, scope });
     for (const salonId of scope.salonIds) salonIds.add(salonId);
-    for (const employeeId of scope.employeeIds) employeeIds.add(employeeId);
   }
 
-  let activeSalonIds: string[] = [];
+  let activeSalonIds = new Set<string>();
   if (salonIds.size > 0) {
     const activeSalons = await db.salon.findMany({
       where: { tenantId, id: { in: [...salonIds] }, isActive: true },
       select: { id: true },
     });
-    activeSalonIds = activeSalons.map((salon) => salon.id);
+    activeSalonIds = new Set(activeSalons.map((salon) => salon.id));
   }
 
-  return {
-    kind: "scoped",
-    salonIds: activeSalonIds.sort(),
-    employeeIds: [...employeeIds].sort(),
-  };
+  return granting.map(({ accessRole, scope }) => ({
+    accessRole,
+    reach:
+      scope.scopeType === "TENANT"
+        ? { kind: "wholeTenant" as const }
+        : {
+            kind: "scoped" as const,
+            salonIds: scope.salonIds.filter((id) => activeSalonIds.has(id)).sort(),
+            employeeIds: [...scope.employeeIds].sort(),
+          },
+  }));
 }
 
 // ── Salon context (Phase 82, Issue #82, D-03/D-04) ───────────────────────────────────────────────

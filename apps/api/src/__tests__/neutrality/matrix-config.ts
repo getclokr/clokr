@@ -886,6 +886,15 @@ export const EXCLUDED_ROUTES: readonly RouteReason[] = [
       "compare. Same vacuous-satisfaction reasoning as the clock-salon entry directly above.",
   },
   {
+    route: "GET /api/v1/me/time-entry-readers",
+    reason:
+      "New route added for Issue #606, long after the role guard (`requireRole`) was deleted from " +
+      "middleware/auth.ts (#75b) — built permission-gated (`time-entry:read` in either reach, the " +
+      "same pair idea as GET /time-entries/clock-state) from its very first commit, answers only the " +
+      "caller's own list of reading roles (no employee parameter) and never had role-based access " +
+      "behavior to compare. Same vacuous-satisfaction reasoning as the clock-state entry above.",
+  },
+  {
     route: "GET /api/v1/leave/entitlements/missing-count",
     reason:
       "New route added for Issue #962, long after the role guard (`requireRole`) was deleted from " +
