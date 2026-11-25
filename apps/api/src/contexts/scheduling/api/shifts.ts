@@ -2527,7 +2527,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       }
 
       // Issue #1075 — the one gate of every adding write path: contract on the day, past lock
-      // (tenant calendar day), opening hours, § 8 / § 12 JArbSchG, § 3 ArbZG (day sum) and § 5 ArbZG
+      // (tenant calendar day), opening hours, JArbSchG, § 3 ArbZG (day sum) and § 5 ArbZG
       // (previous AND next day), in that order. `force` only overrides the opening-hours warning and
       // § 5; every other finding answers.
       const gateCtx = await loadShiftWriteContext(app.prisma, req.user.tenantId, {
@@ -2817,7 +2817,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       }
 
       // Issue #1075 — the one gate (contract on the effective day, past lock for the old AND the
-      // new day, opening hours, § 8 / § 12 JArbSchG, § 3 and § 5 ArbZG) over the effective values.
+      // new day, opening hours, JArbSchG, § 3 and § 5 ArbZG) over the effective values.
       // `replaces` takes this shift's own stored row out of the day sum, the rest gaps and the minor
       // week, so a label-only edit and a shortening of an already illegal shift pass and a move
       // onto another person is a pure addition there.
@@ -3346,7 +3346,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         generateWeekSalonByEmployeeDate.set(key, generateWeekCachedDefault);
       }
 
-      // Issue #1075 — the one gate (contract, past lock, opening hours, § 8 / § 12 JArbSchG, § 3 and
+      // Issue #1075 — the one gate (contract, past lock, opening hours, JArbSchG, § 3 and
       // § 5 ArbZG) for every candidate cell, in `toCreate` order (each person's days in calendar
       // order). A blocking finding skips the cell with its reason and German message; there is no
       // override on a pattern (GD-2), so `force` is false. An accepted cell joins the context the
@@ -3818,7 +3818,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         copyWeekSalonBySource.set(c.sourceShiftId, copyWeekFallbackByEmployeeDate.get(key) ?? null);
       }
 
-      // Issue #1075 — the one gate (contract, past lock, opening hours, § 8 / § 12 JArbSchG, § 3 and
+      // Issue #1075 — the one gate (contract, past lock, opening hours, JArbSchG, § 3 and
       // § 5 ArbZG) for every candidate cell of the TARGET week, in source order (date, then start
       // time, so each person's days are walked in calendar order). A blocking finding skips the cell
       // with its reason and German message; there is no override on a copy (GD-2). An accepted cell

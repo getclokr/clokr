@@ -59,7 +59,7 @@ Sobald MA bereits eine Pause eingegeben hat (z.B. nur 15min), greift Auto-Break 
 - **„Im Voraus feststehend“ (§ 4 Satz 1):** Die Pausen müssen im Voraus feststehen. Das lässt sich aus Zeitstempeln nicht prüfen; ein erfasstes, abgeschlossenes Pausensegment gilt als Ruhepause.
 - **Ältere Einträge ohne Pausenlage:** Nur als Summe gespeicherte Pausen erzeugen den Hinweis `BREAK_POSITION_UNKNOWN`, nie einen Verstoß. Vor dem Einschalten von `blockMonthCloseOnUnconfirmedBreak` den Probelauf `audit-511-break-placement.ts` lesen.
 - **Fahrzeit zwischen Salons:** wird seit Issue #92 als eigener Eintrag erfasst (Abschnitt „Fahrzeit zwischen Salons“). Eine Lücke zwischen zwei Salons, für die keine Fahrzeit erfasst ist, bleibt die Grenzfall-Rechnung (`UNCLEAR`); das System erkennt eine Fahrt nicht selbst.
-- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
+- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“), seit Issue #1076 auch nach §§ 13–17 (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
 - **Geschlossene Monate** werden nie neu bewertet.
 - **Tätigkeitsart (#81):** Die Tätigkeitsart ändert keine Arbeitszeit-, Pausen- oder Ruhezeitprüfung. Ein Fahrzeiteintrag (#92) zählt wie jeder Eintrag voll als Arbeitszeit; die Art „Fahrzeit“ selbst verändert auch hier keine Prüfung.
 - **Rechtsgrund im Befund:** Der Verweis auf § 11 JArbSchG im Befundtext lässt auf Minderjährigkeit schließen; Geburtsdatum und Alter werden nie ausgegeben.
@@ -91,7 +91,7 @@ Lesart zu § 8 Abs. 2a: Ein Werktag ohne jede Arbeit zählt als „auf weniger a
 
 ### Meldung
 
-- POST und PUT `/api/v1/shifts` antworten 422 mit `error: "JArbSchG-Verstoß"`, `canForce: false` und einem der Codes `JARBSCHG_VIOLATION_DAILY_MAX`, `JARBSCHG_VIOLATION_WEEKLY_MAX`, `JARBSCHG_VIOLATION_SHIFT_TIME`. `?force=true` ändert nichts. Die Meldung ist deutsch und nennt Tag und Grenze.
+- POST und PUT `/api/v1/shifts` antworten 422 mit `error: "JArbSchG-Verstoß"`, `canForce: false` und einem der Codes `JARBSCHG_VIOLATION_DAILY_MAX`, `JARBSCHG_VIOLATION_WEEKLY_MAX`, `JARBSCHG_VIOLATION_SHIFT_TIME` (Issue #1057) oder `JARBSCHG_VIOLATION_NIGHT_REST`, `JARBSCHG_VIOLATION_SUNDAY_REST`, `JARBSCHG_VIOLATION_FREE_TIME`, `JARBSCHG_VIOLATION_FIVE_DAY_WEEK` (Issue #1076, siehe den Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“). `?force=true` ändert nichts. Die Meldung ist deutsch und nennt Tag und Grenze.
 - Sammelzuweisung (`/bulk`) lehnt bei einem Verstoß die **ganze** Anfrage ab (atomar). Wiederherstellen einer durch die Berufsschul-Bereinigung gelöschten Schicht wird wie eine neue Schicht geprüft.
 - „Muster anwenden“ (generate-week) und „Woche kopieren“ (copy-week) überspringen die betroffene Zelle mit dem Grund „Jugendarbeitsschutz“, in Vorschau und Übernahme gleich.
 - Abgelehnt wird nur, was einen Verstoß **erzeugt oder vergrößert** (Tageswert, Schichtzeit oder Wochensumme wächst). Ein bereits unzulässiger Plan (Altbestand, Phorest-Import) sperrt den Dienstplan nicht: Verkürzen, Verschieben weg vom Tag und reine Textänderungen bleiben möglich.
@@ -101,7 +101,7 @@ Lesart zu § 8 Abs. 2a: Ein Werktag ohne jede Arbeit zählt als „auf weniger a
 
 Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder verschieben. Das Gesetz verbietet das Beschäftigen über die Grenzen hinaus; die Ordnungswidrigkeit (§ 58 Abs. 1 Nr. 5 und 8 JArbSchG) entsteht am Arbeitstag. Clokr übernimmt die Schicht deshalb unverändert und meldet den Befund rechtzeitig vor dem Tag.
 
-- Nach jedem erfolgreichen Abgleich prüft Clokr jede Woche, in die der Lauf eine Schicht übernommen hat (Import und Übernahme einer Altschicht), mit **derselben Prüfung wie der Dienstplan**: alle Schichten der Person in allen Salons (§ 4 Abs. 5 JArbSchG), Berufsschulzeit, Alter je Tag. Geprüft wird der gespeicherte Stand der ganzen Woche.
+- Nach jedem erfolgreichen Abgleich prüft Clokr jede Woche, in die der Lauf eine Schicht übernommen hat (Import und Übernahme einer Altschicht), mit **derselben Prüfung wie der Dienstplan** (seit Issue #1076 einschließlich §§ 13–17 JArbSchG, ohne zweite Stelle): alle Schichten der Person in allen Salons (§ 4 Abs. 5 JArbSchG), Berufsschulzeit, Alter je Tag. Geprüft wird der gespeicherte Stand der ganzen Woche.
 - Wer die Schichten des Salons plant (Reichweite `shift:plan`), bekommt eine Benachrichtigung mit Tag, Stunden und Grenze. Die Person selbst bekommt keine Meldung.
 - Dieselbe offene Meldung wird nicht wiederholt, ein geänderter Befund (anderer Tag, andere Stunden) kommt neu. Nach dem Ausblenden meldet der nächste Lauf erneut, solange der Plan unzulässig ist.
 - Der Lauf bleibt erfolgreich, auch wenn die Meldung scheitert. Es gibt keinen Audit-Eintrag: Es wird nichts geändert, die Benachrichtigung ist der Nachweis.
@@ -111,14 +111,63 @@ Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder 
 - **§ 4 Abs. 4 Satz 2 JArbSchG (Feiertag):** Die wegen eines gesetzlichen Feiertags ausfallende Arbeitszeit wird nicht auf die Woche angerechnet. Welche Arbeitszeit für eine schichtgeplante Person „ausfällt“, ist eine offene Owner-Entscheidung; bis dahin ist eine Feiertagswoche zu niedrig gezählt.
 - **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074, siehe „Phorest-Import“ oben).
-- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) werden im Dienstplan nicht geprüft.
-- **§ 14 JArbSchG (Nachtruhe)** wird auch in der Phorest-Meldung nicht geprüft: Die Ausnahmen hängen von der Branche ab, die Clokr nicht kennt. Das folgt mit Issue #1076; die Meldung übernimmt es dann ohne zweite Stelle, weil sie dieselbe Prüfung wie der Dienstplan aufruft.
+- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) prüft der Dienstplan seit Issue #1076, die Phorest-Meldung mit derselben Prüfung (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“).
 - **Zeiterfassung:** erfasste Zeiten werden nicht nach § 8 JArbSchG geprüft (Issue #524).
 - Alle Schreibwege sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` nach Aufrufmuster mit Urteil erfasst.
 
 ### Datenschutz
 
-Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8/§ 12 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
+Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8, § 12 oder §§ 13–17 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
+
+## §§ 13–17 JArbSchG — Schichtplanung (Issue #1076)
+
+Dieselbe Prüfung (`apps/api/src/contexts/scheduling/minor-shift-limits.ts`) kennt neben § 8 und § 12 auch die Freizeit, die Nachtruhe, die Fünf-Tage-Woche und die Sonntagsruhe. Der Dienstplan (Regel 4 von `checkShiftWrite`) und die Phorest-Meldung rufen sie unverändert auf; keine Regel wird ein zweites Mal gerechnet. Antwort, Reihenfolge der Regeln und „Nur Verschlechterung“ sind wie bei Issue #1057 (422 `JArbSchG-Verstoß`, `canForce: false`, `?force=true` ändert nichts).
+
+### Geltung
+
+- „Unter 18“ wird je Schichttag entschieden, der 18. Geburtstag selbst zählt als volljährig; ohne Geburtsdatum gilt die Person als volljährig (wie oben).
+- **Branche:** Clokr speichert keine Branche. Jeder Mandant wird als Friseurbetrieb gelesen, denn das Produkt ist für Salons gebaut. Daran hängt nur der Samstag (§ 16 Abs. 2 Satz 1 Nr. 2 „im Friseurhandwerk“); §§ 13, 14 und 17 kennen keinen Friseurfall, dort gilt die strenge Regel. Eine Einstellung dafür gibt es bewusst nicht: Sie würde heute nur § 16 umschalten, und es gibt keinen Mandanten einer anderen Branche. Ein Mandant einer anderen Branche oder eine Anzeige nach § 14 Abs. 5 JArbSchG wäre der Anlass für eine Einstellung.
+
+### Regeln
+
+| Regel                      | Grenze                                                                                                                                                                                    | Rechtsgrund                               | Code                                        |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------- |
+| Freizeit                   | mindestens 12 Stunden zwischen dem letzten Ende eines Tages und dem ersten Beginn des nächsten Kalendertags, in beide Richtungen und über die Wochengrenze                                | § 13 JArbSchG                             | `JARBSCHG_VIOLATION_FREE_TIME`              |
+| Nachtruhe                  | Arbeit nur von 6 bis 20 Uhr; jede Minute außerhalb zählt, auch der Teil einer Schicht über Mitternacht                                                                                    | § 14 Abs. 1 JArbSchG                      | `JARBSCHG_VIOLATION_NIGHT_REST`             |
+| Fünf-Tage-Woche            | höchstens fünf Tage mit Schicht oder Berufsschule je Woche (Montag bis Sonntag)                                                                                                           | § 15 Satz 1, § 16 Abs. 3 JArbSchG         | `JARBSCHG_VIOLATION_FIVE_DAY_WEEK`          |
+| Samstag im Friseurhandwerk | ein sechster Tag mit Samstagsschicht bleibt zulässig, wenn ein anderer Tag Mo–Fr ohne Berufsschule bis 13 Uhr endet und höchstens 8:00 Stunden minus die Arbeitszeit des Samstags umfasst | § 16 Abs. 2 Satz 1 Nr. 2, Abs. 4 JArbSchG | (kein eigener Code, hebt FIVE_DAY_WEEK auf) |
+| Sonntag                    | keine Schicht an einem Sonntag; Absatz 2 nennt keinen Friseurfall                                                                                                                         | § 17 Abs. 1 JArbSchG                      | `JARBSCHG_VIOLATION_SUNDAY_REST`            |
+
+Der Samstag allein wird nie abgelehnt: Die Samstagsarbeit im Friseurhandwerk ist erlaubt (§ 16 Abs. 2 Satz 1 Nr. 2). Mit den fünf Werktagen davor ist die Fünf-Tage-Woche dagegen voll.
+
+### Geprüfte Ausnahmen der Branche
+
+- **§ 14 Abs. 2 Nr. 1, 3 und 4** (Gaststätten- und Schaustellergewerbe, Landwirtschaft, Bäckereien und Konditoreien), **Abs. 3** (Bäckereien, über 17 Jahre), **Abs. 6** (Betriebe mit außergewöhnlicher Hitze) und **Abs. 7** (Aufführungen, Aufnahmen, Sport) betreffen andere Branchen oder Sonderfälle. **Abs. 2 Nr. 2** (mehrschichtige Betriebe, über 16 Jahre bis 23 Uhr) wird nicht angewendet: Clokr erkennt keinen Mehrschichtbetrieb, und ein Salon mit versetzten Beginnzeiten ist keiner. **Abs. 5** verlangt eine vorherige Anzeige bei der Aufsichtsbehörde, die Clokr nicht kennt; **Abs. 4** schränkt nur die Verlängerungen vor einem Berufsschultag ein. 16- und 17-Jährige teilen deshalb dieselbe Grenze 6 bis 20 Uhr. § 21a nennt § 14 nicht.
+- **§ 16 Abs. 2 Satz 1 Nr. 2:** „im Friseurhandwerk“ erlaubt die Samstagsarbeit; deshalb ist der Samstag kein Verbot.
+- **§ 17 Abs. 2:** kennt keinen Friseurfall (Krankenanstalten, Gaststätten, Landwirtschaft u. a.); die Sonntagsruhe gilt streng.
+- **§ 13** hat keine Branchenausnahme; § 21a nennt ihn nicht.
+
+### Lesarten
+
+- **Berufsschule in der Fünf-Tage-Woche:** Ein Berufsschultag zählt als Tag ohne Ruhe, denn § 16 Abs. 3 Satz 1 und § 17 Abs. 3 Satz 1 verlangen einen „berufsschulfreien“ Ausgleichstag. Im Salon (Sonntag verboten) ist ein sechster Tag immer ein Samstag, auf den § 16 Abs. 3 wörtlich passt. Der Berufsschultag kommt aus den Abwesenheiten (`VOCATIONAL_SCHOOL`).
+- **18. Geburtstag und § 13:** Die Freizeit gilt, wenn die Person am **späteren** Tag unter 18 ist: Das Verbot trifft die Beschäftigung, die zu früh beginnt. Am 18. Geburtstag antwortet § 5 ArbZG (11 Stunden, 409, übersteuerbar); für Jugendliche antwortet § 13 zuerst, sodass diese 409 nur beim Übergang bleibt. Berufsschulzeit hat in Clokr keine Uhrzeiten und geht in § 13 nicht ein.
+- **Nur Verschlechterung:** Abgelehnt wird nur, was die Nachtminuten, die Sonntagsminuten oder die Zahl der Tage vergrößert oder eine Freizeit verkürzt (oder neu unter 12 Stunden bringt). Ein bereits unzulässiger Plan sperrt den Dienstplan nicht.
+
+### Bewusst keine Ablehnung
+
+- **§ 16 Abs. 2 Satz 2** („Mindestens zwei Samstage im Monat sollen beschäftigungsfrei bleiben“) ist eine Sollvorschrift; § 58 Abs. 1 Nr. 13 nennt nur § 16 Abs. 1 und Abs. 3 Satz 1, und § 21a Abs. 1 Nr. 4 erlaubt Tarifabweichungen (26 Samstage im Jahr oder jeden Samstag). Eine nicht übersteuerbare 422 würde rechtmäßige Pläne ohne Ausweg sperren, dieselbe Lesart wie bei § 8 Abs. 2a (Issue #1057). Ein weicher, übersteuerbarer Hinweis ist ein Folge-Issue.
+- **§ 15 Satz 2** (die zwei Ruhetage „sollen nach Möglichkeit aufeinander folgen“) hängt an der Machbarkeit und ist nicht bußgeldbewehrt (§ 58 Abs. 1 Nr. 12 nennt § 15 ohne den Satz; die Ordnungswidrigkeit ist der sechste Tag).
+
+### Bekannte Grenzen
+
+- **§ 18 JArbSchG** (Feiertagsruhe, 24. und 31. Dezember nach 14 Uhr) gehört nicht zu Issue #1076 und wird nicht geprüft (eigenes Issue).
+- **§ 21 und § 21a** (Abweichungen durch Tarifvertrag, Aufsichtsbehörde) sind nicht abgebildet, wie bei Issue #1057; ebenso § 9 Abs. 1 Nr. 1.
+- **Phorest:** Eine neue Sonntagsschicht, die die Freizeit zum Montag der Folgewoche verletzt, erscheint in der Folgewoche erst, wenn diese Woche geprüft wird; die Sonntagsschicht selbst wird immer nach § 17 gemeldet.
+- Berufsschulzeit hat keine Uhrzeiten; § 13 wird nur zwischen Schichten geprüft.
+
+### Einführung
+
+Der erste Phorest-Lauf nach dem Release kann für die Woche einer Person unter 18 eine neue Benachrichtigung senden, weil der Befund jetzt auch §§ 13–17 enthält (inhaltsbewusste Dedup, Issue #1074).
 
 ## Schichtplanung — eine Prüfung für jeden Schreibweg (Issue #1075)
 
@@ -133,14 +182,14 @@ Die erste Regel, die anschlägt, antwortet.
 | 1   | Vertrag am Tag             | 422 `SHIFT_NO_CONTRACT`                 | nein                      |
 | 2   | Vergangenheit              | 422 `SHIFT_PAST_IMMUTABLE`              | nein                      |
 | 3   | Öffnungszeiten des Salons  | 409 `SHIFT_OUTSIDE_STORE_HOURS`         | ja, nur bei einer Schicht |
-| 4   | § 8 / § 12 JArbSchG        | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
+| 4   | JArbSchG (§§ 8, 12–17)     | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
 | 5   | § 3 ArbZG, Tageshöchstzeit | 422 `ARBZG_VIOLATION_DAILY_MAX`         | nein                      |
 | 6   | § 5 ArbZG, Ruhezeit        | 409 `ARBZG_VIOLATION_REST_PERIOD`       | ja, nur bei einer Schicht |
 
 - **Vergangenheit** heißt: vor dem heutigen Kalendertag **des Unternehmens** (Zeitzone des Unternehmens, nicht die Serveruhr). Heute bleibt planbar. Die Sperre gilt für Anlegen, Ändern (alter und neuer Tag), Wiederherstellen, Sammelzuweisung, „Muster anwenden“, „Woche kopieren“ und Löschen (Revisionssicherheit).
 - **§ 3 ArbZG ist eine Tagesregel** (§ 3 Satz 1 „werktägliche Arbeitszeit“, § 2 Abs. 1): Es zählt die **Summe** aller Schichten der Person an dem Tag, jede mit der einen Pausenregel (`breakAmountFor`) abgezogen. Mehr als 10 Stunden netto sind nicht zulässig; eine Schicht von 08:00 bis 13:00 plus eine von 13:30 bis 19:30 (11 Stunden) wird abgelehnt. Die Meldung nennt den Tag und die Stunden. Die 8-Stunden-Regel ist ein Durchschnitt über 24 Wochen und wird im Dienstplan nicht als Tagesgrenze behandelt.
 - **§ 5 ArbZG gilt in beide Richtungen** (§ 5 Abs. 1 „nach Beendigung der täglichen Arbeitszeit“): Eine neue Schicht verkürzt die Ruhezeit zur letzten Schicht des Vortags **und** zur ersten Schicht des Folgetags. Wie die Erfassung prüft der Dienstplan Vortag und Folgetag. Bei einer übersteuerten Schicht schreibt Clokr je verletzter Richtung einen Eintrag `SHIFT_FORCED_OVER_ARBZG` (`prevShiftId` für den Vortag, `nextShiftId` für den Folgetag).
-- Für Jugendliche läuft zuerst die Prüfung nach JArbSchG (Regel 4); § 3 und § 5 ArbZG laufen weiter, die Ruhezeit also mit 11 Stunden.
+- Für Jugendliche läuft zuerst die Prüfung nach JArbSchG (Regel 4); § 3 und § 5 ArbZG laufen weiter. Für Jugendliche antwortet die Freizeit nach § 13 JArbSchG (12 Stunden, 422) vor § 5 ArbZG; die 11-Stunden-Ruhe mit 409 bleibt nur am 18. Geburtstag.
 - Eine Schicht ohne Dauer (Beginn gleich Ende) zählt 0 Minuten.
 
 ### Schreibwege
@@ -164,7 +213,6 @@ Wie bei JArbSchG (Issue #1057) wird nur abgelehnt oder gewarnt, was einen Versto
 ### Bekannte Grenzen
 
 - **Wochenhöchstarbeitszeit (48 Stunden) und 24-Wochen-Schnitt** (§ 3 ArbZG) werden im Dienstplan nicht geprüft; die Erfassung meldet die 48 Stunden. Ob der Plan eine harte Wochengrenze bekommt, ist eine offene Owner-Entscheidung (das Gesetz kennt einen Durchschnitt).
-- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Wochenendruhe) gehören zu Issue #1076; für Jugendliche läuft bis dahin die 11-Stunden-Ruhezeit des ArbZG.
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074).
 - **Vertragsprüfung:** Sie kennt den Beginn des Vertrags, nicht das Austrittsdatum.
 - **Hinweise-Seite:** Sie zeigt auch entfernte Schichten vergangener Tage; deren Wiederherstellung antwortet mit der Vergangenheitssperre.

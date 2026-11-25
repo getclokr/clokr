@@ -17,7 +17,7 @@
  *    (§ 9 Abs. 2) as the Arbeitszeitkonto already computes it (read only).
  *  - § 8 Abs. 1 / 2a: more than 8:00 a day is a violation unless another Werktag (Mon-Sat) of the
  *    same week has less than 8:00; then up to 8:30 is allowed. A Werktag without work counts as
- *    shortened (wording "auf weniger als acht Stunden verkürzt"). § 8 Abs. 2 proper (Brückentage,
+ *    shortened (the statute says "shortened to less than eight hours"). § 8 Abs. 2 proper (Brückentage,
  *    five-week average) is not modelled.
  *  - Week (§ 4 Abs. 4 S. 1): Monday to Sunday, minor days only, limit 40:00. § 4 Abs. 4 S. 2 (the
  *    working time lost to a public holiday counts) is NOT applied: an owner decision is open.
@@ -36,9 +36,9 @@
  *    the Friseurhandwerk may work it (§ 16 Abs. 2 Satz 1 Nr. 2) when another Monday-Friday day without
  *    Berufsschule ends by 13:00 and carries at most 8:00 minus the Saturday's Arbeitszeit (§ 16 Abs. 4).
  *  - § 17 Abs. 1: no shift on a Sunday (decided from the ISO date). Abs. 2 lists no salon case.
- *  - NOT refused on purpose: § 16 Abs. 2 Satz 2 ("sollen" at least two Saturdays a month free: a
+ *  - NOT refused on purpose: § 16 Abs. 2 Satz 2 (at least two Saturdays a month SHOULD stay free: a
  *    Sollvorschrift, not bußgeldbewehrt in § 58, tariff-dispositive in § 21a Abs. 1 Nr. 4) and
- *    § 15 Satz 2 (the two rest days "sollen nach Möglichkeit aufeinander folgen").
+ *    § 15 Satz 2 (the two rest days should follow each other where possible).
  *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span, week
  *    sum, night minutes, Sunday minutes grow or a Freizeit gap shrinks), so an already illegal plan
  *    (legacy, Phorest import) never freezes the roster.

@@ -1,7 +1,7 @@
 /**
  * minor-shift-limit-report.ts
  *
- * Issue #1074 — end-of-run § 8 / § 12 JArbSchG report of the Phorest shift sync. Phorest leads, so
+ * Issue #1074 — end-of-run JArbSchG report (§§ 8, 12–17) of the Phorest shift sync. Phorest leads, so
  * the sync cannot refuse, shorten or move a shift; instead, after a successful run, every
  * (person, ISO week) that received a fresh Phorest slot is checked over the STORED week with the
  * roster's own rule (`findStoredMinorWeekViolations`, Issue #1057 — no second rule, no second
