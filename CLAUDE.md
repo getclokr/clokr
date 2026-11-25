@@ -239,7 +239,10 @@ Current: recalculated from hire date on every request (does not scale). Target a
   (`contexts/working-time-account/month-saldo.ts`) exclusively — the composition layer computes no
   Soll of its own. Leave-day counts printed in reports/DATEV go only through `leaveDaysByCodeWithin`
   (`contexts/absence/leave-days.ts`) — the same priced, §9-netted day-counting kernel the absence
-  context's own vacation calculation uses, never a separate calendar walk.
+  context's own vacation calculation uses, never a separate calendar walk. The paid release days of a
+  Betriebsurlaub (Issue #1082) are counted only by `paidReleaseDaysByEmployee`
+  (`contexts/absence/leave-days.ts`, priced by `resolveLeaveDays`, never a walk in `composition/`) and reach
+  DATEV and the Monatsexport only through `datevPersonFigures`.
 - **A closed month is found and named by one rule (Issue #595).** Every MONTHLY `SaldoSnapshot` read
   for a month uses `periodStartWindow()` (two storage conventions exist on production — TZ-converted and
   legacy UTC-naive); several active rows of one month resolve through `monthlySnapshotOrder()`. The month a
@@ -321,7 +324,8 @@ Current: recalculated from hire date on every request (does not scale). Target a
   loader (`loadDatevMonth`, the employment core `employedInPeriodWhere`, § 41 EStG) — the ONE place the
   optional `salonId` of #542 narrows the persons (by Stammsalon on each person's own Stichtag, see the #542 bullet
   below); DATEV itself is never narrowed; absence counts and „DATEV-Std.“ come only from
-  `datevPersonFigures` (Arbeitstage and Normalstunden, the DATEV values); Soll, Ist, Saldo, Status and the
+  `datevPersonFigures` (Arbeitstage and Normalstunden, the DATEV values, since #1082 also the paid release days of a
+  Betriebsurlaub, the optional DATEV row of `TenantConfig.datevFreistellungNr` and the column „Freistellung“); Soll, Ist, Saldo, Status and the
   Gesamtsaldo (`closingBalanceMinutes`) come only from `computeMonthReportFigures`; the section
   „Urlaubsjahr“ comes only from the vacation facade at the Stichtag (`asOf` = last day of the exported
   month, or tenant-local yesterday in the running month, so a re-export prints the same figures;

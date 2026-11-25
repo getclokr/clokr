@@ -364,6 +364,10 @@ model TenantConfig {
   datevUrlaubNr                     Int      @default(300)
   datevKrankNr                      Int      @default(200)
   datevSonderurlaubNr               Int      @default(302)
+  // Issue #1082 — Lohnart of the paid release days of a Betriebsurlaub (COMPANY_SHUTDOWN days no
+  // other line pays). Nullable ON PURPOSE: null = not configured, the DATEV file then carries no
+  // row for them (exactly like a holiday) and stays byte-identical to the file before #1082.
+  datevFreistellungNr               Int?
   // Issue #256 (Befund 3) — the BeraterNr/MandantenNr pair of the DATEV [Allgemein] header.
   // Nullable ON PURPOSE: there is no sensible default, and the hardcoded `0` this replaces
   // is precisely the unusable placeholder that made the file unassignable to a client.

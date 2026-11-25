@@ -6,7 +6,7 @@
 
   Before a month that is not closed is exported, a warning says so (advisory: the API decides, the button stays
   usable). „Letzte Exporte“ lists the company's recent `EXPORT` audit rows in German words (only with
-  `audit-log:read`). The DATEV numbers (Berater-, Mandantennummer and the four Lohnarten) are NOT set here any
+  `audit-log:read`). The DATEV numbers (Berater-, Mandantennummer and the Lohnarten) are NOT set here any
   more (Issue #951): they live under Verwalten › System › Integrationen › DATEV (registry section
   `export-datev-einrichtung`). This page only shows a hint with a link while the saved Berater- or
   Mandantennummer is missing, and never writes a setting.

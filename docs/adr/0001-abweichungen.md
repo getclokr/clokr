@@ -8334,7 +8334,7 @@ Betriebsurlaub einstellbar und ist standardmäßig an; ein Betriebsurlaub ist or
   korrigiert über `/correct`.
 - Eine nachträgliche Änderung des Eintrittsdatums bucht nicht neu (nicht „Anlegen“); das Bestandsskript zeigt die Lücke.
 - Schlägt die Buchung einer Neueinstellung fehl, wird sie nur geloggt; das Bestandsskript listet sie als `MISSING`.
-- Keine DATEV-Lohnart für bezahlte Freistellung (Owner-Frage, ob die Lohnabrechnung eine braucht).
+- Keine DATEV-Lohnart für bezahlte Freistellung (Owner-Frage, ob die Lohnabrechnung eine braucht). Aufgelöst durch den Nachtrag Issue #1082 unten.
 - Latent, nicht geändert: Andere Abwesenheitscodes außer Berufsschule (`OTHER`, `MATERNITY`, `PARENTAL`) über einem Berufsschultag
   senken die Sollzeit doppelt. Die Regel für `COMPANY_SHUTDOWN` ist code-spezifisch, weil dieselbe Änderung für die anderen Codes
   gespeicherte Werte bestehender Zeilen bewegen würde.
@@ -8353,3 +8353,44 @@ Betriebsurlaub weiter abgeleitet (Zeilen vom Typ `COMPANY_SHUTDOWN` werden dort 
 code-spezifische Regel im Saldo-Kern (Berufsschule hat Vorrang), kein neuer Eingang. Unterbau: keine Unterbau-Änderung — die
 Mitarbeiter-Routen rufen eine Dekoration, kein Modell und kein Export ändert sich. Kompositionsschicht: `app.ts` registriert die
 Dekoration, `PeriodAbsencesCsvCode` schließt den Code aus, keine Regel.
+
+### Nachtrag Issue #1082 — einstellbare DATEV-Lohnart „Bezahlte Freistellung“ (Owner-Entscheidung 25.11.2026)
+
+Die bekannte Grenze „Keine DATEV-Lohnart für bezahlte Freistellung“ ist mit diesem Nachtrag aufgelöst (der alte Punkt bleibt oben
+stehen). Ein Mandant mit stundenweise bezahltem Personal kann eine Lohnart eintragen; mit ihr steht die bezahlte Freistellung
+eines Betriebsurlaubs in der DATEV-LODAS-Datei und im Monatsexport. Ohne sie ändert sich nichts.
+
+- **Unterbau-Erweiterung (D-01).** `TenantConfig.datevFreistellungNr Int?` (nullable, ohne Default, hinter `datevSonderurlaubNr`),
+  eine additive Migration (`20261125165652_tenant_config_datev_freistellung`: eine nullable Spalte). Kein bestehender Leser ändert
+  sich; die Änderung ist eine Erweiterung, kein Owner-Entscheid nötig. Die Änderung läuft über das bestehende `PUT /settings/work`
+  mit dem #285-Diff-Audit (`UPDATE TenantConfig`, alt und neu, Label „DATEV-Lohnart Bezahlte Freistellung“); Zod: Ganzzahl 1-9999
+  oder `null`.
+- **Einheit: Tage (D-02).** Die Freistellung ist eine Tage-Zeile (Satz 21) wie jede andere bezahlte Abwesenheit der Datei, auch
+  Krank, das demselben Lohnausfallprinzip folgt. Stunden würden die einzige Abwesenheit in anderer Einheit erzeugen, ein zweites
+  Soll im Kompositionslayer verlangen (das Soll hat eine Quelle, den Saldo-Kern) und bei abgeschlossenen Monaten fehlen, weil der
+  Snapshot keine Minuten je Abwesenheitscode speichert. Braucht ein Lohnbüro Stunden, ist das eine Folgefrage an den Owner (der
+  Saldo-Kern müsste Freistellungsminuten je Person und Monat melden). Das Wort „Stunden“ im Ticket ist als „die bezahlte
+  Freistellung“ gelesen.
+- **Was zählt (D-03).** Ein Kalendertag einer aktiven `COMPANY_SHUTDOWN`-Abwesenheit der Person im Exportmonat, den keine andere
+  Zeile bezahlt: nicht ein wirksamer Urlaubsantrag (`EFFECTIVE_LEAVE_STATUSES`, jeder Code, auch Krank, auch halbe Tage), nicht
+  eine andere aktive Abwesenheit (Berufsschule zuerst), nicht ein abgeschlossener gültiger Arbeitszeiteintrag. Die Resttage
+  bewertet `resolveLeaveDays` (`mode: "isolated"`) je zusammenhängendem Lauf mit den Feiertagen des Arbeitsorts (§ 2 EFZG):
+  Vertragsarbeitstage, kein Feiertag, Schichtvertrag nach Vertragstagen. Ein offener (PENDING) Urlaubsantrag hält den Tag nicht, wie
+  im Soll. Clokr speichert keine Entgeltart; die Zeile gilt für jede Person mit Freistellungstagen.
+- **Eine Quelle (D-04).** `paidReleaseDaysByEmployee` in `contexts/absence/leave-days.ts` (bewusst keine neue Datei: `leave-days.ts`
+  gehört schon zum gemessenen Importzyklus, der Deckel bleibt 22; ein neues, aus `index.ts` exportiertes Modul würde ihn heben,
+  Vorbild der Carryover-Warnung 22 → 24). Die Kompositionsschicht ruft es nur über `contexts/absence/index.ts`, `datevPersonFigures`
+  trägt die Zahl (`paidReleaseDays`); DATEV-Zeile und PDF-Zelle lesen denselben Wert.
+- **Zeile und Monatsexport (D-05, D-06).** Nach den neun Tage-Zeilen einer Person, nur mit eingetragener Lohnart und Anzahl > 0
+  (#304: keine Nullzeilen); beide DATEV-Routen. Ohne Nummer ist die Datei byte-gleich (Beweis im Test). Der Monatsexport hat die
+  optionale Spalte „Freistellung“ mit Legende, unabhängig von der Einstellung.
+- **Einstellung (D-07 bis D-09).** Verwalten › System › Integrationen › DATEV bei den anderen Lohnarten (Registerabschnitt
+  `export-datev-einrichtung`); keine Eindeutigkeitsprüfung gegen die anderen Nummern, die Nummerierung gehört dem Lohnbüro.
+- **Revisionssicherheit (D-10, D-11).** Nur Lesen; keine Buchung, kein Eintrag, keine Abwesenheit und kein Snapshot wird
+  geschrieben; ein abgeschlossener Monat exportiert dieselben Tage. Unverändert: Periodenbericht und seine CSV, `/reports/monthly`,
+  Stundennachweis, jeder Saldo-Pfad, das Buchungsmodul.
+
+**Auswirkung auf die Kontexte.** Zeiterfassung: keine (gelesen über die T1-Fassade `getValidWorkedEntriesInRange`).
+Abwesenheiten: eine neue Lesefunktion `paidReleaseDaysByEmployee`, keine Schreibpfade, kein neuer Code. Schichtplanung: keine.
+Arbeitszeitkonto: keine (die Sollentlastung eines Freistellungstags bleibt im Saldo-Kern). Unterbau: das Feld
+`TenantConfig.datevFreistellungNr` (Erweiterung). Kompositionsschicht: DATEV-Export (beide Routen) und Monatsexport.

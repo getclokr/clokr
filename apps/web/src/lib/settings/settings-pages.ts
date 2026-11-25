@@ -615,6 +615,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
       "datevUrlaubNr",
       "datevKrankNr",
       "datevSonderurlaubNr",
+      "datevFreistellungNr",
       "datevBeraterNr",
       "datevMandantenNr",
     ],

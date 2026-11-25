@@ -60,6 +60,7 @@ import {
   healEntitlementUsedDays, // Issue #445 (D-10) — injected into selfHealUsedDays's ctx below
   EFFECTIVE_LEAVE_STATUSES, // Issue #446 (D-01/D-04)
   leaveDaysByCodeWithin, // Issue #451 (D-01) — the DATEV export's VACATION Lohnart line
+  paidReleaseDaysByEmployee, // Issue #1082 (D-04) — the DATEV row and the Monatsexport column of the paid release days
   type LeaveDaysForCode, // Issue #451 (D-01)
   sickLeaveDayCounts, // Issue #84 (D-14) — the one sick-day / § 9 counting rule
   type SickDaysByCode, // Issue #713 (D-02) — the kernel's per-code split
@@ -479,6 +480,12 @@ type DatevPersonFigures = {
   unpaidDays: number;
   maternityDays: number;
   parentalDays: number;
+  /**
+   * Issue #1082: paid release days of a Betriebsurlaub (COMPANY_SHUTDOWN days no other line pays),
+   * read from the absence context's `paidReleaseDaysByEmployee`, never counted here. The DATEV row
+   * (only with a configured Lohnart) and the Monatsexport column print this one figure.
+   */
+  paidReleaseDays: number;
 };
 
 function datevPersonFigures(
@@ -488,6 +495,8 @@ function datevPersonFigures(
     lastDay: Date;
     section9ByEmp?: Map<string, Array<{ creditedStart: Date; creditedEnd: Date }>>;
     leaveDaysByEmployee: Map<string, Map<LeaveTypeCode, LeaveDaysForCode>>;
+    // Issue #1082 (D-04): required, like leaveDaysByEmployee - every caller prefetches it.
+    paidReleaseDaysByEmployee: Map<string, number>;
   },
 ): DatevPersonFigures {
   // Working hours
@@ -600,6 +609,7 @@ function datevPersonFigures(
     unpaidDays,
     maternityDays,
     parentalDays,
+    paidReleaseDays: ctx.paidReleaseDaysByEmployee.get(emp.id) ?? 0,
   };
 }
 
@@ -612,7 +622,15 @@ function buildDatevLodas(params: {
   month: number;
   firstDay: Date;
   lastDay: Date;
-  lna: { normal: number; urlaub: number; krank: number; sonderurlaub: number };
+  // Issue #1082: `freistellung` is the optional Lohnart of the paid release days (null = not
+  // configured, no row - the file is then byte-identical to the one before #1082).
+  lna: {
+    normal: number;
+    urlaub: number;
+    krank: number;
+    sonderurlaub: number;
+    freistellung: number | null;
+  };
   // Issue #256 (Befund 3): the BeraterNr/MandantenNr pair of the [Allgemein] header.
   // Required, not optional: a `0` here is what made the file unassignable to a Mandant,
   // so the caller has to have resolved a real pair before it gets this far.
@@ -629,6 +647,9 @@ function buildDatevLodas(params: {
   // batch read of Berufsschultage at all (the module-private async helper that used to supply it
   // is gone).
   leaveDaysByEmployee: Map<string, Map<LeaveTypeCode, LeaveDaysForCode>>;
+  // Issue #1082 (D-04): the paid release days per person, bulk-fetched by the caller via
+  // fetchPaidReleaseDaysByEmployeeForDatev (the absence context's own count).
+  paidReleaseDaysByEmployee: Map<string, number>;
 }): Buffer {
   const {
     employees,
@@ -640,6 +661,7 @@ function buildDatevLodas(params: {
     kanzlei,
     section9ByEmp,
     leaveDaysByEmployee,
+    paidReleaseDaysByEmployee,
   } = params;
   const CRLF = "\r\n";
   const lines: string[] = [];
@@ -672,6 +694,7 @@ function buildDatevLodas(params: {
       lastDay,
       section9ByEmp,
       leaveDaysByEmployee,
+      paidReleaseDaysByEmployee,
     });
     const workedHours = figures.workedMinutes / 60;
 
@@ -690,6 +713,11 @@ function buildDatevLodas(params: {
     ];
     for (const [lohnart, days] of dayBookings) {
       if (days > 0) lines.push(tageLine(pn, lohnart, days));
+    }
+    // Issue #1082 (D-05): the optional row of the paid release days - only with a configured Lohnart
+    // and a count (no zero rows, #304); without the number the file is unchanged.
+    if (lna.freistellung !== null && figures.paidReleaseDays > 0) {
+      lines.push(tageLine(pn, lna.freistellung, figures.paidReleaseDays));
     }
   }
 
@@ -829,6 +857,25 @@ async function fetchLeaveDaysByEmployeeForDatev(
   return result;
 }
 
+// Issue #1082 (D-04): the paid release days of the exported month per person - the absence
+// context's own count (`paidReleaseDaysByEmployee`), never a calendar walk here. Same UTC-midnight
+// calendar-day bounds as fetchLeaveDaysByEmployeeForDatev (#451): the `@db.Date` columns it reads
+// would shift by one day with a tenant-tz instant.
+async function fetchPaidReleaseDaysByEmployeeForDatev(
+  app: FastifyInstance,
+  tenantId: string,
+  employees: Array<{ id: string }>,
+  year: number,
+  month: number,
+): Promise<Map<string, number>> {
+  return paidReleaseDaysByEmployee(app.prisma, {
+    tenantId,
+    employeeIds: employees.map((e) => e.id),
+    from: new Date(Date.UTC(year, month - 1, 1)),
+    to: new Date(Date.UTC(year, month, 0)),
+  });
+}
+
 // ── loadDatevMonth / selectMonthlyExportPersons (Issue #617) ──────────────────
 // The ONE spelling of the DATEV population and of the inputs of the per-person figures: who counts
 // (`employedInPeriodWhere`, the employment core WITHOUT the anonymisation clause - § 41 EStG keeps the
@@ -927,7 +974,26 @@ async function loadDatevMonth(
     y,
     m,
   );
-  return { tz, start, end, firstDay, lastDay, employees, section9ByEmp, leaveDaysByEmployee };
+  // Issue #1082 (D-04): the paid release days, from the same loader so DATEV and the Monatsexport
+  // read one map.
+  const paidReleaseDaysByEmployeeMap = await fetchPaidReleaseDaysByEmployeeForDatev(
+    app,
+    req.user.tenantId,
+    employees,
+    y,
+    m,
+  );
+  return {
+    tz,
+    start,
+    end,
+    firstDay,
+    lastDay,
+    employees,
+    section9ByEmp,
+    leaveDaysByEmployee,
+    paidReleaseDaysByEmployee: paidReleaseDaysByEmployeeMap,
+  };
 }
 
 /**
@@ -1772,15 +1838,18 @@ export async function reportRoutes(app: FastifyInstance) {
         employees,
         section9ByEmp: section9ByEmpDatev,
         leaveDaysByEmployee: leaveDaysByEmployeeDatev,
+        paidReleaseDaysByEmployee: paidReleaseDaysByEmployeeDatev,
       } = await loadDatevMonth(app, req, y, m);
 
       // Read configurable Lohnartennummern from TenantConfig
-      // Lohnarten (4 konfigurierbar via TenantConfig, 6 hardcoded):
+      // Lohnarten (5 configurable via TenantConfig, one of them optional; 6 hardcoded):
       //   CONFIGURABLE:
       //     datevNormalstundenNr (default 100) = Normalstunden
       //     datevKrankNr         (default 200) = Krankheit (AU)
       //     datevUrlaubNr        (default 300) = Urlaub
       //     datevSonderurlaubNr  (default 302) = Sonderurlaub
+      //     datevFreistellungNr  (no default)  = paid release of a Betriebsurlaub (#1082);
+      //                                          null = no row for it
       //   HARDCODED:
       //     201 = Krankheit Kind         | 301 = Überstundenausgleich
       //     303 = Bildungsurlaub         | 304 = Unbezahlter Urlaub
@@ -1792,6 +1861,7 @@ export async function reportRoutes(app: FastifyInstance) {
           datevUrlaubNr: true,
           datevKrankNr: true,
           datevSonderurlaubNr: true,
+          datevFreistellungNr: true,
           datevBeraterNr: true,
           datevMandantenNr: true,
         },
@@ -1801,6 +1871,7 @@ export async function reportRoutes(app: FastifyInstance) {
         urlaub: datevConfig?.datevUrlaubNr ?? 300,
         krank: datevConfig?.datevKrankNr ?? 200,
         sonderurlaub: datevConfig?.datevSonderurlaubNr ?? 302,
+        freistellung: datevConfig?.datevFreistellungNr ?? null,
       };
 
       // Issue #256 (Befund 3): Berater- und Mandantennummer were hardcoded zeros — a file
@@ -1832,6 +1903,7 @@ export async function reportRoutes(app: FastifyInstance) {
         kanzlei,
         section9ByEmp: section9ByEmpDatev,
         leaveDaysByEmployee: leaveDaysByEmployeeDatev,
+        paidReleaseDaysByEmployee: paidReleaseDaysByEmployeeDatev,
       });
 
       // Issue #256, acceptance criterion "the export reports whom it leaves out": count
@@ -1900,6 +1972,7 @@ export async function reportRoutes(app: FastifyInstance) {
           datevUrlaubNr: true,
           datevKrankNr: true,
           datevSonderurlaubNr: true,
+          datevFreistellungNr: true,
           datevBeraterNr: true,
           datevMandantenNr: true,
         },
@@ -1909,6 +1982,7 @@ export async function reportRoutes(app: FastifyInstance) {
         urlaub: datevConfig?.datevUrlaubNr ?? 300,
         krank: datevConfig?.datevKrankNr ?? 200,
         sonderurlaub: datevConfig?.datevSonderurlaubNr ?? 302,
+        freistellung: datevConfig?.datevFreistellungNr ?? null,
       };
 
       // Issue #256 (Befund 3): Berater- und Mandantennummer were hardcoded zeros — a file
@@ -1999,6 +2073,14 @@ export async function reportRoutes(app: FastifyInstance) {
         y,
         m,
       );
+      // Issue #1082 (D-05): the same release-day source as GET /datev, for this one person.
+      const paidReleaseDaysByEmployeeDatevSingle = await fetchPaidReleaseDaysByEmployeeForDatev(
+        app,
+        req.user.tenantId,
+        [emp],
+        y,
+        m,
+      );
 
       // Issue #304: LODAS personnel numbers are numeric; never drop a person silently (§ 41 EStG).
       const invalidPnrs = datevInvalidPnrs([emp]);
@@ -2020,6 +2102,7 @@ export async function reportRoutes(app: FastifyInstance) {
         kanzlei,
         section9ByEmp: section9ByEmpDatevSingle,
         leaveDaysByEmployee: leaveDaysByEmployeeDatevSingle,
+        paidReleaseDaysByEmployee: paidReleaseDaysByEmployeeDatevSingle,
       });
 
       await app.audit({
@@ -2066,8 +2149,16 @@ export async function reportRoutes(app: FastifyInstance) {
 
       const selection = await selectMonthlyExportPersons(app, req, y, m, salonId);
       if (!selection.ok) return reply.code(404).send(SALON_VIEW_NOT_FOUND);
-      const { tz, firstDay, lastDay, employees, section9ByEmp, leaveDaysByEmployee, salon } =
-        selection;
+      const {
+        tz,
+        firstDay,
+        lastDay,
+        employees,
+        section9ByEmp,
+        leaveDaysByEmployee,
+        paidReleaseDaysByEmployee,
+        salon,
+      } = selection;
       const tenant = await app.prisma.tenant.findUnique({
         where: { id: req.user.tenantId },
         select: { name: true },
@@ -2111,6 +2202,7 @@ export async function reportRoutes(app: FastifyInstance) {
           lastDay,
           section9ByEmp,
           leaveDaysByEmployee,
+          paidReleaseDaysByEmployee,
         });
         rows.push({
           employeeName: `${emp.lastName}, ${emp.firstName}`,
@@ -2132,6 +2224,7 @@ export async function reportRoutes(app: FastifyInstance) {
             unpaid: datev.unpaidDays,
             maternity: datev.maternityDays,
             parental: datev.parentalDays,
+            paidRelease: datev.paidReleaseDays,
           },
           section9: (section9ByEmp.get(emp.id)?.length ?? 0) > 0,
           vacation: (() => {

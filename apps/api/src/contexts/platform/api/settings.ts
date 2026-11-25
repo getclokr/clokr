@@ -245,6 +245,9 @@ const tenantConfigSchema = z
     datevUrlaubNr: z.number().int().min(1).max(9999).optional(),
     datevKrankNr: z.number().int().min(1).max(9999).optional(),
     datevSonderurlaubNr: z.number().int().min(1).max(9999).optional(),
+    // Issue #1082 - the optional Lohnart of the paid release days of a Betriebsurlaub. Nullable like
+    // the Berater pair: the form sends null for a cleared field, and null means "no DATEV row".
+    datevFreistellungNr: z.number().int().min(1).max(9999).nullable().optional(),
     // Issue #256 (Befund 3) — the BeraterNr/MandantenNr pair of the DATEV [Allgemein] header.
     // `.nullable()` as well as `.optional()`: the Clokr admin forms send `x ? x : null`
     // and a cleared number input yields null via Svelte's bind:value — with `.optional()`
@@ -793,6 +796,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         datevUrlaubNr: 300,
         datevKrankNr: 200,
         datevSonderurlaubNr: 302,
+        datevFreistellungNr: null, // Issue #1082: no default, null = no DATEV row
         // Issue #256 (Befund 3): no default — an unset Berater-/Mandantennummer must stay
         // visibly unset so the export can refuse, not silently become a usable-looking 0.
         datevBeraterNr: null,

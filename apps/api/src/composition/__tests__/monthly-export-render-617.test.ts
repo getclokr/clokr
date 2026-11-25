@@ -62,6 +62,7 @@ const NO_ABSENCE = {
   unpaid: 0,
   maternity: 0,
   parental: 0,
+  paidRelease: 0,
 };
 
 const VACATION: MonthlyExportVacation = {
@@ -262,6 +263,7 @@ describe("Monatsexport renderer (Issue #617)", () => {
         unpaid: 1,
         maternity: 1,
         parental: 1,
+        paidRelease: 1,
       },
     });
     // Real PDFKit metrics: the document is created and rendered without error and the table stays

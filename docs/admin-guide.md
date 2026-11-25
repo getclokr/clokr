@@ -249,6 +249,13 @@ Urlaubsberechnung selbst nutzt, statt eines eigenen Mo-Fr-Kalenderlaufs im Expor
 alle Abwesenheits-Lohnarten außer Krankheit — **Krankheitstage** werden weiterhin nach der
 eigenen, unveränderten Tagesregel exportiert.
 
+- **Bezahlte Freistellung (Issue #1082):** Trägst du unter **Verwalten › System › Integrationen › DATEV** eine Lohnart
+  „Bezahlte Freistellung“ ein, steht für jede Person mit solchen Tagen eine zusätzliche Tage-Zeile auf dieser Lohnart (beide
+  DATEV-Routen). Gezählt werden Tage eines Betriebsurlaubs, die keine andere Zeile bezahlt: kein Urlaub, keine Krankheit, keine
+  andere angeordnete Abwesenheit (zum Beispiel Berufsschule) und keine gearbeitete Zeit; Feiertage und Tage außerhalb des
+  Vertrags zählen nicht, ein Schichtvertrag zählt nach seinen Vertragstagen. Ohne Lohnart bleibt die Datei Byte für Byte
+  wie vorher. Das Monatsexport-PDF zeigt dieselbe Zahl in der Spalte „Freistellung“.
+
 ---
 
 ## Integrationen (WiFi-Präsenz)
