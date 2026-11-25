@@ -22,11 +22,11 @@
  * duration, the same convention the recording uses. Adults and persons without a birth date get
  * the break the adult rule always gave (byte-identical).
  *
- * NON-GOAL: this module does NOT rewire the Arbeitszeitkonto. Three closures there still net the
- * SHIFT_BASED roster Soll with the adult-only `getEffectiveBreakDuration` rule:
- * `close-employee-month.ts`, `month-saldo.ts` and `overtime-balance.ts`. That changes saldi and
- * touches closed months, so it is a #1011 follow-up with its own Bestand audit; the one-place gate
- * `break-amount-one-place-1011.test.ts` pins those call sites by count.
+ * The Arbeitszeitkonto nets the SHIFT_BASED roster Soll with the SAME rule: since Issue #1056 its
+ * three closures (`close-employee-month.ts`, `month-saldo.ts`, `overtime-balance.ts`) call
+ * `rosterShiftBreakMinutes`, which delegates to `breakAmountFor` with the age decided per shift date,
+ * so the Konto and the Dienstplan net one shift the same way (pinned by
+ * `roster-minor-break-1056.test.ts` and `roster-minor-break-gate-1056.test.ts`).
  *
  * ONE intentional behavioural difference from the `month-saldo.ts` closure: that closure also skips
  * shifts that fall on a leave/absence-covered date — a saldo PRORATION concern ("does this day's

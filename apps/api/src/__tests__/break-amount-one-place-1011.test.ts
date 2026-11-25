@@ -15,10 +15,10 @@
  *    on the adult break for adults. A minor is capped by § 8 / § 12 JArbSchG in
  *    `scheduling/minor-shift-limits.ts`, which nets through `shiftNettoMinutes` / `breakAmountFor`
  *    (Issue #1057) and runs before this check.
- *  - `working-time-account/month-saldo.ts`, `overtime-balance.ts` x1 each: the SHIFT_BASED roster
- *    Soll of the open month and the live saldo still nets with the adult break (remaining Arbeitszeitkonto
- *    closures). `close-employee-month.ts` no longer appears here: since Issue #1056 it nets the roster
- *    through `rosterShiftBreakMinutes` -> `breakAmountFor` (this entry was REMOVED, which tightens the gate).
+ *  - The three Arbeitszeitkonto closures (`close-employee-month.ts`, `month-saldo.ts`,
+ *    `overtime-balance.ts`) are NOT listed: since Issue #1056 the SHIFT_BASED roster Soll goes through
+ *    `rosterShiftBreakMinutes` -> `breakAmountFor`, pinned by `roster-minor-break-gate-1056.test.ts`.
+ *    Their entries were REMOVED, which tightens this gate.
  *
  * A new direct call anywhere else fails here: route it through `breakAmountFor`, or — if it is a
  * deliberate, reasoned exception — extend `EXPECTED` with its reason.
@@ -49,14 +49,6 @@ const EXPECTED: Record<string, { count: number; reason: string }> = {
     count: 2,
     reason:
       "§ 3 ArbZG daily max of POST/PUT /shifts for adults; minors are capped by § 8/§ 12 JArbSchG in minor-shift-limits.ts through breakAmountFor (Issue #1057)",
-  },
-  "apps/api/src/contexts/working-time-account/month-saldo.ts": {
-    count: 1,
-    reason: "SHIFT_BASED roster Soll, adult break; #1011 follow-up with its own Bestand audit",
-  },
-  "apps/api/src/contexts/working-time-account/overtime-balance.ts": {
-    count: 1,
-    reason: "SHIFT_BASED roster Soll, adult break; #1011 follow-up with its own Bestand audit",
   },
 };
 

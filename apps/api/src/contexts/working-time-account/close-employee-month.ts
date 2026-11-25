@@ -1495,6 +1495,7 @@ export async function computeWeekProgress(
       isTimeTrackingExempt: true,
       breakOver6hOverride: true,
       breakOver9hOverride: true,
+      birthDate: true, // Issue #1056 — week Soll nets a minor's roster with the § 11 break
     },
   });
   if (!employee || employee.isTimeTrackingExempt) return null;
@@ -1636,6 +1637,7 @@ export async function computeWeekProgress(
       isTimeTrackingExempt: false as const,
       breakOver6hOverride: employee.breakOver6hOverride ?? null,
       breakOver9hOverride: employee.breakOver9hOverride ?? null,
+      birthDate: employee.birthDate ?? null, // Issue #1056
       shifts: pieceShifts,
       approvedLeave: approvedLeaveInput,
       absences: absencesInput,

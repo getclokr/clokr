@@ -4,7 +4,8 @@
  * Issue #1011 — the ONE break-amount rule: which break regime a work day is under and how many
  * minutes it prescribes. The recording's automatic break (`planAutoBreak`) and the roster's planned
  * netto (`scheduling/shift-netto.ts`) both call it, so a planned shift and the recording of the same
- * times can never disagree on the break.
+ * times can never disagree on the break. Since Issue #1056 the Arbeitszeitkonto's SHIFT_BASED roster
+ * Soll is the third caller, through `rosterShiftBreakMinutes` (`working-time-account/close-employee-month.ts`).
  *
  * Regime = § 11 JArbSchG for a person under 18 on the work date (§ 18 Abs. 2 ArbZG), else § 4 ArbZG.
  * Amount = the configured break (employee override, else tenant default) raised to the § 11 minimum

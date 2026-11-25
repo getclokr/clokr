@@ -49,9 +49,9 @@ import {
   closeEmployeeMonth,
   toCloseMonthApprovedLeave,
   monthlyHoursMonthSollMinutes, // Issue #433 (D-11)
+  rosterShiftBreakMinutes, // Issue #1056 — the one roster-break rule of the Arbeitszeitkonto
 } from "./close-employee-month";
 import {
-  getEffectiveBreakDuration,
   addWorkingMinutes, // Phase 79 (Issue #79), D-12 — fold step
 } from "../time-tracking";
 
@@ -723,6 +723,7 @@ export async function computeMonthSaldo(
     isTimeTrackingExempt: false as const,
     breakOver6hOverride: employee.breakOver6hOverride ?? null,
     breakOver9hOverride: employee.breakOver9hOverride ?? null,
+    birthDate: employee.birthDate ?? null, // Issue #1056 — § 11 JArbSchG roster break; never echoed
     entries: closeEntries.map((e) => ({
       date: e.date,
       startTime: e.startTime,
@@ -802,6 +803,7 @@ export async function computeMonthSaldo(
   const employeeBreakShape = {
     breakOver6hOverride: employee.breakOver6hOverride ?? null,
     breakOver9hOverride: employee.breakOver9hOverride ?? null,
+    birthDate: employee.birthDate ?? null, // Issue #1056
   };
   const tenantBreakShape = {
     defaultBreakOver6h: tenantConfig?.defaultBreakOver6h ?? 30,
@@ -867,7 +869,12 @@ export async function computeMonthSaldo(
           let brutto = hmToMin(sh.endTime) - hmToMin(sh.startTime);
           if (brutto < 0) brutto += 24 * 60;
           if (brutto <= 0) continue;
-          const breakMin = getEffectiveBreakDuration(employeeBreakShape, tenantBreakShape, brutto);
+          const breakMin = rosterShiftBreakMinutes(
+            employeeBreakShape,
+            tenantBreakShape,
+            brutto,
+            sh.date,
+          );
           total += Math.max(0, brutto - breakMin);
         }
         return total;

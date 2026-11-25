@@ -435,6 +435,7 @@ export async function main(app: FastifyInstance, opts: BackfillOptions): Promise
               isTimeTrackingExempt: false,
               breakOver6hOverride: emp.breakOver6hOverride ?? null,
               breakOver9hOverride: emp.breakOver9hOverride ?? null,
+              birthDate: emp.birthDate ?? null, // Issue #1056 — parity with the regular close (D-10)
               entries: entries.map((e) => ({
                 date: e.date,
                 startTime: e.startTime,
@@ -532,6 +533,7 @@ export async function main(app: FastifyInstance, opts: BackfillOptions): Promise
                 isTimeTrackingExempt: false,
                 breakOver6hOverride: emp.breakOver6hOverride ?? null,
                 breakOver9hOverride: emp.breakOver9hOverride ?? null,
+                birthDate: emp.birthDate ?? null, // Issue #1056 — parity with the regular close (D-10)
                 entries: entries.map((e) => ({
                   date: e.date,
                   startTime: e.startTime,
