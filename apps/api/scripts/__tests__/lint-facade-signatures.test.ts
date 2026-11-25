@@ -517,7 +517,7 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
   // facade (`contexts/time-tracking/facade/time-entries.ts`, retention archive of DayBreak /
   // DayBreakAck, same shape as `archiveEntriesBefore`) — passes F1/F2/F3 directly, no new
   // exception; exceptions unchanged at 17.
-  it("the real tree has exactly 163 exported facade functions today, 20 grandfathered/named exceptions, 0 unexcepted findings", () => {
+  it("the real tree has exactly 168 exported facade functions today, 20 grandfathered/named exceptions, 0 unexcepted findings", () => {
     const files = discoverFacadeFiles(REPO_ROOT);
     expect(files).toEqual(
       [
@@ -529,6 +529,7 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
         "apps/api/src/contexts/platform/facade/salon-assignment-changes.ts",
         "apps/api/src/contexts/platform/facade/holiday-resolution.ts",
         "apps/api/src/contexts/platform/facade/operator-metrics.ts",
+        "apps/api/src/contexts/platform/facade/time-entry-readers.ts",
         "apps/api/src/contexts/scheduling/facade/shifts.ts",
         "apps/api/src/contexts/scheduling/facade/availability.ts",
         "apps/api/src/contexts/scheduling/facade/couplings.ts",
@@ -621,7 +622,10 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
     // db first and tenant-scoped, passes F1/F2/F3 directly), exceptions unchanged at 20 — 161 -> 162.
     // Issue #962: +1 (`countEmployeesWithoutVacationEntitlement`, absence/facade/entitlements.ts, db first and
     // tenant-scoped, passes F1/F2/F3 directly), exceptions unchanged at 20 — 162 -> 163.
-    expect(functions).toHaveLength(163);
+    // Issue #606: new file platform/facade/time-entry-readers.ts — 3 exported (`timeEntryReaderAssignments`,
+    // `timeEntryReaderGroups`, `tenantHasActiveApiKey`) plus 2 module-private helpers the analyzer counts;
+    // db first and tenant-scoped, pass F1/F2/F3 directly, exceptions unchanged at 20 — 163 -> 168.
+    expect(functions).toHaveLength(168);
 
     const rawExceptions = JSON.parse(
       readFileSync(
