@@ -905,6 +905,16 @@ export const EXCLUDED_ROUTES: readonly RouteReason[] = [
       "behavior to compare. Same vacuous-satisfaction reasoning as the clock-state entry above.",
   },
   {
+    route: "GET /api/v1/appointment-hints",
+    reason:
+      "New route added for Issue #604, long after the role guard (`requireRole`) was deleted from " +
+      "middleware/auth.ts (#75b) — built permission-gated (`time-entry:read` in either reach) from " +
+      "its very first commit, answers only the caller's own person (no employee parameter) and " +
+      "never had role-based access behavior to compare. Same vacuous-satisfaction reasoning as the " +
+      "entries around it: RECORD/MERGE mode refuses to run once the role guard is gone. Proven by " +
+      "`appointment-hints-604.test.ts`.",
+  },
+  {
     route: "GET /api/v1/leave/entitlements/missing-count",
     reason:
       "New route added for Issue #962, long after the role guard (`requireRole`) was deleted from " +

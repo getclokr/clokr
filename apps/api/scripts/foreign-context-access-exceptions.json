@@ -18,7 +18,9 @@
     "parentalLeaveReduction",
     "dayBreak",
     "dayBreakAck",
-    "timeEntryActivityShare"
+    "timeEntryActivityShare",
+    "phorestAppointment",
+    "appointmentHintDismissal"
   ],
   "exceptions": [
     {

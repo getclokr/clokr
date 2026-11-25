@@ -36,6 +36,9 @@ export {
   clearSchedulingNotesForEmployee,
 } from "./facade/shifts";
 export { getEmployeeAvailability } from "./facade/availability";
+// Issue #604 — the latest appointment end per person and day, for Zeiterfassung's appointment hint.
+export { getAppointmentDayEnds } from "./facade/appointments";
+export type { AppointmentDayEnd } from "./facade/appointments";
 // Phase 89 (#89, D-12a) — the coupling rules for other contexts (operator composition port).
 export {
   listSalonCouplings,

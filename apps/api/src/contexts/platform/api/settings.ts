@@ -378,6 +378,9 @@ const tenantConfigSchema = z
     // (days with no time entry on scheduled workdays). When false, the
     // Monatsabschluss is blocked until all gaps are resolved.
     closeMonthWithGapsAllowed: z.boolean().optional(),
+    // Issue #604 — the tenant switch of the appointment hint ("Termin ohne erfasste Zeit"). Off by
+    // default (Art. 25 Abs. 2 DSGVO); read only through contexts/time-tracking/appointment-hints.ts.
+    appointmentTimeHintsEnabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     // Half-null guard: defaultCoreStart and defaultCoreEnd must be set together or both absent
@@ -821,6 +824,8 @@ export async function settingsRoutes(app: FastifyInstance) {
         // hint can show "leer = Firmenstandard (X Min.)".
         phorestPrepMinutes: 0,
         phorestWrapupMinutes: 0,
+        // Issue #604 — the appointment hint is off until the tenant switches it on.
+        appointmentTimeHintsEnabled: false,
       };
 
       return {
