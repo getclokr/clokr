@@ -6,6 +6,7 @@
 // The server stays the authority (the Zod schema of `/company-shutdowns`, the overlap refusal and the booking
 // itself); the checks here only save a round trip.
 
+import { SCOPE_TENANT_LABEL } from "$lib/roles/assignment-label";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { countWord, personsLabel } from "../utils/count-word";
@@ -204,8 +205,8 @@ export function createShutdownBody(
 
 // ── Scope (Issue #1079) ───────────────────────────────────────────────────────────────────────────
 
-/** The label of the scope „Ganzes Unternehmen“. */
-export const WHOLE_COMPANY_LABEL = "Ganzes Unternehmen";
+/** The label of the whole-Unternehmen scope: the one wording of `lib/roles/assignment-label.ts` (#580). */
+export const WHOLE_COMPANY_LABEL = SCOPE_TENANT_LABEL;
 
 /** The scope control's state: the whole Unternehmen, or a choice of salons. */
 export type ScopeSelection = { mode: "ALL" | "SALONS"; salonIds: string[] };
@@ -215,7 +216,7 @@ export function shutdownSalonLabel(salon: Pick<ShutdownSalon, "name" | "isActive
   return salon.isActive ? salon.name : `${salon.name} (deaktiviert)`;
 }
 
-/** What the „Gilt für“ column shows: „Ganzes Unternehmen“ for no salons, else the salon names. */
+/** What the „Gilt für“ column shows: the whole-Unternehmen label for no salons, else the salon names. */
 export function shutdownScopeLabel(salons: readonly ShutdownSalon[]): string {
   return salons.length === 0 ? WHOLE_COMPANY_LABEL : salons.map(shutdownSalonLabel).join(", ");
 }
@@ -229,7 +230,7 @@ export function isScopeFixed(scope: ShutdownScope): boolean {
 }
 
 /**
- * The control's initial state for a NEW Betriebsurlaub: a whole-tenant caller starts with „Ganzes Unternehmen“;
+ * The control's initial state for a NEW Betriebsurlaub: a whole-tenant caller starts with the whole Unternehmen;
  * a scoped caller with one salon has it fixed, with several none is chosen yet.
  */
 export function initialShutdownScope(scope: ShutdownScope): ScopeSelection {
@@ -258,9 +259,9 @@ export function shutdownScopeMessage(selection: ScopeSelection): string | null {
 export function shutdownSalonIds(
   selection: ScopeSelection,
   scope: ShutdownScope,
-  isMultiSalon: boolean,
+  multiSalon: boolean,
 ): string[] | undefined {
-  if (!isMultiSalon) return scope.canManageAllSalons ? undefined : scope.salons.map((s) => s.id);
+  if (!multiSalon) return scope.canManageAllSalons ? undefined : scope.salons.map((s) => s.id);
   return selection.mode === "ALL" ? undefined : [...selection.salonIds];
 }
 

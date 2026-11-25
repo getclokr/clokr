@@ -22,7 +22,7 @@
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features";
-  import { salonContext } from "$stores/salon-context";
+  import { salonContext, shutdownScopeApplies } from "$stores/salon-context";
   import { tenantYear } from "$lib/utils/tenant-day";
   import Chip from "$components/ui/Chip.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
@@ -63,7 +63,7 @@
   let { active }: Props = $props();
 
   // The scope column only exists in a Unternehmen with several salons (#64).
-  const multiSalon = $derived($salonContext.isMultiSalon);
+  const multiSalon = $derived(shutdownScopeApplies($salonContext));
   const columns = $derived<DataTableColumn[]>([
     { key: "name", label: "Bezeichnung", primary: true },
     { key: "period", label: "Zeitraum" },

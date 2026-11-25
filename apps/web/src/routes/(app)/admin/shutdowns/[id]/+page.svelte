@@ -4,7 +4,7 @@
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
-  import { salonContext } from "$stores/salon-context";
+  import { salonContext, shutdownScopeApplies } from "$stores/salon-context";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount } from "svelte";
@@ -52,7 +52,7 @@
   let scope = $state<ShutdownScope | null>(null);
   // A row the caller's reach does not cover is shown read-only (Issue #1079).
   const readOnly = $derived(shutdown !== null && !shutdown.canManage);
-  const multiSalon = $derived($salonContext.isMultiSalon);
+  const multiSalon = $derived(shutdownScopeApplies($salonContext));
 
   const shutdownId = $derived(page.params.id);
 
