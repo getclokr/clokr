@@ -1221,8 +1221,12 @@
             ? getDayExpectedMinutes(schedule, new Date(`${targetDate}T12:00:00`))
             : 0,
         defaultBreakStart,
-        breakOver6h,
-        breakOver9h,
+        // The page's one break suggestion (a convenience default; the server re-derives the break).
+        breakMinutesFor: (gross) =>
+          suggestedBreakMinutes(
+            "00:00",
+            `${Math.floor(gross / 60)}:${String(gross % 60).padStart(2, "0")}`,
+          ),
       });
       openNew(targetDate, prefill.start, prefill.end, prefill);
       return;

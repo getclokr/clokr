@@ -29,12 +29,16 @@ function row(
   };
 }
 
+// The page injects its own break suggestion; this stand-in has the same shape (tenant durations 30/45).
+function breaksOf(over6h: number, over9h: number) {
+  return (gross: number) => (gross <= 360 ? 0 : gross <= 540 ? over6h : over9h);
+}
+
 const BASE = {
   entries: [] as PrefillEntryRow[],
   dayContractMinutes: 0,
   defaultBreakStart: null as string | null,
-  breakOver6h: 30,
-  breakOver9h: 45,
+  breakMinutesFor: breaksOf(30, 45),
 };
 
 // 2026-11-12 is a Thursday; 10.11. and 17.11. are Tuesdays, 11.11. a Wednesday, 5.11. a Thursday.
@@ -139,7 +143,11 @@ describe("prefillNewEntry - the contract hours of the weekday", () => {
   });
 
   it("uses the tenant's break durations", () => {
-    const got = prefillNewEntry(TARGET, { ...BASE, dayContractMinutes: 480, breakOver6h: 45 });
+    const got = prefillNewEntry(TARGET, {
+      ...BASE,
+      dayContractMinutes: 480,
+      breakMinutesFor: breaksOf(45, 45),
+    });
     expect(got.end).toBe("17:45");
   });
 

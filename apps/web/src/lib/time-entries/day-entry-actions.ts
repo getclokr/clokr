@@ -166,8 +166,13 @@ export interface PrefillNewEntryInput {
   dayContractMinutes: number;
   /** The tenant's default break start (`HH:mm`), `null` when it has none. */
   defaultBreakStart: string | null;
-  breakOver6h: number;
-  breakOver9h: number;
+  /**
+   * The break a stay of `grossMinutes` presence needs, from the page's own break suggestion. Injected,
+   * so this module holds no § 4 threshold: the browser has exactly one such convenience default
+   * (`suggestedBreakMinutes()` of the Zeiten page, issue #525) and the server re-derives the break
+   * on save (`arbzg-threshold-guard.test.ts`).
+   */
+  breakMinutesFor: (grossMinutes: number) => number;
 }
 
 function dayKeyOf(entry: PrefillEntryRow): string {
@@ -199,8 +204,8 @@ function placedBreak(
  * 1. The person's usual day: the latest day other than `day` in the loaded month that has exactly one
  *    entry, which is closed, valid, a plain working entry (no trip, no row of a pending Zeitnachtrag),
  *    preferring the same weekday. Start, end and breaks are copied as recorded - the person's own data.
- * 2. The contract hours of that weekday: 09:00 plus the Soll plus the required break (the tenant's
- *    over-6h / over-9h duration, the same thresholds as the break prefill). The break ROW is only
+ * 2. The contract hours of that weekday: 09:00 plus the Soll plus the break the page's break
+ *    suggestion names for that stay (`breakMinutesFor`). The break ROW is only
  *    filled when the tenant has a default break start and it lies inside the work period: a break
  *    start is never invented (Phase 93, BREAK-07).
  * 3. 09:00-17:00, as before, with the same break rule.
@@ -245,9 +250,9 @@ export function prefillNewEntry(day: string, input: PrefillNewEntryInput): Prefi
     };
   }
 
-  const { dayContractMinutes: minutes, defaultBreakStart, breakOver6h, breakOver9h } = input;
+  const { dayContractMinutes: minutes, defaultBreakStart, breakMinutesFor } = input;
   if (minutes > 0) {
-    const breakMinutes = minutes > 540 ? breakOver9h : minutes > 360 ? breakOver6h : 0;
+    const breakMinutes = breakMinutesFor(minutes);
     const start = DEFAULT_START;
     const end = hhmmOf(Math.min(minutesOf(start) + minutes + breakMinutes, minutesOf(LATEST_END)));
     return {
@@ -258,11 +263,16 @@ export function prefillNewEntry(day: string, input: PrefillNewEntryInput): Prefi
     };
   }
 
-  // The plain default: gross 8 h, so the over-6h duration applies, exactly the former prefill.
+  // The plain default, exactly the former prefill: the break for the gross stay of 09:00-17:00.
   return {
     start: DEFAULT_START,
     end: DEFAULT_END,
-    breaks: placedBreak(defaultBreakStart, breakOver6h, DEFAULT_START, DEFAULT_END),
+    breaks: placedBreak(
+      defaultBreakStart,
+      breakMinutesFor(minutesOf(DEFAULT_END) - minutesOf(DEFAULT_START)),
+      DEFAULT_START,
+      DEFAULT_END,
+    ),
     source: { kind: "default" },
   };
 }
