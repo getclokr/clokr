@@ -1,34 +1,66 @@
 #!/usr/bin/env node
 /**
- * capture-screenshots.mjs — standalone showcase-screenshot capturer for the Clokr web app.
+ * capture-screenshots.mjs — standalone screenshot capturer for the Clokr web app.
  *
- * Drives the running *dev stack* with a real Chromium (the one bundled with the repo's
- * already-installed @playwright/test) and produces two output sets:
+ * Drives a running Clokr web server with a real Chromium (the one bundled with the repo's
+ * already-installed @playwright/test) and produces up to three output sets, chosen with the
+ * repeatable `--set <name>` flag (no flag = `design` + `readme`, as before):
  *
- *   1. The full 31-page design set  → OUT_DIR  (default docs/design/screenshots)
- *      Full-page PNG. Desktop 1440x900; the two mobile shots at 390x844;
- *      29-dashboard-dark rendered with the dark mode enabled at 1440x900.
+ *   --set handbuch  The Handbuch screenshots (Issue #1064). Reads every capture note
+ *                   (`<!-- SCREENSHOT file=… role=… url=… show="…" -->`) from docs/handbuch/**
+ *                   via scripts/screenshot-notes.mjs, signs in as the note's `role`, opens its
+ *                   v2 `url` at 1440 x 900 in LIGHT mode and screenshots the page's main content
+ *                   landmark (`main#main-content`, i.e. without sidebar and top bar) into
+ *                   docs/handbuch/bilder/<file name>. Pages under /login are shot logged out.
+ *   --set readme    The README hero subset → images/screenshot-*.png, 1280 x 800, full page,
+ *                   light mode, on the v2 paths (/ich/tag, /ich/zeiten, /ich/abwesenheiten,
+ *                   /team/berichte, /verwalten/personen, /ich/profil).
+ *   --set design    The legacy 31-page design set → OUT_DIR (default docs/design/screenshots,
+ *                   local-only, gitignored). Its paths are the pre-v2 routes and are kept only so
+ *                   the old flag-less invocation keeps its behaviour; use handbuch/readme for v2.
  *
- *   2. A README hero subset          → images/  (fixed name), 1280x800, full-page:
- *      screenshot-dashboard.png, screenshot-time-entries.png, screenshot-leave.png,
- *      screenshot-reports.png, screenshot-employees.png, screenshot-settings.png
+ * This is a *script*, not a Playwright test. Every capture is wrapped in try/catch: one bad route
+ * never aborts the run, and a summary is printed at the end (exit 1 only if nothing was captured).
  *
- * This is a *script*, not a Playwright test. Run it manually against a seeded dev stack:
+ * ── Usage: capturing the Handbuch + README screenshots (checkpoint CP-1 of #1064) ─────
  *
- *   ADMIN_EMAIL=... ADMIN_PASSWORD=... EMP_EMAIL=... EMP_PASSWORD=... \
- *     node scripts/capture-screenshots.mjs
+ * Use a throwaway stack with ONLY fictional demo data — never the dev database. The rich demo
+ * tenant (10 invented people in two salons, filled roster, open leave requests, break findings)
+ * comes from packages/db/src/seed-demo.ts, NOT from `SEED_DEMO_DATA=true` (that variable runs the
+ * minimal seed.ts: one admin and one employee, nothing to show on most pages). The two seeds are
+ * mutually exclusive (both create tenant slug "demo-clokr"), so start the stack WITHOUT
+ * SEED_DEMO_DATA and seed the rich tenant into its (tmpfs) database:
  *
- * Every capture is wrapped in try/catch: one bad route never aborts the run, and a
- * summary is printed at the end.
+ *   docker compose -f docker-compose.test.yml up --build --wait        # web :3001, api :4001, db :5433
+ *   DATABASE_URL="postgresql://clokr:clokr@localhost:5433/clokr_test" \
+ *     pnpm --filter @clokr/db exec tsx src/seed-demo.ts                  # prints the logins
+ *
+ *   BASE_URL=http://localhost:3001 \
+ *   ADMIN_EMAIL=admin@clokr.de ADMIN_PASSWORD=demo1234 \
+ *   MANAGER_EMAIL=lena.vogel@demo.clokr.de MANAGER_PASSWORD=demo1234 \
+ *   EMP_EMAIL=aylin.kaya@demo.clokr.de EMP_PASSWORD=demo1234 \
+ *     node scripts/capture-screenshots.mjs --set handbuch --set readme
+ *
+ *   docker compose -f docker-compose.test.yml down -v
+ *
+ * Personas (packages/db/src/seed-demo.ts; every user shares the seed's one demo password, printed
+ * by the seed when it finishes): admin@clokr.de = Admin, lena.vogel@ / jonas.berg@demo.clokr.de =
+ * Manager, aylin.kaya@demo.clokr.de = Mitarbeiterin (SHIFT_BASED, so „Ich › Dienstplan“ shows
+ * shifts). With the minimal seed instead: admin@clokr.de / max@clokr.de use the passwords of
+ * packages/db/src/seed-credentials.ts and the pages stay mostly empty.
+ * Output: docs/handbuch/bilder/*.png and images/screenshot-*.png. Review every PNG for personal
+ * data before committing (only fictional demo persons, no non-demo e-mail address).
  *
  * ── Config (all via env vars, with defaults) ────────────────────────────────────────
- *   BASE_URL        default http://localhost:3000   (dev web server)
- *   ADMIN_EMAIL     default admin@clokr.de
- *   ADMIN_PASSWORD  default admin1234
- *   EMP_EMAIL       default (falls back to ADMIN_EMAIL if unset — see resolveCreds)
- *   EMP_PASSWORD    default (falls back to ADMIN_PASSWORD if unset)
- *   OUT_DIR         default docs/design/screenshots
- *   HEADLESS        default true  (set HEADLESS=false to watch it run)
+ *   BASE_URL          default http://localhost:3000   (dev web server; the test stack is :3001)
+ *   ADMIN_EMAIL       default admin@clokr.de
+ *   ADMIN_PASSWORD    default admin1234               (the minimal seed's password)
+ *   MANAGER_EMAIL     default: falls back to ADMIN_EMAIL (Admin has the team reach too)
+ *   MANAGER_PASSWORD  default: falls back to ADMIN_PASSWORD
+ *   EMP_EMAIL         default: falls back to ADMIN_EMAIL (a warning says so — the shots then
+ *   EMP_PASSWORD      default: falls back to ADMIN_PASSWORD  show the admin's start pages)
+ *   OUT_DIR           default docs/design/screenshots (design set only)
+ *   HEADLESS          default true  (set HEADLESS=false to watch it run)
  *
  * NOTE: credentials are NEVER hardcoded to anything real — the demo creds are supplied
  * at runtime. The defaults above are the repo's generic test values.
@@ -38,6 +70,8 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import { mkdirSync } from "node:fs";
+
+import { collectHandbuchNotes, validateNotes } from "./screenshot-notes.mjs";
 
 // ── Resolve @playwright/test even though it lives in apps/e2e/node_modules ────────────
 // This script sits at repo-root/scripts and is run with a bare `node`, so a plain
@@ -75,6 +109,30 @@ const OUT_DIR = process.env.OUT_DIR || "docs/design/screenshots";
 const IMAGES_DIR = "images"; // README hero subset — fixed location & names
 const HEADLESS = process.env.HEADLESS !== "false";
 
+// ── Sets (--set <design|readme|handbuch>, repeatable) ─────────────────────────────────
+const SET_NAMES = ["design", "readme", "handbuch"];
+function parseSets(argv) {
+  const sets = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    const value = arg === "--set" ? argv[++i] : arg.startsWith("--set=") ? arg.slice(6) : null;
+    if (value === null) {
+      console.error(
+        `Unknown argument "${arg}". Usage: node scripts/capture-screenshots.mjs [--set <${SET_NAMES.join("|")}>]...`,
+      );
+      process.exit(2);
+    }
+    if (!SET_NAMES.includes(value)) {
+      console.error(`Unknown set "${value}" (expected one of ${SET_NAMES.join(", ")})`);
+      process.exit(2);
+    }
+    if (!sets.includes(value)) sets.push(value);
+  }
+  // No flag keeps the behaviour from before the flag existed: design + readme.
+  return sets.length ? sets : ["design", "readme"];
+}
+const SETS = parseSets(process.argv.slice(2));
+
 function resolveCreds() {
   const adminEmail = process.env.ADMIN_EMAIL || "admin@clokr.de";
   const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
@@ -84,7 +142,21 @@ function resolveCreds() {
   const empEmail = process.env.EMP_EMAIL || adminEmail;
   const empPassword = process.env.EMP_PASSWORD || adminPassword;
   const empIsFallback = !process.env.EMP_EMAIL;
-  return { adminEmail, adminPassword, empEmail, empPassword, empIsFallback };
+  // Manager creds fall back to admin creds: the Admin role has the team reach too, so the team
+  // pages render; a real Manager persona only changes who the shot is "signed in" as.
+  const managerEmail = process.env.MANAGER_EMAIL || adminEmail;
+  const managerPassword = process.env.MANAGER_PASSWORD || adminPassword;
+  const managerIsFallback = !process.env.MANAGER_EMAIL;
+  return {
+    adminEmail,
+    adminPassword,
+    managerEmail,
+    managerPassword,
+    managerIsFallback,
+    empEmail,
+    empPassword,
+    empIsFallback,
+  };
 }
 
 const CREDS = resolveCreds();
@@ -92,8 +164,10 @@ const CREDS = resolveCreds();
 // Absolute output dirs (script is CWD-agnostic — resolve against repo root).
 const OUT_DIR_ABS = resolve(REPO_ROOT, OUT_DIR);
 const IMAGES_DIR_ABS = resolve(REPO_ROOT, IMAGES_DIR);
-mkdirSync(OUT_DIR_ABS, { recursive: true });
-mkdirSync(IMAGES_DIR_ABS, { recursive: true });
+const DOCS_DIR_ABS = resolve(REPO_ROOT, "docs");
+const HANDBUCH_DIR_ABS = join(DOCS_DIR_ABS, "handbuch"); // note `file` is relative to this folder
+if (SETS.includes("design")) mkdirSync(OUT_DIR_ABS, { recursive: true });
+if (SETS.includes("readme")) mkdirSync(IMAGES_DIR_ABS, { recursive: true });
 
 // ── Viewports ─────────────────────────────────────────────────────────────────────────
 const VP_DESKTOP = { width: 1440, height: 900 };
@@ -160,16 +234,16 @@ const DESIGN_SHOTS = [
 ];
 
 // README hero subset. name (fixed) → path → role. All 1280x800, full-page, light mode.
-// Judgment calls: dashboard/time-entries/leave use the *employee* view (personal hero
-// surfaces look best populated with the timer card + calendar); reports/employees/settings
-// use *admin* (team-wide / admin-only screens are richer as admin).
+// v2 paths (redesign of #603): the old shot → the closest v2 page. The personal pages use the
+// employee view (timer card, calendar and balances look best populated there); reports, the
+// people list and the team start page use the manager/admin persona.
 const README_SHOTS = [
-  { name: "screenshot-dashboard", path: "/dashboard", role: "emp" },
-  { name: "screenshot-time-entries", path: "/time-entries", role: "emp" },
-  { name: "screenshot-leave", path: "/leave", role: "emp" },
-  { name: "screenshot-reports", path: "/reports", role: "admin" },
-  { name: "screenshot-employees", path: "/admin/employees", role: "admin" },
-  { name: "screenshot-settings", path: "/settings", role: "admin" },
+  { name: "screenshot-dashboard", path: "/ich/tag", role: "emp" }, // was /dashboard
+  { name: "screenshot-time-entries", path: "/ich/zeiten", role: "emp" }, // was /time-entries
+  { name: "screenshot-leave", path: "/ich/abwesenheiten", role: "emp" }, // was /leave
+  { name: "screenshot-reports", path: "/team/berichte", role: "manager" }, // was /reports
+  { name: "screenshot-employees", path: "/verwalten/personen", role: "admin" }, // was /admin/employees
+  { name: "screenshot-settings", path: "/ich/profil", role: "emp" }, // was /settings
 ];
 
 // ── Result tracking ────────────────────────────────────────────────────────────────────
@@ -190,12 +264,16 @@ function record(set, name, status, detail = "") {
 async function login(page, email, password) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
   // E-Mail field — label is "E-Mail-Adresse", match on the "E-Mail" substring.
-  await page.getByLabel(/e-?mail/i).first().fill(email);
+  await page
+    .getByLabel(/e-?mail/i)
+    .first()
+    .fill(email);
   // Password field — label is exactly "Passwort" (avoid the show/hide toggle aria-labels).
   await page.getByLabel("Passwort", { exact: true }).fill(password);
   await page.getByRole("button", { name: /anmelden/i }).click();
-  // Post-login lands on /dashboard.
-  await page.waitForURL("**/dashboard", { timeout: 15_000 });
+  // The landing page depends on the person (homeHref() in apps/web/src/lib/nav/routes.ts: Heute im
+  // Salon, Verwalten or Mein Tag), so wait until the browser has left the sign-in pages instead.
+  await page.waitForURL((url) => !/^\/(login|otp)(\/|$)/.test(url.pathname), { timeout: 15_000 });
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
@@ -212,9 +290,7 @@ async function settle(page, timeout = 2500) {
         const anims = document.getAnimations?.() ?? [];
         // Ignore infinite/looping animations (timer pulse) — only block on finite ones.
         const blocking = anims.filter(
-          (a) =>
-            a.playState === "running" &&
-            a.effect?.getTiming?.().iterations !== Infinity,
+          (a) => a.playState === "running" && a.effect?.getTiming?.().iterations !== Infinity,
         );
         return blocking.length === 0;
       },
@@ -259,12 +335,19 @@ async function capture(page, absPath) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────────────
 async function run() {
-  console.log("Clokr showcase screenshots");
+  console.log("Clokr screenshots");
+  console.log(`  SETS       : ${SETS.join(", ")}`);
   console.log(`  BASE_URL   : ${BASE_URL}`);
-  console.log(`  OUT_DIR    : ${OUT_DIR_ABS}`);
-  console.log(`  IMAGES_DIR : ${IMAGES_DIR_ABS}`);
+  if (SETS.includes("design")) console.log(`  OUT_DIR    : ${OUT_DIR_ABS}`);
+  if (SETS.includes("readme")) console.log(`  IMAGES_DIR : ${IMAGES_DIR_ABS}`);
+  if (SETS.includes("handbuch")) console.log(`  HANDBUCH   : ${join(HANDBUCH_DIR_ABS, "bilder")}`);
   console.log(`  ADMIN      : ${CREDS.adminEmail}`);
-  console.log(`  EMP        : ${CREDS.empEmail}${CREDS.empIsFallback ? "  (fallback → ADMIN — set EMP_EMAIL/EMP_PASSWORD for a true employee view)" : ""}`);
+  console.log(
+    `  MANAGER    : ${CREDS.managerEmail}${CREDS.managerIsFallback ? "  (fallback → ADMIN)" : ""}`,
+  );
+  console.log(
+    `  EMP        : ${CREDS.empEmail}${CREDS.empIsFallback ? "  (fallback → ADMIN — set EMP_EMAIL/EMP_PASSWORD for a true employee view)" : ""}`,
+  );
   console.log("");
 
   const browser = await chromium.launch({ headless: HEADLESS });
@@ -273,19 +356,33 @@ async function run() {
   /** @type {Record<string, {ctx: any, page: any}>} */
   const sessions = {};
 
+  // Light mode unless a shot flips it itself (the dark design shot writes localStorage `mode`).
+  async function newLightContext() {
+    const ctx = await browser.newContext({
+      viewport: VP_DESKTOP,
+      deviceScaleFactor: 1,
+      colorScheme: "light",
+    });
+    await ctx.addInitScript(() => {
+      if (localStorage.getItem("mode") === null) localStorage.setItem("mode", "light");
+    });
+    return ctx;
+  }
+
   async function getSession(role) {
     if (role === "public") {
       if (!sessions.public) {
-        const ctx = await browser.newContext({ viewport: VP_DESKTOP, deviceScaleFactor: 1 });
+        const ctx = await newLightContext();
         sessions.public = { ctx, page: await ctx.newPage() };
       }
       return sessions.public;
     }
     if (sessions[role]) return sessions[role];
-    const ctx = await browser.newContext({ viewport: VP_DESKTOP, deviceScaleFactor: 1 });
+    const ctx = await newLightContext();
     const page = await ctx.newPage();
-    const email = role === "admin" ? CREDS.adminEmail : CREDS.empEmail;
-    const password = role === "admin" ? CREDS.adminPassword : CREDS.empPassword;
+    const email = { admin: CREDS.adminEmail, manager: CREDS.managerEmail }[role] ?? CREDS.empEmail;
+    const password =
+      { admin: CREDS.adminPassword, manager: CREDS.managerPassword }[role] ?? CREDS.empPassword;
     try {
       await login(page, email, password);
     } catch (err) {
@@ -298,17 +395,20 @@ async function run() {
 
   // Resolve the runtime employee-detail path once (needs an admin session).
   let empDetailPath = null;
-  try {
-    const { page } = await getSession("admin");
-    empDetailPath = await discoverEmployeeDetailPath(page);
-    if (!empDetailPath) console.warn("  ! No employee rows found — 15-employee-detail will be skipped.");
-  } catch {
-    console.warn("  ! Could not establish admin session for employee-detail discovery.");
+  if (SETS.includes("design")) {
+    try {
+      const { page } = await getSession("admin");
+      empDetailPath = await discoverEmployeeDetailPath(page);
+      if (!empDetailPath)
+        console.warn("  ! No employee rows found — 15-employee-detail will be skipped.");
+    } catch {
+      console.warn("  ! Could not establish admin session for employee-detail discovery.");
+    }
   }
 
   // ── Design set (OUT_DIR) ──────────────────────────────────────────────────────────
-  console.log("\n── Design set → OUT_DIR ──");
-  for (const shot of DESIGN_SHOTS) {
+  if (SETS.includes("design")) console.log("\n── Design set → OUT_DIR ──");
+  for (const shot of SETS.includes("design") ? DESIGN_SHOTS : []) {
     try {
       let path = shot.path;
       if (path === "__EMP_DETAIL__") {
@@ -337,7 +437,12 @@ async function run() {
 
       await settle(page);
       await capture(page, join(OUT_DIR_ABS, `${shot.name}.png`));
-      record("design", shot.name, "ok", `${path} @ ${shot.vp.width}x${shot.vp.height}${shot.dark ? " (dark)" : ""}`);
+      record(
+        "design",
+        shot.name,
+        "ok",
+        `${path} @ ${shot.vp.width}x${shot.vp.height}${shot.dark ? " (dark)" : ""}`,
+      );
 
       // Undo per-shot state so later captures in the same session are unaffected.
       if (shot.dark) await setDarkMode(page, false);
@@ -358,8 +463,8 @@ async function run() {
   }
 
   // ── README hero subset (images/) ───────────────────────────────────────────────────
-  console.log("\n── README subset → images/ ──");
-  for (const shot of README_SHOTS) {
+  if (SETS.includes("readme")) console.log("\n── README subset → images/ ──");
+  for (const shot of SETS.includes("readme") ? README_SHOTS : []) {
     try {
       const { page } = await getSession(shot.role);
       await page.setViewportSize(VP_README);
@@ -370,6 +475,43 @@ async function run() {
       await page.setViewportSize(VP_DESKTOP);
     } catch (err) {
       record("readme", shot.name, "fail", err.message);
+    }
+  }
+
+  // ── Handbuch set (docs/handbuch/bilder) ───────────────────────────────────────────────
+  if (SETS.includes("handbuch")) {
+    console.log("\n── Handbuch set → docs/handbuch/bilder ──");
+    const notes = collectHandbuchNotes(DOCS_DIR_ABS);
+    const problems = validateNotes(notes);
+    if (problems.length) {
+      for (const p of problems) console.error(`  ! ${p.page}:${p.line}: ${p.message}`);
+      console.error("  ! Fix the capture notes first (see scripts/screenshot-notes.mjs).");
+      await browser.close().catch(() => {});
+      process.exit(2);
+    }
+    mkdirSync(join(HANDBUCH_DIR_ABS, "bilder"), { recursive: true });
+    for (const note of notes) {
+      const label = `${note.page}:${note.line} ${note.file}`;
+      try {
+        // Sign-in pages are shot logged out; every other note as the persona of its `role`.
+        const isAuthPage = /^\/(login|forgot-password|reset-password)(\/|\?|$)/.test(note.url);
+        const { page } = await getSession(isAuthPage ? "public" : note.role);
+        await page.setViewportSize(VP_DESKTOP);
+        await gotoApp(page, note.url);
+        // The note names a page the persona may not open → the app redirects; refuse such a shot.
+        const landed = new URL(page.url());
+        const wanted = new URL(note.url, BASE_URL);
+        if (landed.pathname !== wanted.pathname) {
+          throw new Error(`redirected to ${landed.pathname} (role ${note.role} may not open it?)`);
+        }
+        const main = page.locator("main#main-content");
+        await main.waitFor({ state: "visible", timeout: 10_000 });
+        await settle(page);
+        await main.screenshot({ path: join(HANDBUCH_DIR_ABS, note.file) });
+        record("handbuch", note.file, "ok", `${note.url} as ${note.role}`);
+      } catch (err) {
+        record("handbuch", note.file, "fail", `${label}: ${err.message}`);
+      }
     }
   }
 
