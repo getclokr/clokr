@@ -26,7 +26,8 @@
     withSalonId,
   } from "$lib/salons/page-scope";
   import { urlState } from "$lib/table/url-state";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import {
     activeCount,
     activeCountSentence,
@@ -146,8 +147,8 @@
   }
 
   // ── Rows ────────────────────────────────────────────────────────────────────
-  // Browser-local calendar day: the web has no tenant-local "today" helper.
-  const today = localCalendarDay();
+  // The tenant's calendar day (Issues #1066, #1072), not the device day.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
   const salonNames = $derived(new Map($salonContext.salons.map((salon) => [salon.id, salon.name])));
   const allRows = $derived(
     personenRows(people, today, salonNames, {

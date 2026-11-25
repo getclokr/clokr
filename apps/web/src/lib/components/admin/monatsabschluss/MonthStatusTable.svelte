@@ -34,7 +34,8 @@
     isRunningMonthStatus,
   } from "$lib/month-close/running-month"; // Issue #1011: the running month opens read-only
   import type { EmployeeStatus, MonthStatus } from "$lib/month-close/types";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { MONTH_STATUS_LABEL, notEndedMonthLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
@@ -104,9 +105,8 @@
     blocked: "warn",
   };
 
-  // Browser-local calendar day. The tenant's day (`tenantDay()` in `$lib/utils/tenant-day`, Issue #1066)
-  // is the right reading; moving this place onto it is a listed follow-up of that issue.
-  const today = localCalendarDay();
+  // The tenant's calendar day (Issues #1066, #1072), not the device day.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
 
   function statusLabel(status: string, month: number): string {
     if (status === "future") return notEndedMonthLabel(year, month, today);

@@ -66,9 +66,12 @@ export interface ZeitenAccountFigure {
 /** One wording for a saldo the viewer may not read (#85), shared by Monatssaldo and Gesamtsaldo. */
 const SALDO_WITHHELD_EXPLANATION = "sehen Inhaber, Personalabteilung und die Person selbst";
 
-/** „Stand gestern, 23.11.“ - the Stichtag wording of Ich › Konto (Issue #1029). */
-export function standGesternText(now: Date): string {
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+/**
+ * „Stand gestern, 23.11.“ - the Stichtag wording of Ich › Konto (Issue #1029). `anchor` is the tenant
+ * day as a calendar anchor (`tenantDayAnchor` / `dayAnchor`), never the raw device clock (Issue #1072).
+ */
+export function standGesternText(anchor: Date): string {
+  const yesterday = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - 1);
   const label = yesterday.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" });
   return `Stand gestern, ${label}`;
 }

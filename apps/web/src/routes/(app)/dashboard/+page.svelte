@@ -655,6 +655,7 @@
     return openEarlierEntry(
       pastWindowRows.filter((e) => e.id !== sessionId),
       todayIso,
+      $tenantFeatures.timezone,
     );
   });
   let meinTagLoaded = $state(false);
@@ -720,7 +721,10 @@
     recentEntries =
       recentR.status === "fulfilled"
         ? recentR.value.filter(
-            (e) => e.endTime !== null && !isTravelRow(e) && entryDay(e) >= twoWeeksBack,
+            (e) =>
+              e.endTime !== null &&
+              !isTravelRow(e) &&
+              entryDay(e, $tenantFeatures.timezone) >= twoWeeksBack,
           )
         : [];
     pastWindowRows = recentR.status === "fulfilled" ? recentR.value : null;
@@ -1426,6 +1430,12 @@
     return `${h}:${String(m).padStart(2, "0")}h`;
   }
 
+  // Issue #1072 (P-04): clock times on this page - the greeting hour, „seit …“, „Stand“ and the
+  // segments of the day bar - read the DEVICE zone, like every entry list and time dialog of the
+  // web, which show and type clock times in the device zone. Switching only this page to the tenant
+  // zone would show one entry with two different times. Only the calendar DAY follows the tenant
+  // (Issue #1066, #1072); clock times in the tenant zone would have to change display and input
+  // app-wide together, which is a separate issue.
   function greeting(): string {
     const h = new Date().getHours();
     if (h < 12) return "Guten Morgen";
@@ -1612,6 +1622,9 @@
   function tlPos(minutesOfDay: number): number {
     return Math.min(100, Math.max(0, ((minutesOfDay - TL_START_MIN) / TL_SPAN_MIN) * 100));
   }
+  // Accepted residual (Issue #1072): the planned band reads the roster's wall-clock text, which is
+  // tenant time, while the entry segments below read the device zone - on a device in another zone
+  // band and entries are offset.
   let plannedBand = $derived.by(() => {
     const m = /^(\d{2}):(\d{2})–(\d{2}):(\d{2})$/.exec(todayShiftText ?? "");
     if (!m) return null;
@@ -1620,6 +1633,7 @@
     return r > l ? { left: l, width: r - l } : null;
   });
   let timelineSegments = $derived.by(() => {
+    // Issue #1072 (P-04): the segments follow the device clock like every time shown on this page.
     const pos = (d: Date) => tlPos(d.getHours() * 60 + d.getMinutes());
     const segs: { kind: "work" | "break"; left: number; width: number }[] = [];
     // Issue #959: a session across midnight runs from the left edge of today's bar
@@ -1783,6 +1797,7 @@
       ),
       breakDaySet,
       (rows) => dayTotals(rows as ClockDayEntry[], currentTime),
+      $tenantFeatures.timezone,
     ),
   );
 </script>
@@ -1980,7 +1995,10 @@
               </Note>
               <a
                 class="btn btn-outline btn-sm"
-                href={endEntryHref({ id: runningSession.id, day: entryDay(runningSession) })}
+                href={endEntryHref({
+                  id: runningSession.id,
+                  day: entryDay(runningSession, $tenantFeatures.timezone),
+                })}
                 data-testid="mein-tag-cross-day-end">Ende eintragen</a
               >
             </div>

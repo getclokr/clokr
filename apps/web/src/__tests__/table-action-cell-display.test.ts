@@ -26,7 +26,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+
+// Issue #1072: the mounted component now reads the tenant zone through `$stores/tenant-features`,
+// which imports the API client (and through it the auth and theme stores). This test measures CSS and
+// needs none of them, so the client is replaced by an inert one.
+vi.mock("$api/client", () => ({ api: { get: vi.fn(async () => ({})) } }));
 
 import { renderWithTheme } from "$tests/test-utils";
 import AvailabilityOneOffList from "$lib/components/availability/AvailabilityOneOffList.svelte";

@@ -2,7 +2,7 @@
 // lazily per year, a shutdown is created in a Dialog with the unchanged payload, a delete waits for its
 // confirmation, and the tab is offered only under `company-shutdown:manage` (T-854-30, T-854-31). The route page
 // cannot be mounted, so these mount tests (plus the pure helpers) are the tab's gate.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
 const get = vi.fn();
@@ -37,6 +37,7 @@ vi.mock("$stores/toast", () => ({
 
 import { renderWithTheme } from "$tests/test-utils";
 import { ApiError } from "$api/client";
+import { tenantFeatures } from "$stores/tenant-features";
 import { ABWESENHEITEN_TABS, visibleAbwesenheitenTabs } from "$lib/settings/abwesenheiten";
 import {
   createShutdownBody,
@@ -75,8 +76,18 @@ const SHUTDOWNS: CompanyShutdown[] = [
   },
 ];
 
+// Issue #1072: the panel reads the year in the tenant zone, so the clock is pinned.
+const NOW = new Date("2026-11-24T12:00:00.000Z");
+const YEAR = 2026;
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   get.mockResolvedValue(SHUTDOWNS);
   post.mockResolvedValue({ id: "new1" });
   del.mockResolvedValue({});
@@ -160,7 +171,7 @@ describe("BetriebsurlaubPanel", () => {
   it("lists the shutdowns of the year with period, deduction and exceptions", async () => {
     renderWithTheme(BetriebsurlaubPanel, { active: true });
     const table = await screen.findByRole("table", { name: /Betriebsurlaub \d{4}/ });
-    expect(get).toHaveBeenCalledWith(`/company-shutdowns?year=${new Date().getFullYear()}`);
+    expect(get).toHaveBeenCalledWith(`/company-shutdowns?year=${YEAR}`);
     expect(table.textContent).toContain("Weihnachtsschließung");
     expect(table.textContent).toContain("8 Tage");
     expect(table.textContent).toContain("Zieht vom Urlaubskonto ab");
@@ -173,9 +184,31 @@ describe("BetriebsurlaubPanel", () => {
   it("reloads for another year", async () => {
     renderWithTheme(BetriebsurlaubPanel, { active: true });
     await screen.findByRole("table", { name: /Betriebsurlaub/ });
-    const next = String(new Date().getFullYear() + 1);
+    const next = String(YEAR + 1);
     await fireEvent.change(screen.getByLabelText("Jahr"), { target: { value: next } });
     await waitFor(() => expect(get).toHaveBeenLastCalledWith(`/company-shutdowns?year=${next}`));
+  });
+
+  it("lists the tenant's year, not the device's (Issue #1072)", async () => {
+    // 03:00 UTC on 01.01.2027 is still 31.12.2026 in New York (Berlin and UTC read 2027). The store is a
+    // singleton of this file, so the test plays the layout and re-reads the zone before it mounts.
+    vi.setSystemTime(new Date("2027-01-01T03:00:00.000Z"));
+    get.mockImplementation((path: string) =>
+      Promise.resolve(path === "/settings/work" ? { timezone: "America/New_York" } : SHUTDOWNS),
+    );
+    try {
+      await tenantFeatures.fetch();
+      renderWithTheme(BetriebsurlaubPanel, { active: true });
+      await screen.findByRole("table", { name: /Betriebsurlaub 2026/ });
+      const paths = get.mock.calls.map((call) => String(call[0]));
+      expect(paths).toContain("/company-shutdowns?year=2026");
+      expect(paths).not.toContain("/company-shutdowns?year=2027");
+    } finally {
+      get.mockImplementation((path: string) =>
+        Promise.resolve(path === "/settings/work" ? { timezone: "Europe/Berlin" } : SHUTDOWNS),
+      );
+      await tenantFeatures.fetch();
+    }
   });
 
   it("says so when loading fails and offers a retry", async () => {

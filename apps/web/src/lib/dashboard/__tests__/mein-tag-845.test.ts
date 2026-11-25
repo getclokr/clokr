@@ -1,5 +1,5 @@
 // Issue #845 — the derivations of Ich › Mein Tag (day goal, Stundenkonto, next shift, history).
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -247,7 +247,7 @@ describe("recentDays — per day, the saldo as the step of the server's cumulati
     workingMinutes: rows.reduce((s, r) => s + (r.workingMinutes ?? 0), 0),
   });
   it("newest first, saldo chip from the series, break finding from the day check", () => {
-    const rows = recentDays(entries, cum, new Set(["2026-10-30"]), totals);
+    const rows = recentDays(entries, cum, new Set(["2026-10-30"]), totals, "Europe/Berlin");
     expect(rows.map((r) => r.date)).toEqual(["2026-11-06", "2026-10-30"]);
     expect(rows[0]).toMatchObject({
       start: "09:30",
@@ -256,5 +256,54 @@ describe("recentDays — per day, the saldo as the step of the server's cumulati
       breakMissing: false,
     });
     expect(rows[1]).toMatchObject({ saldoMinutes: null, breakMissing: true });
+  });
+});
+
+// Issue #1072 - „Letzte Tage“ files a row without a `date` column under the tenant day of its start.
+describe("recentDays follows the tenant zone (#1072)", () => {
+  const original = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "UTC";
+  });
+  afterAll(() => {
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
+  });
+  const totals = () => ({ breakMinutes: 0, workingMinutes: 60 });
+
+  it("groups a row of the date column and one late in the evening under the same day", () => {
+    const rows = recentDays(
+      [
+        {
+          id: "late",
+          date: "2026-11-25T00:00:00.000Z",
+          startTime: "2026-11-24T23:30:00.000Z",
+          endTime: "2026-11-25T00:30:00.000Z",
+        },
+      ],
+      new Map(),
+      new Set(),
+      totals,
+      "Europe/Berlin",
+    );
+    expect(rows.map((r) => r.date)).toEqual(["2026-11-25"]);
+  });
+
+  it("a row without a date column reads the tenant day, not the device day", () => {
+    // the device (UTC) day of this start is the 24th; in Berlin it is already the 25th
+    const rows = recentDays(
+      [
+        {
+          id: "late",
+          startTime: "2026-11-24T23:30:00.000Z",
+          endTime: "2026-11-25T00:30:00.000Z",
+        },
+      ],
+      new Map(),
+      new Set(),
+      totals,
+      "Europe/Berlin",
+    );
+    expect(rows.map((r) => r.date)).toEqual(["2026-11-25"]);
   });
 });

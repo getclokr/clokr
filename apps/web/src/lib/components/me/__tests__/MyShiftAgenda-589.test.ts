@@ -42,6 +42,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import { salonContext } from "$stores/salon-context";
+import { tenantFeatures } from "$stores/tenant-features";
 import MyShiftAgenda from "../MyShiftAgenda.svelte";
 import { ApiError } from "$api/client";
 
@@ -58,7 +59,11 @@ const FIXED_MO_FR = {
   workDays: [1, 2, 3, 4, 5],
 };
 
+let tenantZone = "Europe/Berlin";
+
 function answer(path: string): Promise<unknown> {
+  // Issue #1072: the agenda reads the tenant zone through the tenant-features store.
+  if (path === "/settings/work") return Promise.resolve({ timezone: tenantZone });
   if (path === "/me/context") {
     return Promise.resolve({
       tenant: { id: "t1", name: "Clokr Demo" },
@@ -97,6 +102,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  tenantZone = "Europe/Berlin";
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -141,6 +147,20 @@ describe("Ich › Dienstplan (Issue #589)", () => {
     });
     expect(screen.getByTestId("agenda-2026-11-14").textContent).toContain("Frei");
     expect(screen.getByTestId("agenda-2026-11-14").textContent).not.toContain("Noch nicht geplant");
+  });
+});
+
+describe("Ich › Dienstplan — the 14 days start on the tenant day (Issue #1072)", () => {
+  it("reads the tenant's week, not the device's, when the zones are on different days", async () => {
+    // 22:30 UTC on 15.11.: still Sunday 15.11. in Berlin (week of Mon 9.11.), but already Monday
+    // 16.11. in Auckland (week of Mon 16.11.).
+    vi.setSystemTime(new Date("2026-11-15T22:30:00Z"));
+    tenantZone = "Pacific/Auckland";
+    await tenantFeatures.fetch();
+    await salonContext.load("u1", { force: true });
+    renderWithTheme(MyShiftAgenda, {});
+    await waitFor(() => expect(calls("/shifts/range")).toHaveLength(1));
+    expect(calls("/shifts/range")[0]).toContain("from=2026-11-16&");
   });
 });
 

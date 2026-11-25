@@ -8,6 +8,8 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantYear } from "$lib/utils/tenant-day";
   import Section from "$lib/components/admin/Section.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { contractHistoryRows, MODEL_LABELS } from "$lib/employees/contract-history";
@@ -64,7 +66,8 @@
       return;
     }
     try {
-      const year = new Date().getFullYear();
+      // The entitlement year is the tenant's (Issue #1072): wait for the zone first.
+      const year = tenantYear(new Date(), await tenantFeatures.loadTimezone());
       const [me, ent] = await Promise.all([
         api.get<OwnEmployee>(`/employees/${id}`).catch(() => null),
         api

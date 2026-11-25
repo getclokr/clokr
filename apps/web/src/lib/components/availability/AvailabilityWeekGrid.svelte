@@ -8,6 +8,8 @@
   // calendar recipe are forbidden — this component uses a local av-recurring-row
   // class instead. See app.css for the canonical calendar styles.
 
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
   import SegmentedControl from "$lib/components/ui/SegmentedControl.svelte";
   import AvailabilityEditModal, {
@@ -43,8 +45,9 @@
     { dow: 0, short: "So", long: "Sonntag" },
   ];
 
+  // The tenant's calendar day (Issue #1072), the day the server files a stamp under.
   function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   function entryFor(dow: number): RecurringEntry | undefined {

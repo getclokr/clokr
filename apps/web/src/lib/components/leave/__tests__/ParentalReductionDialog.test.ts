@@ -110,12 +110,20 @@ describe("ParentalReductionDialog", () => {
     expect(checkbox.checked).toBe(true);
   });
 
-  it("the declaration date input carries max = today", async () => {
-    renderDialog();
-    await screen.findByTestId("parental-reduction-row-2026");
-    const input = screen.getByTestId("parental-reduction-declared-at") as HTMLInputElement;
-    const todayIso = new Date().toISOString().slice(0, 10);
-    expect(input.max).toBe(todayIso);
+  it("the declaration date input carries max = the tenant's today (Issue #1072)", async () => {
+    // Pinned instant: 23:30 UTC on the 24th is already the 25th in Europe/Berlin, the zone the
+    // store reads here (no /settings/work answer, so DEFAULT_TIMEZONE). The UTC day would be the 24th.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-24T23:30:00.000Z"));
+    try {
+      renderDialog();
+      await screen.findByTestId("parental-reduction-row-2026");
+      const input = screen.getByTestId("parental-reduction-declared-at") as HTMLInputElement;
+      expect(new Date().toISOString().slice(0, 10)).toBe("2026-11-24");
+      expect(input.max).toBe("2026-11-25");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("'Kürzung buchen' is disabled until a declaration date is entered", async () => {

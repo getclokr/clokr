@@ -23,6 +23,8 @@
   import { untrack } from "svelte";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import Note from "$components/ui/Note.svelte";
   import SaveBar from "$components/ui/SaveBar.svelte";
@@ -91,7 +93,8 @@
   }
 
   async function saveBulkPatterns() {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // The pattern starts on the tenant's day, the day the server files a stamp under (Issue #1072).
+    const todayIso = tenantDay(new Date(), $tenantFeatures.timezone);
     const dirty = employees.filter((employee) => isRowDirty(employee.id));
     if (dirty.length === 0) return;
     saving = true;

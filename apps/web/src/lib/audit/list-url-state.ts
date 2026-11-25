@@ -51,13 +51,6 @@ export interface AuditListState {
   page: number;
 }
 
-/** `YYYY-MM-DD` of a Date in the browser's local calendar (the web has no tenant-local „today“ helper). */
-export function localDay(now: Date = new Date()): string {
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${mm}-${dd}`;
-}
-
 /** The calendar day `days` after (negative: before) `iso`. */
 export function addDays(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number);

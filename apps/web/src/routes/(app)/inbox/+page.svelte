@@ -11,6 +11,8 @@
   import { listPrefs, saveListPreference } from "$stores/list-prefs"; // Issue #1028
   import { pageSizesOf, resolveListPreference } from "$lib/lists/list-registry"; // Issue #1028
   import { clampPage, pageOfIndex, pageSlice } from "$lib/lists/list-page"; // Issue #1028
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantYear } from "$lib/utils/tenant-day";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import KpiStrip, { type KpiItem } from "$components/ui/KpiStrip.svelte";
   import List from "$components/ui/List.svelte";
@@ -243,11 +245,14 @@
       void goto(homeHref($authStore.user));
       return;
     }
-    // The deep link is read ONCE, here, and applied after the first completed loads (the rows do not
-    // exist before). Untrusted values are reduced by the pure parser (T-840-30).
-    const link = parseInboxDeepLink(page.url.searchParams, currentYear);
     const hadLinkParams = DEEP_LINK_PARAMS.some((name) => page.url.searchParams.has(name));
     void (async () => {
+      // The year of the first request is the tenant's (Issue #1072): wait for the zone, which joins
+      // the (app) layout's own read of GET /settings/work.
+      currentYear = tenantYear(new Date(), await tenantFeatures.loadTimezone());
+      // The deep link is read ONCE, here, and applied after the first completed loads (the rows do not
+      // exist before). Untrusted values are reduced by the pure parser (T-840-30).
+      const link = parseInboxDeepLink(page.url.searchParams, currentYear);
       const loads: Promise<unknown>[] = [];
       if (canRetro) loads.push(loadRetroRequests());
       else retroLoading = false;
@@ -272,7 +277,8 @@
   });
 
   // ── Data loading ─────────────────────────────────────────────────────────
-  const currentYear = new Date().getFullYear();
+  // Seeded from the store's zone (the default until the layout's read settles); onMount re-reads it.
+  let currentYear = $state(tenantYear(new Date(), $tenantFeatures.timezone));
 
   async function loadRequests() {
     loading = true;

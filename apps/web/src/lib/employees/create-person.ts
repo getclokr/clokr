@@ -38,6 +38,8 @@ export const SCHEDULE_TYPE_OPTIONS: ReadonlyArray<{ value: CreateScheduleType; l
 
 /** What the form holds. Strings are "" while empty; the dates are ISO days (`YYYY-MM-DD`) or null. */
 export interface CreatePersonDraft {
+  /** The tenant day the draft was started on; the year the minimum leave falls back to. Never sent. */
+  startedOn: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -94,10 +96,14 @@ export type CreateField =
 
 export type StepErrors = Partial<Record<CreateField, string>>;
 
-/** A blank draft; `today` is the browser-local calendar day (the hire date starts on it). */
+/**
+ * A blank draft; `today` is the TENANT's calendar day (`tenantDay()` of `$lib/utils/tenant-day`):
+ * the hire date starts on it and `startedOn` remembers it (Issue #1072).
+ */
 export function emptyDraft(today: string): CreatePersonDraft {
   const defaults = applyDefaults("VOLLZEIT");
   return {
+    startedOn: today,
     firstName: "",
     lastName: "",
     email: "",
@@ -147,7 +153,7 @@ export function suggestedVacationDays(draft: CreatePersonDraft, ctx: CreateConte
 
 /** Without a birth date the adult minimum (§ 3 BUrlG) still applies - never "no minimum". */
 export function statutoryMinimum(draft: CreatePersonDraft) {
-  const year = Number((draft.hireDate ?? "").slice(0, 4)) || new Date().getFullYear();
+  const year = Number((draft.hireDate ?? "").slice(0, 4)) || Number(draft.startedOn.slice(0, 4));
   return statutoryMinimumFiveDayWeek(draft.birthDate, year);
 }
 

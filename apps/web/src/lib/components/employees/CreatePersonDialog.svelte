@@ -60,7 +60,8 @@
     offerHomeSalonChoice,
     type SalonRef,
   } from "$lib/employees/salon-assignments";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { minijobHint, minijobHintText } from "$lib/employees/minijob";
   import {
     CREATE_STEPS,
@@ -106,7 +107,9 @@
   const FIXED_ROWS = [{ roleName: CREATE_DEFAULT_ROLE_NAME, scope: { type: "TENANT" as const } }];
 
   let step = $state<CreateStep>("person");
-  let draft = $state<CreatePersonDraft>(emptyDraft(localCalendarDay()));
+  let draft = $state<CreatePersonDraft>(
+    emptyDraft(tenantDay(new Date(), $tenantFeatures.timezone)),
+  );
   let roleDrafts = $state<AssignmentDraft[]>([]);
   let errors = $state<StepErrors>({});
   let submitError = $state("");
@@ -206,7 +209,7 @@
   }
 
   function reset() {
-    draft = emptyDraft(localCalendarDay());
+    draft = emptyDraft(tenantDay(new Date(), $tenantFeatures.timezone));
     roleDrafts = [];
     errors = {};
     submitError = "";

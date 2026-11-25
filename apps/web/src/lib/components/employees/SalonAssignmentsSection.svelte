@@ -28,7 +28,8 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
   import WeekdayPicker from "$lib/components/admin/settings/WeekdayPicker.svelte";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import {
     assignmentRows,
     deploymentBody,
@@ -67,7 +68,9 @@
 
   type TableRow = AssignmentRow & Record<string, unknown>;
   let rows = $derived(
-    assignmentRows(assignments, salons, localCalendarDay()).map((row): TableRow => ({ ...row })),
+    assignmentRows(assignments, salons, tenantDay(new Date(), $tenantFeatures.timezone)).map(
+      (row): TableRow => ({ ...row }),
+    ),
   );
   let activeSalons = $derived(salons.filter((s) => s.isActive));
 
@@ -104,7 +107,7 @@
   function openForm(next: "deployment" | "home") {
     mode = next;
     formSalonId = "";
-    formValidFrom = localCalendarDay();
+    formValidFrom = tenantDay(new Date(), $tenantFeatures.timezone);
     formValidUntil = null;
     formWeekdays = [];
     endTarget = null;

@@ -19,7 +19,8 @@
   import ZugangTab from "$lib/components/employees/detail/ZugangTab.svelte";
   import SalonAssignmentsSection from "$lib/components/employees/SalonAssignmentsSection.svelte";
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
-  import { localCalendarDay } from "$lib/employees/employment-state";
+  import { tenantDay, tenantYear } from "$lib/utils/tenant-day";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { detailHeadSub, salonNameOf } from "$lib/employees/detail-head";
   import { homeSalonIdOn } from "$lib/employees/salon-assignments";
   import type { SalonAssignment, SalonRef } from "$lib/employees/salon-assignments";
@@ -105,11 +106,13 @@
     loading = true;
     loadError = "";
     try {
+      // The vacation year is the tenant's: wait for the zone before building the URL.
+      const zone = await tenantFeatures.loadTimezone();
       const [empRes, schedRes, vacRes, cfgRes, assignRes, salonsRes] = await Promise.allSettled([
         api.get<Employee>(`/employees/${employeeId}`),
         api.get<WorkSchedule>(`/settings/work/${employeeId}`),
         api.get<VacationEntitlement>(
-          `/settings/vacation/${employeeId}?year=${new Date().getFullYear()}`,
+          `/settings/vacation/${employeeId}?year=${tenantYear(new Date(), zone)}`,
         ),
         api.get<TenantConfig>(`/settings/work`),
         api.get<{ assignments: SalonAssignment[] }>(`/employees/${employeeId}/salon-assignments`),
@@ -169,7 +172,7 @@
   // The lowest layer of the Berufsschule slots; follows the contract the Vertrag tab last saved.
   let empDailySollMin = $derived(dailySollMinutes(workSchedule));
 
-  const vacYear = new Date().getFullYear();
+  const vacYear = $derived(tenantYear(new Date(), $tenantFeatures.timezone));
 
   // ── Unsaved-section tracking (Phase 109, D-11/D-12 · AK-06/AK-07) ──────────────
   // Every tab owns its snapshots (taken when it mounts, re-taken after each successful save) and
@@ -209,7 +212,7 @@
   // plus the exit state when one is set (Issue #86, D-01; decided from the exit date and a calendar
   // day, never from a display string).
   let headSub = $derived.by(() => {
-    const today = localCalendarDay();
+    const today = tenantDay(new Date(), $tenantFeatures.timezone);
     return detailHeadSub({
       employeeNumber: employee?.employeeNumber,
       homeSalonName: salonNameOf(salonRefs, homeSalonIdOn(salonAssignments, today)),

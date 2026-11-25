@@ -6,7 +6,9 @@
 // The server stays the authority for every rule (the Zod `configSchema` of `PUT /integrations/phorest/config`);
 // the checks here only save a round trip and mirror the bounds the page always showed.
 
+import { addDays, format } from "date-fns";
 import { messageCount, type FieldMessages } from "$lib/settings/arbeitszeit";
+import { dayAnchor } from "$lib/utils/tenant-day";
 
 export { messageCount };
 
@@ -181,19 +183,21 @@ export function runStatusTone(status: string): RunTone {
   return "bad";
 }
 
-/** The window of a manual sync: the explicit Von/Bis when both are set, else today up to today plus the window. */
+/**
+ * The window of a manual sync: the explicit Von/Bis when both are set, else the tenant's today up to
+ * today plus the window. `todayIso` is the tenant day (`tenantDay()`, Issue #1072), never derived
+ * here; the end is calendar arithmetic on that day.
+ */
 export function syncRange(
   start: string,
   end: string,
   windowDays: number,
-  today: Date = new Date(),
+  todayIso: string,
 ): { startDate: string; endDate: string } {
   if (start !== "" && end !== "") return { startDate: start, endDate: end };
-  const last = new Date(today);
-  last.setDate(last.getDate() + windowDays);
   return {
-    startDate: today.toISOString().split("T")[0],
-    endDate: last.toISOString().split("T")[0],
+    startDate: todayIso,
+    endDate: format(addDays(dayAnchor(todayIso), windowDays), "yyyy-MM-dd"),
   };
 }
 

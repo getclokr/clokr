@@ -20,6 +20,8 @@
   import { untrack } from "svelte";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Chip from "$components/ui/Chip.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import FormField from "$components/ui/FormField.svelte";
@@ -120,7 +122,13 @@
     syncError = "";
     // Optimistic: the latest run reads „Läuft“ until the refresh arrives.
     if (status.latestRun) status.latestRun = { ...status.latestRun, status: "RUNNING" };
-    const { startDate, endDate } = syncRange(syncStart, syncEnd, status.syncWindowDays);
+    // "Today" is the tenant's day (Issue #1072), the day the sync window starts on.
+    const { startDate, endDate } = syncRange(
+      syncStart,
+      syncEnd,
+      status.syncWindowDays,
+      tenantDay(new Date(), $tenantFeatures.timezone),
+    );
     try {
       // Phase 65b (issue #65, D-13): the response is a per-salon aggregate; the top-level fields below are all
       // this panel reads.

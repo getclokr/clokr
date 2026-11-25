@@ -23,6 +23,8 @@
   import { downloadFromApi } from "$api/download";
   import { authStore } from "$stores/auth";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDayAnchor } from "$lib/utils/tenant-day";
   import { salonContext, showSalonOptions } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions";
   import { addMonths, compareMonths } from "$lib/reports/period-state";
@@ -53,10 +55,17 @@
   const canPickPerson = $derived(hasPermission(user, "employee:read:ZUGEWIESEN"));
   const canReadTeamLeave = $derived(hasPermission(user, "leave-request:read:ZUGEWIESEN"));
 
-  // ── The months: browser-local "today" (the API judges by the tenant zone) ──
-  const now = new Date();
-  const thisMonth: YearMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };
-  const lastMonth = addMonths(thisMonth, -1);
+  // ── The months: the tenant's "today" (Issue #1072; the API judges by the same zone) ──
+  function monthOfDay(anchor: Date): YearMonth {
+    return { year: anchor.getFullYear(), month: anchor.getMonth() + 1 };
+  }
+  // What the page starts from: the store's zone, the default zone until the (app) layout's read
+  // settles. `onMount` re-seeds what the person has not touched once the tenant zone is known.
+  const initThisMonth = monthOfDay(tenantDayAnchor(new Date(), $tenantFeatures.timezone));
+  const initLastMonth = addMonths(initThisMonth, -1);
+  const thisMonth = $derived(monthOfDay(tenantDayAnchor(new Date(), $tenantFeatures.timezone)));
+  // False until the tenant zone is known: the year-status request below names a year.
+  let zoneReady = $state(false);
 
   // A link may preselect person and month (`?person=&year=&month=`); every malformed value is dropped.
   const preselection = untrack(() => exportPreselection(page.url));
@@ -67,15 +76,15 @@
 
   /** The month of the DATEV file and the Monatsexport; never later than the current month. */
   let exportMonth = $state<YearMonth>(
-    preselectedMonth !== null && compareMonths(preselectedMonth, thisMonth) <= 0
+    preselectedMonth !== null && compareMonths(preselectedMonth, initThisMonth) <= 0
       ? preselectedMonth
-      : lastMonth,
+      : initLastMonth,
   );
   let personId = $state(preselection.personId ?? "");
 
   /** The period of the CSV files. */
-  let csvFrom = $state<YearMonth>(lastMonth);
-  let csvTo = $state<YearMonth>(lastMonth);
+  let csvFrom = $state<YearMonth>(initLastMonth);
+  let csvTo = $state<YearMonth>(initLastMonth);
   const csvProblem = $derived(csvPeriodProblem(csvFrom, csvTo, thisMonth));
 
   const mm = (ym: YearMonth) => String(ym.month).padStart(2, "0");
@@ -101,7 +110,7 @@
 
   $effect(() => {
     const year = exportMonth.year;
-    if (canReadMonthClose) untrack(() => void loadYearStatus(year));
+    if (canReadMonthClose && zoneReady) untrack(() => void loadYearStatus(year));
   });
 
   const monthHint = $derived(
@@ -264,6 +273,18 @@
     void loadKanzleiHint();
     void loadHistory();
     if (untrack(() => canPickPerson)) void loadPeople();
+    void (async () => {
+      // Follow the tenant zone for every month the person has not chosen yet (no preselection
+      // from a link, no click on the arrows) before the first year-status request.
+      const current = monthOfDay(tenantDayAnchor(new Date(), await tenantFeatures.loadTimezone()));
+      const last = addMonths(current, -1);
+      if (preselectedMonth === null && compareMonths(exportMonth, initLastMonth) === 0) {
+        exportMonth = last;
+      }
+      if (compareMonths(csvFrom, initLastMonth) === 0) csvFrom = last;
+      if (compareMonths(csvTo, initLastMonth) === 0) csvTo = last;
+      zoneReady = true;
+    })();
   });
 </script>
 
