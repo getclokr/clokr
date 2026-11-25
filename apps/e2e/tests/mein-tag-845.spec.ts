@@ -180,7 +180,11 @@ test.describe("an open entry of an earlier day (Issue #942)", () => {
 
     await page.getByTestId("mein-tag-open-earlier-end").click();
     await expect(page).toHaveURL(new RegExp(`/ich/zeiten\\?date=${day}&end=`));
-    await expect(page.getByRole("dialog")).toContainText("Eintrag bearbeiten");
+    // Issue #1085: the open entry of an earlier day opens as „Ausstempeln nachtragen“ — the edit of
+    // that very entry, which still has no end.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Ausstempeln nachtragen");
+    await expect(dialog).toContainText("Dieser Eintrag hat noch kein Ende");
   });
 });
 

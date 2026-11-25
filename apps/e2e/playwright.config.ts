@@ -307,6 +307,12 @@ export default defineConfig({
       //     the tenant: Einstempeln, Pause, reload, Weiterarbeiten, Ausstempeln keep the running entry
       //     of the tenant day); tenant fixture only, no seed
       //
+      // Issue #1085 added a further file:
+      //   - open-entry-retro-1085.spec.ts (a day with an open entry on a phone: 'Zeit nachtragen' opens
+      //     the open entry, outside the window the form files a correction request that an approval
+      //     turns into the closed entry, inside the window saving the end closes it); tenant fixture
+      //     plus an API-created second salon, person and open entries, no seed
+      //
       // This is the ONLY place the CI selection is listed — do not add files here
       // without also updating that registry, and do not let the CI job pass a file
       // list of its own (D-04: one visible place, cannot grow silently).
@@ -335,6 +341,7 @@ export default defineConfig({
         /all-routes-overflow-843\.spec\.ts/,
         /mein-tag-845\.spec\.ts/,
         /mein-tag-device-zone-1066\.spec\.ts/,
+        /open-entry-retro-1085\.spec\.ts/,
         /heute-im-salon-846\.spec\.ts/,
         /verwalten-uebersicht-847\.spec\.ts/,
         /shift-notices-850\.spec\.ts/,

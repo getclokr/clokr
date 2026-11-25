@@ -88,6 +88,12 @@ import {
 } from "../entry-invariants";
 import { lockEmployeeForEntryWrite } from "../entry-write-lock"; // Issue #70 (D-10)
 import {
+  assertNoOpenEntryToCorrect,
+  OpenEntryUseCorrectionError,
+  OPEN_ENTRY_USE_CORRECTION_CODE,
+  OPEN_ENTRY_USE_CORRECTION_MESSAGE,
+} from "../retro-open-entry-guard"; // Issue #1085
+import {
   findOverlappingRetroRequest,
   RetroRequestOverlapError,
   RETRO_REQUEST_OVERLAP_CODE,
@@ -1949,6 +1955,15 @@ export async function timeEntryRoutes(app: FastifyInstance) {
             // reached its own overlap step for this path, so this is the only application check.
             // A conflict rolls the transaction back: no RetroEntryRequest row, no entry.
             await lockEmployeeForEntryWrite(tx, user.tenantId, employeeId);
+            // Issue #1085: an open entry of the day that this interval reaches into is not an
+            // overlap to report but an entry to END - answer the correction path instead, before the
+            // generic overlap text below.
+            await assertNoOpenEntryToCorrect(tx, {
+              tenantId: user.tenantId,
+              employeeId,
+              date: new Date(body.date),
+              newEnd,
+            });
             await recheckOverlapInTx(tx, {
               tenantId: user.tenantId,
               employeeId,
@@ -2066,6 +2081,14 @@ export async function timeEntryRoutes(app: FastifyInstance) {
           return reply
             .code(409)
             .send({ error: RETRO_REQUEST_OVERLAP_MESSAGE, code: RETRO_REQUEST_OVERLAP_CODE });
+        }
+        // Issue #1085: the day has an open entry this Nachtrag would reach into; the right request
+        // is the correction of that entry (neutral text, no reach decision needed).
+        if (err instanceof OpenEntryUseCorrectionError) {
+          return reply.code(409).send({
+            error: OPEN_ENTRY_USE_CORRECTION_MESSAGE,
+            code: OPEN_ENTRY_USE_CORRECTION_CODE,
+          });
         }
         // Overlap re-checked inside the transaction (grant branch after the flip, Nachtrag and
         // plain branch under the Employee row lock), worded by the caller's reach → 409.

@@ -98,6 +98,57 @@ describe("addActionForDay", () => {
   });
 });
 
+// Issue #1085 - a day that still has an OPEN own entry never gets a second entry from the add
+// actions: they open the open entry so its end is entered (inside the window) or requested as a
+// correction (outside it). Before the fix the salon-choice form opened as a NEW entry at 09:00,
+// and its Zeitnachtrag was then refused as an overlap with the open entry.
+describe("addActionForDay - a day with an open entry (Issue #1085)", () => {
+  const endFirst = { endOpenEntryFirst: true } as const;
+  const open = row("run", "08:30", null);
+  const closed = row("a", "13:00", "16:00");
+
+  it("with salon options the open entry is opened for editing, not a new form", () => {
+    expect(addActionForDay([open], true, endFirst)).toEqual({ kind: "edit", entry: open });
+  });
+
+  it("without salon options the open entry wins over the first row of the day", () => {
+    expect(addActionForDay([closed, open], false, endFirst)).toEqual({
+      kind: "edit",
+      entry: open,
+    });
+  });
+
+  it("with closed rows next to it the open entry is still the one that opens", () => {
+    expect(addActionForDay([closed, open], true, endFirst)).toEqual({ kind: "edit", entry: open });
+  });
+
+  it("a locked open row cannot be ended: the former rule applies", () => {
+    const locked = row("lock", "08:30", null, { isLocked: true });
+    expect(addActionForDay([locked], true, endFirst)).toEqual({
+      kind: "new",
+      start: "09:00",
+      end: "17:00",
+    });
+  });
+
+  it("a day without an open entry behaves as before, option or not", () => {
+    expect(addActionForDay([closed], true, endFirst)).toEqual({
+      kind: "new",
+      start: "16:00",
+      end: "17:00",
+    });
+    expect(addActionForDay([], true, endFirst)).toEqual({
+      kind: "new",
+      start: "09:00",
+      end: "17:00",
+    });
+  });
+
+  it("without the option (the manager's team page) the former rule is unchanged", () => {
+    expect(addActionForDay([open], true)).toEqual({ kind: "new", start: "09:00", end: "17:00" });
+  });
+});
+
 describe("salonFieldOptions", () => {
   const south = { id: "s-south", name: "Südstadt" };
   const north = { id: "s-north", name: "Nordstadt" };

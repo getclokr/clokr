@@ -49,9 +49,19 @@
     addActionForDay,
     cellClickAction,
     entryCountTitle,
+    openEntryOfDay,
     salonFieldOptions,
     salonIdToSend,
   } from "$lib/time-entries/day-entry-actions"; // Issue #70, D-07
+  import {
+    OPEN_ENTRY_TEXTS,
+    openEntryActionLabel,
+    openEntryClash,
+    openEntryDialogEyebrow,
+    retroOpenEntryTarget,
+    retroSubmitPath,
+    startHm,
+  } from "$lib/time-entries/open-entry-correction"; // Issue #1085
   import {
     TRAVEL_TEXTS,
     isTravelRow,
@@ -386,6 +396,18 @@
   let formBreakShown = $derived(dialogBreakMinutes(formBreakInput));
   let formNetMin = $derived(dialogNetMinutes(formStart, formEnd, formHasEnd, formBreakShown));
   let formNote = $state("");
+  // Issue #1085: the open entry the retro form is about - the entry being edited when it is still
+  // open, else the open entry of the form's day that the typed interval collides with. Wording only;
+  // `submitRetroRequest()` decides the path with the same function.
+  const retroOpenTarget = $derived(
+    retroWindowExceeded
+      ? retroOpenEntryTarget({
+          editEntry,
+          dayEntries: rowsOfDay(formDate),
+          proposedEnd: formHasEnd && formEnd ? new Date(`${formDate}T${formEnd}:00`) : null,
+        })
+      : null,
+  );
   // Issue #70 (D-07, D-12): salon options and the salon field exist only where the #64 rule
   // holds (more than one active salon, more than one reachable). The options are the salons the
   // caller reaches from the salon-context store, never the clock-salon answer (that one describes
@@ -1115,7 +1137,12 @@
     const targetDate = forDate ?? selectedDate;
     // Without salon options a day that already has an entry opens that entry for editing; with
     // them it opens a new form (D-12, see addActionForDay).
-    const action = addActionForDay(rowsOfDay(targetDate), multiEntryUi);
+    // Issue #1085: a day with an open entry opens THAT entry - its end is what the person owes.
+    // A new form there could only end in the overlap refusal (and, outside the retro window, in a
+    // Zeitnachtrag that never reaches the correction path that closes the entry).
+    const action = addActionForDay(rowsOfDay(targetDate), multiEntryUi, {
+      endOpenEntryFirst: true,
+    });
     if (action.kind === "edit") {
       openEdit(action.entry);
       return;
@@ -1151,11 +1178,12 @@
 
   // Issue #70: a further entry on the day of the entry being edited. The unsaved edit of the open
   // dialog is dropped, exactly like Abbrechen.
+  // Issue #1085: on a day with an open entry the open entry opens instead (no second entry).
   function openAdditionalEntry(day: string) {
-    const action = addActionForDay(rowsOfDay(day), true);
-    if (action.kind !== "new") return;
+    const action = addActionForDay(rowsOfDay(day), true, { endOpenEntryFirst: true });
     closeModal();
-    openNew(day, action.start, action.end);
+    if (action.kind === "edit") openEdit(action.entry);
+    else openNew(day, action.start, action.end);
   }
 
   // Issue #70: a calendar cell with one entry still opens it for editing, a cell with several
@@ -1484,6 +1512,23 @@
       saving = false;
       return;
     }
+    // Issue #1085: a NEW entry whose day (the date may have been changed in the form) still has an
+    // open entry of the person is never posted - it could only collide with that entry. The dialog
+    // switches to the open entry, keeping what was typed, so the end is entered there.
+    if (editEntry === null && !travelActive) {
+      const clash = openEntryClash(rowsOfDay(formDate), endISO ? new Date(endISO) : null);
+      if (clash) {
+        const typed = { end: formEnd, hasEnd: formHasEnd, note: formNote, breaks: formBreaks };
+        openEdit(clash);
+        formEnd = typed.end;
+        formHasEnd = typed.hasEnd;
+        if (typed.note) formNote = typed.note;
+        formBreaks = typed.breaks;
+        saveError = OPEN_ENTRY_TEXTS.switchedToOpenEntry(startHm(clash));
+        saving = false;
+        return;
+      }
+    }
     try {
       // Issue #80 (D-09a) + Issue #511 D-10: the response carries the server's break findings;
       // the notice below names the cross-salon and the Satz-2/3 ones. The form's own findings
@@ -1663,17 +1708,17 @@
   }
 
   // ── Submit retro entry request ─────────────────────────────────────────────
-  // Phase 96 (RETRO-17/D-02) — branches on editEntry:
-  //  - editEntry === null: brand-new out-of-window entry, no existing row for
-  //    the day → entry-first (RETRO-10). The reason travels WITH the create in
-  //    a single POST /time-entries call so a pending entry never exists without
-  //    its audit reason (Revisionssicherheit). Backend creates the pending
-  //    TimeEntry (isInvalid=true) + coupled PENDING RetroEntryRequest
-  //    atomically (time-entries.ts pendingRetroCreate branch, 96-02).
-  //  - editEntry set: an EXISTING out-of-window entry is being edited/deleted
-  //    (correction case, D-02) → unchanged legacy correction-proposal POST
-  //    /retro-entry-requests. The existing valid entry stays untouched and
-  //    keeps counting in the saldo until a manager applies the correction.
+  // Phase 96 (RETRO-17/D-02) — two paths, decided by `retroSubmitPath()` (Issue #1085):
+  //  - entry-first: a brand-new out-of-window interval, no entry to correct (RETRO-10). The reason
+  //    travels WITH the create in a single POST /time-entries call so a pending entry never exists
+  //    without its audit reason (Revisionssicherheit). Backend creates the pending TimeEntry
+  //    (isInvalid=true) + coupled PENDING RetroEntryRequest atomically (time-entries.ts
+  //    pendingRetroCreate branch, 96-02).
+  //  - correction: an EXISTING out-of-window entry is being edited/deleted (D-02), OR the new
+  //    interval collides with the day's OPEN entry (Issue #1085: the person is entering the end of
+  //    that entry; an entry-first request there is refused as an overlap) → POST
+  //    /retro-entry-requests. The existing entry stays untouched and keeps counting in the saldo
+  //    until a manager applies the correction (Issue #1021: an open entry gets its end then).
   async function submitRetroRequest() {
     if (!retroReason.trim()) {
       retroReasonError = "Bitte gib eine Begründung an.";
@@ -1684,11 +1729,22 @@
       retroReasonError = "Bitte gib Von- und Bis-Uhrzeit an.";
       return;
     }
+    // The request carries a proposed end; a form with „Arbeitsende erfasst“ off (an open entry
+    // being edited) shows a default end the person never chose.
+    if (!formHasEnd) {
+      retroReasonError = OPEN_ENTRY_TEXTS.endRequired;
+      return;
+    }
     retroReasonError = "";
     retroSubmitError = "";
     retroSubmitting = true;
     try {
-      if (editEntry === null) {
+      const path = retroSubmitPath({
+        editEntry,
+        dayEntries: rowsOfDay(formDate),
+        proposedEnd: new Date(`${formDate}T${formEnd}:00`),
+      });
+      if (path.kind === "entry-first") {
         const { startISO, endISO, breaksPayload } = buildManualEntryFields();
         await api.post("/time-entries", {
           date: formDate,
@@ -2650,6 +2706,7 @@
       {:else}
         {#if multiEntryUi}
           {#if !isExempt && rowsOfDay(selectedDate).length > 0}
+            {@const dayOpenEntry = openEntryOfDay(rowsOfDay(selectedDate))}
             <div class="list-day-bar" data-testid="time-entries-list-day-bar">
               <span class="list-day-label"
                 >{format(new Date(selectedDate + "T12:00:00"), "EEEE, d. MMMM", {
@@ -2660,7 +2717,9 @@
                 class="btn btn-outline btn-sm"
                 type="button"
                 onclick={() => openAdditionalEntry(selectedDate)}
-                data-testid="time-entries-add-additional">Weiteren Eintrag an diesem Tag</button
+                data-testid="time-entries-add-additional"
+                >{#if dayOpenEntry}{openEntryActionLabel(dayOpenEntry, todayStr)}{:else}Weiteren
+                  Eintrag an diesem Tag{/if}</button
               >
             </div>
           {/if}
@@ -2952,9 +3011,7 @@
     bind:open={modalOpen}
     eyebrow={travelMode === "travel"
       ? TRAVEL_TEXTS.editTitle
-      : editEntry
-        ? "Eintrag bearbeiten"
-        : "Neuer Eintrag"}
+      : openEntryDialogEyebrow(editEntry, todayStr)}
     title={formDate
       ? format(new Date(formDate + "T12:00:00"), "EEEE, d. MMMM yyyy", { locale: de })
       : "Zeiteintrag"}
@@ -3088,6 +3145,11 @@
             disabled={!formHasEnd}
             data-testid="time-entry-modal-end"
           />
+          {#if editEntry && editEntry.endTime === null && !formHasEnd}
+            <p class="form-hint" data-testid="time-entry-modal-open-hint">
+              {OPEN_ENTRY_TEXTS.openHint}
+            </p>
+          {/if}
         </div>
       </div>
       {#if !travelActive}
@@ -3341,7 +3403,7 @@
       {/if}
 
       {#if multiEntryUi}
-        {#if editEntry && !isExempt && !retroWindowExceeded}
+        {#if editEntry && editEntry.endTime !== null && !isExempt && !retroWindowExceeded}
           <div class="modal-additional">
             <button
               class="btn btn-outline btn-sm"
@@ -3358,12 +3420,16 @@
       <!-- Shown when save/delete returns 403 RETRO_WINDOW_EXCEEDED for own entries. -->
       {#if retroWindowExceeded}
         <div class="retro-request-section">
-          <div class="callout warning" role="alert">
+          <div class="callout warning" role="alert" data-testid="time-entry-retro-callout">
             <span class="ico" aria-hidden="true">⚠</span>
-            <p>
-              Dieser Eintrag liegt außerhalb des Bearbeitungsfensters ({retroWindowDays} Tage). Bitte
-              stelle einen Antrag auf rückwirkende Bearbeitung.
-            </p>
+            {#if retroOpenTarget}
+              <p>{OPEN_ENTRY_TEXTS.retroCallout(startHm(retroOpenTarget), retroWindowDays)}</p>
+            {:else}
+              <p>
+                Dieser Eintrag liegt außerhalb des Bearbeitungsfensters ({retroWindowDays} Tage). Bitte
+                stelle einen Antrag auf rückwirkende Bearbeitung.
+              </p>
+            {/if}
           </div>
           <p class="retro-times-hint text-muted">
             Vorgeschlagene Zeiten: {formStart}–{formEnd}{#if formBreakShown > 0}
@@ -3378,6 +3444,7 @@
               bind:value={retroReason}
               placeholder="Bitte beschreibe, warum der Eintrag nachträglich geändert werden muss."
               disabled={retroSubmitting}
+              data-testid="time-entry-retro-reason"
             ></textarea>
             {#if retroReasonError}
               <p class="retro-field-error" role="alert">{retroReasonError}</p>
@@ -3403,6 +3470,7 @@
               type="button"
               onclick={submitRetroRequest}
               disabled={retroSubmitting}
+              data-testid="time-entry-retro-submit"
             >
               {retroSubmitting ? "…" : "Antrag stellen"}
             </button>
