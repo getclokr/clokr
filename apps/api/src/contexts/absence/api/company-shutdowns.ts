@@ -5,6 +5,8 @@ import { requireAuth } from "../../../middleware/auth";
 import {
   accessContextFromRequest,
   hasPermission,
+  homeSalonsForDays,
+  listSalons,
   requirePermission,
   resolveAccessReach,
   resolveSalonInReach,
@@ -58,6 +60,11 @@ const SALON_INCLUDE = {
   },
 } as const;
 
+/** The row `loadManageableShutdown` hands to a write route. */
+type ManageableShutdown = Prisma.CompanyShutdownGetPayload<{
+  include: { salons: { select: { salonId: true } } };
+}>;
+
 /** Sorted, duplicate-free salon ids (the audit value and the set comparison of D-10). */
 function normalizeSalonIds(ids: readonly string[] | undefined): string[] {
   return [...new Set(ids ?? [])].sort();
@@ -106,6 +113,47 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
     return { ok: true };
   }
 
+  /** True when the reach covers every salon of the shutdown (none = the whole Unternehmen). */
+  function reachCoversShutdown(reach: AccessReach, salonIds: readonly string[]): boolean {
+    if (reach.kind === "wholeTenant") return true;
+    return salonIds.length > 0 && salonIds.every((id) => reach.salonIds.includes(id));
+  }
+
+  /**
+   * D-08: the tenant-scoped Betriebsurlaub of a write route, admitted by the manage reach. Unknown,
+   * foreign or deleted: the route's own 404 body; an unternehmensweit one for a scoped caller: 403;
+   * a salon-scoped one with any salon outside the reach: the same 404 body (T-100-09).
+   */
+  async function loadManageableShutdown(
+    req: FastifyRequest,
+    id: string,
+    notFoundBody: object,
+  ): Promise<
+    | { ok: true; shutdown: ManageableShutdown; salonIds: string[]; reach: AccessReach }
+    | { ok: false; status: 403 | 404; body: object }
+  > {
+    const tenantId = req.user.tenantId;
+    const shutdown = await app.prisma.companyShutdown.findFirst({
+      where: { id, tenantId, deletedAt: null },
+      include: { salons: { select: { salonId: true } } },
+    });
+    if (!shutdown) return { ok: false, status: 404, body: notFoundBody };
+    const salonIds = normalizeSalonIds(shutdown.salons.map((row) => row.salonId));
+    const reach = (await manageReachOf(req)) ?? { kind: "scoped", salonIds: [], employeeIds: [] };
+    if (reachCoversShutdown(reach, salonIds)) return { ok: true, shutdown, salonIds, reach };
+    if (salonIds.length === 0) {
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN],
+          code: COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN,
+        },
+      };
+    }
+    return { ok: false, status: 404, body: notFoundBody };
+  }
+
   // ── GET /company-shutdowns ──────────────────────────────────────────────────
   app.get("/", { preHandler: requireAuth }, async (req, _reply) => {
     const tenantId = req.user.tenantId;
@@ -132,11 +180,49 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
             },
           },
         },
+        ...SALON_INCLUDE,
       },
     });
 
-    return shutdowns;
+    // Issue #1079 (D-09): every row names its salons and whether the caller may manage it.
+    const reach = await manageReachOf(req);
+    return shutdowns.map((row) => ({
+      ...row,
+      salons: salonsOf(row.salons),
+      canManage:
+        reach !== null &&
+        reachCoversShutdown(
+          reach,
+          row.salons.map((entry) => entry.salon.id),
+        ),
+    }));
   });
+
+  // ── GET /company-shutdowns/scope ────────────────────────────────────────────
+  // The salons the caller may name in a Betriebsurlaub. Registered before every `/:id` route.
+  app.get(
+    "/scope",
+    {
+      schema: {
+        tags: ["Abwesenheiten"],
+        security: [{ bearerAuth: [] }],
+        summary: "Salons the caller may name in a Betriebsurlaub",
+        description:
+          "Answers whether the caller may manage a Betriebsurlaub for the whole Unternehmen and which active salons they may name. Needs company-shutdown:manage.",
+      },
+      preHandler: requirePermission("company-shutdown:manage:ZUGEWIESEN"),
+    },
+    async (req) => {
+      const reach =
+        (await manageReachOf(req)) ??
+        ({ kind: "scoped", salonIds: [], employeeIds: [] } as AccessReach);
+      const active = await listSalons(app.prisma, req.user.tenantId, { includeInactive: false });
+      const salons = active
+        .filter((salon) => reach.kind === "wholeTenant" || reach.salonIds.includes(salon.id))
+        .map((salon) => ({ id: salon.id, name: salon.name }));
+      return { canManageAllSalons: reach.kind === "wholeTenant", salons };
+    },
+  );
 
   // ── POST /company-shutdowns ─────────────────────────────────────────────────
   app.post(
@@ -226,19 +312,30 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const body = shutdownBodySchema.partial().parse(req.body);
 
-      const existing = await app.prisma.companyShutdown.findFirst({
-        where: { id, tenantId, deletedAt: null },
-        include: { salons: { select: { salonId: true } } },
-      });
-      if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
-      const existingSalonIds = normalizeSalonIds(existing.salons.map((row) => row.salonId));
+      // Issue #1079 (D-08): an existing row is manageable only when the reach covers all its salons.
+      const loaded = await loadManageableShutdown(req, id, { message: "Nicht gefunden" });
+      if (!loaded.ok) return reply.status(loaded.status).send(loaded.body);
+      const { shutdown: existing, salonIds: existingSalonIds, reach } = loaded;
 
-      // Issue #1069 (D-11): the edited period may not share a day with another active Betriebsurlaub.
+      // D-10: a changed salon set (order and duplicates irrelevant) re-books like a changed period.
+      const newSalonIds =
+        body.salonIds === undefined ? existingSalonIds : normalizeSalonIds(body.salonIds);
+      const scopeChanged =
+        newSalonIds.length !== existingSalonIds.length ||
+        newSalonIds.some((salonId, index) => salonId !== existingSalonIds[index]);
+      if (scopeChanged) {
+        // Only ADDED salons are re-validated: a since-deactivated salon may stay (the #647 rule).
+        const admission = await admitScope(req, reach, newSalonIds, existingSalonIds);
+        if (!admission.ok) return reply.status(admission.status).send(admission.body);
+      }
+
+      // Issue #1069 (D-11, revised by #1079 D-05): the edited period or scope may not share a day
+      // with another active Betriebsurlaub whose scope meets.
       const newStart = body.startDate ?? existing.startDate.toISOString().slice(0, 10);
       const newEnd = body.endDate ?? existing.endDate.toISOString().slice(0, 10);
       if (
-        (body.startDate !== undefined || body.endDate !== undefined) &&
-        (await findOverlappingShutdown(app, tenantId, newStart, newEnd, existingSalonIds, id))
+        (body.startDate !== undefined || body.endDate !== undefined || scopeChanged) &&
+        (await findOverlappingShutdown(app, tenantId, newStart, newEnd, newSalonIds, id))
       ) {
         return reply.status(409).send({
           error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_OVERLAP],
@@ -249,7 +346,7 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const request = { ip: req.ip, headers: req.headers as Record<string, string> };
       const applyUpdate = async () => {
         const updated = await app.prisma.companyShutdown.update({
-          where: { id },
+          where: { id, tenantId },
           data: {
             ...(body.name !== undefined && { name: body.name }),
             ...(body.startDate !== undefined && { startDate: new Date(body.startDate) }),
@@ -258,6 +355,12 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
               deductsFromVacation: body.deductsFromVacation,
             }),
             ...(body.notes !== undefined && { notes: body.notes }),
+            ...(scopeChanged && {
+              salons: {
+                deleteMany: {},
+                create: newSalonIds.map((salonId) => ({ salonId })),
+              },
+            }),
           },
           include: {
             exceptions: {
@@ -267,6 +370,7 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
                 },
               },
             },
+            ...SALON_INCLUDE,
           },
         });
 
@@ -280,22 +384,26 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
             startDate: existing.startDate,
             endDate: existing.endDate,
             deductsFromVacation: existing.deductsFromVacation,
+            salonIds: existingSalonIds,
           },
           newValue: {
             name: updated.name,
             startDate: updated.startDate,
             endDate: updated.endDate,
             deductsFromVacation: updated.deductsFromVacation,
+            salonIds: newSalonIds,
           },
           request,
         });
-        return updated;
+        return { ...updated, salons: salonsOf(updated.salons) };
       };
 
-      // Issue #1069 (D-09): a changed period or deduction flag cancels the generated rows of open
-      // months and books again, in ONE locked run; the update itself runs inside the lock, so a
-      // contended lock (409) changes nothing. A change of name or notes books nothing.
+      // Issue #1069 (D-09): a changed period, deduction flag or (#1079) salon set cancels the
+      // generated rows of open months and books again, in ONE locked run; the update itself runs
+      // inside the lock, so a contended lock (409) changes nothing. A change of name or notes books
+      // nothing.
       const rebooks =
+        scopeChanged ||
         (body.startDate !== undefined && body.startDate !== dayString(existing.startDate)) ||
         (body.endDate !== undefined && body.endDate !== dayString(existing.endDate)) ||
         (body.deductsFromVacation !== undefined &&
@@ -332,10 +440,9 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const tenantId = req.user.tenantId;
       const { id } = req.params as { id: string };
 
-      const existing = await app.prisma.companyShutdown.findFirst({
-        where: { id, tenantId, deletedAt: null },
-      });
-      if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
+      const loaded = await loadManageableShutdown(req, id, { message: "Nicht gefunden" });
+      if (!loaded.ok) return reply.status(loaded.status).send(loaded.body);
+      const { shutdown: existing, salonIds: existingSalonIds } = loaded;
 
       // Issue #1069 (D-10): the row is the source of payroll-relevant bookings - soft delete, never
       // removed. The delete runs inside the shutdown's lock, then its generated rows of open months
@@ -362,6 +469,7 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
               startDate: existing.startDate,
               endDate: existing.endDate,
               deductsFromVacation: existing.deductsFromVacation,
+              salonIds: existingSalonIds,
             },
             request,
           });
@@ -388,13 +496,31 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const { employeeId, reason } = req.body as { employeeId: string; reason?: string };
 
-      const shutdown = await app.prisma.companyShutdown.findFirst({
-        where: { id, tenantId, deletedAt: null },
+      const loaded = await loadManageableShutdown(req, id, {
+        message: "Betriebsurlaub nicht gefunden",
       });
-      if (!shutdown) return reply.status(404).send({ message: "Betriebsurlaub nicht gefunden" });
+      if (!loaded.ok) return reply.status(loaded.status).send(loaded.body);
+      const { shutdown, salonIds, reach } = loaded;
 
       const employee = await app.prisma.employee.findFirst({ where: { id: employeeId, tenantId } });
       if (!employee) return reply.status(404).send({ message: "Mitarbeiter nicht gefunden" });
+
+      // Issue #1079 (D-08): a scoped caller may exempt only a person homed in one of the
+      // shutdown's salons on a shutdown day - anyone else answers like an unknown person, so the
+      // answer never carries the name of a person outside her reach (DSGVO Art. 5 Abs. 1 lit. c).
+      if (reach.kind !== "wholeTenant") {
+        const days = await homeSalonsForDays(
+          app.prisma,
+          tenantId,
+          [employee.id],
+          dayString(shutdown.startDate),
+          dayString(shutdown.endDate),
+        );
+        const homed = [...(days.get(employee.id)?.values() ?? [])].some(
+          (salonId) => salonId !== null && salonIds.includes(salonId),
+        );
+        if (!homed) return reply.status(404).send({ message: "Mitarbeiter nicht gefunden" });
+      }
 
       const exception = await app.prisma.companyShutdownException.upsert({
         where: { shutdownId_employeeId: { shutdownId: id, employeeId } },
@@ -441,10 +567,10 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const tenantId = req.user.tenantId;
       const { id, employeeId } = req.params as { id: string; employeeId: string };
 
-      const shutdown = await app.prisma.companyShutdown.findFirst({
-        where: { id, tenantId, deletedAt: null },
+      const loaded = await loadManageableShutdown(req, id, {
+        message: "Betriebsurlaub nicht gefunden",
       });
-      if (!shutdown) return reply.status(404).send({ message: "Betriebsurlaub nicht gefunden" });
+      if (!loaded.ok) return reply.status(loaded.status).send(loaded.body);
 
       // Fetch before delete so oldValue is available for the audit log
       const existing = await app.prisma.companyShutdownException.findUnique({
