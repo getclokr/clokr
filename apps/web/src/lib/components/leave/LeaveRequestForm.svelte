@@ -28,6 +28,8 @@
   import { de } from "date-fns/locale";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay, tenantYear } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import CollisionWarnBody from "$lib/phorest/CollisionWarnBody.svelte";
@@ -109,7 +111,7 @@
     initialTypeCode?: CalendarTypeCode;
     /** The year `/leave/entitlements/:employeeId` is queried with — the calendar year the PAGE
      *  is currently showing (`calYear` on both `/leave` and `/team/leave`), not necessarily the
-     *  real-world current year. Defaults to the real-world current year when omitted. This
+     *  real-world current year. Defaults to the TENANT's current year when omitted (Issue #1072). This
      *  component's own entitlement fetch is independent of any page-level KPI strip's fetch of
      *  the same data (Phase 415: two independent reads of the same endpoint, not a shared
      *  writer — see the component doc comment) — kept in the same YEAR to still show identical
@@ -135,11 +137,16 @@
     initialStartDate = "",
     initialEndDate = "",
     initialTypeCode = "VACATION",
-    entitlementYear = new Date().getFullYear(),
+    entitlementYear,
     onSaved,
     personPicker,
     deferUntilPerson = false,
   }: Props = $props();
+
+  // The year without a prop: the tenant's, never the device's (Issue #1072).
+  const entitlementYearOrTenant = $derived(
+    entitlementYear ?? tenantYear(new Date(), $tenantFeatures.timezone),
+  );
 
   // Only a create can wait for a person: an edit always has one.
   const awaitingPerson = $derived(deferUntilPerson && !editingRequest && !employeeId);
@@ -211,9 +218,9 @@
     return LEAVE_TYPE_OPTIONS.find((t) => t.code === code)?.label ?? code;
   }
 
-  /** Today as a local `YYYY-MM-DD` (a carry-over deadline is only news while it lies ahead). */
+  /** Today as the tenant's `YYYY-MM-DD` (a carry-over deadline is only news while it lies ahead). */
   function localToday(): string {
-    return format(new Date(), "yyyy-MM-dd");
+    return tenantDay(new Date(), $tenantFeatures.timezone);
   }
 
   function fmtDate(iso: string): string {
@@ -467,7 +474,7 @@
   // Issue #940: the account of the year the request starts in (a January request reads the next
   // year's carry-over and deadline); without a start date the page's year.
   const balanceYear = $derived(
-    /^\d{4}-/.test(formStart) ? Number(formStart.slice(0, 4)) : entitlementYear,
+    /^\d{4}-/.test(formStart) ? Number(formStart.slice(0, 4)) : entitlementYearOrTenant,
   );
   $effect(() => {
     if (open) loadBalanceForType(formType, employeeId, balanceYear);

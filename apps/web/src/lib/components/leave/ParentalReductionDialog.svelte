@@ -16,6 +16,8 @@
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte"; // Issue #853
@@ -55,7 +57,8 @@
   let revokeYear: number | null = $state(null);
   let revokeOpen = $state(false);
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // The latest declaration day is the tenant's today (Issue #1072), not the UTC day.
+  const todayIso = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
 
   // Shared by the initial load (the $effect below) and by a successful revoke (D-10's "reloads
   // the preview") — one place, never two copies of the same fetch.

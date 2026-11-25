@@ -16,6 +16,8 @@
   import { goto } from "$app/navigation";
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantYear } from "$lib/utils/tenant-day";
   import Chip from "$components/ui/Chip.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
@@ -52,8 +54,12 @@
     { key: "actions", label: "Aktionen", align: "end" },
   ];
 
-  const years = shutdownYears(new Date().getFullYear());
-  let filterYear = $state(String(new Date().getFullYear()));
+  // The tenant's year (Issue #1072), not the device's.
+  const years = $derived(shutdownYears(tenantYear(new Date(), $tenantFeatures.timezone)));
+  // Seeded from the store's zone (the default until the layout's read settles); the first load
+  // re-seeds it once the zone is known, as long as the person has not picked a year.
+  const initialYear = String(tenantYear(new Date(), $tenantFeatures.timezone));
+  let filterYear = $state(initialYear);
 
   let shutdowns = $state<CompanyShutdown[]>([]);
   let loading = $state(false);
@@ -77,7 +83,11 @@
   $effect(() => {
     if (active && !loaded) {
       loaded = true;
-      void loadShutdowns();
+      void (async () => {
+        const zone = await tenantFeatures.loadTimezone();
+        if (filterYear === initialYear) filterYear = String(tenantYear(new Date(), zone));
+        await loadShutdowns();
+      })();
     }
   });
 

@@ -6,6 +6,8 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { homeSalonMarksApply, salonContext } from "$stores/salon-context";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { listPrefs } from "$stores/list-prefs";
   import { resolveListPreference } from "$lib/lists/list-registry";
@@ -273,14 +275,8 @@
   // ── URL state: tab, zoom and anchor day (Issue #840, E-01, D-840-01/02/13/17) ────────────────
   // Tab, zoom and anchor come only from `parseTeamLeaveState`; a change writes the URL through
   // `navigate` (the back button walks the tabs, a zoom or period change replaces the entry).
-  function toLocalDateStr(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
-  const today = toLocalDateStr(new Date());
+  // Today is the tenant's day (Issue #1072), not the device's.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
   const urlState: TeamLeaveState = $derived(parseTeamLeaveState(page.url.searchParams, today));
   const activeTab: TeamLeaveTab = $derived(urlState.tab);
   const TAB_IDS: readonly TeamLeaveTab[] = ["uebersicht", "antraege", "planung"];
@@ -543,7 +539,7 @@
     if (createLink && hasPermission($authStore.user, "leave-request:create:ZUGEWIESEN")) {
       const person = employees.find((emp) => emp.id.toLowerCase() === createLink.employeeId);
       createEmployeeId = person ? person.id : "";
-      createInitialDate = createLink.date ?? new Date().toISOString().slice(0, 10);
+      createInitialDate = createLink.date ?? today;
       createModalOpen = true;
     }
   }
@@ -1091,7 +1087,7 @@
 
   function openCreate() {
     createEmployeeId = canCreateForOthers ? "" : ($authStore.user?.employeeId ?? "");
-    createInitialDate = new Date().toISOString().slice(0, 10);
+    createInitialDate = today;
     createModalOpen = true;
   }
 </script>

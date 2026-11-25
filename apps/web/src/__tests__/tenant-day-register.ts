@@ -40,48 +40,6 @@ export const TENANT_DAY_EXCEPTIONS: ReadonlyArray<TenantDayException> = [
   { file: "lib/operator/support-audit.ts", rule: "device-default-param", reason: OPERATOR_REASON },
   { file: "lib/operator/support-audit.ts", rule: "now-calendar-field", reason: OPERATOR_REASON },
   // Temporary migration entries, removed by the task that fixes the file.
-  {
-    file: "lib/components/admin/SalonHolidays.svelte",
-    rule: "device-calendar-field",
-    reason: migration(4),
-  },
-  {
-    file: "lib/components/admin/abwesenheiten/BetriebsurlaubPanel.svelte",
-    rule: "device-calendar-field",
-    reason: migration(4),
-  },
-  {
-    file: "lib/components/leave/LeaveRequestForm.svelte",
-    rule: "device-calendar-field",
-    reason: migration(4),
-  },
-  {
-    file: "lib/components/leave/LeaveRequestForm.svelte",
-    rule: "format-device-day",
-    reason: migration(4),
-  },
-  {
-    file: "lib/components/leave/ParentalReductionDialog.svelte",
-    rule: "utc-day-of-now",
-    reason: migration(4),
-  },
-  {
-    file: "lib/components/settings/MyWorkSettings.svelte",
-    rule: "device-calendar-field",
-    reason: migration(4),
-  },
-  { file: "routes/(app)/inbox/+page.svelte", rule: "device-calendar-field", reason: migration(4) },
-  {
-    file: "routes/(app)/leave/+page.svelte",
-    rule: "day-helper-on-device-clock",
-    reason: migration(4),
-  },
-  {
-    file: "routes/(app)/team/leave/+page.svelte",
-    rule: "day-helper-on-device-clock",
-    reason: migration(4),
-  },
-  { file: "routes/(app)/team/leave/+page.svelte", rule: "utc-day-of-now", reason: migration(4) },
   { file: "lib/audit/list-url-state.ts", rule: "device-default-param", reason: migration(5) },
   { file: "lib/audit/list-url-state.ts", rule: "now-calendar-field", reason: migration(5) },
   {

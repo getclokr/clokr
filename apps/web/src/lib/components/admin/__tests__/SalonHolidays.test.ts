@@ -2,7 +2,7 @@
 // mounted (no `$app` alias), so this mount test is the component's gate: the two lists, the year
 // reload, the add body, client-side refusals, the remove confirmation and the read-only state.
 // Issue #854: the lists are DataTables, adding goes through a Dialog with the DatePicker.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
 const get = vi.fn();
@@ -33,7 +33,9 @@ import { renderWithTheme } from "$tests/test-utils";
 import { ApiError } from "$api/client";
 import SalonHolidays from "../SalonHolidays.svelte";
 
-const YEAR = new Date().getFullYear();
+// Issue #1072: the component reads the year in the tenant zone, so the clock is pinned (see `beforeEach`).
+const NOW = new Date("2026-11-24T12:00:00.000Z");
+const YEAR = 2026;
 const CALENDAR = [
   { id: `computed-${YEAR}-01-01`, date: `${YEAR}-01-01`, name: "Neujahr", isManual: false },
   { id: "m-1", date: `${YEAR}-03-10`, name: "Salonjubiläum", isManual: true },
@@ -69,9 +71,15 @@ function mount(canManage: boolean) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   get.mockResolvedValue(CALENDAR);
   post.mockResolvedValue({});
   del.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("SalonHolidays", () => {

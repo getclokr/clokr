@@ -20,6 +20,8 @@
   import { onMount } from "svelte";
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantYear } from "$lib/utils/tenant-day";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import DatePicker from "$components/ui/DatePicker.svelte";
@@ -45,10 +47,14 @@
 
   let { salonId, canManage }: Props = $props();
 
-  const thisYear = new Date().getFullYear();
-  const YEARS = [thisYear - 1, thisYear, thisYear + 1, thisYear + 2];
+  // The tenant's year (Issue #1072), not the device's.
+  const thisYear = $derived(tenantYear(new Date(), $tenantFeatures.timezone));
+  const YEARS = $derived([thisYear - 1, thisYear, thisYear + 1, thisYear + 2]);
 
-  let year = $state(thisYear);
+  // Seeded from the store's zone (the default until the layout's read settles); onMount re-seeds it
+  // once the zone is known, as long as the person has not picked a year.
+  const initialYear = tenantYear(new Date(), $tenantFeatures.timezone);
+  let year = $state(initialYear);
   let items: SalonHolidayDto[] = $state([]);
   let loading = $state(true);
   let loadError = $state("");
@@ -104,7 +110,13 @@
     }
   }
 
-  onMount(load);
+  onMount(() => {
+    void (async () => {
+      const zone = await tenantFeatures.loadTimezone();
+      if (year === initialYear) year = tenantYear(new Date(), zone);
+      await load();
+    })();
+  });
 
   function changeYear(event: Event) {
     year = Number((event.currentTarget as HTMLSelectElement).value);

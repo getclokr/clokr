@@ -6,6 +6,8 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
+  import { tenantFeatures } from "$stores/tenant-features";
+  import { tenantDay } from "$lib/utils/tenant-day";
   import Pagination from "$components/ui/Pagination.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
@@ -282,7 +284,8 @@
   // Tab, zoom and anchor come only from `parseMyLeaveState`; a change writes the URL through
   // `navigate` (the back button walks the tabs, a zoom or period change replaces the entry). The
   // viewed year and month are the anchor day's, so every year-bound read follows the URL.
-  const today = toLocalDateStr(new Date());
+  // Today is the tenant's day (Issue #1072); `toLocalDateStr` stays for constructed calendar dates.
+  const today = $derived(tenantDay(new Date(), $tenantFeatures.timezone));
   const urlState: MyLeaveState = $derived(parseMyLeaveState(page.url.searchParams, today));
   // A notification link names a request and no tab: it opens Meine Anträge at that row.
   const activeTab: MyLeaveTab = $derived(
@@ -376,7 +379,7 @@
     let startDow = first.getDay(); // 0=So
     startDow = startDow === 0 ? 6 : startDow - 1;
 
-    const todayStr = toLocalDateStr(new Date());
+    const todayStr = tenantDay(new Date(), $tenantFeatures.timezone);
 
     // Vortage aus Vormonat
     for (let i = startDow - 1; i >= 0; i--) {
