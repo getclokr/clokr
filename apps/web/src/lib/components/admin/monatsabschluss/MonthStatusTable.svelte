@@ -104,7 +104,8 @@
     blocked: "warn",
   };
 
-  // Browser-local calendar day: the web has no tenant-local "today" helper.
+  // Browser-local calendar day. The tenant's day (`tenantDay()` in `$lib/utils/tenant-day`, Issue #1066)
+  // is the right reading; moving this place onto it is a listed follow-up of that issue.
   const today = localCalendarDay();
 
   function statusLabel(status: string, month: number): string {

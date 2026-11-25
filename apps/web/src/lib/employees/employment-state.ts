@@ -5,9 +5,10 @@
  * locks it separately (a deliberate split, see the exit-date hint on the detail page).
  *
  * `exitDate` is read by its UTC calendar day, the convention of the employee form (`@db.Timestamptz`
- * holding a UTC-midnight date). The web has no tenant-local "today" helper, so callers pass the
- * browser-local calendar day from `localCalendarDay()`; a person whose last day is today is still
- * employed (EXIT_PLANNED) until the day is over.
+ * holding a UTC-midnight date). Callers still pass the browser-local calendar day from
+ * `localCalendarDay()`; the tenant's day is `tenantDay()` in `$lib/utils/tenant-day` (Issue #1066),
+ * and moving the callers onto it is a listed follow-up of that issue. A person whose last day is
+ * today is still employed (EXIT_PLANNED) until the day is over.
  */
 export type EmploymentKind = "EMPLOYED" | "EXIT_PLANNED" | "ENDED";
 

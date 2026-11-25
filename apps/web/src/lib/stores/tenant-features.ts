@@ -35,7 +35,7 @@ interface SettingsWorkResponse {
 }
 
 function createTenantFeatures() {
-  const { subscribe, set, update } = writable<TenantFeatures>({
+  const { subscribe, update } = writable<TenantFeatures>({
     availabilityEnabled: true,
     timezone: DEFAULT_TIMEZONE,
     loaded: false,
