@@ -8458,8 +8458,11 @@ Tag, die Buchung aus #1069 wird wiederverwendet, und wer einen Salon verwaltet, 
 `company-shutdown` wechselt die Relation von Mandant auf Person (wie #835/#836): eine salonbezogene Zuweisung mit dem Schlüssel wirkt
 für ihre Salons, auch eine Kundenkopie einer Rolle. (2) Die Vorlage **Salonmanager** bekommt `company-shutdown:manage:ZUGEWIESEN`
 (`20261125200000_company_shutdown_template_grant`, reine Datenmigration, idempotent, genau eine Zeile, Vorlagenkette erweitert). (3)
-Einschränkung: Ein Betriebsurlaub **ohne Urlaubsabzug** (bezahlte Freistellung, § 615 BGB, eine Lohnkosten-Entscheidung) darf nur
-anlegen oder darauf umstellen, wer Reichweite Unternehmen hat (403 `COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`); ein Betriebsurlaub mit
+Einschränkung, am 25.11.2026 im Sinne des Owners geschärft: Ein Betriebsurlaub **ohne Urlaubsabzug** (bezahlte Freistellung,
+§ 615 BGB, eine Lohnkosten-Entscheidung) darf nur anlegen, darauf umstellen UND jede weitere Schreibaktion darauf ausführen (ändern von
+Zeitraum, Salons oder Bezeichnung, löschen, Ausnahme hinzufügen oder entfernen), wer Reichweite Unternehmen hat (403
+`COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, vor jedem Schreiben, kein Audit-Eintrag); für eine Salonleitung ist `canManage` an so einer Zeile
+`false`, die Oberfläche zeigt sie schreibgeschützt. Ein Betriebsurlaub mit
 Urlaubsabzug bucht nichts, was die Urlaubsrechte der Salonleitung nicht ohnehin erlauben. Das ändert T-1069-09: dort wurde das Risiko nur
 angenommen, weil der Schlüssel nur Mandanten-Inhaber hielten. Die Neutralitätsmatrix blieb unverändert (kein Zellwechsel); der Persona-Test
 des Web nennt jetzt „Betriebsurlaub“ für den Salonmanager.
@@ -8472,8 +8475,6 @@ Erweiterung (kein bestehender Leser ändert sich), genehmigt durch „Ready“ v
 
 - Keine Ausnahme je Tag für eine Springerin des geschlossenen Salons (D-04).
 - Eine Änderung des Eintrittsdatums bucht nicht neu (Grenze aus #1069 D-18); das Bestandsskript zeigt Lücken.
-- Wer den Zeitraum oder die Salons eines bereits bestehenden Betriebsurlaubs ohne Urlaubsabzug ändert, braucht dafür (nach A2) keine
-  Reichweite Unternehmen, solange sich der Abzug nicht ändert; nur Anlegen und Umstellen sind gesperrt.
 - `GET /company-shutdowns` zeigt jedem angemeldeten Konto die Namen der Ausnahmelisten aller Betriebsurlaube (seit #854/#1069,
   unverändert gelassen, damit Neutralitätszellen nicht wandern); eine Datensparsamkeits-Verbesserung ist als Folge-Ticket vorgeschlagen.
 - Der Urlaubsplaner zeigt eine Zeile nur innerhalb des Planjahres; ein salonbezogener Betriebsurlaub über den Jahreswechsel erscheint dort

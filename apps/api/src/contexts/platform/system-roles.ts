@@ -390,8 +390,8 @@ const OWNER_PERMISSION_KEYS = [
  *
  * Issue #1079: holds `company-shutdown:manage` so each salon manages the Betriebsurlaub of her own
  * salons (reach SALONS: only a Betriebsurlaub that names salons all inside the assignment; one for the
- * whole Unternehmen needs whole-tenant reach, and so does „Kein Urlaubsabzug“, the paid release
- * without Urlaub - a wage-cost decision, § 615 BGB). Owner decision 25.11.2026 (A2); the resource
+ * whole Unternehmen needs whole-tenant reach, and so does every write to a Betriebsurlaub with „Kein Urlaubsabzug“, the
+ * paid release without Urlaub - a wage-cost decision, § 615 BGB). Owner decision 25.11.2026 (A2); the resource
  * `company-shutdown` changed its relation from MANDANT to PERSON for it. Shipped by the data-only
  * migration `20261125200000_company_shutdown_template_grant`.
  */

@@ -363,6 +363,7 @@
     {#if readOnly}
       <Note tone="info">
         Diesen Betriebsurlaub verwaltet, wer für alle seine Salons oder für das ganze Unternehmen
+        zuständig ist; ohne Urlaubsabzug (bezahlte Freistellung) nur, wer für das ganze Unternehmen
         zuständig ist. Du kannst ihn ansehen, aber nicht ändern.
       </Note>
     {/if}

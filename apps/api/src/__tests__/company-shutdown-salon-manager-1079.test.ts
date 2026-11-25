@@ -366,6 +366,82 @@ describe("Issue #1079 - a Salonmanager manages the Betriebsurlaub of her salon",
     );
   });
 
+  it("every write to a paid-release Betriebsurlaub of her salon is 403 before any write, a deducting one still works", async () => {
+    const week = await freshWeek();
+    const release = await adminCreate(week, [salonA], false);
+    const auditCount = () =>
+      app.prisma.auditLog.count({
+        where: {
+          OR: [
+            { entity: "CompanyShutdown", entityId: release },
+            { entity: "CompanyShutdownException", entityId: { startsWith: release } },
+          ],
+        },
+      });
+    const stored = () =>
+      app.prisma.companyShutdown.findUniqueOrThrow({
+        where: { id: release },
+        include: { salons: true, exceptions: true },
+      });
+    const before = await stored();
+    const auditsBefore = await auditCount();
+    const absencesBefore = await app.prisma.absence.count({
+      where: { companyShutdownId: release, deletedAt: null },
+    });
+    const later = iso(plusDays(new Date(week.day2), 7));
+
+    const refused = [
+      await call(smToken, "PATCH", `/${release}`, { endDate: later }),
+      await call(smToken, "PATCH", `/${release}`, { name: "Umbenannt" }),
+      await call(smToken, "PATCH", `/${release}`, { salonIds: [salonA] }),
+      await call(smToken, "PATCH", `/${release}`, { deductsFromVacation: true }),
+      await call(smToken, "DELETE", `/${release}`),
+      await call(smToken, "POST", `/${release}/exceptions`, { employeeId: pA }),
+      await call(smToken, "DELETE", `/${release}/exceptions/${pA}`),
+    ];
+    for (const res of refused) {
+      expect(res.statusCode, res.body).toBe(403);
+      expect(res.json().code).toBe("COMPANY_SHUTDOWN_RELEASE_FORBIDDEN");
+    }
+
+    const after = await stored();
+    expect(after.deletedAt).toBeNull();
+    expect(after.updatedAt).toEqual(before.updatedAt);
+    expect(after.name).toBe(before.name);
+    expect(after.endDate).toEqual(before.endDate);
+    expect(after.deductsFromVacation).toBe(false);
+    expect(after.salons.map((row) => row.salonId)).toEqual([salonA]);
+    expect(after.exceptions).toHaveLength(0);
+    expect(await auditCount()).toBe(auditsBefore);
+    expect(
+      await app.prisma.absence.count({ where: { companyShutdownId: release, deletedAt: null } }),
+    ).toBe(absencesBefore);
+
+    // The list marks it read-only for her, the whole-tenant admin may still manage it.
+    const rowOf = async (token: string) =>
+      ((await call(token, "GET", "/")).json() as Array<{ id: string; canManage: boolean }>).find(
+        (row) => row.id === release,
+      )!;
+    expect((await rowOf(smToken)).canManage).toBe(false);
+    expect((await rowOf(data.adminToken)).canManage).toBe(true);
+
+    // A deducting Betriebsurlaub of her salon still works for every write.
+    const deducting = await adminCreate(await freshWeek(), [salonA], true);
+    expect((await call(smToken, "PATCH", `/${deducting}`, { name: "Umbenannt" })).statusCode).toBe(
+      200,
+    );
+    expect(
+      (await call(smToken, "POST", `/${deducting}/exceptions`, { employeeId: pA })).statusCode,
+    ).toBe(201);
+    expect((await call(smToken, "DELETE", `/${deducting}/exceptions/${pA}`)).statusCode).toBe(204);
+    expect((await call(smToken, "DELETE", `/${deducting}`)).statusCode).toBe(204);
+
+    // The whole-tenant admin is not affected by the rule on the paid-release row.
+    expect(
+      (await call(data.adminToken, "PATCH", `/${release}`, { name: "Admin" })).statusCode,
+    ).toBe(200);
+  });
+
   it("GET /scope offers only her salon; GET / marks canManage only on the shutdowns she can manage", async () => {
     const scope = (await call(smToken, "GET", "/scope")).json();
     expect(scope.canManageAllSalons).toBe(false);
@@ -373,12 +449,16 @@ describe("Issue #1079 - a Salonmanager manages the Betriebsurlaub of her salon",
 
     const rows = (await call(smToken, "GET", "/")).json() as Array<{
       salons: Array<{ id: string }>;
+      deductsFromVacation: boolean;
       canManage: boolean;
     }>;
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       const ids = row.salons.map((salon) => salon.id);
-      expect(row.canManage).toBe(ids.length > 0 && ids.every((id) => id === salonA));
+      // Her salon only, and never a row without Urlaubsabzug (paid release needs whole-tenant reach).
+      expect(row.canManage).toBe(
+        ids.length > 0 && ids.every((id) => id === salonA) && row.deductsFromVacation,
+      );
     }
     expect(rows.some((row) => row.canManage)).toBe(true);
     expect(rows.some((row) => !row.canManage)).toBe(true);

@@ -1474,7 +1474,8 @@ Clokr is a German-language, audit-proof time tracking and leave management SaaS 
   conflict (409 `COMPANY_SHUTDOWN_OVERLAP`) only when they share a day AND their scopes meet. The routes admit by the reach of
   `company-shutdown:manage`: no salon needs whole-tenant reach (403 `COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN`), every named salon goes
   through `resolveSalonInReach` (one 404 body), an existing row is manageable only when the reach covers all its salons; „Kein
-  Urlaubsabzug“ (create or switch) needs whole-tenant reach (403 `COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, owner decision 25.11.2026).
+  Urlaubsabzug“ (create, switch to it, and every later write: edit, delete, exceptions) needs whole-tenant reach (403
+  `COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, `canManage` false for a scoped caller, owner decision 25.11.2026).
   A later Stammsalon change re-books the moved person through the reactive decoration `app.companyShutdownHomeSalon` (open months only,
   cancel first, then book). `GET /company-shutdowns/scope` is the source of the web's scope control. Details and the Semantikänderung
   (relation `company-shutdown` Mandant -> Person, Salonmanager template): `docs/adr/0001-abweichungen.md`, Eintrag AM.

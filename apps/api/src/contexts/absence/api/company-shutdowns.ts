@@ -121,12 +121,13 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
   }
 
   /**
-   * Issue #1079 (owner decision A2): paid release without Urlaub is a wage-cost decision (§ 615 BGB), so
-   * creating a Betriebsurlaub without Urlaubsabzug, or switching one to it, needs a whole-tenant reach.
-   * Answers the 403 body, or null when the write may go on.
+   * Issue #1079 (owner decision A2, tightened 25.11.2026): paid release without Urlaub is a wage-cost
+   * decision (§ 615 BGB). Creating a Betriebsurlaub without Urlaubsabzug, switching one to it, and EVERY
+   * write to a Betriebsurlaub that already has no Urlaubsabzug (edit, delete, exceptions) needs a
+   * whole-tenant reach. Answers the 403 body, or null when the write may go on.
    */
-  function releaseRefusal(reach: AccessReach, switchesToRelease: boolean): object | null {
-    if (!switchesToRelease || reach.kind === "wholeTenant") return null;
+  function releaseRefusal(reach: AccessReach, paidRelease: boolean): object | null {
+    if (!paidRelease || reach.kind === "wholeTenant") return null;
     return {
       error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_RELEASE_FORBIDDEN],
       code: COMPANY_SHUTDOWN_RELEASE_FORBIDDEN,
@@ -136,7 +137,8 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
   /**
    * D-08: the tenant-scoped Betriebsurlaub of a write route, admitted by the manage reach. Unknown,
    * foreign or deleted: the route's own 404 body; an unternehmensweit one for a scoped caller: 403;
-   * a salon-scoped one with any salon outside the reach: the same 404 body (T-100-09).
+   * a salon-scoped one with any salon outside the reach: the same 404 body (T-100-09); a row without
+   * Urlaubsabzug for a scoped caller: 403 `COMPANY_SHUTDOWN_RELEASE_FORBIDDEN`, before any write.
    */
   async function loadManageableShutdown(
     req: FastifyRequest,
@@ -154,7 +156,11 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
     if (!shutdown) return { ok: false, status: 404, body: notFoundBody };
     const salonIds = normalizeSalonIds(shutdown.salons.map((row) => row.salonId));
     const reach = (await manageReachOf(req)) ?? { kind: "scoped", salonIds: [], employeeIds: [] };
-    if (reachCoversShutdown(reach, salonIds)) return { ok: true, shutdown, salonIds, reach };
+    if (reachCoversShutdown(reach, salonIds)) {
+      const refusal = releaseRefusal(reach, !shutdown.deductsFromVacation);
+      if (refusal) return { ok: false, status: 403, body: refusal };
+      return { ok: true, shutdown, salonIds, reach };
+    }
     if (salonIds.length === 0) {
       return {
         ok: false,
@@ -203,12 +209,14 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
     return shutdowns.map((row) => ({
       ...row,
       salons: salonsOf(row.salons),
+      // A scoped caller never manages a row without Urlaubsabzug (paid release, owner decision A2).
       canManage:
         reach !== null &&
         reachCoversShutdown(
           reach,
           row.salons.map((entry) => entry.salon.id),
-        ),
+        ) &&
+        releaseRefusal(reach, !row.deductsFromVacation) === null,
     }));
   });
 
