@@ -434,7 +434,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/scheduling/shift-cleanup.ts": "schichtplanung", // soft-deletes/flags Shift rows on VOCATIONAL_SCHOOL Absence creation — Shift is the model it manipulates
   "src/contexts/scheduling/shift-netto.ts": "schichtplanung", // net Shift-hours calculation
   "src/contexts/scheduling/shift-write-checks.ts": "schichtplanung", // Issue #1075 — the one gate of every adding Shift write path; reads Shift/Employee/WorkSchedule/TenantConfig and the minor weeks through minor-shift-limits.ts; never writes
-  "src/contexts/scheduling/minor-shift-limits.ts": "schichtplanung", // Issue #1057 — § 8/§ 12 JArbSchG roster check; reads Shift/Employee/WorkSchedule/TenantConfig, the Berufsschule credit through the Arbeitszeitkonto index, never writes
+  "src/contexts/scheduling/minor-shift-limits.ts": "schichtplanung", // Issues #1057/#1076 — JArbSchG roster check (§§ 8, 12–17); reads Shift/Employee/WorkSchedule/TenantConfig, the Berufsschule credit through the Arbeitszeitkonto index and the Berufsschule days through the Abwesenheiten index, never writes
   "src/contexts/scheduling/minor-shift-limit-report.ts": "schichtplanung", // Issue #1074 — end-of-run JArbSchG report of the Phorest sync; reads through minor-shift-limits.ts, writes only Notification rows via app.notify
   "src/contexts/scheduling/shift-leave-conflict-notify.ts": "schichtplanung", // Phase 430 (D-02) — Shift is the model it flags/audits; shared by leave.ts, sync-shifts.ts and this context's own routes
   "src/contexts/scheduling/shift-week-capacity.ts": "schichtplanung", // Phase 430 (D-05..D-07) — Shift is the model it counts; shared by sync-shifts.ts and this context's own routes

@@ -442,4 +442,59 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       await cleanupPhorestTenant(app, seed.tenantId);
     }
   });
+
+  // ── Issue #1076: §§ 13, 14, 17 (and 15) through the same report call ──────────────────────────
+
+  const THURSDAY_EVENING: Slot = { date: "2026-07-30", start: "12:00", end: "20:30" };
+  const SUNDAY_SLOT: Slot = { date: "2026-08-02", start: "10:00", end: "14:00" };
+
+  it("Issue #1076 — a 16-year-old's evening shift and Sunday shift arrive in one notification", async () => {
+    const seed = await seedPhorestTenant(app, "jas-1076-night");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+
+      const res = await runSync(app, seed, [THURSDAY_EVENING, SUNDAY_SLOT]);
+      expect(res.status).toBe("SUCCESS");
+      expect(res.created).toBe(2);
+
+      const shifts = await app.prisma.shift.findMany({
+        where: { employeeId: seed.mappedEmployeeId, deletedAt: null },
+        orderBy: [{ date: "asc" }, { id: "asc" }],
+      });
+      expect(shifts.map((x) => `${x.startTime}-${x.endTime}`)).toEqual([
+        "12:00-20:30",
+        "10:00-14:00",
+      ]);
+
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.07.2026")).toBe(0);
+      expect(n.message).toContain("§ 14");
+      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 02.08.2026 (Sonntagsruhe)");
+      for (const forbidden of ["2010-03-01", "01.03.2010", "birthDate", "Geburt", "Jahre"]) {
+        expect(`${n.title} ${n.message}`).not.toContain(forbidden);
+      }
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("Issue #1076 — a 17-year-old is reported for § 14, the 18th birthday on the day is not", async () => {
+    const seed = await seedPhorestTenant(app, "jas-1076-ages");
+    try {
+      const plannerId = await createPlanner(app, seed, "mgr");
+
+      await setBirthDate(app, seed.mappedEmployeeId, "2009-03-01");
+      await runSync(app, seed, [THURSDAY_EVENING]);
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message).toContain("§ 14");
+
+      await app.prisma.notification.deleteMany({ where: { userId: plannerId } });
+      await setBirthDate(app, seed.mappedEmployeeId, "2008-07-30");
+      await runSync(app, seed, [THURSDAY_EVENING]);
+      expect(await findingsOf(app, plannerId)).toHaveLength(0);
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
 });

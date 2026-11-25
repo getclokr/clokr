@@ -54,6 +54,8 @@ function mkWeek(o: {
     breakEmployee: { breakOver6hOverride: null, breakOver9hOverride: null, birthDate },
     breakTenantConfig: { defaultBreakOver6h: 30, defaultBreakOver9h: 45 },
     creditedMinutesByDate: credits,
+    // a credit exists only on a Berufsschule day
+    schoolDays: Object.keys(credits),
     shifts: (o.shifts ?? []).map(([day, start, end], i) => ({
       ...draftOf(day, start, end),
       id: `s${i}`,
@@ -155,7 +157,7 @@ describe("findStoredMinorWeekViolations — the stored week (Issue #1074)", () =
     );
   });
 
-  it("Mon-Sat of 8:30 has no shortened Werktag: six DAILY_MAX plus WEEKLY_MAX", () => {
+  it("Mon-Sat of 8:30 has no shortened Werktag: six DAILY_MAX, WEEKLY_MAX and FIVE_DAY_WEEK (Issue #1076)", () => {
     const shifts: Spec[] = [MON_I, TUE_I, WED_I, THU_I, FRI_I, SAT_I].map((d) => [
       d,
       "08:00",
@@ -165,6 +167,7 @@ describe("findStoredMinorWeekViolations — the stored week (Issue #1074)", () =
     expect(found.map((v) => v.code)).toEqual([
       ...Array<string>(6).fill("JARBSCHG_VIOLATION_DAILY_MAX"),
       "JARBSCHG_VIOLATION_WEEKLY_MAX",
+      "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
     ]);
   });
 

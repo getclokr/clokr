@@ -348,6 +348,7 @@ describe("order", () => {
       breakEmployee: { breakOver6hOverride: null, breakOver9hOverride: null, birthDate },
       breakTenantConfig: { defaultBreakOver6h: 30, defaultBreakOver9h: 45 },
       creditedMinutesByDate: {},
+      schoolDays: [],
       shifts: [],
     };
     const v = run(mkCtx({ minorWeek, birth: "2010-05-01" }), draft(D, "07:30", "18:30"));

@@ -8,7 +8,7 @@
  *   1. contract      a WorkSchedule row of the person valid on the day (Issue #589)
  *   2. pastDay       the day is not before the TENANT's calendar day (Phase 47.2, Issue #1075 GD-6)
  *   3. openingHours  the salon's opening hours (Phase 47.5), overridable on a single write
- *   4. minorLimits   § 8 / § 12 JArbSchG for a person under 18 (Issue #1057, minor-shift-limits.ts)
+ *   4. minorLimits   JArbSchG §§ 8, 12-17 for a person under 18 (Issues #1057, #1076, minor-shift-limits.ts)
  *   5. dailyMax      § 3 ArbZG: at most 10:00 net Arbeitszeit a day — the SUM of the person's shifts
  *   6. restPeriod    § 5 ArbZG: 11 h to the previous day's last shift AND to the next day's first shift
  *
@@ -33,6 +33,7 @@ import {
   findMinorShiftLimitViolation,
   loadMinorShiftWeeks,
   minorShiftLimitReplyBody,
+  minorWeekHorizon,
   type MinorShiftLimitCode,
   type MinorShiftWeek,
 } from "./minor-shift-limits";
@@ -537,8 +538,11 @@ function joinContext(ctx: ShiftWriteContext, change: ShiftWriteChange): void {
     endTime: draft.endTime,
   });
   ctx.shiftsByEmployee.set(draft.employeeId, list);
-  const week = ctx.minorWeeks.get(`${draft.employeeId}::${mondayIsoOf(draft.dateIso)}`);
-  if (week) {
+  // The draft joins EVERY minor week whose horizon holds its day: the Sunday of one week is the
+  // Monday-before of the next, so a later change of the batch must see it there (§ 13 JArbSchG).
+  for (const [key, week] of ctx.minorWeeks) {
+    if (!key.startsWith(`${draft.employeeId}::`)) continue;
+    if (!minorWeekHorizon(week).includes(draft.dateIso)) continue;
     week.shifts.push({
       id,
       date: utcMidnight(draft.dateIso),
