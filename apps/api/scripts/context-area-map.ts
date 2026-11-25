@@ -93,6 +93,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/__tests__/english-zod-fragments.ts": "rahmen", // Issue #573: test-only list of English Zod default fragments, no model
   "src/__tests__/test-dates.ts": "rahmen", // test-only date helpers, no model
   "src/__tests__/entry-lock-race-helpers.ts": "rahmen", // Issue #70 (Phase 70b-04) — test infra: holds the Employee writer lock while a request under test queues on it; no model of its own
+  "src/__tests__/shift-write-fixtures-1075.ts": "rahmen", // Issue #1075 — shared fixture of the roster write-path tests (future week, persons with a contract and a Stammsalon, stored shifts); test infra, no model of its own
   "src/__tests__/bulk-apply-helpers.ts": "rahmen", // Issue #568 — shared two-step bulk-apply test helper, no model
   "src/__tests__/population-fixtures-613.ts": "rahmen", // Issue #613 — shared fixture of the population tests (exited / login-deactivated / anonymised / late-hired persons); test infra, no model of its own
   "src/__tests__/push-fixtures-608.ts": "rahmen", // Issue #608 — shared fixture of the web-push tests (test VAPID pair, push-enabled app builder, fake device subscription); test infra, no model of its own
@@ -429,6 +430,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/scheduling/shift-availability.ts": "schichtplanung", // EmployeeAvailability/Shift availability checks
   "src/contexts/scheduling/shift-cleanup.ts": "schichtplanung", // soft-deletes/flags Shift rows on VOCATIONAL_SCHOOL Absence creation — Shift is the model it manipulates
   "src/contexts/scheduling/shift-netto.ts": "schichtplanung", // net Shift-hours calculation
+  "src/contexts/scheduling/shift-write-checks.ts": "schichtplanung", // Issue #1075 — the one gate of every adding Shift write path; reads Shift/Employee/WorkSchedule/TenantConfig and the minor weeks through minor-shift-limits.ts; never writes
   "src/contexts/scheduling/minor-shift-limits.ts": "schichtplanung", // Issue #1057 — § 8/§ 12 JArbSchG roster check; reads Shift/Employee/WorkSchedule/TenantConfig, the Berufsschule credit through the Arbeitszeitkonto index, never writes
   "src/contexts/scheduling/minor-shift-limit-report.ts": "schichtplanung", // Issue #1074 — end-of-run JArbSchG report of the Phorest sync; reads through minor-shift-limits.ts, writes only Notification rows via app.notify
   "src/contexts/scheduling/shift-leave-conflict-notify.ts": "schichtplanung", // Phase 430 (D-02) — Shift is the model it flags/audits; shared by leave.ts, sync-shifts.ts and this context's own routes

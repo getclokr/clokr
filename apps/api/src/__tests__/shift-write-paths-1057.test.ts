@@ -103,7 +103,9 @@ const REGISTER: Record<string, Partial<Record<WriteMethod, RegisterEntry>>> = {
 const MIN_WALKED_FILES = 299;
 
 const CHECK_FUNCTION = "findMinorShiftLimitViolation";
-const EXPECTED_CHECK_CALLS = 6;
+// 5 until PUT, restore, bulk, generate-week and copy-week move behind checkShiftWrite (Issue #1075):
+// POST reaches findMinorShiftLimitViolation through the gate in shift-write-checks.ts.
+const EXPECTED_CHECK_CALLS = 5;
 
 const REPORT_FUNCTION = "reportMinorShiftLimitViolations";
 const PHOREST_SYNC = "apps/api/src/services/phorest/sync-shifts.ts";

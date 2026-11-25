@@ -5,6 +5,13 @@ import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
 import {
+  checkShiftWrite,
+  formatDateDe,
+  loadShiftWriteContext,
+  shiftWriteReplyBody,
+  type ShiftWriteFinding,
+} from "../shift-write-checks"; // Issue #1075 — the one gate of every adding Shift write path
+import {
   findMinorShiftLimitViolation,
   loadMinorShiftWeeks,
   minorShiftLimitReplyBody,
@@ -677,12 +684,6 @@ async function assertEmployeeHasContractOn(
   };
 }
 
-/** Format a YYYY-MM-DD ISO string to DD.MM.YYYY for German user-facing messages. */
-function formatDateDe(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-}
-
 /**
  * Phase 47.2 — Schichten in der Vergangenheit sind audit-proof immutable.
  * Compares the shift date (YYYY-MM-DD) against today; returns a 422 payload
@@ -933,6 +934,74 @@ async function assertArbZGRestPeriod(
     }
   }
   return worst;
+}
+
+// ── Issue #1075 — the gate's answer titles and the forced-override audit rows ─────────────────
+
+/** The `error` titles of the contract and past findings on POST; PUT and restore pass their own. */
+const POST_TITLES = {
+  contract: "Schicht-Zuweisung nicht möglich",
+  past: "Schicht-Anlage in der Vergangenheit nicht erlaubt",
+} as const;
+
+/**
+ * One SHIFT_FORCED_OVER_ARBZG row per violated § 5 direction (backward `prevShiftId`, forward
+ * `nextShiftId`) and one SHIFT_FORCED_OUTSIDE_HOURS row for a forced opening-hours finding — the
+ * audited, per-shift decision that only a single write can take (GD-2).
+ */
+async function writeForcedShiftAudits(
+  app: FastifyInstance,
+  req: FastifyRequest,
+  shiftId: string,
+  forcedWrite: {
+    employeeId: string;
+    dateIso: string;
+    startTime: string;
+    endTime: string;
+    forced: ShiftWriteFinding[];
+  },
+): Promise<void> {
+  const request = { ip: req.ip, headers: req.headers as Record<string, string> };
+  for (const finding of forcedWrite.forced) {
+    if (finding.rule === "restPeriod") {
+      for (const gap of finding.restGaps ?? []) {
+        await app.audit({
+          userId: req.user.sub,
+          action: "SHIFT_FORCED_OVER_ARBZG",
+          entity: "Shift",
+          entityId: shiftId,
+          newValue: {
+            employeeId: forcedWrite.employeeId,
+            date: forcedWrite.dateIso,
+            startTime: forcedWrite.startTime,
+            endTime: forcedWrite.endTime,
+            restGapHours: gap.restHours,
+            ...(gap.direction === "previous"
+              ? { prevShiftId: gap.otherShiftId }
+              : { nextShiftId: gap.otherShiftId }),
+            forcedByUserId: req.user.sub,
+          },
+          request,
+        });
+      }
+    } else if (finding.rule === "storeHours") {
+      await app.audit({
+        userId: req.user.sub,
+        action: "SHIFT_FORCED_OUTSIDE_HOURS",
+        entity: "Shift",
+        entityId: shiftId,
+        newValue: {
+          employeeId: forcedWrite.employeeId,
+          date: forcedWrite.dateIso,
+          startTime: forcedWrite.startTime,
+          endTime: forcedWrite.endTime,
+          reason: finding.message,
+          forcedByUserId: req.user.sub,
+        },
+        request,
+      });
+    }
+  }
 }
 
 // ── Phase 107 (D-14) — shift-leave-recalc wiring shared by all seven write paths below ───────
@@ -2628,10 +2697,9 @@ export async function shiftRoutes(app: FastifyInstance) {
       const force = (req.query as { force?: string }).force === "true";
 
       // Verify the target employee belongs to the tenant (defence in depth).
-      // Phase 76.10 — also load break overrides for ArbZG § 3 daily-max check.
       const targetEmp = await app.prisma.employee.findFirst({
         where: { id: body.employeeId, tenantId: req.user.tenantId },
-        select: { id: true, breakOver6hOverride: true, breakOver9hOverride: true },
+        select: { id: true },
       });
       if (!targetEmp) return reply.code(404).send({ error: "Mitarbeiter nicht gefunden" });
 
@@ -2672,133 +2740,32 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
       }
 
-      // Issue #589 (D-589-02): every Arbeitszeitmodell may receive a shift; the person needs a
-      // contract on the shift's date (Phase 47.1's SHIFT_BASED-only gate is retired).
-      const eligibility = await assertEmployeeHasContractOn(
-        app.prisma,
-        body.employeeId,
-        body.date,
-        await getTenantTimezone(app.prisma, req.user.tenantId),
-      );
-      if (eligibility) {
-        return reply.code(422).send({
-          error: "Schicht-Zuweisung nicht möglich",
-          code: eligibility.code,
-          message: eligibility.message,
-        });
-      }
-
-      // Phase 47.2 — Past-immutable: no creation of shifts dated before today.
-      const pastGuard = assertShiftNotPast(body.date);
-      if (pastGuard) {
-        return reply.code(422).send({
-          error: "Schicht-Anlage in der Vergangenheit nicht erlaubt",
-          code: "SHIFT_PAST_IMMUTABLE",
-          message: pastGuard.message,
-        });
-      }
-
-      // Phase 47.5 — Store-Hours Soft-Warn: outside Ladenöffnungszeiten requires force.
-      if (!force) {
-        const storeHit = await assertWithinStoreHours(
-          app.prisma,
-          req.user.tenantId,
-          salon.openingHours, // Phase 325 (issue #325) Plan 02, D-10
-          body.date,
-          body.startTime,
-          body.endTime,
-        );
-        if (storeHit) {
-          return reply.code(409).send({
-            error: "Schicht außerhalb Öffnungszeiten",
-            code: "SHIFT_OUTSIDE_STORE_HOURS",
-            message: storeHit.message,
-            canForce: true,
-          });
-        }
-      }
-
-      // Issue #1057 — § 8 / § 12 JArbSchG replace the ArbZG for a person under 18 on the shift date
-      // (§ 18 Abs. 2 ArbZG). Not overridable: the force flag is not read here.
-      {
-        const minorWeeks = await loadMinorShiftWeeks(
-          app.prisma,
-          req.user.tenantId,
-          [body.employeeId],
-          new Date(body.date + "T00:00:00Z"),
-        );
-        const minorWeek = minorWeeks.get(body.employeeId);
-        if (minorWeek) {
-          const minorHit = findMinorShiftLimitViolation(minorWeek, {
-            add: [
-              {
-                date: new Date(body.date + "T00:00:00Z"),
-                startTime: body.startTime,
-                endTime: body.endTime,
-              },
-            ],
-          });
-          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
-        }
-      }
-
-      // Phase 47.4 — ArbZG § 3 Hart-Block: max 10h Tagesarbeitszeit.
-      // Not overridable — force flag is ignored here.
-      // Phase 76.10 — break duration is resolved via Employee + TenantConfig
-      // override chain (getEffectiveBreakDuration), not a hardcoded 30/45 floor.
-      const arbzgTenantCfg = await app.prisma.tenantConfig.findUnique({
-        where: { tenantId: req.user.tenantId },
-        select: { defaultBreakOver6h: true, defaultBreakOver9h: true },
+      // Issue #1075 — the one gate of every adding write path: contract on the day, past lock
+      // (tenant calendar day), opening hours, § 8 / § 12 JArbSchG, § 3 ArbZG (day sum) and § 5 ArbZG
+      // (previous AND next day), in that order. `force` only overrides the opening-hours warning and
+      // § 5; every other finding answers.
+      const gateCtx = await loadShiftWriteContext(app.prisma, req.user.tenantId, {
+        employeeIds: [body.employeeId],
+        fromIso: body.date,
+        toIso: body.date,
       });
-      const arbzgGrossMin = (() => {
-        const toMin = (s: string): number => {
-          const [h, m] = s.split(":").map(Number);
-          return h * 60 + m;
-        };
-        let g = toMin(body.endTime) - toMin(body.startTime);
-        if (g <= 0) g += 24 * 60; // cross-midnight
-        return g;
-      })();
-      const arbzgEffectiveBreakMin = getEffectiveBreakDuration(
+      const gate = checkShiftWrite(
+        gateCtx,
         {
-          breakOver6hOverride: targetEmp.breakOver6hOverride ?? null,
-          breakOver9hOverride: targetEmp.breakOver9hOverride ?? null,
+          draft: {
+            employeeId: body.employeeId,
+            dateIso: body.date,
+            startTime: body.startTime,
+            endTime: body.endTime,
+            openingHours: salon.openingHours,
+          },
         },
-        {
-          defaultBreakOver6h: arbzgTenantCfg?.defaultBreakOver6h ?? 30,
-          defaultBreakOver9h: arbzgTenantCfg?.defaultBreakOver9h ?? 45,
-        },
-        arbzgGrossMin,
+        { force },
       );
-      const dailyMaxHit = assertArbZGDailyMax(body.startTime, body.endTime, arbzgEffectiveBreakMin);
-      if (dailyMaxHit) {
-        return reply.code(422).send({
-          error: "ArbZG-Verstoß",
-          code: "ARBZG_VIOLATION_DAILY_MAX",
-          message:
-            "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
-          canForce: false,
-        });
-      }
-
-      // Phase 47.4 — ArbZG § 5 Soft-Warn: mindestens 11h Ruhezeit zur Vorschicht.
-      // Overridable via ?force=true (writes SHIFT_FORCED_OVER_ARBZG audit on success).
-      const arbzgRestHit = await assertArbZGRestPeriod(
-        app.prisma,
-        body.employeeId,
-        body.date,
-        body.startTime,
-      );
-      if (arbzgRestHit && !force) {
-        const prevDayDate = new Date(body.date + "T00:00:00Z");
-        prevDayDate.setUTCDate(prevDayDate.getUTCDate() - 1);
-        const prevDayIso = prevDayDate.toISOString().slice(0, 10);
-        return reply.code(409).send({
-          error: "ArbZG-Verstoß",
-          code: "ARBZG_VIOLATION_REST_PERIOD",
-          message: `Verstoß gegen § 5 ArbZG: zwischen Schichtende am ${formatDateDe(prevDayIso)} und neuem Beginn liegen nur ${arbzgRestHit.restHours.toFixed(1)}h (mindestens 11h erforderlich).`,
-          canForce: true,
-        });
+      if (gate.blocking) {
+        return reply
+          .code(gate.blocking.status)
+          .send(shiftWriteReplyBody(gate.blocking, POST_TITLES));
       }
 
       // Conflict-check unless force=true
@@ -2930,52 +2897,13 @@ export async function shiftRoutes(app: FastifyInstance) {
           request: { ip: req.ip, headers: req.headers as Record<string, string> },
         });
       }
-      if (arbzgRestHit && force) {
-        await app.audit({
-          userId: req.user.sub,
-          action: "SHIFT_FORCED_OVER_ARBZG",
-          entity: "Shift",
-          entityId: shift.id,
-          newValue: {
-            employeeId: body.employeeId,
-            date: body.date,
-            startTime: body.startTime,
-            endTime: body.endTime,
-            restGapHours: arbzgRestHit.restHours,
-            prevShiftId: arbzgRestHit.prevShiftId,
-            forcedByUserId: req.user.sub,
-          },
-          request: { ip: req.ip, headers: req.headers as Record<string, string> },
-        });
-      }
-      // Phase 47.5 — Force-audit when store-hours override used (re-check for the audit signal).
-      if (force) {
-        const storeHitForAudit = await assertWithinStoreHours(
-          app.prisma,
-          req.user.tenantId,
-          salon.openingHours, // Phase 325 (issue #325) Plan 02, D-10
-          body.date,
-          body.startTime,
-          body.endTime,
-        );
-        if (storeHitForAudit) {
-          await app.audit({
-            userId: req.user.sub,
-            action: "SHIFT_FORCED_OUTSIDE_HOURS",
-            entity: "Shift",
-            entityId: shift.id,
-            newValue: {
-              employeeId: body.employeeId,
-              date: body.date,
-              startTime: body.startTime,
-              endTime: body.endTime,
-              reason: storeHitForAudit.message,
-              forcedByUserId: req.user.sub,
-            },
-            request: { ip: req.ip, headers: req.headers as Record<string, string> },
-          });
-        }
-      }
+      await writeForcedShiftAudits(app, req, shift.id, {
+        employeeId: body.employeeId,
+        dateIso: body.date,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        forced: gate.forced,
+      });
 
       // Phase 76.5 (D-01, D-02) — refresh OvertimeAccount.balanceHours immediately
       // for SHIFT_BASED employees. Audit-log was already written above; recompute
