@@ -23,7 +23,6 @@ import { defineVisibilityWalkthrough } from "../helpers/visibility-walkthrough";
 import {
   API_BASE,
   authHeaders,
-  createEmployee,
   createHomedPerson,
   createSalon,
   listSalons,
@@ -84,10 +83,13 @@ defineVisibilityWalkthrough({
       day,
       endHour: 11, // 4 h, no break duty
     });
-    const own = await createEmployee(request, tenant, {
+    // With two active salons a new person needs a Stammsalon: the open entry belongs to the first one.
+    const own = await createHomedPerson(request, tenant, {
       key: "offen1030",
       firstName: "Olga",
       lastName: "Offenprobe",
+      homeSalonId: first.id,
+      password: "Offen-1030-probe!",
     });
     await writeEntry(request, tenant, { employeeId: own.id, salonId: first.id, day });
   },
