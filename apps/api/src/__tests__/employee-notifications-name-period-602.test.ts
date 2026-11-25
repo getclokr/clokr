@@ -51,6 +51,7 @@ const AUDIENCE: Record<string, Audience> = {
   SUPPORT_ACCESS_STARTED: { audience: "OTHERS", reason: "tenant administrators (#93)" },
   SHIFT_LEAVE_CONFLICT: { audience: "OTHERS", reason: "roster planners" },
   SHIFT_WEEK_OVERBOOKED: { audience: "OTHERS", reason: "roster planners" },
+  SHIFT_JARBSCHG_VIOLATION: { audience: "OTHERS", reason: "roster planners" },
   RETRO_ENTRY_WITHDRAWN: { audience: "OTHERS", reason: "approvers of the Zeitnachtrag" },
   RETRO_ENTRY_REQUESTED: { audience: "OTHERS", reason: "approvers of the Zeitnachtrag" },
   RETRO_ENTRY_UPDATED: { audience: "OTHERS", reason: "approvers of the Zeitnachtrag" },

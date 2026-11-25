@@ -25,6 +25,10 @@
  *
  * The day/week arithmetic lives in `evaluateMinorWeekFigures` over per-day minute figures, not over
  * Shift rows, so the recording side (#524) can reuse it without a rewrite.
+ *
+ * A plan nobody can refuse (Phorest import, Issue #1074) is reported with
+ * `findStoredMinorWeekViolations`, which lists every violation of the stored week with the same
+ * predicates and messages; the module still only reads.
  */
 import type { PrismaClient } from "@clokr/db";
 import { isMinorAtDate, mondayOfWeekUtc } from "../absence";
@@ -115,6 +119,45 @@ function isoOf(date: Date): string {
 
 // ── pure arithmetic over per-day figures ─────────────────────────────────────────────────────────
 
+// § 8 Abs. 2a: is another Werktag (Mon-Sat) of the list shorter than 8:00?
+function hasShortenedOtherWerktag(figures: MinorDayFigures[], index: number): boolean {
+  return figures.some((f, i) => i !== index && i <= 5 && f.workMinutes < MINOR_DAILY_LIMIT_MINUTES);
+}
+
+function dailyBad(figures: MinorDayFigures[], index: number): boolean {
+  const f = figures[index];
+  if (!f.isMinor) return false;
+  if (f.workMinutes > MINOR_DAILY_EXTENDED_LIMIT_MINUTES) return true;
+  return f.workMinutes > MINOR_DAILY_LIMIT_MINUTES && !hasShortenedOtherWerktag(figures, index);
+}
+
+function spanBad(figures: MinorDayFigures[], index: number): boolean {
+  return figures[index].isMinor && figures[index].spanMinutes > MINOR_SHIFT_TIME_LIMIT_MINUTES;
+}
+
+function weekSum(figures: MinorDayFigures[]): number {
+  return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes : 0), 0);
+}
+
+function dailyMessage(dateIso: string, workMinutes: number): string {
+  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} beträgt ${formatHm(workMinutes)} Stunden. Für Jugendliche sind höchstens 8 Stunden am Tag erlaubt, bis zu 8,5 Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als 8 Stunden gearbeitet wird (§ 8 Abs. 1 und 2a JArbSchG).`;
+}
+
+function shiftTimeMessage(dateIso: string, spanMinutes: number): string {
+  return `Die Schichtzeit am ${formatDateDe(dateIso)} beträgt ${formatHm(spanMinutes)} Stunden (Beginn bis Ende einschließlich Pausen). Für Jugendliche sind höchstens 10 Stunden erlaubt (§ 12 JArbSchG).`;
+}
+
+/** With a trigger day the text names the shift that tipped the week; without, it names the week. */
+function weeklyMessage(weekDays: string[], sumMinutes: number, triggerIso: string | null): string {
+  const limit =
+    "Für Jugendliche sind höchstens 40 Stunden in der Woche erlaubt, Berufsschulzeit eingerechnet (§ 8 Abs. 1 und § 9 Abs. 2 JArbSchG).";
+  const range = `${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])}`;
+  if (triggerIso === null) {
+    return `In der Woche vom ${range} beträgt die geplante Arbeitszeit ${formatHm(sumMinutes)} Stunden. ${limit}`;
+  }
+  return `Mit der Schicht am ${formatDateDe(triggerIso)} beträgt die geplante Arbeitszeit in der Woche vom ${range} ${formatHm(sumMinutes)} Stunden. ${limit}`;
+}
+
 /**
  * Compares the week before and after a change. `before` and `after` hold seven figures, Monday to
  * Sunday. The trigger day is checked first, the rest in calendar order; the weekly sum last.
@@ -126,19 +169,6 @@ export function evaluateMinorWeekFigures(input: {
   after: MinorDayFigures[];
 }): MinorShiftLimitViolation | null {
   const { weekDays, triggerIso, before, after } = input;
-
-  // § 8 Abs. 2a: is another Werktag (Mon-Sat) of the list shorter than 8:00?
-  const hasShortenedOtherWerktag = (figures: MinorDayFigures[], index: number): boolean =>
-    figures.some((f, i) => i !== index && i <= 5 && f.workMinutes < MINOR_DAILY_LIMIT_MINUTES);
-
-  const dailyBad = (figures: MinorDayFigures[], index: number): boolean => {
-    const f = figures[index];
-    if (!f.isMinor) return false;
-    if (f.workMinutes > MINOR_DAILY_EXTENDED_LIMIT_MINUTES) return true;
-    return f.workMinutes > MINOR_DAILY_LIMIT_MINUTES && !hasShortenedOtherWerktag(figures, index);
-  };
-  const spanBad = (figures: MinorDayFigures[], index: number): boolean =>
-    figures[index].isMinor && figures[index].spanMinutes > MINOR_SHIFT_TIME_LIMIT_MINUTES;
 
   const triggerIndex = weekDays.indexOf(triggerIso);
   const order = [
@@ -155,7 +185,7 @@ export function evaluateMinorWeekFigures(input: {
       return {
         code: "JARBSCHG_VIOLATION_DAILY_MAX",
         dateIso,
-        message: `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} beträgt ${formatHm(after[i].workMinutes)} Stunden. Für Jugendliche sind höchstens 8 Stunden am Tag erlaubt, bis zu 8,5 Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als 8 Stunden gearbeitet wird (§ 8 Abs. 1 und 2a JArbSchG).`,
+        message: dailyMessage(dateIso, after[i].workMinutes),
       };
     }
     if (
@@ -165,23 +195,67 @@ export function evaluateMinorWeekFigures(input: {
       return {
         code: "JARBSCHG_VIOLATION_SHIFT_TIME",
         dateIso,
-        message: `Die Schichtzeit am ${formatDateDe(dateIso)} beträgt ${formatHm(after[i].spanMinutes)} Stunden (Beginn bis Ende einschließlich Pausen). Für Jugendliche sind höchstens 10 Stunden erlaubt (§ 12 JArbSchG).`,
+        message: shiftTimeMessage(dateIso, after[i].spanMinutes),
       };
     }
   }
 
-  const weekSum = (figures: MinorDayFigures[]): number =>
-    figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes : 0), 0);
   const afterSum = weekSum(after);
   if (afterSum > MINOR_WEEKLY_LIMIT_MINUTES && afterSum > weekSum(before)) {
-    const triggerLabel = formatDateDe(triggerIndex >= 0 ? weekDays[triggerIndex] : weekDays[0]);
+    const weeklyDateIso = triggerIndex >= 0 ? weekDays[triggerIndex] : weekDays[0];
     return {
       code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
-      dateIso: triggerIndex >= 0 ? weekDays[triggerIndex] : weekDays[0],
-      message: `Mit der Schicht am ${triggerLabel} beträgt die geplante Arbeitszeit in der Woche vom ${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])} ${formatHm(afterSum)} Stunden. Für Jugendliche sind höchstens 40 Stunden in der Woche erlaubt, Berufsschulzeit eingerechnet (§ 8 Abs. 1 und § 9 Abs. 2 JArbSchG).`,
+      dateIso: weeklyDateIso,
+      message: weeklyMessage(weekDays, afterSum, weeklyDateIso),
     };
   }
   return null;
+}
+
+/**
+ * Every violation the given figures hold (Issue #1074) — the stored week of a plan nobody can
+ * refuse. Same predicates and message builders as `evaluateMinorWeekFigures`: per day in calendar
+ * order DAILY_MAX then SHIFT_TIME (both may occur on one day), then WEEKLY_MAX (dated Monday).
+ */
+export function listMinorWeekViolations(input: {
+  weekDays: string[];
+  figures: MinorDayFigures[];
+}): MinorShiftLimitViolation[] {
+  const { weekDays, figures } = input;
+  const out: MinorShiftLimitViolation[] = [];
+  for (let i = 0; i < weekDays.length; i++) {
+    const dateIso = weekDays[i];
+    if (dailyBad(figures, i)) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_DAILY_MAX",
+        dateIso,
+        message: dailyMessage(dateIso, figures[i].workMinutes),
+      });
+    }
+    if (spanBad(figures, i)) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_SHIFT_TIME",
+        dateIso,
+        message: shiftTimeMessage(dateIso, figures[i].spanMinutes),
+      });
+    }
+  }
+  const sum = weekSum(figures);
+  if (sum > MINOR_WEEKLY_LIMIT_MINUTES) {
+    out.push({
+      code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
+      dateIso: weekDays[0],
+      message: weeklyMessage(weekDays, sum, null),
+    });
+  }
+  return out;
+}
+
+/** Short German label of a finding for a list of further violations ("DD.MM.YYYY (Arbeitszeit)"). */
+export function minorShiftLimitLabel(v: MinorShiftLimitViolation): string {
+  if (v.code === "JARBSCHG_VIOLATION_DAILY_MAX") return `${formatDateDe(v.dateIso)} (Arbeitszeit)`;
+  if (v.code === "JARBSCHG_VIOLATION_SHIFT_TIME") return `${formatDateDe(v.dateIso)} (Schichtzeit)`;
+  return "Wochenarbeitszeit";
 }
 
 // ── rows -> figures ──────────────────────────────────────────────────────────────────────────────
@@ -233,6 +307,18 @@ export function findMinorShiftLimitViolation(
     triggerIso: isoOf(change.add[0].date),
     before: figuresFor(week, beforeShifts),
     after: figuresFor(week, afterShifts),
+  });
+}
+
+/**
+ * The stored week as it is (Issue #1074): every violation of `week.shifts` on `week.weekDays`, for a
+ * plan that cannot be refused (Phorest import). Same rule as `findMinorShiftLimitViolation`.
+ */
+export function findStoredMinorWeekViolations(week: MinorShiftWeek): MinorShiftLimitViolation[] {
+  const stored = week.shifts.filter((s) => week.weekDays.includes(isoOf(s.date)));
+  return listMinorWeekViolations({
+    weekDays: week.weekDays,
+    figures: figuresFor(week, stored),
   });
 }
 

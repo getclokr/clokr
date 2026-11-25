@@ -112,6 +112,7 @@ export const NOTIFICATION_PUSH_POLICY: Record<string, PushPolicy> = {
   // Shift planning
   SHIFT_LEAVE_CONFLICT:   { push: "send", body: "Es gibt einen Hinweis zur Schichtplanung.", ttlSeconds: TTL_24H },
   SHIFT_WEEK_OVERBOOKED:  { push: "send", body: "Es gibt einen Hinweis zur Schichtplanung.", ttlSeconds: TTL_24H },
+  SHIFT_JARBSCHG_VIOLATION: { push: "send", body: "Es gibt einen Hinweis zur Schichtplanung.", ttlSeconds: TTL_24H },
 
   // Never pushed
   SECTION9_AU_PENDING_EMPLOYEE: { push: "never", reason: NEVER_HEALTH_REASON },

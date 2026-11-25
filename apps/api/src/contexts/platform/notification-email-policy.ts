@@ -129,6 +129,13 @@ const ALWAYS_ENTRIES: Record<string, EmailPolicy> = {
       "An operational Schichtplanung conflict for managers, same family as SHIFT_LEAVE_CONFLICT — " +
       "no toggle covers shift planning.",
   },
+  SHIFT_JARBSCHG_VIOLATION: {
+    email: "always",
+    reason:
+      "A Schichtplanung duty under §§ 8, 12 JArbSchG for managers (Issue #1074), same family as " +
+      "SHIFT_WEEK_OVERBOOKED — no toggle covers shift planning; the subject is neutral because " +
+      "the title names the person.",
+  },
   LEAVE_PLAN_OPENED: {
     email: "always",
     reason:
