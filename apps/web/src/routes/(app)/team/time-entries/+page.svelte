@@ -481,7 +481,7 @@
   let salonViewStatus = $state<SalonHoursStatus>("prompt");
   let salonViewError = $state("");
   // The shown week or month; the default is the week of tenant-local yesterday (Issue #1030, P-07).
-  let salonPeriod = $state<SalonPeriod>(defaultSalonPeriod(todayStr));
+  let salonPeriod = $state<SalonPeriod>(defaultSalonPeriod(initialDay));
   // A response of an older request (older salon or period) must never overwrite a newer one.
   let salonViewGeneration = 0;
   // The salon comes ONLY from the guarded decision in team-view.ts; primitives keep the effect
@@ -646,6 +646,8 @@
     // Issue #1072 (R-A): the month of the first request derives from now, so the tenant's zone is
     // awaited first (a child's onMount runs before the layout's read settles).
     todayStr = tenantDay(new Date(), await tenantFeatures.loadTimezone());
+    // Issue #1030 (P-07) with #1072: the salon view's default period follows the settled tenant day.
+    salonPeriod = defaultSalonPeriod(todayStr);
     // Read URL params
     const viewParam = page.url.searchParams.get("view");
     if (viewParam === "list") teView = "list";
