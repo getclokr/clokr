@@ -190,8 +190,8 @@ describe("LEAVE_TYPE_DEFS notification copy (Issue #200)", () => {
 });
 
 describe("IMPOSED_ONLY_CODES", () => {
-  it("is exactly VOCATIONAL_SCHOOL and OTHER, in schema declaration order", () => {
-    expect(IMPOSED_ONLY_CODES).toEqual(["VOCATIONAL_SCHOOL", "OTHER"]);
+  it("is VOCATIONAL_SCHOOL, OTHER and COMPANY_SHUTDOWN (#1069), in schema declaration order", () => {
+    expect(IMPOSED_ONLY_CODES).toEqual(["VOCATIONAL_SCHOOL", "OTHER", "COMPANY_SHUTDOWN"]);
   });
 
   it("is disjoint from REQUESTABLE_CODES", () => {

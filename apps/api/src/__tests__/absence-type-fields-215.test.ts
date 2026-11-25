@@ -39,9 +39,9 @@ describe("absenceTypeFields — type level", () => {
     expect(typeof attempt).toBe("function"); // never called: the proof is the compiler
   });
 
-  it("ABSENCE_CODES is the explicit Absence-valid set: both imposed codes plus MATERNITY and PARENTAL", () => {
+  it("ABSENCE_CODES is the explicit Absence-valid set: the three imposed codes plus MATERNITY and PARENTAL", () => {
     expect([...ABSENCE_CODES].sort()).toEqual(
-      ["MATERNITY", "OTHER", "PARENTAL", "VOCATIONAL_SCHOOL"].sort(),
+      ["COMPANY_SHUTDOWN", "MATERNITY", "OTHER", "PARENTAL", "VOCATIONAL_SCHOOL"].sort(),
     );
     for (const code of IMPOSED_ONLY_CODES) expect(ABSENCE_CODES).toContain(code);
     // Not derived from IMPOSED_ONLY_CODES: MATERNITY/PARENTAL are requestable AND Absence-valid.

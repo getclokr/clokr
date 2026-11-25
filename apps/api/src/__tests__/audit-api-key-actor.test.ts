@@ -176,6 +176,10 @@ describe("Issue #333 — API-key audit actor", () => {
 
     await assertApiKeyActorAudit("CompanyShutdown", body.id, "CREATE");
 
+    // Issue #1069: the POST books the shutdown for the fixture tenant's persons. The links onto the
+    // shutdown are onDelete: Restrict, so the generated rows go first.
+    await app.prisma.absence.deleteMany({ where: { companyShutdownId: body.id } });
+    await app.prisma.leaveRequest.deleteMany({ where: { companyShutdownId: body.id } });
     await app.prisma.companyShutdown.deleteMany({ where: { id: body.id } });
   });
 

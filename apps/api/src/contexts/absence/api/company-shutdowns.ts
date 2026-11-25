@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@clokr/db";
 import { requireAuth } from "../../../middleware/auth";
 import { requirePermission } from "../../platform";
+import { bookCompanyShutdown, resolveShutdownActor } from "../company-shutdown/booking";
 
 const shutdownBodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -18,7 +19,8 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
     const tenantId = req.user.tenantId;
     const { year } = req.query as { year?: string };
 
-    const where: Prisma.CompanyShutdownWhereInput = { tenantId };
+    // Issue #1069 (D-10): a soft-deleted Betriebsurlaub is gone for every reader.
+    const where: Prisma.CompanyShutdownWhereInput = { tenantId, deletedAt: null };
     if (year) {
       const y = parseInt(year);
       where.OR = [
@@ -73,11 +75,25 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         action: "CREATE",
         entity: "CompanyShutdown",
         entityId: shutdown.id,
-        newValue: { name: shutdown.name, startDate: shutdown.startDate, endDate: shutdown.endDate },
+        newValue: {
+          name: shutdown.name,
+          startDate: shutdown.startDate,
+          endDate: shutdown.endDate,
+          deductsFromVacation: shutdown.deductsFromVacation,
+        },
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
 
-      return reply.status(201).send(shutdown);
+      // Issue #1069: the Betriebsurlaub becomes bookings (absence and, when it deducts, Urlaub)
+      // for every person employed on its days. The answer carries counts only (D-21).
+      const booking = await bookCompanyShutdown(app, {
+        tenantId,
+        shutdownId: shutdown.id,
+        actor: await resolveShutdownActor(app, req),
+        request: { ip: req.ip, headers: req.headers as Record<string, string> },
+      });
+
+      return reply.status(201).send({ ...shutdown, booking: booking.counts });
     },
   );
 
@@ -90,7 +106,9 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const body = shutdownBodySchema.partial().parse(req.body);
 
-      const existing = await app.prisma.companyShutdown.findFirst({ where: { id, tenantId } });
+      const existing = await app.prisma.companyShutdown.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      });
       if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
 
       const updated = await app.prisma.companyShutdown.update({
@@ -120,8 +138,18 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
         action: "UPDATE",
         entity: "CompanyShutdown",
         entityId: id,
-        oldValue: { name: existing.name, startDate: existing.startDate, endDate: existing.endDate },
-        newValue: { name: updated.name, startDate: updated.startDate, endDate: updated.endDate },
+        oldValue: {
+          name: existing.name,
+          startDate: existing.startDate,
+          endDate: existing.endDate,
+          deductsFromVacation: existing.deductsFromVacation,
+        },
+        newValue: {
+          name: updated.name,
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          deductsFromVacation: updated.deductsFromVacation,
+        },
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
 
@@ -137,17 +165,28 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const tenantId = req.user.tenantId;
       const { id } = req.params as { id: string };
 
-      const existing = await app.prisma.companyShutdown.findFirst({ where: { id, tenantId } });
+      const existing = await app.prisma.companyShutdown.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      });
       if (!existing) return reply.status(404).send({ message: "Nicht gefunden" });
 
-      await app.prisma.companyShutdown.delete({ where: { id } });
+      // Issue #1069 (D-10): the row is the source of payroll-relevant bookings - soft delete, never removed.
+      await app.prisma.companyShutdown.updateMany({
+        where: { id, tenantId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
 
       await app.audit({
         userId: req.user.sub,
         action: "DELETE",
         entity: "CompanyShutdown",
         entityId: id,
-        oldValue: { name: existing.name, startDate: existing.startDate, endDate: existing.endDate },
+        oldValue: {
+          name: existing.name,
+          startDate: existing.startDate,
+          endDate: existing.endDate,
+          deductsFromVacation: existing.deductsFromVacation,
+        },
         request: { ip: req.ip, headers: req.headers as Record<string, string> },
       });
 
@@ -156,7 +195,7 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
   );
 
   // ── POST /company-shutdowns/:id/exceptions ──────────────────────────────────
-  // Mitarbeiter zur Ausnahmeliste hinzufügen
+  // Add an employee to the exception list
   app.post(
     "/:id/exceptions",
     { preHandler: requirePermission("company-shutdown:manage:ZUGEWIESEN") },
@@ -165,7 +204,9 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const { employeeId, reason } = req.body as { employeeId: string; reason?: string };
 
-      const shutdown = await app.prisma.companyShutdown.findFirst({ where: { id, tenantId } });
+      const shutdown = await app.prisma.companyShutdown.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      });
       if (!shutdown) return reply.status(404).send({ message: "Betriebsurlaub nicht gefunden" });
 
       const employee = await app.prisma.employee.findFirst({ where: { id: employeeId, tenantId } });
@@ -196,7 +237,7 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
   );
 
   // ── DELETE /company-shutdowns/:id/exceptions/:employeeId ────────────────────
-  // Ausnahme entfernen
+  // Remove an exception
   app.delete(
     "/:id/exceptions/:employeeId",
     { preHandler: requirePermission("company-shutdown:manage:ZUGEWIESEN") },
@@ -204,7 +245,9 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const tenantId = req.user.tenantId;
       const { id, employeeId } = req.params as { id: string; employeeId: string };
 
-      const shutdown = await app.prisma.companyShutdown.findFirst({ where: { id, tenantId } });
+      const shutdown = await app.prisma.companyShutdown.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      });
       if (!shutdown) return reply.status(404).send({ message: "Betriebsurlaub nicht gefunden" });
 
       // Fetch before delete so oldValue is available for the audit log

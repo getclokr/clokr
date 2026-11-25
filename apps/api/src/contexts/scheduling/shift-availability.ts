@@ -46,7 +46,8 @@ export function classifyLeaveTypeCode(code: LeaveTypeCode | null): AvailabilityB
     // reasoning for adding this case.
     case "VOCATIONAL_SCHOOL":
       return "vocational_school";
-    // EDUCATION, UNPAID, OVERTIME_COMP, MATERNITY, PARENTAL, OTHER and an unset code all share
+    // EDUCATION, UNPAID, OVERTIME_COMP, MATERNITY, PARENTAL, OTHER, COMPANY_SHUTDOWN (#1069: the
+    // business is closed, the planner just shows an absence) and an unset code all share
     // the generic bucket. EDUCATION landing here instead of `vacation` is the D-11 correction;
     // OTHER landing here is correct and deliberate, not an oversight.
     default:

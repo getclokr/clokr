@@ -99,7 +99,9 @@ export function periodTableCsv(rows: readonly PeriodCsvRow[]): Buffer {
 // ── Abwesenheiten je Person (Issue #713) ─────────────────────────────────────────────────────────
 
 /** A kind column of the absences CSV: the code of `rows[].absence` and its header with the unit. */
-export type PeriodAbsencesCsvCode = Exclude<LeaveTypeCode, "OTHER"> | "VOCATIONAL_SCHOOL";
+// Excluded: OTHER (pre-tracking bridge rows) and COMPANY_SHUTDOWN (#1069, a paid release day like a
+// holiday: it has no kind column and no payroll line, it only reduces the Soll).
+export type PeriodAbsencesCsvCode = Exclude<LeaveTypeCode, "OTHER" | "COMPANY_SHUTDOWN">;
 export type PeriodAbsencesCsvColumn = {
   code: PeriodAbsencesCsvCode;
   header: string;

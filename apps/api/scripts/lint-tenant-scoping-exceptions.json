@@ -34,18 +34,18 @@
   {
     "file": "apps/api/src/contexts/absence/api/company-shutdowns.ts",
     "handler": "DELETE /api/v1/company-shutdowns/:id/exceptions/:employeeId",
-    "validatedBy": "const shutdown = await app.prisma.companyShutdown.findFirst({ where: { id, tenantId } });",
+    "validatedBy": "where: { id, tenantId, deletedAt: null },",
     "calls": [
       {
         "call": "companyShutdownException.findUnique",
-        "line": 211
+        "line": 254
       },
       {
         "call": "companyShutdownException.deleteMany",
-        "line": 215
+        "line": 258
       }
     ],
-    "reason": "shutdownId (the client-supplied :id) is tenant-validated at line 207 (companyShutdown.findFirst({ id, tenantId })). CompanyShutdownException rows only ever exist for a (shutdownId, employeeId) pair created together by the tenant-validated POST /:id/exceptions handler above (compound unique key shutdownId_employeeId, enforced at create time), so an employeeId from a different tenant can never match an existing row for this already-tenant-scoped shutdownId. Lines shifted +17 in Phase 75b Plan 07 (Issue #75): the middleware/auth requireRole import became a two-line split (requireAuth stays, requirePermission is a new separate import, +1), and each of the five requireRole(\"ADMIN\") preHandlers became a requirePermission(\"company-shutdown:manage:ZUGEWIESEN\") call — the longer permission key pushed all five single-line route registrations over the 100-char Prettier width, each wrapping to a multi-line call (4 lines net +3, or +4 for the already-multi-line DELETE .../:employeeId registration itself) — no finding, mechanical only; companyShutdownException.findUnique 194 -> 211, companyShutdownException.deleteMany 198 -> 215, validatedAt 190 -> 207."
+    "reason": "shutdownId (the client-supplied :id) is tenant-validated by the companyShutdown.findFirst({ where: { id, tenantId, deletedAt: null } }) a few lines above (404 otherwise). CompanyShutdownException rows only ever exist for a (shutdownId, employeeId) pair created together by the tenant-validated POST /:id/exceptions handler (compound unique key shutdownId_employeeId, enforced at create time), so an employeeId from a different tenant can never match an existing row for this already-tenant-scoped shutdownId. Re-anchored in Issue #1069: the validating call gained deletedAt: null (a soft-deleted Betriebsurlaub answers the same 404) and the two calls moved to 254 / 258; the exception itself is unchanged and not widened."
   },
   {
     "file": "apps/api/src/contexts/platform/api/employees.ts",

@@ -75,9 +75,10 @@ describe("G2 — the two tuples together cover the LeaveTypeCode enum exactly", 
   // from a tuple AND from a table in one edit leaves both local structures consistent. Phase 98
   // found exactly this (98-01-SUMMARY.md, "Gate design note") and it is the reason this gate
   // reads a file instead of an import.
-  it("REQUESTABLE_CODES union IMPOSED_ONLY_CODES equals the enum declared in schema.prisma — a twelfth member added to neither tuple still compiles, and this is what stops it", () => {
+  it("REQUESTABLE_CODES union IMPOSED_ONLY_CODES equals the enum declared in schema.prisma — a thirteenth member added to neither tuple still compiles, and this is what stops it", () => {
     const schemaMembers = new Set(parseEnumMembers(schemaText, "LeaveTypeCode"));
-    expect(schemaMembers.size).toBe(11);
+    // Twelve members: #1069 adds the imposed code COMPANY_SHUTDOWN to IMPOSED_ONLY_CODES.
+    expect(schemaMembers.size).toBe(12);
     expect(new Set([...REQUESTABLE_CODES, ...IMPOSED_ONLY_CODES])).toEqual(schemaMembers);
   });
 
@@ -185,6 +186,8 @@ describe("G5 — no production or seed code writes an Absence with a requestable
     "packages/db/src/seed-demo.ts",
     "apps/api/src/contexts/absence/vocational-school-generator.ts",
     "apps/api/src/contexts/absence/api/vocational-school.ts",
+    // Issue #1069: the one writer of the imposed code COMPANY_SHUTDOWN.
+    "apps/api/src/contexts/absence/company-shutdown/booking.ts",
   ];
   // The four ADR-requested-only codes, post-merge spellings (the `_LEAVE` suffix no longer
   // exists — SPECIAL_LEAVE/UNPAID_LEAVE were retyped to SPECIAL/UNPAID by 98b-04's migration).
@@ -222,7 +225,7 @@ describe("G5 — no production or seed code writes an Absence with a requestable
     return out;
   }
 
-  it("the scan actually reaches all three absence.create() call sites — a gate that stops looking at the files it was written for passes no matter what", () => {
+  it("the scan actually reaches every known absence.create() call site — a gate that stops looking at the files it was written for passes no matter what", () => {
     const scanned = new Set(scannedFiles().map((abs) => relative(REPO_ROOT, abs)));
     for (const writer of KNOWN_ABSENCE_WRITERS) expect([...scanned]).toContain(writer);
   });

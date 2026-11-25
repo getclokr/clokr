@@ -44,8 +44,9 @@ export const REQUESTABLE_CODES = [
 export type RequestableCode = (typeof REQUESTABLE_CODES)[number];
 
 /**
- * The two codes that are IMPOSED, never requested — the members Phase 98b adds to the Prisma
- * `LeaveTypeCode` enum. Order matches the schema's own declaration order.
+ * The codes that are IMPOSED, never requested — the two members Phase 98b adds to the Prisma
+ * `LeaveTypeCode` enum plus `COMPANY_SHUTDOWN` (Issue #1069). Order matches the schema's own
+ * declaration order.
  *
  * **This is NOT the set of codes an `Absence` may hold.** It is only the complement of
  * REQUESTABLE_CODES inside the enum ("what a `LeaveRequest` must never carry"). `MATERNITY` and
@@ -67,10 +68,18 @@ export type RequestableCode = (typeof REQUESTABLE_CODES)[number];
  * requested. It is the only code the saldo calculation branches on (`close-employee-month.ts`
  * credits it, excludes it from the day-dedup, then re-adds the precise § 15 slot credit).
  * "Berufsschule beantragen" is factually wrong, which is why it is absent from REQUESTABLE_CODES.
+ *
+ * `COMPANY_SHUTDOWN` (Issue #1069) is the day of a Betriebsurlaub: the employer closes the business
+ * (§ 7 Abs. 1 BUrlG fixes the timing, § 615 BGB keeps the pay running when the employer cannot
+ * employ the person). It is imposed — nobody requests it — and it has exactly ONE writer, the
+ * booking module `company-shutdown/booking.ts` (vocabulary guard G5). It reduces the Soll through
+ * `calcLeaveAbsenceMinutesTz()` on exactly the shutdown days no approved leave or holiday already
+ * covers, so a refused or still pending Urlaub never leaves a minus.
  */
 export const IMPOSED_ONLY_CODES = [
   "VOCATIONAL_SCHOOL",
   "OTHER",
+  "COMPANY_SHUTDOWN",
 ] as const satisfies readonly LeaveTypeCode[];
 export type ImposedOnlyCode = (typeof IMPOSED_ONLY_CODES)[number];
 
@@ -79,10 +88,12 @@ export type ImposedOnlyCode = (typeof IMPOSED_ONLY_CODES)[number];
  * (Issue #215). Two imposed-only codes plus the two requestable codes that are reported rather
  * than applied for and read from the `Absence` table (`leave-check.ts`: `MATERNITY`, `PARENTAL`).
  * Spelled out member by member on purpose: it is neither `IMPOSED_ONLY_CODES` nor derived from it.
+ * `COMPANY_SHUTDOWN` (Issue #1069) is written only by the Betriebsurlaub booking module.
  */
 export const ABSENCE_CODES = [
   "VOCATIONAL_SCHOOL",
   "OTHER",
+  "COMPANY_SHUTDOWN",
   "MATERNITY",
   "PARENTAL",
 ] as const satisfies readonly LeaveTypeCode[];
@@ -199,7 +210,7 @@ export const LEAVE_TYPE_DEFS: Record<
 };
 
 /**
- * Code -> German display name over ALL eleven codes — the one place a requestable and an imposed
+ * Code -> German display name over ALL twelve codes — the one place a requestable and an imposed
  * code share a property (D-01). Replaces `ABSENCE_LABELS` in `utils/presence.ts` and both iCal
  * ternary chains in `routes/leave.ts`.
  *
@@ -225,6 +236,8 @@ export const DISPLAY_NAME: Record<LeaveTypeCode, string> = {
   // The generic word, and the only code for which it is the correct answer. See
   // IMPOSED_ONLY_CODES above for why this entry may not be deleted.
   OTHER: "Abwesenheit",
+  // Issue #1069: the day the employer closes the business; display text only, never a control value.
+  COMPANY_SHUTDOWN: "Betriebsurlaub",
 };
 
 /**
