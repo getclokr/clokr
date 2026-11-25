@@ -14,6 +14,16 @@ import { cleanup, fireEvent, screen } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import SalonHoursView from "../SalonHoursView.svelte";
 import type { SalonHoursCell, SalonHoursResponse, SalonPeriod } from "$lib/team/salon-hours";
+import viewSource from "../SalonHoursView.svelte?raw";
+
+/** The body rows of one group of the ONE raster (the group header rows are not rows of a person). */
+function groupRows(group: "stammteam" | "aushilfen"): HTMLTableRowElement[] {
+  return [
+    ...screen
+      .getByTestId("salon-hours-raster")
+      .querySelectorAll<HTMLTableRowElement>(`tbody tr[data-group="${group}"]`),
+  ];
+}
 
 afterEach(() => cleanup());
 
@@ -140,18 +150,18 @@ describe("SalonHoursView - states", () => {
     expect(
       screen.getByText(/Wähl in der Kopfleiste einen Salon, um seine Stunden zu sehen/),
     ).toBeTruthy();
-    expect(screen.queryByTestId("salon-hours-stammteam")).toBeNull();
+    expect(screen.queryByTestId("salon-hours-raster")).toBeNull();
   });
 
   it("answers a rejected salon with a calm text", () => {
     render({ status: "rejected", data: null });
     expect(screen.getByText(/Für diesen Salon liegt keine Salonansicht vor/)).toBeTruthy();
-    expect(screen.queryByTestId("salon-hours-stammteam")).toBeNull();
+    expect(screen.queryByTestId("salon-hours-raster")).toBeNull();
   });
 
   it("shows no table while loading and keeps the period control", () => {
     render({ status: "loading", data: null, salonName: "Salon Nord" });
-    expect(screen.queryByTestId("salon-hours-stammteam")).toBeNull();
+    expect(screen.queryByTestId("salon-hours-raster")).toBeNull();
     expect(screen.getByText("Salon Nord")).toBeTruthy();
     expect(screen.getByTestId("salon-hours-period")).toBeTruthy();
   });
@@ -187,53 +197,157 @@ describe("SalonHoursView - ready", () => {
     expect(kpi.textContent).toContain("bis Di, 24.11.2026");
   });
 
-  it("renders one Stammteam row per server row with the cell hours", () => {
+  it("renders ONE table: Stammteam and Aushilfen are row groups with a header row each", () => {
+    render();
+    const raster = screen.getByTestId("salon-hours-raster");
+    expect(raster.querySelectorAll("table")).toHaveLength(1);
+    const groups = [...raster.querySelectorAll("tbody tr.dt-group")].map((tr) =>
+      tr.textContent?.replace(/\s+/g, " ").trim(),
+    );
+    expect(groups).toEqual(["Stammteam (2)", "Aushilfen aus anderen Salons (2)"]);
+    // Both groups sit in the same body, so their day columns line up.
+    expect(raster.querySelectorAll("tbody")).toHaveLength(1);
+    expect(groupRows("stammteam")).toHaveLength(2);
+    expect(groupRows("aushilfen")).toHaveLength(2);
+    // One head row, one footer row.
+    expect(raster.querySelectorAll("thead tr")).toHaveLength(1);
+    expect(raster.querySelectorAll("tfoot tr")).toHaveLength(1);
+  });
+
+  it("renders one Stammteam row per server row with the cell hours and no Personalnummer", () => {
     const { container } = render();
-    const table = screen.getByTestId("salon-hours-stammteam");
-    const bodyRows = table.querySelectorAll("tbody tr");
-    expect(bodyRows).toHaveLength(2);
-    expect(bodyRows[0].textContent).toContain("Anna Berg");
-    expect(bodyRows[0].textContent).toContain("1001");
-    expect(bodyRows[0].textContent).toContain("8:00");
-    expect(bodyRows[1].textContent).toContain("Bernd Adler");
-    expect(container.querySelector("th[title='Montag, 23.11.2026']")?.textContent).toBe("Mo 23.");
+    const rows = groupRows("stammteam");
+    expect(rows[0].textContent).toContain("Anna Berg");
+    expect(rows[0].textContent).toContain("8:00");
+    expect(rows[1].textContent).toContain("Bernd Adler");
+    // A bare number under the name tells a reader nothing: the raster never prints it.
+    expect(screen.getByTestId("salon-hours-raster").textContent).not.toContain("1001");
+    // The head never wraps: the day label keeps its no-break space.
+    expect(container.querySelector("th[title='Montag, 23.11.2026']")?.textContent).toBe(
+      "Mo\u00a023.",
+    );
   });
 
-  it("shows the server's totals and sums nothing itself", () => {
+  it("keeps the day columns equal: fixed layout, a sticky person column, a right-aligned edge", () => {
+    const { container } = render();
+    const table = container.querySelector("table")!;
+    expect(table.classList.contains("dt-fixed")).toBe(true);
+    expect(table.classList.contains("dt-sticky-first")).toBe(true);
+    // 13 rem person + 5 rem sum + 7 day columns of 4.5 rem at least.
+    expect(table.getAttribute("style")).toContain("min-width: 49.5rem");
+    const heads = [...table.querySelectorAll("thead th")];
+    expect(heads).toHaveLength(9);
+    // Head and values share the right edge: every day head and the sum head are end-aligned.
+    expect(heads.slice(1).every((th) => th.classList.contains("dt-end"))).toBe(true);
+    const cellsOfAnna = [...groupRows("stammteam")[0].querySelectorAll("td")];
+    expect(cellsOfAnna.slice(1).every((td) => td.classList.contains("dt-end"))).toBe(true);
+  });
+
+  it("shows the server's totals, the combined day sums in ONE „Summe im Salon“ row", () => {
     render();
-    const table = screen.getByTestId("salon-hours-stammteam");
-    const row = table.querySelector("tbody tr")!;
+    const raster = screen.getByTestId("salon-hours-raster");
     // totalMinutes 555 = 9:15, while the cells add up to 8:00.
-    expect(row.textContent).toContain("9:15");
-    const foot = table.querySelector("tfoot tr")!;
-    expect(foot.textContent).toContain("Summe je Tag");
-    // 777 = 12:57 and 999 = 16:39 are the server's, not the cell sums.
-    expect(foot.textContent).toContain("12:57");
-    expect(foot.textContent).toContain("16:39");
+    expect(groupRows("stammteam")[0].textContent).toContain("9:15");
+    const foot = raster.querySelector("tfoot tr")!;
+    expect(foot.textContent).toContain("Summe im Salon");
+    // 777 + 321 = 1098 = 18:18 (the two server totals of the groups); the sum is the server's KPI
+    // 1234 = 20:34, never a re-sum of the cells (they add up to 8:00).
+    expect(foot.textContent).toContain("18:18");
+    expect(foot.textContent).toContain("20:34");
     expect(foot.textContent).not.toContain("8:00");
+    // A day without a total reads as the muted dash, as in the draft.
+    expect(foot.querySelectorAll(".salon-hours-nil").length).toBe(6);
   });
 
-  it("reads a counted day without hours as a dash and a day not counted yet as empty", () => {
+  it("shows exactly ONE thing per cell: hours, or one chip, or the muted dash", () => {
     render();
-    const cellsOfFirst = [
-      ...screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody tr:nth-child(2) td"),
-    ];
+    const anna = [...groupRows("stammteam")[0].querySelectorAll("td")];
     // person, 7 days, sum
-    expect(cellsOfFirst).toHaveLength(9);
-    expect(cellsOfFirst[1].textContent?.trim()).toBe("–");
-    // Bernd's 24.11. also carries the neutral „anderer Salon“ chip next to the dash.
-    expect(cellsOfFirst[2].textContent).toContain("–");
-    expect(cellsOfFirst[3].textContent?.trim()).toBe("");
+    expect(anna).toHaveLength(9);
+    // 23.11.: hours only.
+    expect(anna[1].textContent?.trim()).toBe("8:00");
+    // 24.11.: the one chip „in Salon Süd“ - never a dash next to it.
+    expect(anna[2].textContent?.trim()).toBe("in Salon Süd");
+    expect(anna[2].textContent).not.toContain("–");
+    // 25.11. (not counted): „abwesend“, no dash.
+    expect(anna[3].textContent?.trim()).toBe("abwesend");
+    // Days without anything - counted or not counted yet - are one muted dash.
+    for (const index of [4, 5, 6, 7]) {
+      expect(anna[index].textContent?.trim()).toBe("–");
+      expect(anna[index].querySelector(".salon-hours-nil")).not.toBeNull();
+    }
+    const bernd = [...groupRows("stammteam")[1].querySelectorAll("td")];
+    expect(bernd[2].textContent?.trim()).toBe("anderer Salon");
+    expect(bernd[1].textContent?.trim()).toBe("–");
+    expect(bernd[1].querySelector(".salon-hours-nil")).not.toBeNull();
   });
 
-  it("names the Stichtag in the sum column and mentions no Soll or saldo anywhere", () => {
-    render();
-    expect(screen.getAllByText(/Summe bis Di, 24.11.2026/).length).toBeGreaterThan(0);
+  it("shows hours with their state chip beneath and no dash when a day has both", () => {
+    const both = {
+      ...DATA,
+      stammteam: {
+        ...DATA.stammteam,
+        rows: DATA.stammteam.rows.map((row) =>
+          row.employeeId === "e1"
+            ? {
+                ...row,
+                cells: row.cells.map((c) =>
+                  c.date === "2026-11-23"
+                    ? { ...c, elsewhere: [{ salonId: "s2", salonName: "Salon Süd" }] }
+                    : c,
+                ),
+              }
+            : row,
+        ),
+      },
+    };
+    render({ data: both });
+    const first = groupRows("stammteam")[0].querySelectorAll("td")[1];
+    expect(first.querySelector(".salon-hours-hours")?.textContent).toBe("8:00");
+    expect(first.textContent).toContain("in Salon Süd");
+    expect(first.textContent).not.toContain("–");
+  });
+
+  it("names the Stichtag in the sum head and mentions no Soll or saldo anywhere", () => {
+    const { container } = render();
+    expect(container.querySelector("th[title='Summe bis Di, 24.11.2026']")?.textContent).toBe(
+      "Summe",
+    );
+    expect(screen.getByTestId("salon-hours-kpi-total").textContent).toContain("bis Di, 24.11.2026");
     const visible = (document.body.textContent ?? "").replace(
       "Soll, Saldo und Überstunden gehören zur Person, nicht zum Salon. Du findest sie in der Personenansicht.",
       "",
     );
     expect(visible).not.toMatch(/Soll|Saldo|Überstunden/);
+  });
+
+  it("puts the open list and the exchange card in an aside beside the raster from 1100 px", () => {
+    const { container } = render();
+    const aside = container.querySelector("aside.salon-hours-aside")!;
+    expect(aside.textContent).toContain("Offen in diesem Salon");
+    expect(aside.textContent).toContain("Austausch mit anderen Salons");
+    expect(aside.querySelector("table")).toBeNull();
+    expect(screen.getByTestId("salon-hours-raster").closest("aside")).toBeNull();
+    // The two-column layout is the wide container breakpoint of the blocks, never a viewport query.
+    expect(viewSource).toMatch(/@container \(min-width: 1100px\)[\s\S]*320px/);
+    expect(viewSource).not.toMatch(/@media/);
+  });
+
+  it("lists only days with hours or a state on the card layout and notes an empty person", () => {
+    render();
+    // Dora Frei has no day with hours or a state: one muted line (printed on the card layout only).
+    const notes = [...document.querySelectorAll(".salon-hours-none-note")];
+    expect(notes).toHaveLength(1);
+    expect(notes[0].textContent).toBe("keine Stunden in diesem Zeitraum");
+    expect(groupRows("aushilfen")[1].contains(notes[0])).toBe(true);
+    // Carla (hours) and Bernd (a state chip) have a day to list: no note.
+    expect(groupRows("aushilfen")[0].querySelector(".salon-hours-none-note")).toBeNull();
+    expect(groupRows("stammteam")[1].querySelector(".salon-hours-none-note")).toBeNull();
+    // The card layout leaves out the dash cells and shows the note.
+    expect(viewSource).toMatch(
+      /@container \(max-width: 759\.98px\)[\s\S]*\.salon-hours-none-note \{\s*display: block;/,
+    );
+    expect(viewSource).toMatch(/td:has\(> \.salon-hours-nil\)/);
   });
 
   it("moves the period through the callbacks and disables a next arrow into the future", async () => {
@@ -249,21 +363,31 @@ describe("SalonHoursView - ready", () => {
 });
 
 describe("SalonHoursView - Aushilfen", () => {
-  it("lists the helpers in their own block under the shared heading, with the Stammsalon", () => {
+  it("lists the helpers as a group of the same table, the Stammsalon as a second line", () => {
     render();
-    expect(screen.getByRole("heading", { name: "Aushilfen aus anderen Salons" })).toBeTruthy();
-    const table = screen.getByTestId("salon-hours-aushilfen");
-    const bodyRows = table.querySelectorAll("tbody tr");
-    expect(bodyRows).toHaveLength(2);
-    expect(bodyRows[0].textContent).toContain("Carla Gast");
-    expect(bodyRows[0].textContent).toContain("Salon Süd");
-    expect(bodyRows[1].textContent).toContain("ohne Stammsalon");
-    const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent);
-    expect(heads.slice(0, 2)).toEqual(["Person", "Stammsalon"]);
-    // The helper block carries its own server totals in its own footer.
-    expect(table.querySelector("tfoot")!.textContent).toContain("5:21");
-    // No helper appears in the Stammteam block and vice versa.
-    expect(screen.getByTestId("salon-hours-stammteam").textContent).not.toContain("Carla Gast");
+    expect(
+      screen.getByText("Aushilfen aus anderen Salons (2)", { selector: ".dt-group-label" }),
+    ).toBeTruthy();
+    const rows = groupRows("aushilfen");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("Carla Gast");
+    expect(rows[0].querySelector(".salon-hours-sub-line")?.textContent).toBe(
+      "Stammsalon Salon Süd",
+    );
+    expect(rows[1].querySelector(".salon-hours-sub-line")?.textContent).toBe("ohne Stammsalon");
+    // No Stammsalon COLUMN: the heads are Person, the days, Summe.
+    const heads = [...screen.getByTestId("salon-hours-raster").querySelectorAll("thead th")].map(
+      (th) => th.textContent,
+    );
+    expect(heads).toHaveLength(9);
+    expect(heads[0]).toBe("Person");
+    expect(heads).not.toContain("Stammsalon");
+    // No helper appears among the Stammteam rows.
+    expect(
+      groupRows("stammteam")
+        .map((r) => r.textContent)
+        .join(),
+    ).not.toContain("Carla Gast");
   });
 
   it("says so when no helper worked in the salon, and renders no helper table", () => {
@@ -273,7 +397,13 @@ describe("SalonHoursView - Aushilfen", () => {
     expect(screen.getByTestId("salon-hours-no-helpers").textContent).toContain(
       "Keine Aushilfen aus anderen Salons in diesem Zeitraum.",
     );
-    expect(screen.queryByTestId("salon-hours-aushilfen")).toBeNull();
+    expect(groupRows("aushilfen")).toHaveLength(0);
+    expect(
+      screen.getByTestId("salon-hours-raster").querySelector("tr.dt-group")?.textContent,
+    ).toContain("Stammteam (2)");
+    expect(screen.getByTestId("salon-hours-raster").querySelectorAll("tr.dt-group")).toHaveLength(
+      1,
+    );
   });
 
   it("shows the KPI Aushilfen next to Stammteam", () => {
@@ -286,11 +416,9 @@ describe("SalonHoursView - Aushilfen", () => {
 describe("SalonHoursView - cell states", () => {
   it("shows „in <Salon>“, „anderer Salon“ and „abwesend“ as chips", () => {
     render();
-    const table = screen.getByTestId("salon-hours-stammteam");
-    const anna = table.querySelectorAll("tbody tr")[0];
+    const [anna, bernd] = groupRows("stammteam");
     expect(anna.textContent).toContain("in Salon Süd");
     expect(anna.textContent).toContain("abwesend");
-    const bernd = table.querySelectorAll("tbody tr")[1];
     expect(bernd.textContent).toContain("anderer Salon");
     // The hidden mark carries no salon: nothing but the neutral text.
     expect(bernd.textContent).not.toContain("Salon Süd");
@@ -306,8 +434,7 @@ describe("SalonHoursView - cell click", () => {
   it("makes the cells of a clickable person buttons named with their state and opens the day", async () => {
     const onCellOpen = vi.fn();
     render({ clickableIds: new Set(["e1"]), onCellOpen });
-    const table = screen.getByTestId("salon-hours-stammteam");
-    const buttons = table.querySelectorAll("tbody tr:nth-child(1) button");
+    const buttons = groupRows("stammteam")[0].querySelectorAll("button");
     expect(buttons).toHaveLength(7);
     expect(buttons[0].getAttribute("aria-label")).toBe(
       "Anna Berg, Montag, 23.11.2026: 8:00 im Salon",
@@ -322,19 +449,17 @@ describe("SalonHoursView - cell click", () => {
   it("renders plain text cells for a person the caller cannot open", () => {
     const onCellOpen = vi.fn();
     render({ clickableIds: new Set(["e1"]), onCellOpen });
-    const bernd = screen
-      .getByTestId("salon-hours-stammteam")
-      .querySelectorAll("tbody tr:nth-child(2) button");
-    expect(bernd).toHaveLength(0);
-    const helpers = screen.getByTestId("salon-hours-aushilfen").querySelectorAll("button");
-    expect(helpers).toHaveLength(0);
+    expect(groupRows("stammteam")[1].querySelectorAll("button")).toHaveLength(0);
+    expect(groupRows("aushilfen").flatMap((r) => [...r.querySelectorAll("button")])).toHaveLength(
+      0,
+    );
   });
 
   it("makes no cell a button without clickable ids", () => {
     render();
-    expect(
-      screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody button"),
-    ).toHaveLength(0);
+    expect(screen.getByTestId("salon-hours-raster").querySelectorAll("tbody button")).toHaveLength(
+      0,
+    );
   });
 });
 
@@ -362,7 +487,8 @@ describe("SalonHoursView - open items (Issue #1030)", () => {
       },
     };
     render({ data: marked });
-    const anna = screen.getByTestId("salon-hours-stammteam").querySelectorAll("tbody tr")[0];
+    const anna = groupRows("stammteam")[0];
+    // The open day has hours here, so the chip sits beneath them.
     expect(anna.querySelectorAll("td")[1].textContent).toContain("offen");
   });
 
@@ -431,7 +557,10 @@ describe("SalonHoursView - exchange card (Issue #1030)", () => {
     cleanup();
     const onExport = vi.fn();
     render({ canExport: true, onExport });
-    await fireEvent.click(screen.getByRole("button", { name: "Als CSV herunterladen" }));
+    const button = screen.getByRole("button", { name: "Als CSV herunterladen" });
+    // The CSV button sits inside the exchange card of the aside.
+    expect(button.closest("aside")).not.toBeNull();
+    await fireEvent.click(button);
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 

@@ -106,6 +106,22 @@
      * `rows` keeps its totals in view.
      */
     footer?: Snippet<[DataTableColumn]>;
+    /**
+     * Issue #1030 (additive): row groups of ONE table. `rowGroup(row)` names a row's group; a group
+     * header row (`groupHeader(name, rows)`, default the name) is rendered in front of the first
+     * shown row of each group, so the groups share one column raster. Rows of a group are expected
+     * to be adjacent. Without it nothing changes.
+     */
+    rowGroup?: (row: Row) => string | undefined;
+    groupHeader?: Snippet<[string, Row[]]>;
+    /**
+     * Issue #1030 (additive): equal-width columns. The table switches to a fixed layout, columns
+     * without `width` share the remaining width equally, and the table never gets narrower than
+     * this CSS length (it then scrolls inside its container). Pair with `stickyFirst`.
+     */
+    fixedMinWidth?: string;
+    /** Issue #1030 (additive): the first column stays in view while the table scrolls sideways. */
+    stickyFirst?: boolean;
     /** Accessible table caption (visually hidden). */
     caption: string;
     loading?: boolean;
@@ -162,6 +178,10 @@
     rowDetail,
     rowDetailOpen,
     footer,
+    rowGroup,
+    groupHeader,
+    fixedMinWidth,
+    stickyFirst = false,
     caption,
     loading = false,
     selectable = false,
@@ -235,6 +255,15 @@
   const allShownSelected = $derived(shownKeys.length > 0 && selectedShown === shownKeys.length);
   const someShownSelected = $derived(selectedShown > 0 && !allShownSelected);
 
+  // Issue #1030: the shown rows of the group a row starts (only the first row of a group asks).
+  function groupStartingAt(row: Row, index: number): { name: string; rows: Row[] } | null {
+    if (!rowGroup) return null;
+    const name = rowGroup(row);
+    if (name === undefined) return null;
+    if (index > 0 && rowGroup(shownRows[index - 1]) === name) return null;
+    return { name, rows: shownRows.filter((r) => rowGroup(r) === name) };
+  }
+
   function setSelection(next: (string | number)[]) {
     selectedKeys = next;
     onSelectionChange?.(next);
@@ -301,7 +330,12 @@
     />
   {:else}
     <div class="dt-scroll">
-      <table class="data-table dt-table">
+      <table
+        class="data-table dt-table"
+        class:dt-fixed={fixedMinWidth !== undefined}
+        class:dt-sticky-first={stickyFirst}
+        style={fixedMinWidth !== undefined ? `min-width: ${fixedMinWidth}` : undefined}
+      >
         <caption class="sr-only">{caption}</caption>
         <thead>
           <tr>
@@ -338,7 +372,20 @@
           </tr>
         </thead>
         <tbody>
-          {#each shownRows as row (rowKey(row))}
+          {#each shownRows as row, index (rowKey(row))}
+            {@const group = groupStartingAt(row, index)}
+            {#if group}
+              <tr class="dt-group">
+                <th scope="colgroup" colspan={columns.length + (selectable ? 1 : 0)}>
+                  <span class="dt-group-label">
+                    {#if groupHeader}{@render groupHeader(
+                        group.name,
+                        group.rows,
+                      )}{:else}{group.name}{/if}
+                  </span>
+                </th>
+              </tr>
+            {/if}
             {#if onRowClick}
               <!-- The keyboard path is the primary cell's button; the row click is the pointer
                    convenience of the same action, so the row itself needs no role or tabindex. -->
@@ -511,6 +558,48 @@
     text-align: end;
   }
 
+  /* Issue #1030: equal-width columns. Fixed layout, `width: 100%` plus the caller's minimum. */
+  .dt-table.dt-fixed {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  /* Issue #1030: a sticky first column; the opaque card background keeps the scrolled cells from
+     showing through, the line marks the edge. */
+  .dt-table.dt-sticky-first :global(thead th:first-child),
+  .dt-table.dt-sticky-first :global(tbody td:first-child),
+  .dt-table.dt-sticky-first :global(tfoot td:first-child) {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 1;
+    background: var(--card);
+  }
+
+  .dt-table.dt-sticky-first :global(thead th:first-child) {
+    background: var(--sunk);
+  }
+
+  /* Issue #1030: a group header row. Its label sticks to the start edge while the table scrolls. */
+  .dt-table :global(tbody tr.dt-group),
+  .dt-table :global(tbody tr.dt-group:hover) {
+    background-color: var(--sunk);
+  }
+
+  .dt-group :global(th) {
+    height: auto;
+    padding: var(--s-2) var(--s-3);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    text-align: start;
+    color: var(--text-2);
+  }
+
+  .dt-group-label {
+    position: sticky;
+    inset-inline-start: var(--s-3);
+    display: inline-block;
+  }
+
   /* Issue #853: row tones. The hover rule above has the same specificity (:global tr) and comes
      first, so a tinted row keeps its tint under the pointer. */
   .dt-table :global(tbody tr[data-tone="warn"]) {
@@ -595,8 +684,35 @@
     .dt-table tbody,
     .dt-table tfoot,
     .dt-table tr,
-    .dt-table td {
+    .dt-table td,
+    .dt-table :global(tr.dt-group th) {
       display: block;
+    }
+
+    .dt-table.dt-fixed {
+      min-width: 0 !important;
+      table-layout: auto;
+    }
+
+    .dt-table.dt-sticky-first :global(tbody td:first-child),
+    .dt-table.dt-sticky-first :global(tfoot td:first-child) {
+      position: static;
+    }
+
+    .dt-group-label {
+      position: static;
+    }
+
+    /* A group header is a heading between cards, not a card. */
+    .dt-table :global(tbody tr.dt-group) {
+      margin-bottom: var(--s-2);
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .dt-group :global(th) {
+      padding: var(--s-2) 0 0;
     }
 
     .dt-table thead {

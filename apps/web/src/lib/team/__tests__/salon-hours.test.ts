@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cellDisplay,
+  combinedDayTotals,
   countedThroughLabel,
   dayColumnLabel,
   dayFullLabel,
@@ -10,6 +11,7 @@ import {
   elsewhereChipText,
   openItemSubtitle,
   periodAfterSalonChange,
+  rowHasContent,
   salonHoursCsvPath,
   salonHoursRequestPath,
   salonPeriodEnd,
@@ -164,9 +166,16 @@ describe("cellDisplay", () => {
     expect(d.label).toBe("Pat Test, Montag, 23.11.2026: 7:30 im Salon");
   });
 
-  it("shows a dash on a counted day without hours and nothing on a day not counted yet", () => {
-    expect(cellDisplay(cell()).text).toBe("–");
-    expect(cellDisplay(cell({ date: "2026-11-30", counted: false })).text).toBe("");
+  it("shows the muted dash (nil) on a day with nothing, counted or not counted yet", () => {
+    for (const d of [
+      cellDisplay(cell()),
+      cellDisplay(cell({ date: "2026-11-30", counted: false })),
+    ]) {
+      expect(d.nil).toBe(true);
+      expect(d.text).toBe("");
+      expect(d.chips).toEqual([]);
+    }
+    expect(cellDisplay(cell({ minutes: 450 })).nil).toBe(false);
   });
 
   it("names the other salon of a day as „in <Salon>“", () => {
@@ -186,7 +195,8 @@ describe("cellDisplay", () => {
 
   it("reads hidden time as „anderer Salon“: no hours, no name", () => {
     const d = cellDisplay(cell({ elsewhereHidden: true }), "Pat Test");
-    expect(d.text).toBe("–");
+    expect(d.text).toBe("");
+    expect(d.nil).toBe(false);
     expect(d.chips).toEqual([{ text: "anderer Salon", tone: "neutral" }]);
     expect(d.label).toBe("Pat Test, Montag, 23.11.2026: keine Stunden im Salon, anderer Salon");
   });
@@ -198,7 +208,7 @@ describe("cellDisplay", () => {
     expect(JSON.stringify(d)).not.toMatch(/Urlaub|Krank|Berufsschule|VACATION|SICK/);
   });
 
-  it("lists the states in a fixed order: abwesend, in <Salon>, anderer Salon", () => {
+  it("shows exactly ONE chip without hours (the most important), all of them in the label", () => {
     const d = cellDisplay(
       cell({
         absent: true,
@@ -206,14 +216,31 @@ describe("cellDisplay", () => {
         elsewhereHidden: true,
       }),
     );
+    expect(d.chips.map((c) => c.text)).toEqual(["abwesend"]);
+    expect(d.label).toBe(
+      "Montag, 23.11.2026: keine Stunden im Salon, abwesend, in Süd, anderer Salon",
+    );
+  });
+
+  it("shows every state beneath the hours when the day has hours, in a fixed order", () => {
+    const d = cellDisplay(
+      cell({
+        minutes: 60,
+        absent: true,
+        elsewhere: [{ salonId: "s2", salonName: "Süd" }],
+        elsewhereHidden: true,
+      }),
+    );
+    expect(d.text).toBe("1:00");
     expect(d.chips.map((c) => c.text)).toEqual(["abwesend", "in Süd", "anderer Salon"]);
+    expect(d.nil).toBe(false);
   });
 });
 
 describe("cellDisplay - open (Issue #1030, P-08)", () => {
   it("marks a missing clock-out with the chip „offen“ (warn) and no hours", () => {
     const d = cellDisplay(cell({ open: true }), "Pat Test");
-    expect(d.text).toBe("–");
+    expect(d.text).toBe("");
     expect(d.chips).toEqual([{ text: "offen", tone: "warn" }]);
     expect(d.label).toBe("Pat Test, Montag, 23.11.2026: keine Stunden im Salon, offen");
   });
@@ -222,6 +249,25 @@ describe("cellDisplay - open (Issue #1030, P-08)", () => {
     const d = cellDisplay(cell({ open: true, absent: true, minutes: 60 }));
     expect(d.chips.map((c) => c.text)).toEqual(["offen", "abwesend"]);
     expect(d.text).toBe("1:00");
+  });
+});
+
+describe("rowHasContent and combinedDayTotals (card layout, one Summe row)", () => {
+  it("is true only when a day has hours or a state", () => {
+    expect(rowHasContent([cell(), cell({ date: "2026-11-24", counted: false })])).toBe(false);
+    expect(rowHasContent([cell(), cell({ minutes: 30 })])).toBe(true);
+    expect(rowHasContent([cell({ absent: true })])).toBe(true);
+    expect(rowHasContent([cell({ elsewhereHidden: true })])).toBe(true);
+    expect(rowHasContent([])).toBe(false);
+  });
+
+  it("adds the two server day totals of the groups, day by day", () => {
+    expect(
+      combinedDayTotals({
+        stammteam: { dayTotals: [60, 0, 5] },
+        aushilfen: { dayTotals: [30, 10, 0] },
+      }),
+    ).toEqual([90, 10, 5]);
   });
 });
 

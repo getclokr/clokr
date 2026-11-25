@@ -92,19 +92,17 @@ defineVisibilityWalkthrough({
     await writeEntry(request, tenant, { employeeId: own.id, salonId: first.id, day });
   },
   ready: async (page) => {
-    // The header salon decides the view: choose the first salon, then wait for the Stammteam table.
+    // The header salon decides the view: choose the first salon, then wait for the hours raster.
     await page.getByRole("combobox", { name: "Salon" }).selectOption({ label: firstSalonName });
-    await expect(page.getByTestId("salon-hours-stammteam")).toBeVisible();
+    await expect(page.getByTestId("salon-hours-raster")).toBeVisible();
   },
   steps: [
     {
       name: "Aushilfen",
       act: async (page) => {
-        await page
-          .getByRole("heading", { name: "Aushilfen aus anderen Salons" })
-          .scrollIntoViewIfNeeded();
+        await page.getByText(/^Aushilfen aus anderen Salons \(\d+\)$/).scrollIntoViewIfNeeded();
       },
-      target: (page) => page.getByTestId("salon-hours-aushilfen"),
+      target: (page) => page.getByTestId("salon-hours-raster"),
     },
     {
       name: "Monat",
@@ -112,13 +110,13 @@ defineVisibilityWalkthrough({
         await page.getByRole("radio", { name: "Monat" }).click();
         await expect(page.getByTestId("salon-hours-period-label")).toContainText(/\d{4}/);
       },
-      target: (page) => page.getByTestId("salon-hours-stammteam"),
+      target: (page) => page.getByTestId("salon-hours-raster"),
     },
     {
       name: "Zelle öffnet den Tag",
       act: async (page) => {
         await page
-          .getByTestId("salon-hours-aushilfen")
+          .getByTestId("salon-hours-raster")
           .getByRole("button", { name: new RegExp(`${HELPER_LAST_NAME}.*4:00 im Salon`) })
           .click();
       },

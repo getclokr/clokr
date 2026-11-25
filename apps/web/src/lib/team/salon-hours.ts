@@ -299,11 +299,16 @@ export interface SalonCellChip {
 }
 
 export interface SalonCellDisplay {
-  /** The cell text: H:MM, „–“ on a counted day without hours, empty on a day not counted yet. */
+  /** The hours of the cell as H:MM; empty when the cell shows a chip or the muted dash. */
   text: string;
-  /** The state chips of the cell: „offen“, „abwesend“, „in <Salon>“, „anderer Salon“. */
+  /**
+   * The state chips of the cell. A cell with hours shows them beneath the hours; a cell without
+   * hours shows exactly ONE chip (the most important state), never a dash next to it.
+   */
   chips: SalonCellChip[];
-  /** The accessible name of the cell. */
+  /** True when the cell shows neither hours nor a chip: it renders one muted „–“. */
+  nil: boolean;
+  /** The accessible name of the cell; it names every state, also those the cell does not show. */
   label: string;
 }
 
@@ -317,25 +322,52 @@ export function elsewhereChipText(names: readonly string[]): string {
   return more > 0 ? `in ${shown} +${more}` : `in ${shown}`;
 }
 
-/** What one cell shows. `personName` only widens the accessible name. */
+/**
+ * What one cell shows - exactly ONE thing (Issue #1030, owner draft): hours (with their state chips
+ * beneath), or one chip, or a muted dash. Days that are not counted yet read as the dash, too.
+ * `personName` only widens the accessible name.
+ */
 export function cellDisplay(cell: SalonHoursCell, personName = ""): SalonCellDisplay {
-  const text = cell.minutes > 0 ? fmtMin(cell.minutes) : cell.counted ? "–" : "";
-  const chips: SalonCellChip[] = [];
-  // A missing clock-out is the one state that asks for action, so it reads first.
-  if (cell.open) chips.push({ text: "offen", tone: "warn" });
-  if (cell.absent) chips.push({ text: "abwesend", tone: "info" });
+  // In order of importance: a missing clock-out asks for action, absence explains the empty day,
+  // another salon says where the person was, the hidden mark says only that it was somewhere else.
+  const states: SalonCellChip[] = [];
+  if (cell.open) states.push({ text: "offen", tone: "warn" });
+  if (cell.absent) states.push({ text: "abwesend", tone: "info" });
   if (cell.elsewhere.length > 0) {
-    chips.push({
+    states.push({
       text: elsewhereChipText(cell.elsewhere.map((e) => e.salonName)),
       tone: "neutral",
     });
   }
   // Time outside the reach reads as a neutral mark: no hours, no name, no way to tell which salon.
-  if (cell.elsewhereHidden) chips.push({ text: "anderer Salon", tone: "neutral" });
+  if (cell.elsewhereHidden) states.push({ text: "anderer Salon", tone: "neutral" });
+
+  const hasHours = cell.minutes > 0;
+  const chips = hasHours || states.length === 0 ? states : [states[0]];
 
   const when = dayFullLabel(cell.date);
   const head = personName ? `${personName}, ${when}` : when;
-  const what = cell.minutes > 0 ? `${fmtMin(cell.minutes)} im Salon` : "keine Stunden im Salon";
-  const states = chips.map((chip) => chip.text);
-  return { text, chips, label: [`${head}: ${what}`, ...states].join(", ") };
+  const what = hasHours ? `${fmtMin(cell.minutes)} im Salon` : "keine Stunden im Salon";
+  return {
+    text: hasHours ? fmtMin(cell.minutes) : "",
+    chips,
+    nil: !hasHours && chips.length === 0,
+    label: [`${head}: ${what}`, ...states.map((chip) => chip.text)].join(", "),
+  };
+}
+
+/** True when a row has a day with hours or a state: the card layout lists only such days. */
+export function rowHasContent(cells: readonly SalonHoursCell[]): boolean {
+  return cells.some((cell) => !cellDisplay(cell).nil);
+}
+
+/**
+ * The one „Summe im Salon“ row sits under both groups of the raster, so each day shows the two
+ * server totals of the groups added; nothing is recomputed from cells.
+ */
+export function combinedDayTotals(data: {
+  stammteam: { dayTotals: number[] };
+  aushilfen: { dayTotals: number[] };
+}): number[] {
+  return data.stammteam.dayTotals.map((minutes, i) => minutes + (data.aushilfen.dayTotals[i] ?? 0));
 }
