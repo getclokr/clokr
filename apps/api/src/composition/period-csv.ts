@@ -100,7 +100,8 @@ export function periodTableCsv(rows: readonly PeriodCsvRow[]): Buffer {
 
 /** A kind column of the absences CSV: the code of `rows[].absence` and its header with the unit. */
 // Excluded: OTHER (pre-tracking bridge rows) and COMPANY_SHUTDOWN (#1069, a paid release day like a
-// holiday: it has no kind column and no payroll line, it only reduces the Soll).
+// holiday: it has no kind column in the period report, it only reduces the Soll; its payroll line is
+// the optional DATEV row of TenantConfig.datevFreistellungNr, #1082).
 export type PeriodAbsencesCsvCode = Exclude<LeaveTypeCode, "OTHER" | "COMPANY_SHUTDOWN">;
 export type PeriodAbsencesCsvColumn = {
   code: PeriodAbsencesCsvCode;
