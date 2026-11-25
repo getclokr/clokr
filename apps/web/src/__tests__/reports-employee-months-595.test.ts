@@ -45,8 +45,11 @@ describe("Issue #595 Plan 02 - /reports employee month table comes from the serv
     // Issue #598: the two words come from the one month-status source (pinned to "Abgeschlossen" /
     // "Offen" in month-status-one-place-598.test.ts).
     expect(PAGE).toContain('from "$lib/saldo/month-status"');
-    expect(PAGE).toContain('<Chip tone="ok">{MONTH_STATUS_LABEL.CLOSED}</Chip>');
-    expect(PAGE).toContain('<Chip tone="warn">{MONTH_STATUS_LABEL.OPEN}</Chip>');
+    // Issue #991 N-28: the colour comes from the same module as the word (open = info).
+    expect(PAGE).toContain(
+      "<Chip tone={MONTH_STATUS_TONE.CLOSED}>{MONTH_STATUS_LABEL.CLOSED}</Chip>",
+    );
+    expect(PAGE).toContain("<Chip tone={MONTH_STATUS_TONE.OPEN}>{MONTH_STATUS_LABEL.OPEN}</Chip>");
     expect(PAGE).not.toContain("Gesperrt");
   });
 
