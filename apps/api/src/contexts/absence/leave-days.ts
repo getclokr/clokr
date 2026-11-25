@@ -16,7 +16,7 @@ import {
   holidaysForSalon,
   snapToMonthFirstUtc, // Issue #450 (D-04) — normalizes a legacy non-1st validFrom in loadVacationContractSegments
 } from "../platform"; // Phase 71b (issue #71, D-04) — the engine/state map are gone from this file, see getHolidayMap()
-import { getWorkedEntriesInRange } from "../time-tracking"; // Phase 71b (issue #71) — T2, the work-location rule's entry half
+import { getWorkedEntriesInRange, getValidWorkedEntriesInRange } from "../time-tracking"; // Phase 71b (issue #71) — T2, the work-location rule's entry half; getValidWorkedEntriesInRange (T1): Issue #1082 (D-03) — a valid closed WORK entry holds its day
 import {
   contractSegmentAt,
   contractSegmentPieces,
@@ -2069,6 +2069,150 @@ export async function leaveDaysByCodeWithin(
       netDays: Math.max(0, round2(requestDays - section9CreditDays)),
     });
   }
+  return result;
+}
+
+/**
+ * Issue #1082 (D-03/D-04) - the paid release days of a Betriebsurlaub, per person: the ONE count
+ * of them. Consumed through `contexts/absence/index.ts` by composition/reports.ts, which hands the
+ * map to `datevPersonFigures`; the DATEV file and the Monatsexport PDF both print that one figure
+ * (nothing else counts release days). Reads only, writes nothing.
+ *
+ * A day is a paid release day when it is a calendar day of an active (`deletedAt: null`)
+ * `Absence` of type `COMPANY_SHUTDOWN` of the person inside `[from, to]` (the Betriebsurlaub the
+ * employer closed the business for, § 615 BGB: the pay continues, the day is not Urlaub) AND no
+ * other line pays it:
+ *   - an effective leave request of the person holds it (`EFFECTIVE_LEAVE_STATUSES`, ANY code
+ *     incl. SICK, half days too: the first claim of the Soll day dedup, a half-day date stays
+ *     with its request - ADR 0001-abweichungen Eintrag AL);
+ *   - another active absence of the person holds it (Berufsschule first, BBiG § 15, and every
+ *     other imposed code);
+ *   - a closed, valid WORK entry of the person sits on it (T1): work on a shutdown day is paid as
+ *     Normalstunden, and a day cannot be both.
+ * A PENDING request holds nothing - until it is approved the day is paid release, the same reading
+ * the Soll has.
+ *
+ * The remaining days are priced per contiguous run of calendar days by {@link resolveLeaveDays}
+ * (mode "isolated", whole days) with the holidays of the work location (`getHolidayMap`, § 2
+ * EFZG): only contract workdays count, a holiday is never a release day, SHIFT_BASED counts by the
+ * contract's days like a leave day over the same dates. A person without release days is absent
+ * from the map; callers treat "absent" as zero.
+ *
+ * `from`/`to` MUST be UTC-midnight calendar days (the contract of {@link countedLeaveDaysWithin}):
+ * `Absence`/`LeaveRequest`/`TimeEntry` dates are `@db.Date`, a tenant-tz instant would shift the
+ * window by one day.
+ */
+export async function paidReleaseDaysByEmployee(
+  db: DbClient,
+  args: { tenantId: string; employeeIds: readonly string[]; from: Date; to: Date },
+): Promise<Map<string, number>> {
+  const { tenantId, employeeIds, from, to } = args;
+  const result = new Map<string, number>();
+  if (employeeIds.length === 0) return result;
+  const fromDay = utcDay(from);
+  const toDay = utcDay(to);
+  const keyOf = (d: Date): string => d.toISOString().slice(0, 10);
+
+  /** Every calendar-day key of `[start, end]` clipped to the window. */
+  const daysClipped = (start: Date, end: Date): string[] => {
+    const keys: string[] = [];
+    let cur = utcDay(start).getTime() < fromDay.getTime() ? fromDay : utcDay(start);
+    const last = utcDay(end).getTime() > toDay.getTime() ? toDay : utcDay(end);
+    while (cur.getTime() <= last.getTime()) {
+      keys.push(keyOf(cur));
+      cur = addUtcDays(cur, 1);
+    }
+    return keys;
+  };
+
+  const shutdownRows = await db.absence.findMany({
+    where: {
+      employeeId: { in: [...employeeIds] },
+      employee: { tenantId },
+      deletedAt: null,
+      type: "COMPANY_SHUTDOWN",
+      startDate: { lte: to },
+      endDate: { gte: from },
+    },
+    select: { employeeId: true, startDate: true, endDate: true },
+  });
+
+  const candidatesByEmployee = new Map<string, Set<string>>();
+  for (const row of shutdownRows) {
+    const set = candidatesByEmployee.get(row.employeeId) ?? new Set<string>();
+    for (const key of daysClipped(row.startDate, row.endDate)) set.add(key);
+    candidatesByEmployee.set(row.employeeId, set);
+  }
+
+  for (const [employeeId, candidates] of candidatesByEmployee) {
+    const held = new Set<string>();
+
+    const requests = await db.leaveRequest.findMany({
+      where: {
+        employeeId,
+        employee: { tenantId },
+        deletedAt: null,
+        status: { in: [...EFFECTIVE_LEAVE_STATUSES] },
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      select: { startDate: true, endDate: true },
+    });
+    for (const r of requests) for (const key of daysClipped(r.startDate, r.endDate)) held.add(key);
+
+    const otherAbsences = await db.absence.findMany({
+      where: {
+        employeeId,
+        employee: { tenantId },
+        deletedAt: null,
+        type: { not: "COMPANY_SHUTDOWN" },
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      select: { startDate: true, endDate: true },
+    });
+    for (const a of otherAbsences) {
+      for (const key of daysClipped(a.startDate, a.endDate)) held.add(key);
+    }
+
+    const worked = await getValidWorkedEntriesInRange(
+      db,
+      { kind: "employee", employeeId, tenantId },
+      from,
+      to,
+    );
+    for (const e of worked) held.add(keyOf(e.date));
+
+    const free = [...candidates].filter((key) => !held.has(key)).sort();
+    if (free.length === 0) continue;
+
+    // Group the remaining days into runs of consecutive calendar days; one pricing call per run.
+    const runs: Array<{ start: Date; end: Date }> = [];
+    for (const key of free) {
+      const day = new Date(`${key}T00:00:00.000Z`);
+      const lastRun = runs[runs.length - 1];
+      if (lastRun && addUtcDays(lastRun.end, 1).getTime() === day.getTime()) lastRun.end = day;
+      else runs.push({ start: day, end: day });
+    }
+
+    let total = 0;
+    for (const run of runs) {
+      const holidayMap = await getHolidayMap(db, tenantId, employeeId, run.start, run.end);
+      const priced = await resolveLeaveDays(
+        db,
+        employeeId,
+        tenantId,
+        run.start,
+        run.end,
+        false,
+        new Set(holidayMap.keys()),
+        { mode: "isolated" },
+      );
+      total += priced.days;
+    }
+    if (total > 0) result.set(employeeId, round2(total));
+  }
+
   return result;
 }
 
