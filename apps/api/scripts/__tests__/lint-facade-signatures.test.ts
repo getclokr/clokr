@@ -517,7 +517,7 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
   // facade (`contexts/time-tracking/facade/time-entries.ts`, retention archive of DayBreak /
   // DayBreakAck, same shape as `archiveEntriesBefore`) — passes F1/F2/F3 directly, no new
   // exception; exceptions unchanged at 17.
-  it("the real tree has exactly 168 exported facade functions today, 20 grandfathered/named exceptions, 0 unexcepted findings", () => {
+  it("the real tree has exactly 169 exported facade functions today, 20 grandfathered/named exceptions, 0 unexcepted findings", () => {
     const files = discoverFacadeFiles(REPO_ROOT);
     expect(files).toEqual(
       [
@@ -531,6 +531,7 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
         "apps/api/src/contexts/platform/facade/operator-metrics.ts",
         "apps/api/src/contexts/platform/facade/time-entry-readers.ts",
         "apps/api/src/contexts/scheduling/facade/shifts.ts",
+        "apps/api/src/contexts/scheduling/facade/appointments.ts",
         "apps/api/src/contexts/scheduling/facade/availability.ts",
         "apps/api/src/contexts/scheduling/facade/couplings.ts",
         "apps/api/src/contexts/time-tracking/facade/presence-devices.ts",
@@ -625,7 +626,9 @@ describe("live tree — KNOWN_FACADE_FILES against the real exceptions file", ()
     // Issue #606: new file platform/facade/time-entry-readers.ts — 3 exported (`timeEntryReaderAssignments`,
     // `timeEntryReaderGroups`, `tenantHasActiveApiKey`) plus 2 module-private helpers the analyzer counts;
     // db first and tenant-scoped, pass F1/F2/F3 directly, exceptions unchanged at 20 — 163 -> 168.
-    expect(functions).toHaveLength(168);
+    // Issue #604: +1 (`getAppointmentDayEnds`, scheduling/facade/appointments.ts, db first, scoped through the
+    // `EmployeeScope` that carries the tenant, passes F1/F2/F3 directly), exceptions unchanged at 20 — 168 -> 169.
+    expect(functions).toHaveLength(169);
 
     const rawExceptions = JSON.parse(
       readFileSync(
