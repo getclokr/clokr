@@ -14,7 +14,7 @@
   // Default window: 30 days back .. 60 days forward, adjustable with two date inputs.
 
   import { onMount } from "svelte";
-  import { api } from "$api/client";
+  import { api, ApiError } from "$api/client";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDayAnchor } from "$lib/utils/tenant-day";
@@ -31,11 +31,13 @@
   import EmptyState from "$components/ui/EmptyState.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import {
     buildShiftNotices,
     NOTICE_KINDS,
     type ConflictsResponse,
     type NoticeKind,
+    restoreForceQuestion,
     type ShiftNotice,
   } from "$lib/shifts/shift-notices";
 
@@ -87,13 +89,45 @@
     }
   }
 
+  // Issue #1075 — a restore brings working time back, so the shift checks run like on a new shift.
+  // A soft finding (opening hours, § 5 ArbZG) answers 409 with `canForce`: the planner is asked once
+  // and may restore anyway, a single logged decision. Every other refusal is shown as before.
+  let forceOpen = $state(false);
+  let forceQuestion = $state("");
+  let forceNotice: ShiftNotice | null = $state(null);
+
+  async function postRestore(notice: ShiftNotice, force: boolean) {
+    if (notice.action.type !== "restore") return;
+    await api.post(`/shifts/${notice.action.shiftId}/restore${force ? "?force=true" : ""}`, {});
+    toasts.success(notice.action.doneToast, 2000);
+    await load(); // the shift drops out of the list
+  }
+
   async function restore(notice: ShiftNotice) {
     if (notice.action.type !== "restore") return;
     busyKey = notice.key;
     try {
-      await api.post(`/shifts/${notice.action.shiftId}/restore`, {});
-      toasts.success(notice.action.doneToast, 2000);
-      await load(); // the shift drops out of the list
+      await postRestore(notice, false);
+    } catch (err) {
+      const question = err instanceof ApiError ? restoreForceQuestion(err.status, err.data) : null;
+      if (question !== null) {
+        forceNotice = notice;
+        forceQuestion = question;
+        forceOpen = true;
+      } else {
+        toasts.error(err instanceof Error ? err.message : "Das hat nicht geklappt.", 4000);
+      }
+    } finally {
+      busyKey = null;
+    }
+  }
+
+  async function restoreAnyway() {
+    const notice = forceNotice;
+    if (!notice) return;
+    busyKey = notice.key;
+    try {
+      await postRestore(notice, true);
     } catch (err) {
       toasts.error(err instanceof Error ? err.message : "Das hat nicht geklappt.", 4000);
     } finally {
@@ -199,6 +233,14 @@
     {/if}
   </TeamSection>
 </div>
+
+<ConfirmDialog
+  bind:open={forceOpen}
+  title="Schicht trotzdem wiederherstellen?"
+  description={forceQuestion}
+  confirmLabel="Trotzdem wiederherstellen"
+  onConfirm={restoreAnyway}
+/>
 
 <style>
   /* The window of the list: the two dates and the reload on one row, aligned on the field bottoms. */

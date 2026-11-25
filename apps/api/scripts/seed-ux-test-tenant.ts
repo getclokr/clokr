@@ -17,6 +17,9 @@
  *      entitlement, system role) and the extra roles through `POST /api/v1/role-assignments`.
  *   5. Berufsschule pattern (real route + generator), carry-over (real route), leave requests and
  *      their approval (real routes), shift templates, shifts and a coverage rule (real routes).
+ *      The roster refuses every day before today (Issue #1075), so the shifts of the tracked
+ *      past are written directly, like the time entries of step 6, each with a CREATE audit row
+ *      marked `trigger: "UX_TEST_SEED"`; today and later go through `POST /api/v1/shifts/bulk`.
  *   6. Writes the recorded working time directly (1st of the previous month through yesterday):
  *      the API's write path refuses entries outside the retro window for the person themself and
  *      books them as corrections for a manager, so a realistic history cannot come through it.
@@ -706,7 +709,35 @@ export async function runUxSeed(app: FastifyInstance, opts: { outFile: string })
       });
     }
   }
-  await api("POST", "/api/v1/shifts/bulk", owner, { shifts });
+  // Issue #1075: the roster refuses every day before today, so the tracked past (it drives the
+  // SHIFT_BASED person's Soll) is written directly with a marked CREATE audit row, exactly like the
+  // recorded working time of step 7; today and later go through the real bulk route.
+  const isBefore = (shift: Record<string, unknown>): boolean => (shift.date as string) < today;
+  for (const shift of shifts.filter(isBefore)) {
+    const row = await prisma.shift.create({
+      data: {
+        employeeId: shift.employeeId as string,
+        date: toDate(shift.date as string),
+        startTime: shift.startTime as string,
+        endTime: shift.endTime as string,
+        salonId: shift.salonId as string,
+        templateId: (shift.templateId as string | undefined) ?? null,
+        createdBy: ownerUserId,
+      },
+      select: { id: true },
+    });
+    await app.audit({
+      userId: ownerUserId,
+      action: "CREATE",
+      entity: "Shift",
+      entityId: row.id,
+      newValue: { ...shift, trigger: UX_TEST_TRIGGER },
+    });
+  }
+  const plannedShifts = shifts.filter((shift) => !isBefore(shift));
+  if (plannedShifts.length > 0) {
+    await api("POST", "/api/v1/shifts/bulk", owner, { shifts: plannedShifts });
+  }
   // Salon Nord needs two people on every weekday, one of them not under supervision (the Azubi).
   for (let weekday = 0; weekday < 5; weekday++) {
     await api("POST", "/api/v1/shifts/coverage-rules", owner, {

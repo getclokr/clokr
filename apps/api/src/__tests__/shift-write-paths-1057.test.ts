@@ -5,10 +5,19 @@
  *
  * The case class is the call pattern, not the keyword: a call `<expr>.shift.create|createMany|
  * update|updateMany|upsert(` in non-test code under `apps/api/src`, pinned by file, method and COUNT
- * (never by line number). A second assertion pins the six direct calls of
- * `findMinorShiftLimitViolation` in `scheduling/api/shifts.ts` (POST, PUT, restore, bulk,
- * generate-week, copy-week), and the one call of `reportMinorShiftLimitViolations` in
- * `services/phorest/sync-shifts.ts`, which must come after every Shift write of that file.
+ * (never by line number). Since Issue #1075 the six adding paths of `scheduling/api/shifts.ts` (POST,
+ * PUT, restore, bulk, generate-week, copy-week) reach the JArbSchG rule — and five more — through ONE
+ * gate, `checkShiftWrite` (`scheduling/shift-write-checks.ts`); the one call of
+ * `reportMinorShiftLimitViolations` in `services/phorest/sync-shifts.ts` must come after every Shift
+ * write of that file.
+ *
+ * Issue #1075 added the per-path register `WRITE_PATHS`: for each adding handler of the roster route
+ * which rules run (always all six, imported from the gate module so the register cannot drift from
+ * the code), how a finding is answered (`refuse`, `skip-cell`, `refuse-batch`) and whether `?force`
+ * exists. The AST checks pin that each of those handlers calls `checkShiftWrite` exactly once, before
+ * every Shift write of the handler, that the gate calls its six rule functions once each in
+ * `SHIFT_WRITE_RULES` order, and that the roster route computes none of the rules itself. DELETE
+ * removes time and keeps only the past lock (`isPastShiftDay`).
  *
  * Verdicts:
  *  - `checked`      the write adds or moves working time and the JArbSchG check runs before it.
@@ -19,8 +28,8 @@
  *  - `not-checked`  the write adds working time and is NOT checked — a known gap that needs its own
  *                   follow-up issue. None is registered today.
  *
- * A new write path fails here: route it through the check (`loadMinorShiftWeeks` +
- * `findMinorShiftLimitViolation`) and register it as `checked`, or register it with a written reason.
+ * A new write path fails here: route it through `checkShiftWrite`, register it as `checked` (and in
+ * `WRITE_PATHS`), or register it with a written reason.
  *
  * Named blind spots: a write through an alias (`const s = prisma.shift; s.create(...)`), a nested
  * write (`employee.update({ data: { shifts: { create } } })`), a raw SQL statement, and the
@@ -35,6 +44,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { describe, it, expect } from "vitest";
 import * as ts from "typescript";
+import { SHIFT_WRITE_RULES, type ShiftWriteRule } from "../contexts/scheduling/shift-write-checks";
 
 // __dirname is apps/api/src/__tests__ — four levels up is the repo root.
 const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
@@ -58,13 +68,14 @@ const REGISTER: Record<string, Partial<Record<WriteMethod, RegisterEntry>>> = {
     create: {
       count: 4,
       verdict: "checked",
-      reason: "POST /, POST /generate-week, POST /copy-week, POST /bulk",
+      reason:
+        "POST /, POST /generate-week, POST /copy-week, POST /bulk — each through checkShiftWrite, all six rules (Issue #1075)",
     },
     update: {
       count: 2,
       verdict: "checked",
       reason:
-        "PUT /:id; POST /:id/restore (the soft-delete branch is checked, the flag-clearing branch adds no time)",
+        "PUT /:id; POST /:id/restore — through checkShiftWrite, all six rules; on restore the soft-delete branch is checked and the flag-clearing branch adds no time (Issue #1075)",
     },
   },
   "apps/api/src/contexts/scheduling/facade/shifts.ts": {
@@ -106,6 +117,71 @@ const CHECK_FUNCTION = "findMinorShiftLimitViolation";
 // 0 since Issue #1075: every adding path reaches the JArbSchG rule through checkShiftWrite, which
 // calls findMinorShiftLimitViolation once, in shift-write-checks.ts.
 const EXPECTED_CHECK_CALLS = 0;
+
+const GATE_FUNCTION = "checkShiftWrite";
+const GATE_MODULE = "apps/api/src/contexts/scheduling/shift-write-checks.ts";
+const PAST_LOCK_FUNCTION = "isPastShiftDay";
+
+type Answer = "refuse" | "skip-cell" | "refuse-batch";
+
+interface WritePath {
+  /** The rules the gate runs on this path (all six; imported so the register follows the code). */
+  rules: readonly ShiftWriteRule[];
+  /** How a blocking finding is answered. */
+  answer: Answer;
+  /** Whether `?force=true` can override an overridable finding (opening hours, § 5). */
+  force: boolean;
+  reason: string;
+}
+
+/**
+ * Every handler of the roster route that ADDS planned working time, by "<METHOD> <path>". DELETE
+ * /:id is deliberately absent: it removes time and keeps only the past lock (`isPastShiftDay`).
+ */
+const WRITE_PATHS: Record<string, WritePath> = {
+  "POST /": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "refuse",
+    force: true,
+    reason:
+      "a single write: opening hours and § 5 ArbZG are a per-shift, audited decision (SHIFT_FORCED_OUTSIDE_HOURS / SHIFT_FORCED_OVER_ARBZG); the rest answers 422",
+  },
+  "PUT /:id": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "refuse",
+    force: true,
+    reason:
+      "a single write like POST over the effective values; the stored row is taken out of the day sum, the rest gaps and the minor week, so only a worse write is refused",
+  },
+  "POST /:id/restore": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "refuse",
+    force: true,
+    reason:
+      "a single deliberate write like POST; only the soft-delete branch adds time and is gated, the flag-clearing branch changes no time, person or day",
+  },
+  "POST /bulk": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "refuse-batch",
+    force: false,
+    reason:
+      "a collective path: the first finding refuses the whole batch with itemIndex and canForce false, nothing is written; no override replicates unseen",
+  },
+  "POST /generate-week": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "skip-cell",
+    force: false,
+    reason:
+      "a collective path: a violating cell is skipped with reason and message, identically in preview and commit; the planner places that one shift through POST",
+  },
+  "POST /copy-week": {
+    rules: SHIFT_WRITE_RULES,
+    answer: "skip-cell",
+    force: false,
+    reason:
+      "a collective path: a violating cell is skipped with reason and message, identically in preview and commit; the planner places that one shift through POST",
+  },
+};
 
 const REPORT_FUNCTION = "reportMinorShiftLimitViolations";
 const PHOREST_SYNC = "apps/api/src/services/phorest/sync-shifts.ts";
@@ -191,6 +267,94 @@ function callPositions(
   };
   visit(sf);
   return { named, shiftWrites };
+}
+
+interface HandlerInfo {
+  key: string;
+  gateCalls: number[];
+  pastLockCalls: number;
+  shiftWrites: number[];
+}
+
+/** The route handlers (`app.<get|post|put|patch|delete>("<path>", ...)`) of a source, by "<METHOD> <path>". */
+function routeHandlers(fileName: string, source: string): HandlerInfo[] {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const out: HandlerInfo[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ["get", "post", "put", "patch", "delete"].includes(node.expression.name.text) &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      const info: HandlerInfo = {
+        key: `${node.expression.name.text.toUpperCase()} ${node.arguments[0].text}`,
+        gateCalls: [],
+        pastLockCalls: 0,
+        shiftWrites: [],
+      };
+      const inner = (n: ts.Node): void => {
+        if (ts.isCallExpression(n)) {
+          if (ts.isIdentifier(n.expression) && n.expression.text === GATE_FUNCTION) {
+            info.gateCalls.push(n.getStart(sf));
+          } else if (ts.isIdentifier(n.expression) && n.expression.text === PAST_LOCK_FUNCTION) {
+            info.pastLockCalls += 1;
+          } else if (
+            ts.isPropertyAccessExpression(n.expression) &&
+            (WRITE_METHODS as readonly string[]).includes(n.expression.name.text) &&
+            ts.isPropertyAccessExpression(n.expression.expression) &&
+            n.expression.expression.name.text === "shift"
+          ) {
+            info.shiftWrites.push(n.getStart(sf));
+          }
+        }
+        ts.forEachChild(n, inner);
+      };
+      ts.forEachChild(node, inner);
+      out.push(info);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** Callee names ending in `Rule`, in source order, inside the body of `function checkShiftWrite`. */
+function gateRuleOrder(fileName: string, source: string): string[] {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === GATE_FUNCTION && node.body) {
+      const inner = (n: ts.Node): void => {
+        if (
+          ts.isCallExpression(n) &&
+          ts.isIdentifier(n.expression) &&
+          n.expression.text.endsWith("Rule")
+        ) {
+          names.push(n.expression.text);
+        }
+        ts.forEachChild(n, inner);
+      };
+      ts.forEachChild(node.body, inner);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return names;
+}
+
+/** Names of every function declared in a source (declarations, not calls). */
+function declaredFunctions(fileName: string, source: string): string[] {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name) names.push(node.name.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return names;
 }
 
 describe("Issue #1057 — every Shift write path is registered with a verdict", () => {
@@ -285,12 +449,124 @@ describe("Issue #1057 — every Shift write path is registered with a verdict", 
     }
   });
 
-  it("the roster route calls the JArbSchG check exactly once per checked write path", () => {
-    const abs = join(REPO_ROOT, SHIFTS_ROUTE);
+  it("positive control: handlers are found by method and path, calls are counted by position, comments and strings are not", () => {
+    const src = [
+      `app.post("/x", { handler: async () => { checkShiftWrite(ctx, c, o); await tx.shift.create({}); } });`,
+      `app.delete("/:id", { handler: async () => { if (isPastShiftDay(a, b)) return; await tx.shift.delete({}); } });`,
+      `// checkShiftWrite(a, b, c)\nconst note = "checkShiftWrite(";`,
+    ].join("\n");
+    const found = routeHandlers("x.ts", src);
+    expect(found.map((h) => h.key)).toEqual(["POST /x", "DELETE /:id"]);
+    expect(found[0].gateCalls).toHaveLength(1);
+    expect(found[0].gateCalls[0]).toBeLessThan(found[0].shiftWrites[0]);
+    expect(found[1].gateCalls).toHaveLength(0);
+    expect(found[1].pastLockCalls).toBe(1);
     expect(
-      checkCallCount(abs, readFileSync(abs, "utf8")),
-      "POST, PUT, restore, bulk, generate-week and copy-week each call findMinorShiftLimitViolation once",
-    ).toBe(EXPECTED_CHECK_CALLS);
+      gateRuleOrder(
+        "x.ts",
+        `function checkShiftWrite() { const steps = [() => aRule(), () => bRule()]; helper(); }`,
+      ),
+    ).toEqual(["aRule", "bRule"]);
+    expect(declaredFunctions("x.ts", `function a() {}\nconst b = () => 1;`)).toEqual(["a"]);
+  });
+
+  describe("every adding write path of the roster route runs the one gate (Issue #1075)", () => {
+    const abs = join(REPO_ROOT, SHIFTS_ROUTE);
+    const source = readFileSync(abs, "utf8");
+    const handlers = routeHandlers(abs, source);
+
+    it("the handlers that contain a Shift write are exactly the registered write paths", () => {
+      const writers = handlers.filter((h) => h.shiftWrites.length > 0).map((h) => h.key);
+      expect(
+        writers.length,
+        "no handler with a Shift write found — the scan is vacuous",
+      ).toBeGreaterThan(0);
+      expect(
+        [...writers].sort(),
+        "a roster handler writes a Shift without being registered: route it through checkShiftWrite and add it to WRITE_PATHS",
+      ).toEqual(Object.keys(WRITE_PATHS).sort());
+    });
+
+    it("each of them calls checkShiftWrite exactly once, before every Shift write of the handler", () => {
+      for (const key of Object.keys(WRITE_PATHS)) {
+        const h = handlers.find((x) => x.key === key);
+        expect(h, `${key} not found in ${SHIFTS_ROUTE}`).toBeDefined();
+        expect(h!.gateCalls, `${key} must call ${GATE_FUNCTION} exactly once`).toHaveLength(1);
+        for (const write of h!.shiftWrites) {
+          expect(h!.gateCalls[0], `${key}: the gate must run before the Shift write`).toBeLessThan(
+            write,
+          );
+        }
+      }
+    });
+
+    it("the register states rules, answer and force for every path, and the force path set is POST, PUT and restore", () => {
+      for (const [key, path] of Object.entries(WRITE_PATHS)) {
+        expect([...path.rules], `${key}: all six rules run on every adding path`).toEqual([
+          ...SHIFT_WRITE_RULES,
+        ]);
+        expect(["refuse", "skip-cell", "refuse-batch"]).toContain(path.answer);
+        expect(path.reason.length, `${key} has no reason`).toBeGreaterThan(10);
+      }
+      expect(
+        Object.entries(WRITE_PATHS)
+          .filter(([, p]) => p.force)
+          .map(([k]) => k)
+          .sort(),
+      ).toEqual(["POST /", "POST /:id/restore", "PUT /:id"]);
+      expect(
+        Object.entries(WRITE_PATHS)
+          .filter(([, p]) => p.answer !== "refuse")
+          .map(([k]) => k)
+          .sort(),
+      ).toEqual(["POST /bulk", "POST /copy-week", "POST /generate-week"]);
+    });
+
+    it("the roster route computes no rule itself: no direct rule call, no old guard helper", () => {
+      for (const name of [
+        CHECK_FUNCTION,
+        "loadMinorShiftWeeks",
+        "getEffectiveBreakDuration",
+        "shiftNettoMinutes",
+      ]) {
+        expect(
+          checkCallCount(abs, source, name),
+          `${SHIFTS_ROUTE} must not call ${name} itself; the gate does`,
+        ).toBe(0);
+      }
+      expect(checkCallCount(abs, source, CHECK_FUNCTION)).toBe(EXPECTED_CHECK_CALLS);
+      const declared = declaredFunctions(abs, source);
+      for (const old of [
+        "assertEmployeeHasContractOn",
+        "assertShiftNotPast",
+        "assertWithinStoreHours",
+        "assertArbZGDailyMax",
+        "assertArbZGRestPeriod",
+      ]) {
+        expect(declared, `${old} is back in ${SHIFTS_ROUTE}`).not.toContain(old);
+      }
+    });
+
+    it("the past lock outside the gate is DELETE /:id only", () => {
+      const withPastLock = handlers.filter((h) => h.pastLockCalls > 0).map((h) => h.key);
+      expect(withPastLock).toEqual(["DELETE /:id"]);
+    });
+  });
+
+  describe("the gate itself (Issue #1075)", () => {
+    const abs = join(REPO_ROOT, GATE_MODULE);
+    const source = readFileSync(abs, "utf8");
+
+    it("checkShiftWrite calls its six rule functions once each, in SHIFT_WRITE_RULES order", () => {
+      const order = gateRuleOrder(abs, source);
+      expect(order, "the gate body must name every rule exactly once").toEqual(
+        SHIFT_WRITE_RULES.map((rule) => `${rule}Rule`),
+      );
+    });
+
+    it("the JArbSchG rule is called once, inside the gate module", () => {
+      expect(checkCallCount(abs, source, CHECK_FUNCTION)).toBe(1);
+    });
   });
 
   it("the Phorest sync calls the JArbSchG report exactly once, after every Shift write", () => {

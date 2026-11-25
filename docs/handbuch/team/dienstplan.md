@@ -11,7 +11,7 @@ Die Wochenansicht ist ein Raster: eine Zeile pro Person, eine Spalte pro Wochent
 - Links in jeder Zeile steht die Person mit **Geplant / Vertrag**: wie viele Stunden die Person geplant hat, verglichen mit ihrem Vertrag. Bei Urlaub oder Abwesenheit senkt sich der Vertragswert entsprechend. Eine Abweichung ist farbig markiert.
 - Über jedem Tag zeigt die **Besetzung**, wie viele Personen geplant sind im Verhältnis zur Mindestbesetzung. Fehlt die Aufsicht, sagt die Anzeige das. An geschlossenen Tagen steht „geschlossen“.
 - Ein Tag, an dem jemand laut Vertrag arbeitet, aber keine Schicht hat, trägt den Hinweis **laut Vertrag**: Er zählt zur Besetzung.
-- Vergangene Tage lassen sich nicht ändern.
+- Vergangene Tage lassen sich nicht ändern: nicht anlegen, verschieben, löschen, wiederherstellen und auch nicht mit „Muster anwenden“ oder „Letzte Woche kopieren“ befüllen. Maßgeblich ist der heutige Tag deines Unternehmens; heute selbst kannst du noch planen.
 
 Unter der Wochenansicht erklärt eine Legende die Markierungen: Schicht, Unterbesetzung, Hinweis, Urlaub, Berufsschule und geschlossen. Auf schmalen Bildschirmen gibt es zusätzlich eine Tagesansicht.
 
@@ -34,20 +34,20 @@ Eine neue Schicht ist sofort aktiv und für die Person sichtbar. Einen Entwurfss
 
 ### Wenn etwas kollidiert
 
-Überschneidet sich eine Schicht mit Urlaub oder einer Abwesenheit, fragt Clokr nach („Schicht trotz Urlaub/Abwesenheit zuweisen?“). Mit **Trotzdem zuweisen** legst du die Schicht bewusst trotzdem an, und Clokr protokolliert das. Beim Ziehen geschieht nie etwas automatisch. Die tägliche Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG) ist eine harte Grenze: Eine Schicht darüber lässt sich nicht anlegen. Auch die Ruhezeit von 11 Stunden (§ 5 ArbZG) wird geprüft.
+Überschneidet sich eine Schicht mit Urlaub oder einer Abwesenheit, fragt Clokr nach („Schicht trotz Urlaub/Abwesenheit zuweisen?“). Mit **Trotzdem zuweisen** legst du die Schicht bewusst trotzdem an, und Clokr protokolliert das. Beim Ziehen geschieht nie etwas automatisch. Die tägliche Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG) ist eine harte Grenze: Clokr zählt alle Schichten einer Person an dem Tag zusammen (abzüglich der Pause), und eine Schicht, die den Tag darüber bringt, lässt sich nicht anlegen. Auch die Ruhezeit von 11 Stunden (§ 5 ArbZG) wird geprüft, zur Schicht am Vortag **und** zur Schicht am Folgetag. Die Ruhezeit lässt sich bei einer einzelnen Schicht mit **Trotzdem zuweisen** übersteuern; Clokr protokolliert das. Eine Bezeichnung oder eine Verkürzung ändert an einem schon zu langen Tag nichts am Verstoß und bleibt deshalb möglich.
 
 ## Muster anwenden
 
 Mit **Muster anwenden** füllt Clokr die Woche nach den Schicht-Mustern, die die Verwaltung pro Person hinterlegt hat. Vorher zeigt eine Vorschau, was passiert:
 
 - **Zu erstellen (N)**: die Schichten, die entstehen.
-- **Übersprungen (N)**: die Einträge mit Grund, zum Beispiel Urlaub, Abwesenheit, bestehende Schicht oder kein Muster.
+- **Übersprungen (N)**: die Einträge mit Grund, zum Beispiel Urlaub, Abwesenheit, bestehende Schicht oder kein Muster. Dazu kommen die Prüfungen wie beim Anlegen einer einzelnen Schicht: vergangener Tag, kein Vertrag, außerhalb der Öffnungszeiten, über 10 Stunden am Tag, Ruhezeit unter 11 Stunden und Jugendarbeitsschutz. Ein Muster kann diese Prüfungen nicht übersteuern; eine solche Schicht legst du einzeln an.
 
 Erst mit der Bestätigung legt Clokr die Schichten an. Die Aktion gilt für alle Salons deiner Reichweite, nicht nur für den gewählten Salon.
 
 ## Letzte Woche kopieren
 
-Mit **Letzte Woche kopieren** übernimmst du die Schichten einer früheren Woche in die angezeigte Woche. Die **Quellwoche** (ein Montag) kannst du ändern. Personen mit Urlaub, Krankheit oder bestehenden Schichten werden übersprungen. Auch hier zeigt eine Vorschau vorher, was passiert, und die Aktion gilt für alle Salons deiner Reichweite.
+Mit **Letzte Woche kopieren** übernimmst du die Schichten einer früheren Woche in die angezeigte Woche. Die **Quellwoche** (ein Montag) kannst du ändern. Personen mit Urlaub, Krankheit oder bestehenden Schichten werden übersprungen, ebenso vergangene Tage und Schichten, die gegen Vertrag, Öffnungszeiten, Arbeitszeitgesetz oder Jugendarbeitsschutz verstoßen würden (übersteuern geht hier nicht, lege eine solche Schicht einzeln an). Auch hier zeigt eine Vorschau vorher, was passiert, und die Aktion gilt für alle Salons deiner Reichweite.
 
 ## Bedarf
 
@@ -57,7 +57,7 @@ Der Reiter **Bedarf** zeigt pro Woche und Person, was noch zu planen ist: **Vert
 
 Auf dem Reiter **Hinweise** stehen Schichten, die einen Blick brauchen. Mit **Von** und **Bis** grenzt du den Zeitraum ein und aktualisierst mit **Aktualisieren**. Die Hinweise sind:
 
-- **Entfernt**: Eine Schicht wurde automatisch entfernt, weil ein neuer Berufsschultag angelegt wurde. Mit **Wiederherstellen** holst du sie zurück. Das wird protokolliert.
+- **Entfernt**: Eine Schicht wurde automatisch entfernt, weil ein neuer Berufsschultag angelegt wurde. Mit **Wiederherstellen** holst du sie zurück. Das wird protokolliert. Clokr prüft dabei dasselbe wie beim Anlegen einer neuen Schicht. Verletzt die Schicht die Öffnungszeiten oder die Ruhezeit, fragt Clokr, ob du sie **Trotzdem wiederherstellen** willst. Ein vergangener Tag lässt sich nicht mehr wiederherstellen.
 - **Prüfen**: Eine Schicht überschneidet sich mit genehmigtem Urlaub oder einem Berufsschultag. Mit **Schicht behalten** nimmst du den Hinweis weg. Das wird protokolliert.
 - **Woche voll**: In einer Woche sind mehr Schichttage geplant, als der Vertrag nach Urlaub und Abwesenheiten zulässt.
 

@@ -10,6 +10,7 @@ import {
   planShiftEdits,
   planUnlocks,
   reviewVerdict,
+  rosterPlanStart,
   statusAfterReview,
 } from "./decisions";
 import { rosterFor } from "./schedule";
@@ -43,7 +44,12 @@ export async function planShifts(ctx: BotContext, tenantKey: SimTenantKey): Prom
   const { plan, state } = ctx.tenant(tenantKey);
   const through = addDays(ctx.day, PLAN_HORIZON_DAYS);
   const planned = ctx.progress.shiftsPlannedThrough[tenantKey];
-  const from = planned && planned >= ctx.day ? addDays(planned, 1) : ctx.day;
+  // The roster refuses days before the real today (Issue #1075): a replayed day plans from there.
+  const from = rosterPlanStart({
+    plannedThrough: planned,
+    day: ctx.day,
+    realToday: ctx.realToday,
+  });
   if (from > through) return;
 
   const token = await managerToken(ctx, tenantKey);

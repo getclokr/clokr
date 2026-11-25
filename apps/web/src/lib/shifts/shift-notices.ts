@@ -149,3 +149,19 @@ export function buildShiftNotices(res: ConflictsResponse): ShiftNotice[] {
       a.person.localeCompare(b.person, "de"),
   );
 }
+
+/**
+ * Issue #1075 — a restore that the shift checks refuse with a soft finding (opening hours, § 5 ArbZG)
+ * answers 409 with `canForce: true`: the planner may bring the shift back anyway, as a single,
+ * logged decision. Returns the question's text (the API's German message) for exactly that answer,
+ * `null` for every other one (a hard 422, a 409 without an override, any other status), which is shown
+ * as an error as before.
+ */
+export function restoreForceQuestion(status: number, data: unknown): string | null {
+  if (status !== 409 || typeof data !== "object" || data === null) return null;
+  const body = data as { canForce?: unknown; message?: unknown };
+  if (body.canForce !== true) return null;
+  return typeof body.message === "string" && body.message.length > 0
+    ? body.message
+    : "Die Schicht verstößt gegen eine Planungsregel.";
+}
