@@ -12,6 +12,9 @@
  * through the real DB/HTTP paths in golden-matrix.test.ts (`az-fixed-38-5-bs_absence`,
  * `az-shift-38-5-bs_absence`).
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import ts from "typescript";
 import { describe, it, expect } from "vitest";
 import { closeEmployeeMonth, type CloseMonthInput } from "../close-employee-month";
 import { monthRangeUtc, monthDayBounds } from "../timezone";
@@ -283,5 +286,116 @@ describe("Issue #1080 — absolute pins (hand-derived)", () => {
     );
     expect(f.expectedMinutes).toBe(8640);
     expect(f.workedMinutes).toBe(480);
+  });
+});
+
+// ── AC2: the Berufsschule priority lives in one place ─────────────────────────────────────────
+//
+// What this cannot see: an alias or a copy of the set under another name (a `const s = bsDates`
+// inside bsDayPriority's body, or `new Set(bsDatesInMonth)` is seen only as an unclassified
+// reader of the name), or a re-implementation of the rule that never names the set. Review has to
+// catch a creative workaround.
+describe("Issue #1080 AC2 - the Berufsschule priority lives in one place", () => {
+  const SOURCE_PATH = join(__dirname, "..", "close-employee-month.ts");
+  const SET_NAME = "bsDatesInMonth";
+  const RULE_NAME = "bsDayPriority";
+
+  type Kind = "declaration" | "add" | "for-of" | "priority-argument" | "other";
+
+  function parse(source: string): ts.SourceFile {
+    return ts.createSourceFile("close-employee-month.ts", source, ts.ScriptTarget.Latest, true);
+  }
+
+  /** Classifies every code occurrence (comments and strings never count) of the set's name. */
+  function classifyReaders(source: string): Array<{ kind: Kind; line: number }> {
+    const sf = parse(source);
+    const out: Array<{ kind: Kind; line: number }> = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && n.text === SET_NAME) {
+        const p = n.parent;
+        let kind: Kind = "other";
+        if (ts.isVariableDeclaration(p) && p.name === n) kind = "declaration";
+        else if (
+          ts.isPropertyAccessExpression(p) &&
+          p.expression === n &&
+          p.name.text === "add" &&
+          ts.isCallExpression(p.parent)
+        )
+          kind = "add";
+        else if (ts.isForOfStatement(p) && p.expression === n) kind = "for-of";
+        else if (
+          ts.isCallExpression(p) &&
+          ts.isIdentifier(p.expression) &&
+          p.expression.text === RULE_NAME &&
+          p.arguments[0] === n
+        )
+          kind = "priority-argument";
+        out.push({ kind, line: sf.getLineAndCharacterOfPosition(n.getStart()).line + 1 });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return out;
+  }
+
+  const source = readFileSync(SOURCE_PATH, "utf8");
+
+  it("the set is read only by its build, the Berufsschule credit loop and the one bsDayPriority call", () => {
+    const readers = classifyReaders(source);
+    expect(readers.filter((r) => r.kind === "other")).toEqual([]);
+    expect(readers.map((r) => r.kind).sort()).toEqual(
+      ["add", "declaration", "for-of", "priority-argument"].sort(),
+    );
+  });
+
+  it("bsDayPriority is declared once and called once", () => {
+    const sf = parse(source);
+    let declarations = 0;
+    let calls = 0;
+    const visit = (n: ts.Node): void => {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === RULE_NAME) declarations += 1;
+      if (
+        ts.isCallExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === RULE_NAME
+      )
+        calls += 1;
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    expect({ declarations, calls }).toEqual({ declarations: 1, calls: 1 });
+  });
+
+  it("positive control: a direct read of the set in a new loop is reported as exactly one extra reader", () => {
+    const synthetic = `${source}\nfor (const d of []) { if (${SET_NAME}.has(d)) { void d; } }\n`;
+    const real = classifyReaders(source).filter((r) => r.kind === "other");
+    const withSynthetic = classifyReaders(synthetic).filter((r) => r.kind === "other");
+    expect(real).toHaveLength(0);
+    expect(withSynthetic).toHaveLength(1);
+  });
+
+  it("floor: the parsed file contains closeEmployeeMonth and every loop kind reaches the rule", () => {
+    const sf = parse(source);
+    let hasCore = false;
+    const members = new Map<string, number>();
+    const visit = (n: ts.Node): void => {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "closeEmployeeMonth") hasCore = true;
+      if (
+        ts.isPropertyAccessExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === "bsPriority"
+      ) {
+        members.set(n.name.text, (members.get(n.name.text) ?? 0) + 1);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    expect(hasCore).toBe(true);
+    // both leave loops and both absence loops claim through the rule; both absence loops ask yields
+    expect(members.get("claim") ?? 0).toBeGreaterThanOrEqual(4);
+    expect(members.get("yields") ?? 0).toBeGreaterThanOrEqual(2);
+    expect(members.get("exclusion") ?? 0).toBeGreaterThanOrEqual(3);
+    expect(members.get("blocks") ?? 0).toBeGreaterThanOrEqual(1);
+    expect(members.get("dates") ?? 0).toBeGreaterThanOrEqual(1);
   });
 });
