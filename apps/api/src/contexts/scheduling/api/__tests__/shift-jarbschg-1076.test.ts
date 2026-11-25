@@ -245,6 +245,65 @@ describe("POST / PUT /shifts — JArbSchG §§ 13-17 (Issue #1076)", () => {
     expect(body.canForce).toBe(true);
   });
 
+  // ── § 15 / § 16 Abs. 3 and 4 ─────────────────────────────────────────────────────────────────
+
+  async function schoolDay(employeeId: string, dayOffset: number) {
+    await app.prisma.absence.create({
+      data: {
+        employeeId,
+        type: "VOCATIONAL_SCHOOL",
+        source: "PATTERN",
+        startDate: new Date(`${day(dayOffset)}T00:00:00Z`),
+        endDate: new Date(`${day(dayOffset)}T00:00:00Z`),
+        days: 1.0,
+        createdBy: "jarbschg-1076-test",
+      },
+    });
+  }
+
+  async function tueToFri(employeeId: string) {
+    for (const d of [1, 2, 3, 4]) await fixtureShift(employeeId, d, "09:00", "14:00");
+  }
+
+  it("§ 15: a Berufsschultag counts as a day, so a sixth day is refused; without it the Saturday is accepted", async () => {
+    const withSchool = await mkPerson("FiveDaySchool", birthFor(WEEK_MONDAY, 16));
+    await schoolDay(withSchool, 0);
+    await tueToFri(withSchool);
+    await expectRefused(withSchool, 5, "09:00", "14:00", "JARBSCHG_VIOLATION_FIVE_DAY_WEEK");
+
+    const withoutSchool = await mkPerson("FiveDayFree", birthFor(WEEK_MONDAY, 16));
+    await tueToFri(withoutSchool);
+    expect((await post(withoutSchool, 5, "09:00", "14:00")).statusCode).toBe(201);
+  });
+
+  it("§ 15: six days of shifts are refused for a 17-year-old", async () => {
+    const emp = await mkPerson("FiveDaySeventeen", birthFor(WEEK_MONDAY, 17));
+    for (const d of [0, 1, 2, 3, 4]) await fixtureShift(emp, d, "09:00", "14:00");
+    await expectRefused(emp, 5, "09:00", "14:00", "JARBSCHG_VIOLATION_FIVE_DAY_WEEK");
+  });
+
+  it("§ 16 Abs. 4: a Monday Ausgleich of 08:00-11:00 keeps the Saturday lawful, 08:00-13:30 does not", async () => {
+    const ok = await mkPerson("FiveDayCompOk", birthFor(WEEK_MONDAY, 16));
+    await tueToFri(ok);
+    await fixtureShift(ok, 0, "08:00", "11:00");
+    expect((await post(ok, 5, "09:00", "14:00")).statusCode).toBe(201);
+
+    const late = await mkPerson("FiveDayCompLate", birthFor(WEEK_MONDAY, 16));
+    await tueToFri(late);
+    await fixtureShift(late, 0, "08:00", "13:30");
+    await expectRefused(late, 5, "09:00", "14:00", "JARBSCHG_VIOLATION_FIVE_DAY_WEEK");
+  });
+
+  it("§ 15: the 18th birthday on the Saturday and an adult are not counted", async () => {
+    const birthday = await mkPerson("FiveDayBirthday", birthFor(day(5), 18));
+    for (const d of [0, 1, 2, 3, 4]) await fixtureShift(birthday, d, "09:00", "14:00");
+    expect((await post(birthday, 5, "09:00", "14:00")).statusCode).toBe(201);
+
+    const adult = await mkPerson("FiveDayAdult", birthFor(WEEK_MONDAY, 18));
+    for (const d of [0, 1, 2, 3, 4]) await fixtureShift(adult, d, "09:00", "14:00");
+    expect((await post(adult, 5, "09:00", "14:00")).statusCode).toBe(201);
+  });
+
   // ── AC2: an existing illegal plan never blocks the roster ─────────────────────────────────────
 
   it("AC2: a label-only PUT of a minor's stored Sunday shift answers 200, a lawful new shift 201", async () => {

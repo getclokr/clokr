@@ -3,7 +3,7 @@
  *
  * The ONE JArbSchG roster rule for a shift of a person who is under 18 on the shift date:
  * Issue #1057 (§ 8 daily and weekly working time, § 12 Schichtzeit) and Issue #1076 (§ 13 Freizeit,
- * § 14 Nachtruhe, § 17 Sonntagsruhe). This module only READS; it never writes a row, an audit entry
+ * § 14 Nachtruhe, § 15 Fünf-Tage-Woche with § 16 Abs. 3 and 4, § 17 Sonntagsruhe). This module only READS; it never writes a row, an audit entry
  * or a saldo figure.
  *
  * Legal reading (the decision record is the #1057 / #1076 comments and docs/compliance.md):
@@ -30,7 +30,15 @@
  *  - § 14 Abs. 1: only 06:00-20:00. Every minute outside it (the part of a midnight-crossing shift
  *    included) is a violation. The extensions of Abs. 2 (other trades, multi-shift operations),
  *    Abs. 3, 5, 6 and 7 are not applied: a salon has none of those cases or Clokr cannot know it.
+ *  - § 15 Satz 1 (with § 16 Abs. 3 and 4): at most five days a week (Monday to Sunday) with a shift
+ *    or a Berufsschule. A Berufsschultag counts because § 16 Abs. 3 Satz 1 demands a
+ *    "berufsschulfrei" compensation day. In a salon a sixth day is a Saturday (Sunday is forbidden);
+ *    the Friseurhandwerk may work it (§ 16 Abs. 2 Satz 1 Nr. 2) when another Monday-Friday day without
+ *    Berufsschule ends by 13:00 and carries at most 8:00 minus the Saturday's Arbeitszeit (§ 16 Abs. 4).
  *  - § 17 Abs. 1: no shift on a Sunday (decided from the ISO date). Abs. 2 lists no salon case.
+ *  - NOT refused on purpose: § 16 Abs. 2 Satz 2 ("sollen" at least two Saturdays a month free: a
+ *    Sollvorschrift, not bußgeldbewehrt in § 58, tariff-dispositive in § 21a Abs. 1 Nr. 4) and
+ *    § 15 Satz 2 (the two rest days "sollen nach Möglichkeit aufeinander folgen").
  *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span, week
  *    sum, night minutes, Sunday minutes grow or a Freizeit gap shrinks), so an already illegal plan
  *    (legacy, Phorest import) never freezes the roster.
@@ -43,7 +51,7 @@
  * predicates and messages; the module still only reads.
  */
 import type { PrismaClient } from "@clokr/db";
-import { isMinorAtDate, mondayOfWeekUtc } from "../absence";
+import { hasVocationalSchoolDay, isMinorAtDate, mondayOfWeekUtc } from "../absence";
 import {
   dayRangeUtc,
   getTenantTimezone,
@@ -67,6 +75,11 @@ export const MINOR_NIGHT_REST_FROM_MINUTE = 1200;
 /** § 13 JArbSchG: at least 12 h uninterrupted Freizeit after the daily working time. */
 export const MINOR_FREE_TIME_MINUTES = 720;
 
+/** § 15 Satz 1 JArbSchG: at most five days a week. */
+export const MINOR_WORK_DAYS_PER_WEEK = 5;
+/** § 16 Abs. 4 JArbSchG: the compensation day ends by 13:00 ... */
+export const MINOR_SATURDAY_COMPENSATION_UNTIL_MINUTE = 780;
+
 const DAY_MINUTES = 24 * 60;
 
 export type MinorShiftLimitCode =
@@ -75,7 +88,8 @@ export type MinorShiftLimitCode =
   | "JARBSCHG_VIOLATION_SHIFT_TIME"
   | "JARBSCHG_VIOLATION_NIGHT_REST"
   | "JARBSCHG_VIOLATION_SUNDAY_REST"
-  | "JARBSCHG_VIOLATION_FREE_TIME";
+  | "JARBSCHG_VIOLATION_FREE_TIME"
+  | "JARBSCHG_VIOLATION_FIVE_DAY_WEEK";
 
 export interface MinorShiftLimitViolation {
   code: MinorShiftLimitCode;
@@ -99,6 +113,8 @@ export interface MinorShiftWeek {
   breakTenantConfig: BreakTenantConfigShape;
   /** Berufsschule credit (minutes) per ISO day, read from the Arbeitszeitkonto. */
   creditedMinutesByDate: Record<string, number>;
+  /** ISO days of `weekDays` on which the person is a minor and has a Berufsschule (§ 15, § 16 Abs. 3). */
+  schoolDays: string[];
   /** The shifts of the week AND of the Sunday before / the Monday after (see `minorWeekHorizon`). */
   shifts: Array<ShiftDraft & { id: string }>;
 }
@@ -118,6 +134,8 @@ export interface MinorDayFigures {
   nightMinutes: number;
   /** Sum of the gross shift minutes of the day. */
   shiftMinutes: number;
+  /** The day is a Berufsschultag (an `Absence` of type VOCATIONAL_SCHOOL). */
+  isSchoolDay: boolean;
 }
 
 /** The figures of a week and of the two edge days that border it (the horizon). */
@@ -213,6 +231,48 @@ function sundayBad(f: MinorDayFigures, iso: string): boolean {
   return f.isMinor && isSundayIso(iso) && f.shiftMinutes > 0;
 }
 
+// § 15: a day counts when the person is a minor on it and it carries a shift or a Berufsschule.
+function countedDay(f: MinorDayFigures): boolean {
+  return f.isMinor && (f.shiftMinutes > 0 || f.isSchoolDay);
+}
+
+function countedDays(figures: MinorDayFigures[]): number {
+  return figures.filter(countedDay).length;
+}
+
+const utcWeekdayOf = (iso: string): number => utcMidnightOf(iso).getUTCDay();
+
+// § 16 Abs. 4: six counted days with a Saturday shift, no Sunday, and one Monday-Friday minor day
+// without Berufsschule that ends by 13:00 and carries at most 8:00 minus the Saturday's Arbeitszeit.
+function saturdayCompensationHolds(figures: MinorDayFigures[], weekDays: string[]): boolean {
+  if (countedDays(figures) !== MINOR_WORK_DAYS_PER_WEEK + 1) return false;
+  const saturday = weekDays.findIndex((iso) => utcWeekdayOf(iso) === 6);
+  const sunday = weekDays.findIndex((iso) => utcWeekdayOf(iso) === 0);
+  if (saturday < 0 || !figures[saturday].isMinor || figures[saturday].shiftMinutes <= 0) {
+    return false;
+  }
+  if (sunday >= 0 && countedDay(figures[sunday])) return false;
+  const allowance = Math.max(0, MINOR_DAILY_LIMIT_MINUTES - figures[saturday].workMinutes);
+  return figures.some((f, i) => {
+    const weekday = utcWeekdayOf(weekDays[i]);
+    return (
+      weekday >= 1 &&
+      weekday <= 5 &&
+      f.isMinor &&
+      !f.isSchoolDay &&
+      f.shiftMinutes > 0 &&
+      (f.lastEndMinute ?? Number.POSITIVE_INFINITY) <= MINOR_SATURDAY_COMPENSATION_UNTIL_MINUTE &&
+      f.workMinutes <= allowance
+    );
+  });
+}
+
+function fiveDayBad(figures: MinorDayFigures[], weekDays: string[]): boolean {
+  return (
+    countedDays(figures) > MINOR_WORK_DAYS_PER_WEEK && !saturdayCompensationHolds(figures, weekDays)
+  );
+}
+
 /** Minutes of Freizeit between the end of `previous` and the start of `next`; null without both. */
 function freeTimeGap(previous: MinorDayFigures, next: MinorDayFigures): number | null {
   if (previous.lastEndMinute === null || next.firstStartMinute === null) return null;
@@ -255,6 +315,17 @@ function weeklyMessage(weekDays: string[], sumMinutes: number, triggerIso: strin
     return `In der Woche vom ${range} beträgt die geplante Arbeitszeit ${formatHm(sumMinutes)} Stunden. ${limit}`;
   }
   return `Mit der Schicht am ${formatDateDe(triggerIso)} beträgt die geplante Arbeitszeit in der Woche vom ${range} ${formatHm(sumMinutes)} Stunden. ${limit}`;
+}
+
+/** With a trigger day the text names the shift that tipped the week; without, it names the week. */
+function fiveDayMessage(weekDays: string[], days: number, triggerIso: string | null): string {
+  const range = `${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])}`;
+  const rule =
+    "Jugendliche dürfen nur an fünf Tagen in der Woche beschäftigt werden. Wer samstags arbeitet, braucht in derselben Woche einen anderen freien Tag ohne Berufsschule; an diesem Tag ist höchstens ein Ausgleich bis 13 Uhr erlaubt (§ 15, § 16 Abs. 3 und 4 JArbSchG).";
+  if (triggerIso === null) {
+    return `In der Woche vom ${range} sind an ${days} Tagen Schicht oder Berufsschule geplant. ${rule}`;
+  }
+  return `Mit der Schicht am ${formatDateDe(triggerIso)} sind in der Woche vom ${range} an ${days} Tagen Schicht oder Berufsschule geplant. ${rule}`;
 }
 
 /** The figure list over the whole horizon: index 0 = Sunday before, 1..7 = Monday..Sunday, 8 = Monday after. */
@@ -354,6 +425,19 @@ export function evaluateMinorWeekFigures(input: {
       message: weeklyMessage(weekDays, afterSum, weeklyDateIso),
     };
   }
+
+  const afterCount = countedDays(after);
+  if (
+    fiveDayBad(after, weekDays) &&
+    (!fiveDayBad(before, weekDays) || afterCount > countedDays(before))
+  ) {
+    const fiveDateIso = triggerIndex >= 0 ? weekDays[triggerIndex] : weekDays[0];
+    return {
+      code: "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
+      dateIso: fiveDateIso,
+      message: fiveDayMessage(weekDays, afterCount, fiveDateIso),
+    };
+  }
   return null;
 }
 
@@ -361,7 +445,7 @@ export function evaluateMinorWeekFigures(input: {
  * Every violation the given figures hold (Issue #1074) — the stored week of a plan nobody can
  * refuse. Same predicates and message builders as `evaluateMinorWeekFigures`: per day in calendar
  * order DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME (several may occur on one day),
- * then WEEKLY_MAX (dated Monday). The pair Sunday -> next Monday belongs to the next week and is
+ * then WEEKLY_MAX and FIVE_DAY_WEEK (dated Monday). The pair Sunday -> next Monday belongs to the next week and is
  * never listed here, so nothing is reported twice.
  */
 export function listMinorWeekViolations(input: {
@@ -418,6 +502,13 @@ export function listMinorWeekViolations(input: {
       message: weeklyMessage(weekDays, sum, null),
     });
   }
+  if (fiveDayBad(figures, weekDays)) {
+    out.push({
+      code: "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
+      dateIso: weekDays[0],
+      message: fiveDayMessage(weekDays, countedDays(figures), null),
+    });
+  }
   return out;
 }
 
@@ -436,6 +527,8 @@ export function minorShiftLimitLabel(v: MinorShiftLimitViolation): string {
       return `${formatDateDe(v.dateIso)} (Freizeit)`;
     case "JARBSCHG_VIOLATION_WEEKLY_MAX":
       return "Wochenarbeitszeit";
+    case "JARBSCHG_VIOLATION_FIVE_DAY_WEEK":
+      return "Fünf-Tage-Woche";
     default: {
       const unreachable: never = v.code;
       return unreachable;
@@ -491,6 +584,7 @@ function dayFigures(
     lastEndMinute: hasShift ? latest : null,
     nightMinutes: night,
     shiftMinutes,
+    isSchoolDay: week.schoolDays.includes(iso),
   };
 }
 
@@ -626,8 +720,14 @@ export async function loadMinorShiftWeeks(
     });
 
     const creditedMinutesByDate: Record<string, number> = {};
+    const schoolDays: string[] = [];
     for (const iso of weekDays) {
       if (!isMinorAtDate(emp.birthDate, utcMidnightOf(iso))) continue;
+      // The Berufsschule credit can resolve to configured slot minutes, so "credit > 0" is not the
+      // school-day flag; the Abwesenheiten index answers it.
+      if (await hasVocationalSchoolDay(prisma, emp.id, tenantId, utcMidnightOf(iso))) {
+        schoolDays.push(iso);
+      }
       const dayEnd = dayRangeUtc(iso, tz).end;
       const schedule = schedules.find((s) => s.validFrom <= dayEnd) ?? null;
       creditedMinutesByDate[iso] = await getVocationalSchoolMinutesForDate(
@@ -650,6 +750,7 @@ export async function loadMinorShiftWeeks(
       },
       breakTenantConfig,
       creditedMinutesByDate,
+      schoolDays,
       shifts,
     });
   }

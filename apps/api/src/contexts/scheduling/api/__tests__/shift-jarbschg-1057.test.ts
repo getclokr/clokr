@@ -66,6 +66,8 @@ function mkWeek(o: {
     },
     breakTenantConfig: { defaultBreakOver6h: 30, defaultBreakOver9h: 45 },
     creditedMinutesByDate: credits,
+    // a credit exists only on a Berufsschule day
+    schoolDays: Object.keys(credits),
     shifts: (o.shifts ?? []).map(([day, start, end, id], i) => ({
       ...draftOf(day, start, end),
       id: id ?? `s${i}`,

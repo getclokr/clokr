@@ -44,6 +44,7 @@ function mkWeek(o: {
   birth: string | null;
   shifts?: Spec[];
   credit?: Record<number, number>;
+  school?: number[];
   weekStart?: number;
 }): MinorShiftWeek {
   const offset = o.weekStart ?? 0;
@@ -58,6 +59,7 @@ function mkWeek(o: {
     breakEmployee: { breakOver6hOverride: null, breakOver9hOverride: null, birthDate },
     breakTenantConfig: { defaultBreakOver6h: 30, defaultBreakOver9h: 45 },
     creditedMinutesByDate: credits,
+    schoolDays: (o.school ?? []).map(dayOf),
     shifts: (o.shifts ?? []).map(([day, start, end, id], i) => ({
       ...draftOf(day, start, end),
       id: id ?? `s${i}`,
@@ -377,5 +379,106 @@ describe("checkShiftWrite — rule 4 answers the §§ 13-17 codes (Issue #1076)"
     const second = gateRun(ctx, "2026-11-23", "07:00", "12:00");
     expect(second.blocking?.code).toBe("JARBSCHG_VIOLATION_FREE_TIME");
     expect(second.blocking?.dateIso).toBe("2026-11-23");
+  });
+});
+
+// ── § 15 / § 16 Abs. 3 and 4 ─────────────────────────────────────────────────────────────────────
+
+const monToFri = (start = "09:00", end = "14:00"): Spec[] =>
+  [0, 1, 2, 3, 4].map((d) => [d, start, end] as Spec);
+
+describe("§ 15 JArbSchG — Fünf-Tage-Woche (Issue #1076)", () => {
+  for (const [label, birth] of [
+    ["16-year-old", SIXTEEN],
+    ["17-year-old", SEVENTEEN],
+  ] as const) {
+    it(`${label}: a sixth day with a shift is refused`, () => {
+      const week = mkWeek({ birth, shifts: monToFri() });
+      const v = check(week, draftOf(5, "09:00", "14:00"));
+      expect(v?.code).toBe("JARBSCHG_VIOLATION_FIVE_DAY_WEEK");
+      expect(v?.dateIso).toBe(dayIso(5));
+      expect(v?.message).toContain("Mit der Schicht am 21.11.2026");
+      expect(v?.message).toContain("an 6 Tagen");
+      expect(v?.message).toContain("fünf Tagen");
+      expect(v?.message).toContain("§ 15");
+      expect(v?.message).toContain("§ 16 Abs. 3 und 4");
+    });
+  }
+
+  it("a Berufsschultag counts as a day without rest", () => {
+    const tueToFri = [1, 2, 3, 4].map((d) => [d, "09:00", "14:00"] as Spec);
+    const withSchool = mkWeek({
+      birth: SIXTEEN,
+      shifts: tueToFri,
+      school: [0],
+      credit: { 0: 480 },
+    });
+    expect(check(withSchool, draftOf(5, "09:00", "14:00"))?.code).toBe(
+      "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
+    );
+    const monFree = mkWeek({ birth: SIXTEEN, shifts: tueToFri });
+    expect(check(monFree, draftOf(5, "09:00", "14:00"))).toBeNull();
+  });
+
+  it("§ 16 Abs. 4: a Freistellungstag ending by 13:00 with at most 8:00 minus the Saturday", () => {
+    const tueToFri = [1, 2, 3, 4].map((d) => [d, "09:00", "14:00"] as Spec);
+    const sat = draftOf(5, "09:00", "14:00"); // net 4:30 = 270, allowance 210
+    const ok = mkWeek({ birth: SIXTEEN, shifts: [[0, "08:00", "11:00"], ...tueToFri] });
+    expect(check(ok, sat)).toBeNull(); // Monday 180
+    const lateEnd = mkWeek({ birth: SIXTEEN, shifts: [[0, "10:00", "13:01"], ...tueToFri] });
+    expect(check(lateEnd, sat)?.code).toBe("JARBSCHG_VIOLATION_FIVE_DAY_WEEK");
+    const tooLong = mkWeek({ birth: SIXTEEN, shifts: [[0, "07:00", "11:00"], ...tueToFri] });
+    expect(check(tooLong, sat)?.code).toBe("JARBSCHG_VIOLATION_FIVE_DAY_WEEK"); // 240 > 210
+    const school = mkWeek({
+      birth: SIXTEEN,
+      shifts: [[0, "08:00", "11:00"], ...tueToFri],
+      school: [0],
+      credit: { 0: 0 },
+    });
+    expect(check(school, sat)?.code).toBe("JARBSCHG_VIOLATION_FIVE_DAY_WEEK"); // Ausgleich day is a Berufsschultag
+    const longSat = mkWeek({ birth: SIXTEEN, shifts: [[0, "08:00", "11:00"], ...tueToFri] });
+    expect(check(longSat, draftOf(5, "08:00", "17:00"))?.code).toBe(
+      "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
+    ); // allowance 0
+  });
+
+  it("the 18th birthday on the Saturday: that day does not count", () => {
+    const week = mkWeek({ birth: "2008-11-21", shifts: monToFri() });
+    expect(check(week, draftOf(5, "09:00", "14:00"))).toBeNull();
+  });
+
+  it("only a worsening is refused (legacy six-day week, label-only replace)", () => {
+    const legacy = mkWeek({
+      birth: SIXTEEN,
+      shifts: [...monToFri(), [5, "09:00", "14:00", "sat"]],
+    });
+    expect(check(legacy, draftOf(5, "09:00", "14:00"), "sat")).toBeNull();
+  });
+
+  it("losing the exemption with an unchanged day count is refused", () => {
+    const tueToFri = [1, 2, 3, 4].map((d) => [d, "09:00", "14:00"] as Spec);
+    const lawful = mkWeek({
+      birth: SIXTEEN,
+      shifts: [[0, "08:00", "11:00", "mon"], ...tueToFri, [5, "09:00", "14:00"]],
+    });
+    expect(check(lawful, draftOf(0, "08:00", "13:30"), "mon")?.code).toBe(
+      "JARBSCHG_VIOLATION_FIVE_DAY_WEEK",
+    );
+  });
+
+  it("the stored listing lists FIVE_DAY_WEEK after WEEKLY_MAX, dated Monday, without 'Mit der Schicht'", () => {
+    const week = mkWeek({ birth: SIXTEEN, shifts: [...monToFri(), [5, "09:00", "14:00"]] });
+    const listed = findStoredMinorWeekViolations(week);
+    expect(listed.map((v) => v.code)).toEqual(["JARBSCHG_VIOLATION_FIVE_DAY_WEEK"]);
+    expect(listed[0].dateIso).toBe(MON);
+    expect(listed[0].message).toContain("In der Woche vom 16.11. bis 22.11.2026 sind an 6 Tagen");
+    expect(listed[0].message).not.toContain("Mit der Schicht");
+    expect(minorShiftLimitLabel(listed[0])).toBe("Fünf-Tage-Woche");
+  });
+
+  it("adults and persons without a birth date are unchanged", () => {
+    for (const birth of ["2008-11-16", null]) {
+      expect(check(mkWeek({ birth, shifts: monToFri() }), draftOf(5, "09:00", "14:00"))).toBeNull();
+    }
   });
 });
