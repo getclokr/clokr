@@ -4,6 +4,11 @@ import { requireAuth } from "../../../middleware/auth";
 import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
+import {
+  findMinorShiftLimitViolation,
+  loadMinorShiftWeeks,
+  minorShiftLimitReplyBody,
+} from "../minor-shift-limits"; // Issue #1057 — § 8 / § 12 JArbSchG for a minor's shift
 import { getEffectiveBreakDuration, getWorkedEntriesInRange } from "../../time-tracking"; // Phase 101B (Issue #101, wave 8); getWorkedEntriesInRange (T2) added Phase 71b (issue #71, D-07)
 import { classifyLeaveTypeCode, type AvailabilityBucket } from "../shift-availability"; // Phase 98 (T3, plan 03) — the two classifiers' new home
 import {
@@ -2709,6 +2714,30 @@ export async function shiftRoutes(app: FastifyInstance) {
             message: storeHit.message,
             canForce: true,
           });
+        }
+      }
+
+      // Issue #1057 — § 8 / § 12 JArbSchG replace the ArbZG for a person under 18 on the shift date
+      // (§ 18 Abs. 2 ArbZG). Not overridable: the force flag is not read here.
+      {
+        const minorWeeks = await loadMinorShiftWeeks(
+          app.prisma,
+          req.user.tenantId,
+          [body.employeeId],
+          new Date(body.date + "T00:00:00Z"),
+        );
+        const minorWeek = minorWeeks.get(body.employeeId);
+        if (minorWeek) {
+          const minorHit = findMinorShiftLimitViolation(minorWeek, {
+            add: [
+              {
+                date: new Date(body.date + "T00:00:00Z"),
+                startTime: body.startTime,
+                endTime: body.endTime,
+              },
+            ],
+          });
+          if (minorHit) return reply.code(422).send(minorShiftLimitReplyBody(minorHit));
         }
       }
 
