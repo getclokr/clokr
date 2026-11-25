@@ -45,6 +45,7 @@
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import {
     copySkipLabel,
+    sortSkips,
     generateSkipLabel,
     type RosterSkipReason,
   } from "$lib/shifts/roster-skip-reasons"; // Issue #1075
@@ -2151,7 +2152,7 @@
       {#if generateDiff.skip.length > 0}
         <h3 class="sp-gen-h">Übersprungen ({generateDiff.skip.length})</h3>
         <div class="sp-gen-list sp-gen-list--skip">
-          {#each generateDiff.skip as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
+          {#each sortSkips(generateDiff.skip) as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
@@ -2240,7 +2241,7 @@
       {#if copyDiff.skip.length > 0}
         <h3 class="sp-gen-h">Übersprungen ({copyDiff.skip.length})</h3>
         <div class="sp-gen-list sp-gen-list--skip">
-          {#each copyDiff.skip as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
+          {#each sortSkips(copyDiff.skip) as s, i (`${s.employeeId}::${s.date}::${s.reason}::${i}`)}
             <div class="sp-gen-row">
               <span class="sp-gen-emp">{empName(s.employeeId)}</span>
               <span class="sp-gen-date">{shortGermanDay(s.date)}</span>
@@ -2428,6 +2429,7 @@
   }
   .sp-gen-list {
     display: flex;
+    flex-shrink: 0;
     flex-direction: column;
     gap: 4px;
     max-height: 240px;

@@ -48,30 +48,46 @@ export function generateSkipLabel(reason: RosterSkipReason): string {
   }
 }
 
-/** The label of a skipped cell in the "Woche kopieren" preview. */
+/**
+ * The label of a skipped cell in the "Woche kopieren" preview: the same short label as "Muster
+ * anwenden" (the section heading already says „Übersprungen“). A reason copy never gives — or an
+ * unknown one — reads „Übersprungen“, never „Kein Muster“.
+ */
 export function copySkipLabel(reason: RosterSkipReason): string {
-  switch (reason) {
-    case "leave":
-      return "Übersprungen — Urlaub";
-    case "absence":
-      return "Übersprungen — Krankheit";
-    case "existing":
-      return "Übersprungen — Schicht existiert bereits";
-    case "availability-unavailable":
-      return "Übersprungen — nicht verfügbar";
-    case "jarbschg":
-      return "Übersprungen — Jugendarbeitsschutz";
-    case "past":
-      return "Übersprungen — vergangener Tag";
-    case "no-contract":
-      return "Übersprungen — kein Vertrag";
-    case "outside-store-hours":
-      return "Übersprungen — außerhalb der Öffnungszeiten";
-    case "arbzg-daily-max":
-      return "Übersprungen — über 10 Stunden am Tag";
-    case "arbzg-rest-period":
-      return "Übersprungen — Ruhezeit unter 11 Stunden";
-    default:
-      return "Übersprungen";
+  if (reason === "no-pattern" || reason === "open-day" || !SKIP_ORDER.includes(reason)) {
+    return "Übersprungen";
   }
+  return generateSkipLabel(reason);
+}
+
+/**
+ * The order of the skip list: a rule that blocked the cell first (law, opening hours, past days,
+ * contract), then the person's own state, the "nothing to plan" reasons last — so the reasons that
+ * need a look are not buried under dozens of „Kein Muster“ rows.
+ */
+const SKIP_ORDER: readonly RosterSkipReason[] = [
+  "jarbschg",
+  "arbzg-daily-max",
+  "arbzg-rest-period",
+  "outside-store-hours",
+  "past",
+  "no-contract",
+  "leave",
+  "absence",
+  "availability-unavailable",
+  "existing",
+  "open-day",
+  "no-pattern",
+];
+
+/** The skipped cells in display order (stable within one reason). */
+export function sortSkips<T extends { reason: RosterSkipReason }>(skips: readonly T[]): T[] {
+  const rank = (r: RosterSkipReason) => {
+    const at = SKIP_ORDER.indexOf(r);
+    return at === -1 ? SKIP_ORDER.length : at;
+  };
+  return skips
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => rank(a.s.reason) - rank(b.s.reason) || a.i - b.i)
+    .map(({ s }) => s);
 }
