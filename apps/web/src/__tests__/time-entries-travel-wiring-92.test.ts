@@ -126,18 +126,12 @@ describe.each(PAGES)("travel wiring (#92) - $name", ({ source }) => {
   });
 });
 
-describe("travel wiring (#92) - the Salonansicht and the team request", () => {
-  const salonView = readRouteFile(
-    "../lib/components/team/SalonTimeEntries.svelte",
-    "src/lib/components/team/SalonTimeEntries.svelte",
-  );
+describe("travel wiring (#92) - the team request", () => {
   const teamPage = PAGES[1]!.source;
 
-  it("renders a trip in the Salonansicht through the shared label and kind read", () => {
-    expect(salonView).toContain("isTravelRow(entry)");
-    expect(salonView).toContain("travelRouteLabel(entry)");
-    expect(salonView).not.toContain("activityKind");
-  });
+  // Issue #1030: the Salonansicht lists no entries any more (it is an hours raster), so the former
+  // case "renders a trip in the Salonansicht through the shared label" is gone with the list. A trip
+  // counts for its departure salon like any closed WORK row - proven by salon-hours-1030.test.ts.
 
   it("sends a manager's trip on behalf of the selected person as a correction, never with a kind", () => {
     expect(teamPage).toMatch(

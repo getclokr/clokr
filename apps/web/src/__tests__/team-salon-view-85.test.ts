@@ -1,10 +1,17 @@
-// Issue #85 D-09 / D-14 / D-15 — source pins of the Salonansicht wiring on `/team/time-entries`.
+// Issue #85 D-09 / D-14 — source pins of the Salonansicht wiring on `/team/time-entries`.
+//
+// Issue #1030 re-targeted this file: the Salonansicht is the hours raster of one salon
+// (`GET /salon-hours`) instead of the flat entry list, so the request pin follows
+// `salonHoursRequestPath(` and the effect pin follows `salonPeriod`; the D-15 row-cap pin is gone
+// because the raster answer has no row cap (a week or a month of one salon is bounded by its
+// people). The tab now exists only in a multi-salon company (`salonViewApplies`) for a caller with
+// the view permission (`salonHoursRights`). Every other pin is kept.
 //
 // Why source-read and not mounted: the page imports `$app/*` and fires a dozen requests in
 // `onMount` (same wall as dashboard-team-salon-filter-84.test.ts documents). The rendering contract
-// is mounted in `lib/components/team/__tests__/SalonTimeEntries.test.ts`, the grouping in
-// `lib/team/__tests__/salon-time-entries.test.ts`; this file only proves the page uses them the
-// way the decisions require.
+// is mounted in `lib/components/team/__tests__/SalonHoursView.test.ts`, the period and cell logic in
+// `lib/team/__tests__/salon-hours.test.ts`; this file only proves the page uses them the way the
+// decisions require.
 //
 // Mutation proofs (cp backup/restore of the page, 2026-10-13):
 //   M1 `selectedSalonId(` added to the page      -> "[D-09] the salon comes only from
@@ -67,6 +74,7 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(PAGE).toMatch(/<PageTabs[^>]*tab=\{teamMode\}/);
     expect(PAGE).toContain('{ value: "person", label: "Personenansicht" }');
     expect(PAGE).toContain('{ value: "salon", label: "Salonansicht" }');
+    expect(PAGE).toContain("tabs={viewTabs}");
     expect(PAGE).toMatch(
       /onTabChange=\{\(value\) =>\s*setTeamMode\(value === "salon" \? "salon" : "person"\)/,
     );
@@ -87,7 +95,7 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(body).toBeGreaterThan(-1);
     // The person view, the salon view and the empty state are all inside the body snippet.
     const bodyEnd = PAGE.indexOf("{/snippet}", PAGE.indexOf("<EmptyState", body));
-    for (const marker of ['{#if teamMode === "person"}', "<SalonTimeEntries", "<KpiStrip"]) {
+    for (const marker of ['{#if teamMode === "person"}', "<SalonHoursView", "<KpiStrip"]) {
       const at = PAGE.indexOf(marker, body);
       expect(at, marker).toBeGreaterThan(body);
       expect(at, marker).toBeLessThan(bodyEnd);
@@ -106,9 +114,11 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(PAGE).not.toContain("selectedSalonId(");
   });
 
-  it("[D-09] the request is built by salonViewRequestPath and no salon sends no request", () => {
+  it("[D-09] the request is built by salonHoursRequestPath and no salon sends no request", () => {
     const body = functionBody("loadSalonView");
-    expect(body).toContain("salonViewRequestPath(from, to, salonId)");
+    expect(body).toContain("salonHoursRequestPath(salonId, period)");
+    // The flat entry list is no longer read by the app (Issue #1030, P-09).
+    expect(PAGE).not.toContain("salonViewRequestPath");
     const noSalon = body.indexOf("salonId === null");
     const request = body.indexOf("api.get");
     expect(noSalon).toBeGreaterThan(-1);
@@ -117,14 +127,13 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(body.slice(noSalon, request)).toContain("return;");
   });
 
-  it("[D-09] an effect reloads on mode, loaded context, salon and month — via untrack", () => {
+  it("[D-09] an effect reloads on mode, loaded context, salon and period — via untrack", () => {
     const at = PAGE.indexOf('$effect(() => {\n    if (teamMode !== "salon"');
     expect(at, "salon view effect not found").toBeGreaterThan(-1);
     const effect = PAGE.slice(at, PAGE.indexOf("\n  });", at));
     expect(effect).toContain("$salonContext.loaded");
     expect(effect).toContain("salonViewSalonId");
-    expect(effect).toContain("salonViewFrom");
-    expect(effect).toContain("salonViewTo");
+    expect(effect).toContain("salonPeriod");
     expect(effect).toContain("untrack(");
     expect(effect).toContain("loadSalonView(");
   });
@@ -133,7 +142,7 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     const body = functionBody("loadSalonView");
     expect(body).toContain("const generation = ++salonViewGeneration;");
     const guard = body.indexOf("generation !== salonViewGeneration");
-    const assign = body.indexOf("salonViewDays = groupSalonEntries(");
+    const assign = body.indexOf("salonHoursData = answer;");
     expect(guard).toBeGreaterThan(-1);
     expect(assign).toBeGreaterThan(guard);
     // The catch branch is guarded as well, so a stale 404 cannot flip a newer selection.
@@ -152,9 +161,31 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     expect(branch).not.toContain("console.error");
   });
 
-  it("[D-15] the 1000-row hint is derived from the response and passed on", () => {
-    expect(functionBody("loadSalonView")).toContain("salonViewCapReached(rows)");
-    expect(PAGE).toContain("capReached={salonViewCapHit}");
+  // Issue #1030 (P-01, P-02): the tab follows the tenant part of the #64 rule (not
+  // `showSalonOptions`, which would hide the raster from a Salonleitung of one salon in a chain) and
+  // the view permission; a salon mode without its tab returns to the person view.
+  it("[#1030] viewTabs derives from salonViewApplies and salonHoursRights", () => {
+    const at = PAGE.indexOf("const viewTabs = $derived(");
+    expect(at, "viewTabs derived not found").toBeGreaterThan(-1);
+    expect(PAGE).toContain("salonViewApplies($salonContext)");
+    expect(PAGE).toContain("salonHoursRights($authStore.user).view");
+    expect(PAGE.slice(at, at + 400)).toContain("salonTabAvailable");
+    // The tab list has no static array any more.
+    expect(PAGE).not.toMatch(/const viewTabs = \[/);
+  });
+
+  it("[#1030] a salon mode without its tab returns to the person view", () => {
+    expect(PAGE).toContain('teamModeFor("salon", salonTabAvailable)');
+    expect(PAGE).toContain('void setTeamMode("person");');
+  });
+
+  it("[#1030] the period starts at the default week and the salon view has no month bar", () => {
+    expect(PAGE).toContain("let salonPeriod = $state<SalonPeriod>(defaultSalonPeriod(todayStr));");
+    const body = PAGE.indexOf("{#snippet viewBody()}");
+    const salonBranch = PAGE.indexOf("<SalonHoursView", body);
+    expect(salonBranch).toBeGreaterThan(body);
+    // monthNavBar is rendered only in the person branch, before the salon branch starts.
+    expect(PAGE.slice(salonBranch)).not.toContain("{@render monthNavBar()}");
   });
 
   it("[D-14] a deep link to a person outside the employee list opens the Salonansicht", () => {
@@ -167,7 +198,7 @@ describe("Issue #85 — the Salonansicht of /team/time-entries", () => {
     // ... and only the unlisted one switches the mode.
     const elseAt = block.indexOf("else");
     expect(elseAt).toBeGreaterThan(block.indexOf("selectEmployee(linked)"));
-    expect(block.slice(elseAt)).toContain('teamMode = "salon"');
+    expect(block.slice(elseAt)).toContain('teamMode = teamModeFor("salon", salonTabAvailable)');
   });
 
   // Plan 85b-12 — a role without saldo rights sees the visible Ist and a plain note, never an

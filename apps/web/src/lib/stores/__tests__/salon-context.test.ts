@@ -210,6 +210,22 @@ describe("salon-context — pure rules", () => {
     expect(showSalonOptions({ isMultiSalon, salons: [S1, S2].slice(0, n) })).toBe(expected);
   });
 
+  // Issue #1030 - the Salonansicht tab follows the tenant part of the #64 rule: a caller who reaches
+  // exactly one salon of a chain still gets it, a one-salon company never does.
+  it.each([
+    [true, 2, true],
+    [true, 1, true],
+    [true, 0, true],
+    [false, 1, false],
+    [false, 2, false],
+  ])("salonViewApplies(isMultiSalon %s, %i salons) → %s", async (isMultiSalon, n, expected) => {
+    const { salonViewApplies, showSalonOptions } = await freshModule();
+    const state = { isMultiSalon, salons: [S1, S2].slice(0, n) };
+    expect(salonViewApplies(state)).toBe(expected);
+    // The tab rule is deliberately NOT the choice rule: one reachable salon shows no options.
+    if (isMultiSalon && n === 1) expect(showSalonOptions(state)).toBe(false);
+  });
+
   it.each([
     ["ALL", null],
     ["s2", "s2"],

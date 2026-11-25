@@ -110,6 +110,17 @@ export function homeSalonMarksApply(state: Pick<SalonContextState, "isMultiSalon
 }
 
 /**
+ * Issue #1030: whether Team › Zeiten offers the Salonansicht (the hours raster of one salon). It is
+ * the tenant part of the #64 rule - only with more than one active salon in the tenant. Unlike
+ * `showSalonOptions` a caller who reaches a single salon still gets the tab: the Salonleitung of one
+ * salon in a chain is the reader the Aushilfen block exists for. Sibling of `homeSalonMarksApply`;
+ * display only, never an access boundary (the API validates the salon itself).
+ */
+export function salonViewApplies(state: Pick<SalonContextState, "isMultiSalon">): boolean {
+  return state.isMultiSalon;
+}
+
+/**
  * Whether the tenant booked a module: true/false, or null while the packages are unknown. A teaser
  * shows only on `=== false`; unknown never hides a create control — the server answers 409 for an
  * unbooked module anyway (Phase 566, D-12). Display only, never an access boundary.

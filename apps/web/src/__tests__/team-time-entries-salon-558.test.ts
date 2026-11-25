@@ -102,7 +102,9 @@ describe("Issue #558 — the person selector of /team/time-entries follows the h
     expect(block.indexOf('api.get<Employee[]>("/employees")')).toBe(unfiltered);
     expect(PAGE.split('api.get<Employee[]>("/employees")').length - 1).toBe(1);
     // The #85 Salonansicht fallback is kept for a person that is still missing.
-    expect(block.slice(unfiltered)).toContain('else teamMode = "salon";');
+    expect(block.slice(unfiltered)).toContain(
+      'else teamMode = teamModeFor("salon", salonTabAvailable);',
+    );
     // The first completed list load releases the link (success and failure alike).
     expect(functionBody("loadEmployeeList")).toContain("markFirstListLoaded();");
   });

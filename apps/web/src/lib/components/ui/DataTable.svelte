@@ -100,6 +100,12 @@
      */
     rowDetail?: Snippet<[Row]>;
     rowDetailOpen?: (row: Row) => boolean;
+    /**
+     * Issue #1030 (additive): renders one `<tfoot>` row with one cell per column (an empty
+     * selection cell when `selectable`). A footer is never part of a row pager: a page that pages
+     * `rows` keeps its totals in view.
+     */
+    footer?: Snippet<[DataTableColumn]>;
     /** Accessible table caption (visually hidden). */
     caption: string;
     loading?: boolean;
@@ -155,6 +161,7 @@
     rowAttrs,
     rowDetail,
     rowDetailOpen,
+    footer,
     caption,
     loading = false,
     selectable = false,
@@ -418,6 +425,24 @@
             {/if}
           {/each}
         </tbody>
+        {#if footer}
+          <tfoot>
+            <tr>
+              {#if selectable}
+                <td class="dt-select-cell" data-label="Auswahl"></td>
+              {/if}
+              {#each columns as column (column.key)}
+                <td
+                  data-label={column.label}
+                  class:dt-primary-cell={column.primary}
+                  class:dt-end={column.align === "end"}
+                >
+                  {@render footer(column)}
+                </td>
+              {/each}
+            </tr>
+          </tfoot>
+        {/if}
       </table>
     </div>
     <Pager
@@ -505,6 +530,12 @@
     font-weight: 600;
   }
 
+  /* Issue #1030: the footer row (totals) is set off from the body by a line and a heavier weight. */
+  .dt-table :global(tfoot td) {
+    border-top: 1px solid var(--line);
+    font-weight: 600;
+  }
+
   .dt-row--click {
     cursor: pointer;
   }
@@ -562,6 +593,7 @@
 
     .dt-table,
     .dt-table tbody,
+    .dt-table tfoot,
     .dt-table tr,
     .dt-table td {
       display: block;
@@ -576,7 +608,8 @@
       white-space: nowrap;
     }
 
-    .dt-table :global(tbody tr) {
+    .dt-table :global(tbody tr),
+    .dt-table :global(tfoot tr) {
       margin-bottom: var(--s-3);
       padding: var(--s-2) var(--s-4);
       border: 1px solid var(--line);

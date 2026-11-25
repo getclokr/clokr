@@ -45,7 +45,7 @@
   import Modal from "$components/ui/Modal.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte"; // Quick 260824-cjd
   import { toasts } from "$stores/toast";
-  import { salonContext, showSalonOptions } from "$stores/salon-context";
+  import { salonContext, salonViewApplies, showSalonOptions } from "$stores/salon-context";
   // Issue #70 (D-07, D-12) — the same presentation decisions as the own page.
   import {
     addActionForDay,
@@ -68,10 +68,12 @@
     travelRouteLabel,
     type TravelRowFields,
   } from "$lib/time-entries/travel-entry-form"; // Issue #92, D-08; offer: Issue #660
-  // Issue #85 D-09/D-14/D-15 — the Salonansicht. The salon decision lives in team-view.ts (never
-  // the raw selection getter); the server decides which entries are visible.
+  // Issue #85 D-09/D-14 — the Salonansicht. The salon decision lives in team-view.ts (never the raw
+  // selection getter); the server decides which hours are visible. Since Issue #1030 it is the hours
+  // raster of one salon (`GET /salon-hours`), not a list of entries.
   import { isTeamSalonRejected, teamSalonViewSalon } from "$lib/dashboard/team-view";
-  import SalonTimeEntries from "$lib/components/team/SalonTimeEntries.svelte";
+  import SalonHoursView from "$lib/components/team/SalonHoursView.svelte";
+  import { salonHoursRights } from "$lib/page-rights";
   // Issue #558 D-14 — the header salon narrows only the person selector (the shared page layer;
   // the page never reads the store's raw selection).
   import {
@@ -82,13 +84,13 @@
   } from "$lib/salons/page-scope";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte";
   import {
-    type SalonViewDay,
-    type SalonViewEntry,
-    type SalonViewStatus,
-    groupSalonEntries,
-    salonViewCapReached,
-    salonViewRequestPath,
-  } from "$lib/team/salon-time-entries";
+    type SalonHoursResponse,
+    type SalonHoursStatus,
+    type SalonPeriod,
+    defaultSalonPeriod,
+    salonHoursRequestPath,
+    teamModeFor,
+  } from "$lib/team/salon-hours";
   import DayBreakPanel from "$lib/components/breaks/DayBreakPanel.svelte"; // Issue #80
   import DayCheckLine from "$lib/components/breaks/DayCheckLine.svelte"; // Issue #1029
   import { dayBreakPanelVisible } from "$lib/breaks/day-check-line";
@@ -458,20 +460,26 @@
     markFirstListLoaded = resolve;
   });
 
-  // ── Salonansicht (Issue #85, D-09) ────────────────────────────────────────
-  // "person" = the per-person view (unchanged); "salon" = every entry recorded in one salon for the
-  // shown month. `mode=salon` in the URL selects the salon view.
+  // ── Salonansicht (Issue #85, D-09; the hours raster since Issue #1030) ─────
+  // "person" = the per-person view (unchanged); "salon" = the hours raster of one salon for a week or
+  // a month. `mode=salon` in the URL selects the salon view, but only while its tab exists.
   let teamMode = $state<"person" | "salon">("person");
+  // The tab exists in a company with more than one active salon (the tenant part of the #64 rule,
+  // `salonViewApplies`) for a caller who may read the team overview; a one-salon company has none.
+  const salonTabAvailable = $derived(
+    salonViewApplies($salonContext) && salonHoursRights($authStore.user).view,
+  );
   // The tabs of the Seitenkopf (Issue #853, D-853-10); the order is the order they are shown in.
-  const viewTabs = [
+  const viewTabs = $derived([
     { value: "person", label: "Personenansicht" },
-    { value: "salon", label: "Salonansicht" },
-  ];
-  let salonViewDays = $state<SalonViewDay[]>([]);
-  let salonViewStatus = $state<SalonViewStatus>("prompt");
-  let salonViewCapHit = $state(false);
+    ...(salonTabAvailable ? [{ value: "salon", label: "Salonansicht" }] : []),
+  ]);
+  let salonHoursData = $state<SalonHoursResponse | null>(null);
+  let salonViewStatus = $state<SalonHoursStatus>("prompt");
   let salonViewError = $state("");
-  // A response of an older request (older salon or month) must never overwrite a newer one.
+  // The shown week or month; the default is the week of tenant-local yesterday (Issue #1030, P-07).
+  let salonPeriod = $state<SalonPeriod>(defaultSalonPeriod(todayStr));
+  // A response of an older request (older salon or period) must never overwrite a newer one.
   let salonViewGeneration = 0;
   // The salon comes ONLY from the guarded decision in team-view.ts; primitives keep the effect
   // from re-running on an equal context state.
@@ -479,43 +487,49 @@
   const salonViewSalonName = $derived(
     $salonContext.salons.find((salon) => salon.id === salonViewSalonId)?.name ?? null,
   );
-  const salonViewFrom = $derived(format(startOfMonth(calMonth), "yyyy-MM-dd"));
-  const salonViewTo = $derived(format(endOfMonth(calMonth), "yyyy-MM-dd"));
 
   $effect(() => {
     if (teamMode !== "salon" || !$salonContext.loaded) return;
     const salonId = salonViewSalonId;
-    const from = salonViewFrom;
-    const to = salonViewTo;
+    const period = salonPeriod;
     untrack(() => {
-      void loadSalonView(salonId, from, to);
+      void loadSalonView(salonId, period);
     });
   });
 
-  async function loadSalonView(salonId: string | null, from: string, to: string) {
+  // A salon mode without its tab (a deep link, or the tab disappearing with the context) returns
+  // to the person view instead of showing a view the tab list does not offer.
+  $effect(() => {
+    if (!$salonContext.loaded) return;
+    if (teamMode === "salon" && teamModeFor("salon", salonTabAvailable) !== "salon") {
+      untrack(() => {
+        void setTeamMode("person");
+      });
+    }
+  });
+
+  async function loadSalonView(salonId: string | null, period: SalonPeriod) {
     const generation = ++salonViewGeneration;
     salonViewError = "";
-    salonViewCapHit = false;
     if (salonId === null) {
-      salonViewDays = [];
+      salonHoursData = null;
       salonViewStatus = "prompt";
       return;
     }
     salonViewStatus = "loading";
     try {
-      const rows = await api.get<SalonViewEntry[]>(salonViewRequestPath(from, to, salonId));
+      const answer = await api.get<SalonHoursResponse>(salonHoursRequestPath(salonId, period));
       if (generation !== salonViewGeneration) return;
-      salonViewDays = groupSalonEntries(rows);
-      salonViewCapHit = salonViewCapReached(rows);
-      salonViewStatus = rows.length === 0 ? "empty" : "rows";
+      salonHoursData = answer;
+      salonViewStatus = "ready";
     } catch (err) {
       if (generation !== salonViewGeneration) return;
-      salonViewDays = [];
+      salonHoursData = null;
       if (isTeamSalonRejected(err)) {
         salonViewStatus = "rejected";
         return;
       }
-      salonViewStatus = "empty";
+      salonViewStatus = "error";
       salonViewError = err instanceof Error ? err.message : "Fehler beim Laden";
     }
   }
@@ -561,7 +575,10 @@
     // Read URL params
     const viewParam = page.url.searchParams.get("view");
     if (viewParam === "list") teView = "list";
-    if (page.url.searchParams.get("mode") === "salon") teamMode = "salon";
+    if (page.url.searchParams.get("mode") === "salon") {
+      // The salon context decides whether the tab exists; the effect above returns an unavailable mode.
+      teamMode = "salon";
+    }
     // Issue #80 (D-10): the param is untrusted text — an unreal day keeps the default month
     // instead of reaching date-fns with an Invalid Date. The calendar is anchored on the 1st of
     // the linked month while the linked day stays selectedDate (quick 261009-bsb).
@@ -601,7 +618,7 @@
       // while a manager of the Einsatzsalon still sees that salon's entries of the linked day. A
       // linked person outside the list therefore opens the Salonansicht of the linked month
       // (already anchored by the `date` param above) instead of doing nothing.
-      else teamMode = "salon";
+      else teamMode = teamModeFor("salon", salonTabAvailable);
     }
     // Without a (valid) employee link do NOT call loadAll() here — wait for employee selection
   });
@@ -2104,23 +2121,19 @@
         </div>
       {/if}
     </div>
-  {:else}
-    <div class="te-controls-row">
-      {@render monthNavBar()}
-    </div>
   {/if}
 
   {#if teamMode === "salon"}
-    {#if salonViewError}
-      <div class="alert alert-error" role="alert"><span>⚠</span><span>{salonViewError}</span></div>
-    {:else}
-      <SalonTimeEntries
-        days={salonViewDays}
-        status={salonViewStatus}
-        capReached={salonViewCapHit}
-        salonName={salonViewSalonName}
-      />
-    {/if}
+    <SalonHoursView
+      status={salonViewStatus}
+      data={salonHoursData}
+      period={salonPeriod}
+      {todayStr}
+      salonName={salonViewSalonName}
+      errorMessage={salonViewError || undefined}
+      onPeriodChange={(next) => (salonPeriod = next)}
+      onRetry={() => void loadSalonView(salonViewSalonId, salonPeriod)}
+    />
   {:else if selectedEmployee}
     {#if error}
       <div class="alert alert-error" role="alert">

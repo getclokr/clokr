@@ -127,6 +127,17 @@ export const REGIONS: readonly RegionEntry[] = [
     validator: "resolveSalonInReach",
     membership: "salonHelperIds",
   },
+  // Issue #1030: the Salonansicht's hours raster validates the salon against the reach of its own
+  // permission before any person, entry or salon read, and its Stammteam is the persons homed in the
+  // salon at the window Stichtag (the #714 rule on a week or month window).
+  {
+    file: `${COMPOSITION}/salon-hours.ts`,
+    method: "get",
+    path: "assembleSalonHours",
+    kind: "function",
+    validator: "resolveSalonInReach",
+    membership: "resolveWindowReachIds",
+  },
 ];
 
 /** Reads that must not happen before the validation. */
@@ -139,6 +150,7 @@ const READ_CALLEES: ReadonlyArray<RegExp> = [
   /^selectMonthlyExportPersons$/,
   /^salonPersonsAtStichtag$/,
   /^resolvePeriodReachIds$/,
+  /^resolveWindowReachIds$/,
   /^findSalon$/,
   /^app\.prisma\.employee\./,
 ];
