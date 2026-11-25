@@ -89,11 +89,71 @@ export function dowOf(dateStr: string): number {
   return utcMidnight(dateStr).getUTCDay();
 }
 
-/** Advance `dateStr` by whole days until it lands on a weekday (Mon-Fri). */
+/** Easter Sunday of `year` as "YYYY-MM-DD" (anonymous Gregorian algorithm). */
+function easterSundayStr(year: number): string {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function shiftStr(dateStr: string, days: number): string {
+  return dbDateStr(new Date(utcMidnight(dateStr).getTime() + days * DAY_MS));
+}
+
+/**
+ * Every day of `year` that is a statutory holiday in ANY German Bundesland, plus Heiligabend and
+ * Silvester (the tenant's Christmas-Eve / New-Year's-Eve company rules). Deliberately the union
+ * over all states: a test that wants "a plain workday N days ahead" must never land on a day that
+ * counts as 0 leave days or 0 Soll for the fixture tenant's salon, whichever state it uses.
+ */
+function nonPlainWorkdaysOf(year: number): Set<string> {
+  const easter = easterSundayStr(year);
+  const fixed = [
+    "01-01",
+    "01-06",
+    "03-08",
+    "05-01",
+    "08-15",
+    "09-20",
+    "10-03",
+    "10-31",
+    "11-01",
+    "12-24",
+    "12-25",
+    "12-26",
+    "12-31",
+  ];
+  const days = new Set(fixed.map((md) => `${year}-${md}`));
+  for (const offset of [-2, 1, 39, 50, 60]) days.add(shiftStr(easter, offset)); // Karfreitag … Fronleichnam
+  // Buß- und Bettag: the Wednesday before 23 November.
+  let bbt = `${year}-11-22`;
+  while (dowOf(bbt) !== 3) bbt = shiftStr(bbt, -1);
+  days.add(bbt);
+  return days;
+}
+
+/**
+ * Advance `dateStr` by whole days until it lands on a plain workday: Mon-Fri and no statutory
+ * holiday in any German state, no 24.12. and no 31.12. Before Issue #976's merge-queue run this
+ * skipped weekends only, so "a workday 30 days ahead" computed in late November landed on
+ * 24.12./25.12. and a one-day leave priced at 0 days (leave-half-day-single-date-449).
+ */
 export function nextWeekdayStr(dateStr: string): string {
   let d = dateStr;
-  while (dowOf(d) === 0 || dowOf(d) === 6) {
-    d = dbDateStr(new Date(utcMidnight(d).getTime() + DAY_MS));
+  while (dowOf(d) === 0 || dowOf(d) === 6 || nonPlainWorkdaysOf(Number(d.slice(0, 4))).has(d)) {
+    d = shiftStr(d, 1);
   }
   return d;
 }
