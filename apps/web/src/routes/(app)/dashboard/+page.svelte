@@ -33,7 +33,7 @@
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { afterNavigate, replaceState } from "$app/navigation"; // Issue #588 (P-11): a bar of the saldo card opens a person; #609: reminder arrival
   import { page } from "$app/state"; // Issue #609: the ?clock=1 reminder parameter
-  import { api } from "$api/client";
+  import { api, ApiError } from "$api/client";
   import { authStore } from "$stores/auth";
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
@@ -144,7 +144,14 @@
     type TeamTaskLeave,
   } from "$lib/dashboard/heute-im-salon"; // Issue #846, #987
   import type { InvalidEntryDay } from "$lib/dashboard/invalid-entry-rows"; // Issue #1020
-  import { forYouItems } from "$lib/dashboard/for-you"; // Issue #1028: the rows of „Für dich“
+  import { forYouItems, type ForYouItem } from "$lib/dashboard/for-you"; // Issue #1028: the rows of „Für dich“
+  import {
+    APPOINTMENT_HINT_DISMISSED_TOAST,
+    APPOINTMENT_HINT_PATHS,
+    dismissAppointmentHint,
+    type OwnAppointmentHint,
+    type OwnAppointmentHintsAnswer,
+  } from "$lib/time-entries/appointment-hints"; // Issue #604: hints on probably unrecorded time
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
@@ -671,6 +678,42 @@
   });
   let meinTagLoaded = $state(false);
 
+  // Issue #604: the own hints on probably unrecorded time. Always requested: the API answers
+  // `enabled: false` cheaply while the tenant switch is off, so there is no race with the layout's
+  // feature load. A failed read shows no hint - a hint is a help, never a requirement.
+  let appointmentHints = $state<OwnAppointmentHint[]>([]);
+  let dismissingHintKey = $state<string | null>(null);
+
+  async function loadAppointmentHints() {
+    try {
+      const answer = await api.get<OwnAppointmentHintsAnswer>(APPOINTMENT_HINT_PATHS.own);
+      appointmentHints = answer.enabled ? answer.hints : [];
+    } catch {
+      appointmentHints = [];
+    }
+  }
+
+  /** „Stimmt so“: hides the hint for that day and kind; the day stays recordable. */
+  async function dismissHint(item: ForYouItem) {
+    const dismiss = item.dismiss;
+    if (!dismiss) return;
+    dismissingHintKey = item.key;
+    try {
+      await dismissAppointmentHint(api, dismiss);
+      appointmentHints = appointmentHints.filter(
+        (h) => !(h.date === dismiss.date && h.kind === dismiss.kind),
+      );
+      toasts.success(APPOINTMENT_HINT_DISMISSED_TOAST);
+    } catch (err) {
+      toasts.error(
+        err instanceof ApiError ? err.message : "Der Hinweis konnte nicht ausgeblendet werden.",
+      );
+      await loadAppointmentHints();
+    } finally {
+      dismissingHintKey = null;
+    }
+  }
+
   async function loadMeinTag(today: string) {
     const employeeId = $authStore.user?.employeeId;
     const base = new Date(today + "T12:00:00");
@@ -688,7 +731,7 @@
     }));
     const monthKeys = [...new Map(months.map((x) => [`${x.y}-${x.m}`, x])).values()];
     const canOvertime = employeeId && stats !== null && (stats as DashboardStats).overtime !== null;
-    const [overtimeR, myWeekR, myWeekNextR, shiftsNowR, shiftsNextR, recentR, ...saldoR] =
+    const [overtimeR, myWeekR, myWeekNextR, shiftsNowR, shiftsNextR, recentR, hintsR, ...saldoR] =
       await Promise.allSettled([
         // D-845-03: the endpoint the Zeiten page shows — one figure, one source
         employeeId && stats !== null && (stats as DashboardStats).overtime !== null
@@ -703,6 +746,10 @@
         api.get<MyShiftWeek>(`/shifts/my-week?date=${today}`),
         api.get<MyShiftWeek>(`/shifts/my-week?date=${weekAhead}`),
         api.get<ClockDayEntry[]>(`/time-entries?from=${openWindowStart}&to=${yesterday}`),
+        // Issue #604: the own hints on probably unrecorded time (empty while the switch is off)
+        employeeId
+          ? api.get<OwnAppointmentHintsAnswer>(APPOINTMENT_HINT_PATHS.own)
+          : Promise.resolve(null),
         ...monthKeys.map((k) =>
           canOvertime
             ? api.get<{ days: { date: string; cumulativeSaldoMinutes: number }[] }>(
@@ -711,6 +758,8 @@
             : Promise.resolve({ days: [] }),
         ),
       ]);
+    appointmentHints =
+      hintsR.status === "fulfilled" && hintsR.value?.enabled ? hintsR.value.hints : [];
     ownOvertime = overtimeR.status === "fulfilled" ? overtimeR.value : null;
     if (myWeekR.status === "fulfilled") {
       myWeekDays = myWeekR.value.days ?? [];
@@ -1785,6 +1834,7 @@
       openItems,
       karenz: karenzNudge,
       dayShort,
+      appointmentHints, // Issue #604
     }),
   );
 
@@ -2185,6 +2235,17 @@
                         href={item.href}
                         data-testid={item.testId}
                         title={item.hint}>{item.action}</a
+                      >
+                    {/if}
+                    {#if item.dismiss}
+                      <!-- Issue #604: „Stimmt so“ hides the hint for that day; no confirm, the day stays recordable -->
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        disabled={dismissingHintKey === item.key}
+                        aria-label={`Stimmt so: Hinweis für ${dayShort(item.dismiss.date)} ausblenden`}
+                        data-testid={`for-you-hint-dismiss-${item.dismiss.date}`}
+                        onclick={() => dismissHint(item)}>Stimmt so</button
                       >
                     {/if}
                   {/snippet}

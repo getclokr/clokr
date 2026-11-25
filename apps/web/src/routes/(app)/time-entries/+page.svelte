@@ -21,6 +21,7 @@
   import { breakBadgeClass, breakBadgeLabel, isUnconfirmedBreak } from "$lib/breaks/break-badge";
   import UnconfirmedBreakPanel from "$lib/components/breaks/UnconfirmedBreakPanel.svelte";
   import DayBreakPanel from "$lib/components/breaks/DayBreakPanel.svelte"; // Issue #80
+  import AppointmentHintsCallout from "$lib/components/time-entries/AppointmentHintsCallout.svelte"; // Issue #604
   // Issue #80 (D-09d/D-20) — server-computed day checks; the browser never derives a
   // cross-salon finding itself.
   import {
@@ -2325,6 +2326,13 @@
       </KpiStrip>
     {/if}
   </div>
+
+  <!-- Issue #604: hints on probably unrecorded time (appointments the person did not record). The
+       server decides each one; „Nachtragen“ opens the day's own dialog and never prefills it with
+       appointment times. Renders nothing while the tenant switch is off or nothing is open. -->
+  {#if hasEmployeeLink && !isExempt}
+    <AppointmentHintsCallout onRecord={(date) => openAdd(date)} />
+  {/if}
 
   <!-- Phase 112 — § 4 ArbZG explanation + the mobile route into the confirm modal. Rendered
        above BOTH views: the page is also reachable from the nav and from the calendar, and the
