@@ -50,16 +50,17 @@ function retro(over: Partial<RetroTaskSource> & { id: string }): RetroTaskSource
 }
 
 describe("TASK_KINDS", () => {
-  it("lists the six kinds with their German labels in display order", () => {
+  it("lists the seven kinds with their German labels in display order", () => {
     expect(TASK_KINDS.map((k) => [k.kind, k.label])).toEqual([
       ["urlaub", "Urlaub"],
       ["nachtrag", "Nachtrag"],
       ["paragraf9", "Krank im Urlaub"],
       ["pausenbefund", "Pausenbefund"],
       ["ausstempeln", "Ausstempeln fehlt"],
+      ["zeitpruefen", "Zeit prüfen"], // Issue #604
       ["zeitkorrektur", "Zeitkorrektur"],
     ]);
-    expect(TASK_KIND_VALUES).toHaveLength(6);
+    expect(TASK_KIND_VALUES).toHaveLength(7);
     expect(taskKindLabel("paragraf9")).toBe("Krank im Urlaub");
   });
 });
@@ -220,6 +221,7 @@ describe("taskCounts, rowsForView, filterByKind", () => {
       paragraf9: 0,
       pausenbefund: 0,
       ausstempeln: 0,
+      zeitpruefen: 0,
       zeitkorrektur: 0,
     });
   });

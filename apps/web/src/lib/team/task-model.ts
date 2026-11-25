@@ -4,12 +4,24 @@
 // feeds the leave requests and the Zeitnachträge; plan 10 adds the § 9 cases, the Pausenbefunde (the
 // caller's own #85 break notices) and the open-task rows of `GET /tasks/open` (missing clock-outs and,
 // feature-checked, the Zeitkorrektur of #599) as further `kind` values of the same row shape.
+// Issue #604 adds „Zeit prüfen“: the hints on probably unrecorded time of the persons in the caller's
+// time-entry reach, a further kind of the same row shape. Display only - the server decides every hint.
 import { safeAppNext } from "$lib/nav/login-next";
 import { legacyRedirectTarget } from "$lib/nav/routes";
+import type {
+  TeamAppointmentHint,
+  TeamAppointmentHintsAnswer,
+} from "$lib/time-entries/appointment-hints";
 
 /** A kind of task the list can carry. The value is a control value (URL, `data-kind`), never shown. */
 export type TaskKind =
-  "urlaub" | "nachtrag" | "paragraf9" | "pausenbefund" | "ausstempeln" | "zeitkorrektur";
+  | "urlaub"
+  | "nachtrag"
+  | "paragraf9"
+  | "pausenbefund"
+  | "ausstempeln"
+  | "zeitpruefen"
+  | "zeitkorrektur";
 
 export interface TaskKindInfo {
   kind: TaskKind;
@@ -28,6 +40,7 @@ export const TASK_KINDS: readonly TaskKindInfo[] = [
   { kind: "paragraf9", label: "Krank im Urlaub" },
   { kind: "pausenbefund", label: "Pausenbefund" },
   { kind: "ausstempeln", label: "Ausstempeln fehlt" },
+  { kind: "zeitpruefen", label: "Zeit prüfen" },
   { kind: "zeitkorrektur", label: "Zeitkorrektur" },
 ];
 
@@ -117,6 +130,12 @@ export interface TaskSources {
   notices?: readonly NoticeTaskSource[];
   /** `null`/absent = not loaded or refused: a calm empty source. */
   openTasks?: OpenTasksAnswer | null;
+  /**
+   * Issue #604: the hints of `GET /appointment-hints/team`, already narrowed to the caller's
+   * time-entry reach by the server. `null`/absent = not loaded or refused; `enabled: false` = the
+   * tenant switch is off.
+   */
+  appointmentHints?: TeamAppointmentHintsAnswer | null;
 }
 
 /** The caller of the model supplies the one piece the model must not own. */
@@ -305,6 +324,39 @@ function openTaskRow(
   };
 }
 
+const HINT_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Issue #604: one hint of a person in reach as a row; a malformed day yields no row. */
+function appointmentHintRow(
+  h: TeamAppointmentHint,
+  ownEmployeeId?: string | null,
+): TaskRowModel | null {
+  if (!HINT_DAY.test(h.date)) return null;
+  const sourceId = `${h.employeeId}:${h.date}:${h.kind}`;
+  const detail =
+    h.kind === "AFTER_CLOCK_OUT"
+      ? `Termine bis ${h.appointmentsUntil}, ausgestempelt um ${h.clockedOutAt ?? "–"}`
+      : `Termine bis ${h.appointmentsUntil}, keine Zeit erfasst`;
+  return {
+    key: `zeitpruefen:${sourceId}`,
+    kind: "zeitpruefen",
+    sourceId,
+    personName: h.personName,
+    title: h.personName,
+    subtitle: `${fmtTaskDate(h.date)} · ${detail}`,
+    createdAt: `${h.date}T${h.appointmentsUntil}`,
+    status: "OPEN",
+    decided: false,
+    typeCode: null,
+    label: taskKindLabel("zeitpruefen"),
+    // The own person opens Ich › Zeiten (Issue #1020 rule); everyone else the person's day.
+    href:
+      ownEmployeeId && h.employeeId === ownEmployeeId
+        ? `/ich/zeiten?view=list&date=${h.date}`
+        : `/team/zeiten?employeeId=${encodeURIComponent(h.employeeId)}&date=${h.date}`,
+  };
+}
+
 /**
  * Oldest first (`createdAt`, then key) - what waits longest is decided first. The decided view lists
  * the newest first, so the latest decisions are on top. Returns a new array.
@@ -346,6 +398,13 @@ export function taskRowsFrom(sources: TaskSources, options: TaskOptions): TaskRo
   for (const t of open?.tasks ?? []) {
     const row = openTaskRow(t, open?.types ?? [], options.ownEmployeeId);
     if (row) rows.push(row);
+  }
+  const hints = sources.appointmentHints;
+  if (hints?.enabled) {
+    for (const h of hints.hints) {
+      const row = appointmentHintRow(h, options.ownEmployeeId);
+      if (row) rows.push(row);
+    }
   }
   return sortTasks(rows);
 }
@@ -389,6 +448,8 @@ export interface AvailableKindsInput {
   breakNoticeCount: number;
   /** `types` of the `GET /tasks/open` answer; empty when it was not loaded or refused. */
   openTaskTypes: readonly string[];
+  /** Issue #604: the `enabled` of the `GET /appointment-hints/team` answer (the tenant switch). */
+  appointmentHintsEnabled?: boolean;
 }
 
 /** The kinds the caller sees, in display order. Zeitkorrektur only when the open-task answer lists it. */
@@ -399,6 +460,7 @@ export function availableTaskKinds(input: AvailableKindsInput): TaskKind[] {
   if (input.section9) kinds.push("paragraf9");
   if (input.breakNoticeCount > 0) kinds.push("pausenbefund");
   if (input.openTaskTypes.includes("ausstempeln")) kinds.push("ausstempeln");
+  if (input.appointmentHintsEnabled === true) kinds.push("zeitpruefen");
   if (input.openTaskTypes.includes("zeitkorrektur")) kinds.push("zeitkorrektur");
   return kinds;
 }

@@ -28,6 +28,7 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import BreaksSection from "$lib/components/admin/arbeitszeit/BreaksSection.svelte";
   import RetroWindowSection from "$lib/components/admin/arbeitszeit/RetroWindowSection.svelte";
+  import AppointmentHintsSection from "$lib/components/admin/arbeitszeit/AppointmentHintsSection.svelte"; // Issue #604
   import WorkDaysSection from "$lib/components/admin/arbeitszeit/WorkDaysSection.svelte";
   import CoreHoursSection from "$lib/components/admin/arbeitszeit/CoreHoursSection.svelte";
   import VocationalSlotsSection from "$lib/components/admin/arbeitszeit/VocationalSlotsSection.svelte";
@@ -52,6 +53,7 @@
     ueberstunden: 0,
     compliance: 0,
     offeneEintraege: 0,
+    terminabgleich: 0, // Issue #604
   });
   const totalChanges = $derived(Object.values(changes).reduce((sum, n) => sum + n, 0));
 
@@ -75,6 +77,7 @@
     ueberstunden: mayOpenSection(user, settingsSection("arbeitszeit-ueberstunden")),
     compliance: mayOpenSection(user, settingsSection("arbeitszeit-compliance")),
     offeneEintraege: mayOpenSection(user, settingsSection("arbeitszeit-offene-eintraege")),
+    terminabgleich: mayOpenSection(user, settingsSection("arbeitszeit-terminabgleich")), // Issue #604
   });
   const visibleTabs = $derived(visibleArbeitszeitTabs(user));
   const visibleTabIds = $derived(visibleTabs.map((tab) => tab.value as string));
@@ -149,6 +152,9 @@
         {/if}
         {#if show.rueckwirkend}
           <RetroWindowSection config={config!} bind:changes={changes.rueckwirkend} />
+        {/if}
+        {#if show.terminabgleich}
+          <AppointmentHintsSection config={config!} bind:changes={changes.terminabgleich} />
         {/if}
       {:else if value === "berufsschule"}
         {#if show.berufsschule}

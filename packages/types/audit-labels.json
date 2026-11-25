@@ -303,6 +303,7 @@
     },
     "TenantConfig": {
       "allowOvertimePayout": "Überstunden auszahlen",
+      "appointmentTimeHintsEnabled": "Abgleich mit Terminen",
       "arbzgEnabled": "Prüfung nach Arbeitszeitgesetz",
       "autoBreakEnabled": "Automatische Pause",
       "autoCalcPartTimeVacation": "Urlaub in Teilzeit automatisch berechnen",
