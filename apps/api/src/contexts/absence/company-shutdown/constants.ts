@@ -24,13 +24,15 @@ export const COMPANY_SHUTDOWN_REVERSED = "COMPANY_SHUTDOWN_REVERSED";
 export const COMPANY_SHUTDOWN_REVERSED_TRIGGER = "COMPANY_SHUTDOWN_REVERSED";
 
 /** Why the generated rows of a Betriebsurlaub are cancelled (D-09). */
-export type ShutdownReversalReason = "CHANGED" | "DELETED" | "EXCEPTION_ADDED";
+export type ShutdownReversalReason =
+  "CHANGED" | "DELETED" | "EXCEPTION_ADDED" | "HOME_SALON_CHANGED";
 
 /** The German `auditReason` of each reversal reason - display only, the code above is the control value. */
 export const REVERSAL_AUDIT_REASONS: Readonly<Record<ShutdownReversalReason, string>> = {
   CHANGED: "Betriebsurlaub geändert",
   DELETED: "Betriebsurlaub gelöscht",
   EXCEPTION_ADDED: "Ausnahme vom Betriebsurlaub",
+  HOME_SALON_CHANGED: "Stammsalon geändert",
 };
 
 /**

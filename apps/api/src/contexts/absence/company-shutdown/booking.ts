@@ -1085,10 +1085,41 @@ export async function bookCompanyShutdownsForHire(
   if (!employee) return;
   const tz = await getTenantTimezone(app.prisma, tenantId);
   const hireDay = dateStrInTz(employee.hireDate, tz);
-  const shutdowns = await app.prisma.companyShutdown.findMany({
+  const candidates = await app.prisma.companyShutdown.findMany({
     where: { tenantId, deletedAt: null, endDate: { gte: new Date(hireDay) } },
-    select: { id: true },
+    select: { id: true, startDate: true, endDate: true, salons: { select: { salonId: true } } },
     orderBy: [{ startDate: "asc" }, { id: "asc" }],
+  });
+  // Issue #1079: a salon-scoped Betriebsurlaub whose salons the new person is never homed in on or
+  // after the hire day is skipped, so a hire in a chain writes no empty booking summary per salon.
+  const scopedCandidates = candidates.filter((shutdown) => shutdown.salons.length > 0);
+  const homeDays =
+    scopedCandidates.length > 0
+      ? await homeSalonsForDays(
+          app.prisma,
+          tenantId,
+          [employeeId],
+          scopedCandidates.reduce(
+            (min, shutdown) => (dayOf(shutdown.startDate) < min ? dayOf(shutdown.startDate) : min),
+            hireDay,
+          ),
+          scopedCandidates.reduce(
+            (max, shutdown) => (dayOf(shutdown.endDate) > max ? dayOf(shutdown.endDate) : max),
+            hireDay,
+          ),
+        )
+      : null;
+  const shutdowns = candidates.filter((shutdown) => {
+    if (shutdown.salons.length === 0) return true;
+    const from = dayOf(shutdown.startDate) > hireDay ? dayOf(shutdown.startDate) : hireDay;
+    return (
+      shutdownAffectedRuns({
+        from,
+        to: dayOf(shutdown.endDate),
+        salonIds: shutdown.salons.map((row) => row.salonId),
+        homeSalonByDay: homeDays?.get(employeeId),
+      }).length > 0
+    );
   });
   if (shutdowns.length === 0) return;
 
@@ -1097,6 +1128,154 @@ export async function bookCompanyShutdownsForHire(
     await bookCompanyShutdown(app, {
       tenantId,
       shutdownId: shutdown.id,
+      actor,
+      employeeIds: [employeeId],
+      request: input.request,
+      lock: "wait",
+    });
+  }
+}
+
+/**
+ * A later Stammsalon change (Issue #1079, D-07): re-books the person for every active salon-scoped
+ * Betriebsurlaub with a day on or after `fromDay` (the new `validFrom`). Per shutdown it compares the
+ * person's expected affected days (open months, on or after `fromDay`, never an exception) with the
+ * days of the person's active absences of that shutdown; only where they differ it
+ *   1. cancels the person's generated rows of open months (reason HOME_SALON_CHANGED, the #1069
+ *      cancellation core) for ALL differing shutdowns first, and then
+ *   2. books each of them for the person again,
+ * so a newly affected shutdown never finds days still held by the one the person left. Closed
+ * months are never touched (the comparison ignores them). Everything else - the free days, the
+ * Teilurlaub bound, four-eyes - is the one `bookCompanyShutdown`.
+ *
+ * The actor is resolved lazily: a tenant without a salon-scoped Betriebsurlaub in the future (the
+ * common case) costs one query and no permission reads. The caller is reactive and must catch (the
+ * home-salon decoration does).
+ */
+export async function rebookCompanyShutdownsForHomeSalonChange(
+  app: FastifyInstance,
+  input: {
+    tenantId: string;
+    employeeId: string;
+    /** First day of the new Stammsalon, `YYYY-MM-DD`. */
+    fromDay: string;
+    resolveActor: () => Promise<ShutdownActor>;
+    request: AuditRequestMeta;
+  },
+): Promise<void> {
+  const { tenantId, employeeId, fromDay } = input;
+  const shutdowns = await app.prisma.companyShutdown.findMany({
+    where: {
+      tenantId,
+      deletedAt: null,
+      endDate: { gte: new Date(fromDay) },
+      salons: { some: {} },
+    },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      salons: { select: { salonId: true } },
+      exceptions: { where: { employeeId }, select: { employeeId: true } },
+    },
+    orderBy: [{ startDate: "asc" }, { id: "asc" }],
+  });
+  if (shutdowns.length === 0) return;
+
+  const employee = await app.prisma.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: { hireDate: true, exitDate: true },
+  });
+  if (!employee) return;
+  const tz = await getTenantTimezone(app.prisma, tenantId);
+  const hireDay = dateStrInTz(employee.hireDate, tz);
+  const exitDay = employee.exitDate ? dateStrInTz(employee.exitDate, tz) : null;
+  const spanStart = shutdowns.reduce(
+    (min, shutdown) => (dayOf(shutdown.startDate) < min ? dayOf(shutdown.startDate) : min),
+    dayOf(shutdowns[0].startDate),
+  );
+  const spanEnd = shutdowns.reduce(
+    (max, shutdown) => (dayOf(shutdown.endDate) > max ? dayOf(shutdown.endDate) : max),
+    dayOf(shutdowns[0].endDate),
+  );
+  const homeDays = (
+    await homeSalonsForDays(app.prisma, tenantId, [employeeId], spanStart, spanEnd)
+  ).get(employeeId);
+
+  const differing: string[] = [];
+  for (const shutdown of shutdowns) {
+    const startDay = dayOf(shutdown.startDate);
+    const endDay = dayOf(shutdown.endDate);
+    let from = startDay > hireDay ? startDay : hireDay;
+    if (fromDay > from) from = fromDay;
+    const to = exitDay !== null && exitDay < endDay ? exitDay : endDay;
+
+    const closedMonths = new Set<string>();
+    if (from <= to) {
+      for (const { year, month } of await findClosedMonthsInRange(
+        app.prisma,
+        employeeId,
+        tenantId,
+        new Date(from),
+        new Date(to),
+      )) {
+        closedMonths.add(`${year}-${String(month).padStart(2, "0")}`);
+      }
+    }
+    const openDay = (day: string) => !closedMonths.has(day.slice(0, 7));
+
+    const expected = new Set<string>();
+    if (shutdown.exceptions.length === 0) {
+      for (const run of shutdownAffectedRuns({
+        from,
+        to,
+        salonIds: shutdown.salons.map((row) => row.salonId),
+        homeSalonByDay: homeDays,
+      })) {
+        for (const day of eachDay(run.start, run.end)) if (openDay(day)) expected.add(day);
+      }
+    }
+
+    const booked = new Set<string>();
+    const absences = await app.prisma.absence.findMany({
+      where: {
+        employeeId,
+        employee: { tenantId },
+        companyShutdownId: shutdown.id,
+        type: "COMPANY_SHUTDOWN",
+        deletedAt: null,
+      },
+      select: { startDate: true, endDate: true },
+    });
+    for (const absence of absences) {
+      for (const day of eachDay(dayOf(absence.startDate), dayOf(absence.endDate))) {
+        if (day >= fromDay && openDay(day)) booked.add(day);
+      }
+    }
+
+    const same = expected.size === booked.size && [...expected].every((day) => booked.has(day));
+    if (!same) differing.push(shutdown.id);
+  }
+  if (differing.length === 0) return;
+
+  const actor = await input.resolveActor();
+  // Phase 1: release what the person no longer belongs to - for every differing shutdown first.
+  for (const shutdownId of differing) {
+    await reverseCompanyShutdown(app, {
+      tenantId,
+      shutdownId,
+      employeeIds: [employeeId],
+      reason: "HOME_SALON_CHANGED",
+      actorUserId: actor.userId,
+      request: input.request,
+      lock: "wait",
+    });
+  }
+  // Phase 2: book what the person now belongs to.
+  for (const shutdownId of differing) {
+    await bookCompanyShutdown(app, {
+      tenantId,
+      shutdownId,
       actor,
       employeeIds: [employeeId],
       request: input.request,

@@ -389,6 +389,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/hire-date-entitlements.ts": "abwesenheiten", // Issue #961 — the reaction to a changed hire date, writes LeaveEntitlement
   "src/contexts/absence/plugins/hire-date-entitlements-decorate.ts": "abwesenheiten", // Issue #961 — decoration handing the hire-date rule to the Unterbau route
   "src/contexts/absence/plugins/company-shutdown-hire-decorate.ts": "abwesenheiten", // Issue #1069 (D-18) — decoration handing the Betriebsurlaub hire booking to the Unterbau employee routes
+  "src/contexts/absence/plugins/company-shutdown-home-salon-decorate.ts": "abwesenheiten", // Issue #1079 (D-07) — decoration handing the salon-scoped Betriebsurlaub re-booking to the Unterbau Stammsalon route
 
   "src/contexts/absence/leave-self-heal.ts": "abwesenheiten", // LeaveEntitlement/LeaveRequest/LeaveType self-heal
   "src/contexts/absence/leave-type.ts": "abwesenheiten", // LeaveTypeCode -> German display-name registry
