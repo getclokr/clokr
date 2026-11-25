@@ -1014,3 +1014,50 @@ export async function rebookCompanyShutdown(
   });
   return locked.ok ? { ok: true, counts: locked.value } : locked;
 }
+
+/**
+ * A person created later (Issue #1069, O-6, D-18): books every ACTIVE Betriebsurlaub of the tenant
+ * that has a day on or after the person's tenant-local hire day, for this person only. Each shutdown
+ * runs under its own lock and WAITS behind a running booking (a hire must not lose its booking to a
+ * concurrent edit). Everything else - the affected-person rule, the free days, the Teilurlaub bound
+ * of the hire year's entitlement, four-eyes - is the one `bookCompanyShutdown`.
+ *
+ * The actor is resolved lazily: a tenant without a future Betriebsurlaub (the common case) costs one
+ * query and no permission reads. The caller is reactive and must catch (the hire decoration does).
+ */
+export async function bookCompanyShutdownsForHire(
+  app: FastifyInstance,
+  input: {
+    tenantId: string;
+    employeeId: string;
+    resolveActor: () => Promise<ShutdownActor>;
+    request: AuditRequestMeta;
+  },
+): Promise<void> {
+  const { tenantId, employeeId } = input;
+  const employee = await app.prisma.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: { hireDate: true },
+  });
+  if (!employee) return;
+  const tz = await getTenantTimezone(app.prisma, tenantId);
+  const hireDay = dateStrInTz(employee.hireDate, tz);
+  const shutdowns = await app.prisma.companyShutdown.findMany({
+    where: { tenantId, deletedAt: null, endDate: { gte: new Date(hireDay) } },
+    select: { id: true },
+    orderBy: [{ startDate: "asc" }, { id: "asc" }],
+  });
+  if (shutdowns.length === 0) return;
+
+  const actor = await input.resolveActor();
+  for (const shutdown of shutdowns) {
+    await bookCompanyShutdown(app, {
+      tenantId,
+      shutdownId: shutdown.id,
+      actor,
+      employeeIds: [employeeId],
+      request: input.request,
+      lock: "wait",
+    });
+  }
+}
