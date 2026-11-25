@@ -221,6 +221,56 @@ describe("ListWidget (Issue #1028)", () => {
     expect((document.querySelector(".lw-body") as HTMLElement).style.minHeight).toBe("");
   });
 
+  describe("scrolls its top on screen after a page change (the first row of page 2 above the fold)", () => {
+    let scrollSpy: ReturnType<typeof vi.fn>;
+    let rowBox: { top: number; bottom: number };
+
+    beforeEach(() => {
+      scrollSpy = vi.fn();
+      Element.prototype.scrollIntoView = scrollSpy as never;
+      rowBox = { top: -300, bottom: -20 };
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const box = this.tagName === "LI" ? rowBox : { top: 0, bottom: 0 };
+        return { ...box, left: 0, right: 0, width: 0, height: 0 } as DOMRect;
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it("scrolls the widget section into view when the new first row is off screen", async () => {
+      renderWithTheme(ListWidget, base());
+      await fireEvent.click(screen.getByRole("button", { name: "Nächste Seite" }));
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+      expect(scrollSpy.mock.contexts[0]).toBe(screen.getByTestId("lw"));
+      expect(scrollSpy).toHaveBeenCalledWith({ block: "start", behavior: "auto" });
+    });
+
+    it("also does so after a page-size change, not after a chip click", async () => {
+      renderWithTheme(ListWidget, base({ filters: CHIPS }));
+      await fireEvent.click(screen.getByRole("radio", { name: /^Urlaub/ }));
+      await Promise.resolve();
+      expect(scrollSpy).not.toHaveBeenCalled();
+      await fireEvent.change(screen.getByLabelText("Zeilen pro Seite"), {
+        target: { value: "10" },
+      });
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not scroll when the first row is on screen", async () => {
+      rowBox = { top: 120, bottom: 200 };
+      renderWithTheme(ListWidget, base());
+      await fireEvent.click(screen.getByRole("button", { name: "Nächste Seite" }));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(scrollSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it("shows the empty snippet without rows and no pager", () => {
     const empty = createRawSnippet(() => ({
       render: () => '<p data-testid="lw-empty">Nichts</p>',

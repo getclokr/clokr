@@ -12,7 +12,7 @@
   //
   // The body keeps its height while paging: it reserves `pageSize` rows (an estimate from `rowHeight`,
   // raised to the tallest page seen for this size and filter), so the neighbouring widgets do not jump.
-  import { untrack, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import { RadioGroup } from "bits-ui";
   import List from "./List.svelte";
   import Pager from "./Pager.svelte";
@@ -27,6 +27,7 @@
     type ListId,
   } from "$lib/lists/list-registry";
   import { clampPage, pageSlice } from "$lib/lists/list-page";
+  import { revealListTop } from "$lib/lists/reveal-list";
 
   interface FilterChip {
     /** Control value of the filter (a status, a kind, a code), never shown. */
@@ -179,15 +180,20 @@
     if (listId) void saveListPreference(listId, entry({ filter: value }));
   }
 
+  // The pager sits under the rows: after a page change the widget's top is brought back on screen when
+  // it is not (the first row of a tall card list is otherwise above the fold, #1028 / #710).
+  let sectionEl = $state<HTMLElement | null>(null);
+
   function changeSize(change: { page: number; pageSize: number }) {
     page = change.page;
+    void tick().then(() => revealListTop(sectionEl));
     if (change.pageSize === pageSize) return;
     if (listId) void saveListPreference(listId, entry({ pageSize: change.pageSize }));
     else visitSize = change.pageSize;
   }
 </script>
 
-<section class="lw" aria-labelledby="{uid}-title" data-testid={testId}>
+<section class="lw" aria-labelledby="{uid}-title" data-testid={testId} bind:this={sectionEl}>
   <header class="lw-head">
     <div class="lw-heading">
       <h2 id="{uid}-title" class="lw-title">
