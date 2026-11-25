@@ -15,7 +15,13 @@
  */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { accessContextFromRequest, requireAnyPermission } from "../../platform";
+import {
+  accessContextFromRequest,
+  requireAnyPermission,
+  requirePermission,
+  resolveAccessReach,
+  resolveStammsalonScopedEmployeeIds,
+} from "../../platform";
 import { appointmentHintWindow, loadAppointmentHints } from "../appointment-hints";
 
 /** One answer for every reason a dismissal is refused: only a currently open own hint can be dismissed. */
@@ -74,6 +80,80 @@ export async function appointmentHintRoutes(app: FastifyInstance) {
           appointmentsUntil: h.appointmentsUntil,
           clockedOutAt: h.clockedOutAt,
         })),
+      };
+    },
+  });
+
+  // ── GET /api/v1/appointment-hints/team — hints of the persons in the caller's reach (O-1, O-3) ──
+  app.get("/team", {
+    schema: {
+      tags: ["Zeiterfassung"],
+      summary: "Hints on probably unrecorded working time inside the caller's reach",
+      description:
+        "Hints of the persons inside the caller's time-entry:read reach - the whole tenant, or the " +
+        "persons whose Stammsalon on the hint's day lies in the caller's salons, or listed persons. " +
+        "There is no person or salon parameter: the reach is the only filter, so a person outside it " +
+        "is simply absent. Carries the appointment end and the clock-out only, never appointment " +
+        "details, never writes, and is empty (`enabled: false`) while the tenant switch is off.",
+      security: [{ bearerAuth: [] }],
+    },
+    preHandler: requirePermission("time-entry:read:ZUGEWIESEN"),
+    handler: async (req) => {
+      const tenantId = req.user.tenantId;
+      const window = await appointmentHintWindow(app.prisma, tenantId);
+      if (!window.enabled) return { enabled: false, hints: [] };
+
+      const access = accessContextFromRequest(req);
+      const reach = await resolveAccessReach(app.prisma, access, "time-entry:read:ZUGEWIESEN");
+      const scopedAccess = { ...access, reach };
+
+      let hints;
+      if (reach.kind === "wholeTenant") {
+        hints = await loadAppointmentHints(app.prisma, { access: scopedAccess, window });
+      } else {
+        // The #86 person rule: a person is in reach on a day when their Stammsalon of THAT day lies in
+        // the caller's salons (or they are listed), so the set is resolved per day of the window.
+        const sets = new Map<string, Set<string>>();
+        await Promise.all(
+          window.days.map(async (day) => {
+            const ids = await resolveStammsalonScopedEmployeeIds(
+              app.prisma,
+              tenantId,
+              reach,
+              new Date(`${day}T00:00:00Z`),
+            );
+            sets.set(day, new Set(ids === "all" ? [] : ids));
+          }),
+        );
+        const union = new Set<string>();
+        for (const set of sets.values()) for (const id of set) union.add(id);
+        if (union.size === 0) return { enabled: true, hints: [] };
+        const loaded = await loadAppointmentHints(app.prisma, {
+          access: scopedAccess,
+          employeeIds: [...union],
+          window,
+        });
+        hints = loaded.filter((h) => sets.get(h.date)?.has(h.employeeId) === true);
+      }
+
+      return {
+        enabled: true,
+        hints: [...hints]
+          .sort((a, b) =>
+            a.date === b.date
+              ? a.personName.localeCompare(b.personName, "de")
+              : a.date < b.date
+                ? 1
+                : -1,
+          )
+          .map((h) => ({
+            employeeId: h.employeeId,
+            personName: h.personName,
+            date: h.date,
+            kind: h.kind,
+            appointmentsUntil: h.appointmentsUntil,
+            clockedOutAt: h.clockedOutAt,
+          })),
       };
     },
   });
