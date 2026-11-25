@@ -25,6 +25,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 import { zonedInstant } from "../helpers/tenant-zone";
+import { openEntryFormOfChosenDay } from "../helpers/day-panel";
 
 const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 const PASSWORD = "test1234";
@@ -311,8 +312,8 @@ test.describe("several entries on one day (Issue #70)", () => {
 
     // The cell of a day with one entry opens it for editing - no salon field in the dialog.
     await page.getByTestId(`calendar-cell-${day}`).click();
-    // #599 (Phase 851): a day is read first; the sheet's primary action runs the former click.
-    await page.getByTestId("day-sheet-primary").click();
+    // #599 (Phase 851): a day is read first; #991: a one-entry day is edited through its row menu.
+    await openEntryFormOfChosenDay(page);
     const modal = page.getByTestId("time-entry-modal");
     await expect(modal).toBeVisible();
     await expect(page.locator("[role='dialog'] .modal-eyebrow").first()).toContainText(

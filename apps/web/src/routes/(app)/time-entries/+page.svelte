@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
-  import { onDestroy, onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import {
     RUNNING_SALDO_LABEL,
     dayDiffText,
@@ -10,6 +10,7 @@
     type DaySaldo,
   } from "$lib/time-entries/day-saldo"; // Issue #1029: the one reader of the server's day series
   import { page } from "$app/state";
+  import { replaceState } from "$app/navigation"; // Issue #991 N-13: the view in the URL
   import { entryToEndFromParam, END_ENTRY_PARAM } from "$lib/time-entries/open-earlier-entry"; // Issue #942
   import {
     monthAnchorFromDay,
@@ -516,6 +517,9 @@
     // The BREAK_UNCONFIRMED notification links with `highlight` and no `view`; the calendar
     // cannot point at a single entry, so an entry-targeted arrival opens the list.
     if (highlightParam) teView = "list";
+    // Issue #991 N-13: from here on a change of the view is the person's own and goes into the URL.
+    lastViewSeen = teView;
+    viewUrlReady = true;
 
     // Issue #1072 (R-A): the first request carries a month derived from now, so the tenant's zone is
     // awaited first (a child's onMount runs before the layout's read settles).
@@ -557,6 +561,30 @@
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
+  });
+
+  // Issue #991 N-13: the Kalender/Liste switch is written into the URL, so a reload keeps the view.
+  // Nothing is written for the view the page started in (the read from `view` above, or the list an
+  // entry-targeted arrival opens): `lastViewSeen` is set to it before the first await. Only „list“ is
+  // ever read back (T-991-05), so the value is written as `view=list` or not at all.
+  let viewUrlReady = $state(false);
+  let lastViewSeen: "calendar" | "list" | null = null;
+  $effect(() => {
+    const view = teView;
+    if (!viewUrlReady || view === lastViewSeen) return;
+    lastViewSeen = view;
+    untrack(() => {
+      const url = new URL(page.url.href);
+      if ((url.searchParams.get("view") === "list" ? "list" : "calendar") === view) return;
+      if (view === "list") url.searchParams.set("view", "list");
+      else url.searchParams.delete("view");
+      // The href is built from the current `page.url`, which already carries any base path (same
+      // reasoning as `lib/nav/tab-hash.ts`); a refused or unstarted router must not break the page.
+
+      Promise.resolve(
+        replaceState(`${url.pathname}${url.search}${url.hash}`, page.state ?? {}),
+      ).catch(() => {});
+    });
   });
 
   async function loadAll() {
@@ -1356,7 +1384,9 @@
       return { label: "Zeit nachtragen", run: () => openAdd(day.dateStr) };
     if (multiEntryUi)
       return { label: "+ Weitere Zeit an diesem Tag", run: () => openAdd(day.dateStr) };
-    return { label: "Bearbeiten", run: () => void runCellAction(day.dateStr) };
+    // Issue #991 N-13: a day with one closed entry has its row menu „…“ (Bearbeiten); a second
+    // „Bearbeiten“ in the footer was a second way to do the same thing.
+    return null;
   });
   // The day's own difference, exactly the figure its calendar cell shows. SHIFT_BASED: the server's
   // day step (Issue #1029); the other models keep their existing contract-based difference.
@@ -1826,6 +1856,10 @@
 
   // D-06: Derive lock state from entry data already loaded — no extra API request
   let monthIsLocked = $derived(entries.some((e) => e.isLocked === true));
+  // Issue #991 N-12: the month on screen is closed. The server refuses a write into it (MONTH_LOCKED),
+  // so the head and the phone dock offer no „Zeit nachtragen“; the day panel keeps „Korrektur anfragen“.
+  // `entries` hold only the displayed month, so a locked row is a row of this month.
+  let monthClosed = $derived(monthSaldo?.closed === true || monthIsLocked);
 
   // ── Reaktive Ableitungen ───────────────────────────────────────────────────
   let isMonthlyHours = $derived(schedule?.type === "MONTHLY_HOURS");
@@ -1835,6 +1869,21 @@
       schedule?.type === "FLEXTIME" ||
       schedule?.type === "SHIFT_BASED",
   );
+  // Issue #991 N-11: a contract day off. Only the weekend was tinted before, so a Monday without Soll
+  // looked like a day that had been missed. Holidays, absences and days before the hire date have
+  // their own look; the models without a daily target (flex, monthly, shift) have no „day off“ per day.
+  function isNoSollDay(d: CalDay): boolean {
+    return (
+      d.isCurrentMonth &&
+      !d.isWeekend &&
+      !d.isHoliday &&
+      !d.absenceType &&
+      !d.isBeforeHire &&
+      !isNoDailyTarget &&
+      !isExempt &&
+      d.expectedMin === 0
+    );
+  }
   let monthlyTarget = $derived(
     isMonthlyHours && schedule?.monthlyHours ? Number(schedule.monthlyHours) * 60 : 0,
   );
@@ -2113,7 +2162,7 @@
     if (days.some((d) => d.status === "partial" || d.status === "today-partial"))
       soll.push({ cls: "leg-partial", label: "Teilweise" });
     if (days.some((d) => d.status === "missing")) soll.push({ cls: "leg-missing", label: "Fehlt" });
-    if (days.some((d) => d.status === "noExpect" || d.status === "today-empty"))
+    if (days.some((d) => d.status === "noExpect" || d.status === "today-empty" || isNoSollDay(d)))
       soll.push({ cls: "leg-noexpect", label: "Kein Soll" });
 
     const codes = new Set(days.map((d) => d.absenceType).filter(Boolean) as string[]);
@@ -2243,7 +2292,7 @@
         Stundennachweis (PDF)
       </button>
     {/if}
-    {#if !isExempt && !isPhone}
+    {#if !isExempt && !isPhone && !monthClosed}
       <button
         class="btn btn-primary btn-sm"
         onclick={() => openAdd()}
@@ -2411,6 +2460,7 @@
                 class:cal-current={day.isCurrentMonth}
                 class:cal-today={day.isToday}
                 class:cal-weekend={day.isWeekend}
+                class:te-nosoll={isNoSollDay(day)}
                 class:cal-holiday={day.isHoliday && day.isCurrentMonth}
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
@@ -3545,7 +3595,7 @@
      is a page-level sibling, never inside a .card-animate ancestor (its transform would become the
      containing block of the fixed bar, app.css #570). Same condition and same action as the head
      button above (§ 18 ArbZG-exempt users get no add action at all). -->
-{#if isPhone && !isExempt}
+{#if isPhone && !isExempt && !monthClosed}
   <div class="te-add-dock" data-testid="time-entries-add-dock">
     <button
       type="button"
@@ -3803,6 +3853,10 @@
     outline-offset: -1.5px;
   }
   :global(.cal-cell.cal-weekend:not(.cal-today)) {
+    background: var(--sunk);
+  }
+  /* Issue #991 N-11: a contract day off reads like the weekend; the legend „Kein Soll“ names it. */
+  .cal-cell.te-nosoll:not(.cal-other):not(.cal-selected) {
     background: var(--sunk);
   }
   /* Tage vor dem Eintrittsdatum */
@@ -4587,6 +4641,9 @@
   .te-split--desk .cal-cell.cal-weekend:not(.cal-other):not(.cal-selected) {
     background: color-mix(in srgb, var(--sunk) 45%, var(--card)) !important;
   }
+  .te-split--desk .cal-cell.te-nosoll:not(.cal-other):not(.cal-selected) {
+    background: color-mix(in srgb, var(--sunk) 45%, var(--card)) !important;
+  }
   /* Today is the filled circle on its number; no ring (the ring means "chosen"). */
   .te-split--desk .te-cal .cal-cell.cal-today {
     outline: none;
@@ -4606,6 +4663,12 @@
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-worked,
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .cal-arbzg-mark {
     color: var(--text) !important;
+  }
+  /* Issue #991 N-10: a zero balance has neither the pos nor the neg class, so it inherited the shared
+     recipe's `--brand-ink` (meant for a brand-filled cell) on this page's `--card` surface and was
+     invisible. The pos/neg rules below are more specific and still win; the order keeps it readable. */
+  .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-bal {
+    color: var(--text-2) !important;
   }
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-bal.pos {
     color: var(--ok) !important;

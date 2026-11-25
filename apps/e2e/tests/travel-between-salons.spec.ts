@@ -31,6 +31,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
 import { zonedInstant } from "../helpers/tenant-zone";
+import { openEntryFormOfChosenDay } from "../helpers/day-panel";
 
 const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 const PASSWORD = "test1234";
@@ -404,8 +405,8 @@ test.describe("a trip between two salons (Issue #92)", () => {
     // Issue #660 (AC-660-6): no offer button either (the positive control is the two-salon test d.).
     await expect(page.getByTestId("day-break-travel-offer")).toHaveCount(0);
     await page.getByTestId(`calendar-cell-${day}`).click();
-    // #599 (Phase 851): a day is read first; the sheet's primary action runs the former click.
-    await page.getByTestId("day-sheet-primary").click();
+    // #599 (Phase 851): a day is read first; #991: a one-entry day is edited through its row menu.
+    await openEntryFormOfChosenDay(page);
     const modal = page.getByTestId("time-entry-modal");
     await expect(modal).toBeVisible();
     await expect(page.getByTestId("time-entry-modal-travel-switch")).toHaveCount(0);
