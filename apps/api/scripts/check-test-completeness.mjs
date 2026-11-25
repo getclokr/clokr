@@ -1052,7 +1052,9 @@ import { readFileSync } from "node:fs";
 // removed, skipped or loosened; MIN_FILES 856 -> 861
 // Issue #1038 (2026-11-19): one new file (src/__tests__/leave-calendar-team-1038.test.ts), source-counted, lower bound; nothing
 // removed, skipped or loosened; MIN_FILES 861 -> 862
-const MIN_FILES = 862;
+// Issue #1080 (2026-11-25): two new files (close-employee-month-bs-absence-1080 and audit-1080-bs-day-absence-double-soll),
+// source-counted, lower bound; nothing removed, skipped or loosened; MIN_FILES 862 -> 864
+const MIN_FILES = 864;
 // Issue #619 (2026-10-16): `operator-auth-88` gains one case (the explicit TOTP step-boundary case), counted from
 // the source (+1, lower-bound convention as above, no full run): MIN_TESTS 9649 -> 9650, MIN_FILES unchanged.
 // Issue #654: +2 cases in import-reach-654.test.ts (source-counted): MIN_TESTS 9794 -> 9796.
@@ -1216,7 +1218,9 @@ const MIN_FILES = 862;
 // Issue #1038 (2026-11-19): `leave-calendar-team-1038` adds 12 cases (7 persons + 5 requested bars) and the kernel test
 // `leave-calendar-masking` gains 9 (the `requested ranges` block), source-counted, lower bound; the three amended #840
 // cases keep their count; nothing removed, skipped or loosened; MIN_TESTS 12429 -> 12450
-const MIN_TESTS = 12450;
+// Issue #1080 (2026-11-25): close-employee-month-bs-absence-1080 carries 49 cases, the audit script test 7 and the golden
+// matrix gains 2 cells, source-counted, lower bound; nothing removed, skipped or loosened; MIN_TESTS 12450 -> 12508
+const MIN_TESTS = 12508;
 const REPORT = process.argv[2] ?? "apps/api/vitest-report.json";
 
 let raw;
