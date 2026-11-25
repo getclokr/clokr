@@ -391,6 +391,18 @@ Current: recalculated from hire date on every request (does not scale). Target a
   saldo/close paths still pass instants to the leave fetch on purpose — `closeEmployeeMonth` clips
   the rows, and changing the fetch could move a stored SHIFT_BASED saldo; leave them. Outputs
   produced before the fix: `apps/api/scripts/audit-493-month-boundary-leak.ts`.
+- **Berufsschule has priority, in one place (Issue #1080).** In `closeEmployeeMonth` no row other
+  than a VOCATIONAL_SCHOOL absence credits or claims a Berufsschultag: approved leave of every type
+  (#448, D-03) and every other `Absence` code (OTHER, MATERNITY, PARENTAL and later ones such as
+  COMPANY_SHUTDOWN) give way to it, so the day's Soll relief is the Berufsschule credit alone and a
+  day reduces the Soll exactly once. The rule is decided only by `bsDayPriority()` in
+  `contexts/working-time-account/close-employee-month.ts`; every saldo path (manual close, cron,
+  recalc, live saldo, open month, reports, dashboard) goes through this core. Pinned by
+  `close-employee-month-bs-absence-1080.test.ts` (equivalence oracle per code and schedule type,
+  AST one-place guard) and the golden cells `az-*-38-5-bs_absence`. Closed months keep their stored
+  figures; `scripts/audit-1080-bs-day-absence-double-soll.ts` lists the affected months read-only
+  (ids and minutes), and a correction runs only through the month correction of #599. The roster
+  Planungs-Soll in `scheduling/api/shifts.ts` is not this core (follow-up).
 
 ## Releases & Deployment
 
