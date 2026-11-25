@@ -65,16 +65,16 @@ describe("leave half-day sick guard + eyebrow (Phase 201, defects B + C)", () =>
     expect(TEAM_PAGE).not.toContain("eyebrow={typeName(createForm.type)}");
   });
 
-  it("Test 2 (B): the ½-day checkbox is disabled — with the reason printed — in the shared dialog AND the still-separate Korrektur-Modal", () => {
-    expect(SHARED_FORM).toContain("disabled={SICK_TYPE_CODES.has(formType)}");
-    expect(SHARED_FORM).toContain("Halbe Kranktage sind nicht zulässig");
+  it("Test 2 (B): the ½-day option is not offered for a sick type in the shared dialog (Issue #991 N-16: it was greyed out before) and is disabled — with the reason printed — in the still-separate Korrektur-Modal", () => {
+    expect(SHARED_FORM).toContain("{#if !SICK_TYPE_CODES.has(formType)}");
+    expect(SHARED_FORM).not.toContain("disabled={SICK_TYPE_CODES.has(formType)}");
     // TEAM_PAGE's own remaining occurrence is the Korrektur-Modal (out of Phase 415's scope), not
     // a second copy of the create dialog.
     expect(TEAM_PAGE).toContain("disabled={SICK_CODES.includes(correctType)}");
     expect((TEAM_PAGE.match(/Halbe Kranktage sind nicht zulässig/g) ?? []).length).toBe(1);
   });
 
-  it("Test 3 (B): the checkbox is DISABLED, never HIDDEN — the label text survives in the shared dialog and the Korrektur-Modal", () => {
+  it("Test 3 (B): the label text survives once in the shared dialog (shown for non-sick types, Issue #991) and once in the Korrektur-Modal (disabled)", () => {
     expect((SHARED_FORM.match(/Halber Tag/g) ?? []).length).toBe(1);
     expect((TEAM_PAGE.match(/Halber Tag/g) ?? []).length).toBe(1);
     // Neither page's create path carries its own copy of the label any more.

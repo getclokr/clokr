@@ -21,7 +21,7 @@ Mit **Kalender exportieren** lädst du deine Abwesenheiten oder die des Teams al
 
 1. Klicke auf **Urlaub beantragen** (oder auf einen Tag im Kalender, oder ziehe über mehrere Tage).
 2. Wähle die **Art der Abwesenheit**, hier „Urlaub“.
-3. Trage den Zeitraum ein. Bei einem einzelnen Tag kannst du **Halber Tag** aktivieren.
+3. Trage den Zeitraum ein. Bei einem einzelnen Tag kannst du **Halber Tag** aktivieren (nicht bei einer Krankmeldung).
 4. Schreibe optional eine **Anmerkung**, zum Beispiel „Hochzeit“.
 5. Klicke auf **Antrag einreichen**.
 
@@ -50,7 +50,7 @@ Welche Arten du siehst, hängt von deinen Rechten und den Einstellungen deines U
 
 ## Krankmeldung
 
-Klicke auf **Krank melden** (auf **Ich › Mein Tag** oder hier), wähle „Krankmeldung“ oder „Kinderkrank“ und trage den Zeitraum ein. Eine Krankmeldung braucht keine Genehmigung und gilt sofort. Halbe Kranktage gibt es nicht, deshalb ist die Option für diese Arten gesperrt.
+Klicke auf **Krank melden** (auf **Ich › Mein Tag** oder hier). Der Dialog heißt „Krank melden“. Wähle „Krankmeldung“ oder „Kinderkrank“, trage den Zeitraum ein und klicke auf **Krankmeldung senden**. Eine Krankmeldung braucht keine Genehmigung und gilt sofort. Halbe Kranktage gibt es nicht, deshalb fehlt die Option für diese Arten.
 
 Ein ärztliches Attest trägt deine Führungskraft oder die Verwaltung ein. Ob eines hinterlegt ist, siehst du am Hinweis **Attest** oder **Kein Attest** an deinem Antrag.
 

@@ -81,6 +81,14 @@ export function leaveRequested(
 }
 
 /**
+ * Issue #991 (N-16): „Krankmeldung gesendet · 10.11.–11.11.2026". A sick report needs no
+ * approval, so the acknowledgement does not say „Antrag" and names no leave type.
+ */
+export function sickReported(startDate: string, endDate: string): string {
+  return `Krankmeldung gesendet · ${leavePeriod(startDate, endDate)}`;
+}
+
+/**
  * #846 (D-03) and #853 (S-29): „Antrag von Alex Muster genehmigt · 14.12.–18.12.2026“ — the one
  * acknowledgement of a decision in the shared review dialog (Aufgaben and Heute im Salon). It names
  * the person, the decision and the period, never the leave type: a sick-leave decision on a shared

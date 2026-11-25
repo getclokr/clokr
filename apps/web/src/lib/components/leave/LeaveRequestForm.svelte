@@ -54,10 +54,11 @@
   } from "$lib/leave/team-calendar-visibility";
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // Issue #595 (D-04), #853-19
   import { forecastLabel } from "$lib/saldo/forecast-label"; // Issue #588
-  import { leaveRequested } from "$lib/feedback/action-messages"; // #843 (D-843-08)
+  import { leaveRequested, sickReported } from "$lib/feedback/action-messages"; // #843 (D-843-08), #991
   import type { EditableLeaveRequest } from "$lib/leave/leave-request-form";
   import type { LeaveLimitWarning } from "$lib/leave-limits/types";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import Icon from "$components/Icon.svelte"; // Issue #991 N-17: the day count has an icon, not an emoji
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
 
   // ── Types ────────────────────────────────────────────────────────────────
@@ -159,6 +160,11 @@
   let formNote = $state("");
   let formSaving = $state(false);
   let formError = $state("");
+
+  // Issue #991 (N-16, D-991-14): a sick report of one's own needs no approval, so the dialog does
+  // not call it an Antrag. A create with a person picker (a manager entering it for someone else)
+  // and an edit keep the request wording.
+  const ownSick = $derived(!editingRequest && !personPicker && SICK_TYPE_CODES.has(formType));
 
   let specialLeaveRules: SpecialLeaveRule[] = $state([]);
   let formSpecialRuleId = $state("");
@@ -597,7 +603,11 @@
         leaveLimitWarnings = created?.leaveLimitWarnings ?? [];
         // #843 (D-843-08): acknowledge only after the server answered, only on create. The type
         // label is the display name of the chosen type, never a server-side name.
-        toasts.success(leaveRequested(typeName(src.type), src.startDate, src.endDate, src.halfDay));
+        toasts.success(
+          SICK_TYPE_CODES.has(src.type)
+            ? sickReported(src.startDate, src.endDate)
+            : leaveRequested(typeName(src.type), src.startDate, src.endDate, src.halfDay),
+        );
       }
       open = false;
       pendingCreate = null;
@@ -628,7 +638,9 @@
     ? "Antrag bearbeiten"
     : personPicker
       ? "Neue Abwesenheit eintragen"
-      : "Neuer Abwesenheitsantrag"}
+      : ownSick
+        ? "Krank melden"
+        : "Neuer Abwesenheitsantrag"}
 >
   <div data-testid="leave-form-modal" style="display: contents">
     {#if formError}
@@ -849,7 +861,7 @@
       {#if formStart && formEnd && formStart <= formEnd && (formDays > 0 || formHalfDay)}
         <div class="form-group form-group--full" data-testid="leave-form-days-calc">
           <div class="days-info-bar">
-            <span class="days-info-icon">📅</span>
+            <span class="days-info-icon"><Icon name="calendar" size={16} /></span>
             <span class="days-info-text">
               <strong>{leaveDaysLabel(effectiveDays, formHalfDay, formType)}</strong>
               {#if hoursPreviewLoading}
@@ -970,25 +982,27 @@
           type="text"
           bind:value={formNote}
           class="form-input"
-          placeholder="z.B. Hochzeit, Arzttermin …"
+          placeholder={SICK_TYPE_CODES.has(formType)
+            ? "z. B. AU folgt"
+            : "z.B. Hochzeit, Arzttermin …"}
         />
       </div>
 
-      <div class="form-group form-group--full">
-        <label class="toggle-label">
-          <input
-            type="checkbox"
-            data-testid="leave-form-half-day"
-            bind:checked={() => formHalfDay, setFormHalfDay}
-            disabled={SICK_TYPE_CODES.has(formType)}
-            class="toggle-cb"
-          />
-          <span>Halber Tag</span>
-        </label>
-        {#if SICK_TYPE_CODES.has(formType)}
-          <p class="form-hint">Halbe Kranktage sind nicht zulässig</p>
-        {/if}
-      </div>
+      <!-- § 8 BUrlG / EFZG §3-4: a half sick day does not exist, so the option is not offered for a
+           sick type (Issue #991 N-16; before it was shown greyed out). -->
+      {#if !SICK_TYPE_CODES.has(formType)}
+        <div class="form-group form-group--full">
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              data-testid="leave-form-half-day"
+              bind:checked={() => formHalfDay, setFormHalfDay}
+              class="toggle-cb"
+            />
+            <span>Halber Tag</span>
+          </label>
+        </div>
+      {/if}
 
       <!-- Parallele Abwesenheiten -->
       {#if formStart && formEnd && formStart <= formEnd}
@@ -1014,31 +1028,38 @@
           </div>
         </div>
       {/if}
-
-      <div class="form-actions form-group--full">
-        <button
-          type="submit"
-          data-testid="leave-form-submit"
-          class="btn btn-primary"
-          disabled={formSaving}
-        >
-          {formSaving
-            ? "Speichern…"
-            : editingRequest
-              ? "Änderungen speichern"
-              : "Antrag einreichen"}
-        </button>
-        <button
-          type="button"
-          data-testid="leave-form-cancel"
-          class="btn btn-ghost"
-          onclick={() => (open = false)}
-        >
-          Abbrechen
-        </button>
-      </div>
     </form>
   </div>
+
+  <!-- Issue #991 (N-15, M-35): the buttons live in the Dialog footer, so the submit stays in view
+       while the body scrolls. `form="leave-form"` associates the submit with the form outside it. -->
+  {#snippet footer()}
+    <button
+      type="button"
+      data-testid="leave-form-cancel"
+      class="btn btn-ghost"
+      onclick={() => (open = false)}
+    >
+      Abbrechen
+    </button>
+    {#if !awaitingPerson}
+      <button
+        type="submit"
+        form="leave-form"
+        data-testid="leave-form-submit"
+        class="btn btn-primary"
+        disabled={formSaving}
+      >
+        {formSaving
+          ? "Speichern…"
+          : editingRequest
+            ? "Änderungen speichern"
+            : ownSick
+              ? "Krankmeldung senden"
+              : "Antrag einreichen"}
+      </button>
+    {/if}
+  {/snippet}
 </Modal>
 
 <!-- Phase 87: Terminkollision-Warnung (Abwesenheit eintragen) -->
@@ -1074,13 +1095,10 @@
   }
   /* Issue #853: before a person is chosen only the picker (the first field) and „Abbrechen“ are
      shown. */
-  .form-grid[data-awaiting-person] > :not([data-form-row="who"]):not(.form-actions) {
+  .form-grid[data-awaiting-person] > :not([data-form-row="who"]) {
     display: none;
   }
   .form-grid[data-awaiting-person] [data-form-row="who"] > :not(:first-child) {
-    display: none;
-  }
-  .form-grid[data-awaiting-person] [data-testid="leave-form-submit"] {
     display: none;
   }
   /* Issue #853 (S-15): the person picker of the team dialog is the #843 FormField with a Combobox. In
@@ -1112,12 +1130,6 @@
   }
   .form-group--full {
     grid-column: 1 / -1;
-  }
-  .form-actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    padding-top: 0.25rem;
   }
   .toggle-label {
     display: inline-flex;

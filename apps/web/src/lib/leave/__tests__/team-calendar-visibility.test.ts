@@ -119,13 +119,13 @@ describe("resolveChipVisual", () => {
 
 // ── Data tables themselves ─────────────────────────────────────────────────────
 describe("LEAVE_TYPE_OPTIONS", () => {
-  it("reproduces the page's former TYPE_OPTIONS exactly — nine requestable codes, same order", () => {
+  it("lists the nine requestable codes in the one order of docs/glossar.md (Issue #991 M-34: Urlaub and Krankmeldung on top)", () => {
     expect(LEAVE_TYPE_OPTIONS.map((t) => t.code)).toEqual([
       "VACATION",
+      "SICK",
       "OVERTIME_COMP",
       "SPECIAL",
       "EDUCATION",
-      "SICK",
       "SICK_CHILD",
       "UNPAID",
       "MATERNITY",

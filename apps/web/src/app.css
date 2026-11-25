@@ -2649,6 +2649,9 @@ textarea.form-input {
   background: var(--sunk);
   display: flex;
   align-items: center;
+  /* Designkonzept §11 / Issue #991 N-15: footer right-aligned, secondary first, primary last; a
+     `.spacer` still pushes a left group. */
+  justify-content: flex-end;
   gap: 10px;
 }
 .modal-foot .spacer {

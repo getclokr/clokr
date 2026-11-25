@@ -8,6 +8,7 @@ import {
   clockTime,
   correctionSaved,
   leaveRequested,
+  sickReported,
 } from "../action-messages";
 
 describe("action-messages (D-843-19)", () => {
@@ -41,6 +42,13 @@ describe("action-messages (D-843-19)", () => {
     expect(leaveRequested("Urlaub", "2026-11-10", "2026-11-10", true)).toBe(
       "Antrag gestellt · Urlaub 10.11.2026 (halber Tag)",
     );
+  });
+
+  it("sick report (#991 N-16): a Krankmeldung is no Antrag, the period reads like a request's", () => {
+    expect(sickReported("2026-11-10", "2026-11-11")).toBe(
+      "Krankmeldung gesendet · 10.11.–11.11.2026",
+    );
+    expect(sickReported("2026-11-10", "2026-11-10")).toBe("Krankmeldung gesendet · 10.11.2026");
   });
 
   it("leave request accepts ISO instants that start with the calendar day", () => {

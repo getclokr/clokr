@@ -70,7 +70,7 @@ Source: `$components/ui/PageHeader.svelte`, `PageTabs.svelte`. Props: `title`, `
 
 ### `<Dialog>`
 
-Source: `$components/ui/Dialog.svelte`. Props: `open` (bindable), `title`, `eyebrow?`, `ariaLabel?`, `size?` (`"md"` 520 px, `"wide"` 880 px), `children`, `footer?` (secondary first, primary last), `onOpenChange?`. The legacy class names (`scrim`, `modal`, `modal-hd`, `modal-body`, `modal-foot`, `modal--wide`) are still emitted. A parent binding that refuses a closing (`ConfirmDialog` while a confirm is pending) keeps the dialog open. `Modal`, `ConfirmDialog` and `ReasonDialog` render it; their props, the Phase 89 refusal behaviour of `ConfirmDialog` and all callers are unchanged.
+Source: `$components/ui/Dialog.svelte`. Props: `open` (bindable), `title`, `eyebrow?`, `ariaLabel?`, `size?` (`"md"` 520 px, `"wide"` 880 px), `children`, `footer?` (right-aligned; secondary first, primary last — guarded by `dialog-footer-991.test.ts`), `onOpenChange?`. The legacy class names (`scrim`, `modal`, `modal-hd`, `modal-body`, `modal-foot`, `modal--wide`) are still emitted. A parent binding that refuses a closing (`ConfirmDialog` while a confirm is pending) keeps the dialog open. `Modal`, `ConfirmDialog` and `ReasonDialog` render it; their props, the Phase 89 refusal behaviour of `ConfirmDialog` and all callers are unchanged.
 
 ### `<KpiStrip>`, `<KpiCell>`, `<Stage>`
 
