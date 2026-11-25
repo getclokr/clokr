@@ -140,7 +140,8 @@ const ISSUE_72_TABLE: readonly IssueTableRow[] = [
   {
     resource: "company-shutdown",
     context: "Abwesenheiten",
-    relation: "Mandant",
+    // Issue #1079 (owner decision 25.11.2026, A2): Mandant -> Person, a salon's Betriebsurlaub is data of a salon.
+    relation: "Person",
     actions: ["manage"],
   },
   {

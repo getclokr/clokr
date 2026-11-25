@@ -91,10 +91,14 @@ describe("Issue #599 — month-correction template migration, replay and content
   it("replay is idempotent and leaves every global row equal to its live constant", async () => {
     const ids = Object.values(SYSTEM_ROLE_IDS);
     const rows = await withRolledBackTransaction(app.prisma, async (tx) => {
-      await replayChainFrom(tx, SUFFIX);
+      // The file alone is idempotent: its second execution affects no row. This runs BEFORE the chain
+      // replay, because a LATER grant of the chain (#1079) changes the same Salonmanager row again, so
+      // a re-execution of this older file after the whole chain would legitimately move it.
+      for (const s of statements()) await tx.$executeRawUnsafe(s);
       const second: number[] = [];
       for (const s of statements()) second.push(await tx.$executeRawUnsafe(s));
       expect(second).toEqual(statements().map(() => 0));
+      await replayChainFrom(tx, SUFFIX);
       return tx.accessRole.findMany({ where: { id: { in: ids } } });
     });
     expect(rows).toHaveLength(7);

@@ -83,6 +83,12 @@ export const TEMPLATE_GRANT_CHAIN: readonly TemplateGrant[] = [
       ],
     },
   },
+  {
+    // Issue #1079: Admin and Inhaber held the key from the start; only the Salonmanager gains it.
+    dirSuffix: "_company_shutdown_template_grant",
+    key: "company-shutdown:manage:ZUGEWIESEN",
+    slots: ["SALON_MANAGER"],
+  },
 ];
 
 function indexOfGrant(dirSuffix: string): number {

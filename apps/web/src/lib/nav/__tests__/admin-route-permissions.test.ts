@@ -182,8 +182,10 @@ describe("admin route permissions (Issue #83)", () => {
         "/admin/integrations",
       ].sort(),
     );
+    // Issue #1079 (owner decision 25.11.2026): the Salonmanager template holds company-shutdown:manage, so
+    // „Betriebsurlaub“ (/admin/shutdowns) joins.
     expect(visibleFor(p.SALON_MANAGER)).toEqual(
-      ["/admin/employees", "/admin/vacation", "/admin/availability"].sort(),
+      ["/admin/employees", "/admin/vacation", "/admin/availability", "/admin/shutdowns"].sort(),
     );
     // Issue #86 (owner decision 16.10.2026): the HR template holds salon:read, so "Salons" joins.
     expect(visibleFor(p.HR)).toEqual(

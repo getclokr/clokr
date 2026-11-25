@@ -47,6 +47,13 @@ export const COMPANY_SHUTDOWN_OVERLAP = "COMPANY_SHUTDOWN_OVERLAP";
  */
 export const COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN = "COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN";
 
+/**
+ * A Betriebsurlaub without Urlaubsabzug (paid release, § 615 BGB - wages without work) is created, or a
+ * Betriebsurlaub is switched to it, only with a whole-tenant reach of `company-shutdown:manage` (403,
+ * Issue #1079, owner decision 25.11.2026, A2).
+ */
+export const COMPANY_SHUTDOWN_RELEASE_FORBIDDEN = "COMPANY_SHUTDOWN_RELEASE_FORBIDDEN";
+
 /** Another booking run of the same Betriebsurlaub holds the lock (409). */
 export const COMPANY_SHUTDOWN_BOOKING_RUNNING = "COMPANY_SHUTDOWN_BOOKING_RUNNING";
 
@@ -56,6 +63,8 @@ export const COMPANY_SHUTDOWN_MESSAGES: Readonly<Record<string, string>> = {
     "Der Zeitraum überschneidet sich mit einem anderen Betriebsurlaub für dieselben Salons oder das ganze Unternehmen.",
   [COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN]:
     "Einen Betriebsurlaub für das ganze Unternehmen kann nur verwalten, wer für das ganze Unternehmen zuständig ist.",
+  [COMPANY_SHUTDOWN_RELEASE_FORBIDDEN]:
+    "Einen Betriebsurlaub ohne Urlaubsabzug (bezahlte Freistellung) kann nur verwalten, wer für das ganze Unternehmen zuständig ist.",
   [COMPANY_SHUTDOWN_BOOKING_RUNNING]:
     "Für diesen Betriebsurlaub läuft gerade eine Buchung. Bitte versuche es gleich noch einmal.",
 };

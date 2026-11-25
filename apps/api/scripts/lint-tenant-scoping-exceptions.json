@@ -38,14 +38,14 @@
     "calls": [
       {
         "call": "companyShutdownException.findUnique",
-        "line": 576
+        "line": 599
       },
       {
         "call": "companyShutdownException.deleteMany",
-        "line": 580
+        "line": 603
       }
     ],
-    "reason": "shutdownId (the client-supplied :id) is tenant-validated by the companyShutdown.findFirst({ where: { id, tenantId, deletedAt: null } }) a few lines above (404 otherwise). CompanyShutdownException rows only ever exist for a (shutdownId, employeeId) pair created together by the tenant-validated POST /:id/exceptions handler (compound unique key shutdownId_employeeId, enforced at create time), so an employeeId from a different tenant can never match an existing row for this already-tenant-scoped shutdownId. Re-anchored in Issue #1069: the validating call gained deletedAt: null (a soft-deleted Betriebsurlaub answers the same 404) and the two calls moved to 273 / 277 and, with the reversal wiring of the same issue (Task 4), to 355 / 359 and, with the salon admission of Issue #1079, to 450 / 454 and, with the manage-reach admission, to 576 / 580; the exception itself is unchanged and not widened."
+    "reason": "shutdownId (the client-supplied :id) is tenant-validated by the companyShutdown.findFirst({ where: { id, tenantId, deletedAt: null } }) a few lines above (404 otherwise). CompanyShutdownException rows only ever exist for a (shutdownId, employeeId) pair created together by the tenant-validated POST /:id/exceptions handler (compound unique key shutdownId_employeeId, enforced at create time), so an employeeId from a different tenant can never match an existing row for this already-tenant-scoped shutdownId. Re-anchored in Issue #1069: the validating call gained deletedAt: null (a soft-deleted Betriebsurlaub answers the same 404) and the two calls moved to 273 / 277 and, with the reversal wiring of the same issue (Task 4), to 355 / 359 and, with the salon admission of Issue #1079, to 450 / 454 and, with the manage-reach admission, to 576 / 580 and, with the paid-release refusal, to 599 / 603; the exception itself is unchanged and not widened."
   },
   {
     "file": "apps/api/src/contexts/platform/api/employees.ts",

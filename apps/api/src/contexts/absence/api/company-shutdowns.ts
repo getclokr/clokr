@@ -24,6 +24,7 @@ import {
   COMPANY_SHUTDOWN_ALL_SALONS_FORBIDDEN,
   COMPANY_SHUTDOWN_MESSAGES,
   COMPANY_SHUTDOWN_OVERLAP,
+  COMPANY_SHUTDOWN_RELEASE_FORBIDDEN,
 } from "../company-shutdown/constants";
 
 const MANAGE_KEY = "company-shutdown:manage:ZUGEWIESEN" as const;
@@ -117,6 +118,19 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
   function reachCoversShutdown(reach: AccessReach, salonIds: readonly string[]): boolean {
     if (reach.kind === "wholeTenant") return true;
     return salonIds.length > 0 && salonIds.every((id) => reach.salonIds.includes(id));
+  }
+
+  /**
+   * Issue #1079 (owner decision A2): paid release without Urlaub is a wage-cost decision (§ 615 BGB), so
+   * creating a Betriebsurlaub without Urlaubsabzug, or switching one to it, needs a whole-tenant reach.
+   * Answers the 403 body, or null when the write may go on.
+   */
+  function releaseRefusal(reach: AccessReach, switchesToRelease: boolean): object | null {
+    if (!switchesToRelease || reach.kind === "wholeTenant") return null;
+    return {
+      error: COMPANY_SHUTDOWN_MESSAGES[COMPANY_SHUTDOWN_RELEASE_FORBIDDEN],
+      code: COMPANY_SHUTDOWN_RELEASE_FORBIDDEN,
+    };
   }
 
   /**
@@ -242,6 +256,8 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const reach = (await manageReachOf(req)) ?? { kind: "scoped", salonIds: [], employeeIds: [] };
       const admission = await admitScope(req, reach, salonIds);
       if (!admission.ok) return reply.status(admission.status).send(admission.body);
+      const refusal = releaseRefusal(reach, !body.deductsFromVacation);
+      if (refusal) return reply.status(403).send(refusal);
 
       // Issue #1069 (D-11, revised by #1079 D-05): two active Betriebsurlaube may not share a day
       // while their scopes meet.
@@ -316,6 +332,13 @@ export async function companyShutdownRoutes(app: FastifyInstance) {
       const loaded = await loadManageableShutdown(req, id, { message: "Nicht gefunden" });
       if (!loaded.ok) return reply.status(loaded.status).send(loaded.body);
       const { shutdown: existing, salonIds: existingSalonIds, reach } = loaded;
+
+      // Owner decision A2: switching a Betriebsurlaub to paid release needs a whole-tenant reach.
+      const refusal = releaseRefusal(
+        reach,
+        body.deductsFromVacation === false && existing.deductsFromVacation,
+      );
+      if (refusal) return reply.status(403).send(refusal);
 
       // D-10: a changed salon set (order and duplicates irrelevant) re-books like a changed period.
       const newSalonIds =

@@ -310,6 +310,7 @@
     "leave-entitlement:read:ZUGEWIESEN",
     "leave-limit:manage:ZUGEWIESEN",
     "leave-plan:manage:ZUGEWIESEN",
+    "company-shutdown:manage:ZUGEWIESEN",
     "leave-request:approve:ZUGEWIESEN",
     "leave-request:attest:ZUGEWIESEN",
     "leave-request:cancel:ZUGEWIESEN",
