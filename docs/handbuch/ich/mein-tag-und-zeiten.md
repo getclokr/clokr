@@ -159,7 +159,7 @@ Wenn dein Unternehmen es eingerichtet hat, erkennt Clokr dich über das Salon-WL
 2. Scanne den QR-Code im Salon.
 3. Prüfe auf der Seite **Ich › Profil › Handy koppeln** dein Gerät und klicke auf **Das ist mein Handy – koppeln**.
 
-Alternativ trägst du unter **Ich › Profil** im Abschnitt „Stempeln mit dem Handy“ die Adresse deines Geräts per Hand ein (**MAC-Adresse manuell eintragen**). Im selben Abschnitt schaltest du die **WLAN-Anwesenheitserkennung** ein oder aus und entfernst Geräte. Schaltest du sie aus oder widerrufst du die Einwilligung, entfernt Clokr alle deine Geräte.
+Alternativ trägst du unter **Ich › Profil** im Abschnitt „Stempeln mit dem Handy“ die Adresse deines Geräts per Hand ein (**Handy ohne QR-Code koppeln**). Im selben Abschnitt schaltest du die **WLAN-Anwesenheitserkennung** ein oder aus und entfernst Geräte. Schaltest du sie aus oder widerrufst du die Einwilligung, entfernt Clokr alle deine Geräte.
 
 ::: tip Hinweis zum Datenschutz
 Clokr speichert die Geräteadresse nur für die Anwesenheitserkennung im Salon-WLAN. Verbindungs- und Trennungszeiten werden 90 Tage protokolliert und danach automatisch gelöscht.

@@ -95,6 +95,7 @@ Examples:
 | Personenkreis, Alle Salons                         |                                               | The filter of Team › Abwesenheiten: your own circle by default, „Alle Salons“ adds the others (Issue #853).                               |
 | Wie Gerät                                          | System, Automatisch                           | The mode option that follows the device's light/dark setting (Issue #975); review rule, no lint term.                                     |
 | Standard des Unternehmens                          | Standard des Betriebs, Standard des Mandanten | The Farbwelt option that returns to the Standard-Farbwelt the Unternehmen set (Issue #976); review rule, no lint term.                    |
+| Datum (Ich-Bereich)                                | 03.11., 01.10.2026                            | Day and month without a leading zero: „3.11.“, „1.10.2026“, with the weekday „Di 3.11.“ (Issue #991); review rule, no lint term.          |
 
 Spelling: CSV-Import, DATEV-Export (hyphenated compounds), WLAN.
 

@@ -31,7 +31,8 @@
   import { withheldReason } from "$lib/reports/period-table";
   import { exportHref } from "$lib/export/export-centre"; // D-854-22: the one export page
   import { forecastLabel } from "$lib/saldo/forecast-label"; // Issue #588 (amendment 7)
-  import { monthStatusLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
+  import { MONTH_STATUS_TONE, monthStatusLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
+  import type { ChipTone } from "$lib/components/ui/chip-tone";
   import { isTravelRow, travelRouteLabel } from "$lib/time-entries/travel-entry-form";
   import { fmtMin } from "$lib/utils/format-minutes";
 
@@ -106,10 +107,10 @@
 
   // Issue #598: the month's status is worded like on Zeiten and Konto (closed or open); a month
   // without a Soll keeps that remark, it is a fact about the figures, not a status.
-  function monthStatus(m: PeriodMonth): { label: string; tone: "ok" | "neutral"; noSoll: boolean } {
+  function monthStatus(m: PeriodMonth): { label: string; tone: ChipTone; noSoll: boolean } {
     return {
       label: monthStatusLabel(m.confirmed),
-      tone: m.confirmed ? "ok" : "neutral",
+      tone: m.confirmed ? MONTH_STATUS_TONE.CLOSED : MONTH_STATUS_TONE.OPEN,
       noSoll: !m.labelled,
     };
   }

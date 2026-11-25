@@ -205,19 +205,19 @@ describe("WifiPresenceSettings - withdrawing the consent", () => {
 describe("WifiPresenceSettings - manual entry and removal", () => {
   async function openManualEntry() {
     await mounted();
-    const summary = screen.getByText("MAC-Adresse manuell eintragen");
+    const summary = screen.getByText("Handy ohne QR-Code koppeln");
     await fireEvent.click(summary);
   }
 
   it("keeps the manual entry inside a details element", async () => {
     await mounted();
-    const summary = screen.getByText("MAC-Adresse manuell eintragen");
+    const summary = screen.getByText("Handy ohne QR-Code koppeln");
     expect(summary.closest("details")).not.toBeNull();
   });
 
   it("adds a device by MAC address and label", async () => {
     await openManualEntry();
-    await fireEvent.input(screen.getByLabelText("MAC-Adresse"), {
+    await fireEvent.input(screen.getByLabelText("WLAN-Adresse deines Handys"), {
       target: { value: "AA:BB:CC:DD:EE:03" },
     });
     await fireEvent.input(screen.getByLabelText("Bezeichnung (optional)"), {
@@ -233,7 +233,7 @@ describe("WifiPresenceSettings - manual entry and removal", () => {
 
   it("shows the format hint for an invalid MAC and keeps the add button disabled", async () => {
     await openManualEntry();
-    const input = screen.getByLabelText("MAC-Adresse");
+    const input = screen.getByLabelText("WLAN-Adresse deines Handys");
     await fireEvent.input(input, { target: { value: "nicht gültig" } });
     await fireEvent.blur(input);
 

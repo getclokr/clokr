@@ -4,11 +4,22 @@
 // cut-off, not a status, and "Prognose"/"Bestätigt" word a saldo figure (forecast-label.ts), not a
 // month. `month-status-one-place-598.test.ts` fails on a second spelling of these labels.
 
+import type { ChipTone } from "$lib/components/ui/chip-tone";
+
 export type MonthStatus = "CLOSED" | "OPEN";
 
 export const MONTH_STATUS_LABEL: Readonly<Record<MonthStatus, string>> = {
   CLOSED: "Abgeschlossen",
   OPEN: "Offen",
+};
+
+/**
+ * Issue #991 N-28: one colour per status as well as one word. A closed month is final (ok), an open
+ * one still changes until the close (info) - on Berichte, Konto, Zeiten and the report drilldown.
+ */
+export const MONTH_STATUS_TONE: Readonly<Record<MonthStatus, ChipTone>> = {
+  CLOSED: "ok",
+  OPEN: "info",
 };
 
 /** The status of a month from whether it is closed. */
