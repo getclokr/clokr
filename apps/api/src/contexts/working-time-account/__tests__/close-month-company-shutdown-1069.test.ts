@@ -211,7 +211,7 @@ describe("closeEmployeeMonth - Issue #1069: a Betriebsurlaub day reduces the Sol
     expect(inside.balanceMinutes).toBe(cutAround.balanceMinutes);
   });
 
-  it("FIXED control: the rule is code-specific - an OTHER absence over the same Berufsschultag keeps its pre-#1069 figures", () => {
+  it("FIXED control: since #1080 the rule is not code-specific - an OTHER absence over the same Berufsschultag also reduces it once", () => {
     const other = closeEmployeeMonth(
       baseInput(FIXED_40_5, { absences: [absence(MON, FRI, "OTHER"), bsDay(THU)] }),
     );
@@ -220,10 +220,11 @@ describe("closeEmployeeMonth - Issue #1069: a Betriebsurlaub day reduces the Sol
         absences: [absence(MON, WED, "OTHER"), absence(FRI, FRI, "OTHER"), bsDay(THU)],
       }),
     );
-    // Before and after #1069 alike: the OTHER row still claims and credits the Berufsschultag,
-    // so the Thursday is reduced twice (the latent overlap named in D-12 - reported, not changed).
-    expect(other.balanceMinutes).not.toBe(otherCutAround.balanceMinutes);
-    expect(other.balanceMinutes - otherCutAround.balanceMinutes).toBe(480);
+    // Issue #1080 made the Berufsschule priority general (`bsDayPriority()`): the OTHER row gives
+    // way to the Berufsschultag exactly like COMPANY_SHUTDOWN, so the Thursday is reduced once and
+    // the absence over the day equals the absence cut around it (the overlap D-12 reported).
+    expect(other.expectedMinutes).toBe(otherCutAround.expectedMinutes);
+    expect(other.balanceMinutes).toBe(otherCutAround.balanceMinutes);
   });
 
   // ── SHIFT_BASED ──────────────────────────────────────────────────────────────────────────────
