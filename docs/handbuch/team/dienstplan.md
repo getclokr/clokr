@@ -80,3 +80,5 @@ Genehmigter Urlaub ist verbindlich. Wie viele Urlaubstage ein Antrag kostet, ric
 ## Schichten aus Phorest
 
 Wenn dein Unternehmen Phorest nutzt, kommen die Schichten von dort automatisch in den Plan. Ein eigener Sync-Button steht hier nicht. Wird eine Schicht gelöscht, die Kundentermine hat, warnt Clokr vorher. Die Einrichtung übernimmt die Verwaltung, siehe [Phorest](../verwalten/phorest.md).
+
+Plant Phorest eine Person unter 18 länger, als das Jugendarbeitsschutzgesetz erlaubt (mehr als 8 Stunden am Tag, bis zu 8,5 Stunden nur mit einem kürzeren Werktag in derselben Woche, mehr als 40 Stunden in der Woche oder mehr als 10 Stunden vom ersten Beginn bis zum letzten Ende), übernimmt Clokr die Schicht trotzdem und benachrichtigt dich. Pass den Plan dann in Phorest an.

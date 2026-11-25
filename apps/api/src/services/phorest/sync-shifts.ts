@@ -51,6 +51,7 @@ import {
   detectWeekCapacityConflict,
   notifyWeekCapacityConflictOnce,
 } from "../../contexts/scheduling/shift-week-capacity"; // Phase 430 (D-05..D-07) — Type-2, end-of-run pass
+import { reportMinorShiftLimitViolations } from "../../contexts/scheduling/minor-shift-limit-report"; // Issue #1074 — end-of-run § 8/§ 12 JArbSchG report
 import {
   getVocationalSchoolDays, // Phase 100B Plan 12 — A6
   getPendingLeaveForShiftProtection, // Phase 100B Plan 13 — shift-protection (H5)
@@ -1118,6 +1119,20 @@ export async function syncPhorestShifts(
       }
     }
 
+    // Issue #1074 — § 8 / § 12 JArbSchG report for the minors' weeks this run imported or adopted.
+    // GD-1: Phorest leads, so a shift is never refused, shortened or moved here; the stored week is
+    // checked with the roster's own rule and the planners are told. Success path only (like the
+    // week-capacity pass above), after the last Shift write; reportMinorShiftLimitViolations never
+    // throws, so a failing report cannot turn this SUCCESS run into ERROR.
+    const minorReport = await reportMinorShiftLimitViolations(app, {
+      tenantId,
+      salonId: target.salonId,
+      coveredDays: [...freshCoveredDays].map((key) => {
+        const [employeeId, dateIso] = key.split("|");
+        return { employeeId, dateIso };
+      }),
+    });
+
     app.log.info(
       {
         tenantId,
@@ -1130,6 +1145,7 @@ export async function syncPhorestShifts(
         unmapped: result.unmapped,
         leaveRecalcFailures: result.leaveRecalcFailures,
         skippedOtherSalon: result.skippedOtherSalon,
+        minorShiftLimitWeeks: minorReport.minorWeeksWithViolations,
       },
       "Phorest sync finished",
     );

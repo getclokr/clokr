@@ -995,12 +995,21 @@ Schichtplanungs-Routen. Keine neue Permission; die Deduplizierung (kein Doppel-N
 noch nicht bestätigte Woche) läuft rein über eine Abfrage gegen das bestehende `Notification`-Modell,
 ohne neue Tabelle.
 
+**Issue #1074 (2026-11-25):** Neuer Benachrichtigungstyp `SHIFT_JARBSCHG_VIOLATION`:
+`contexts/scheduling/minor-shift-limit-report.ts`s `notifyMinorShiftLimitViolationsOnce` meldet am
+Ende eines erfolgreichen Phorest-Abgleichs einen Verstoß gegen § 8 oder § 12 JArbSchG in der Woche
+einer minderjährigen Person. Dieselbe `userIdsHoldingPermission("shift:plan:ZUGEWIESEN")` +
+`resolveScopedHolderIds`-Kette wie `SHIFT_WEEK_OVERBOOKED` (Salon des Laufs und Person in der
+Reichweite), keine neue Permission. Die Deduplizierung läuft je Empfänger, Person, Woche und
+Befundtext über das bestehende `Notification`-Modell.
+
 | Stelle                                                                       | Benachrichtigung                                                                   | heute | Permission                 | Reichweite |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----- | -------------------------- | ---------- |
 | `contexts/absence/leave-request-create.ts:559`                               | `LEAVE_REQUEST`                                                                    | A, M  | `leave-request:approve`    | ZUGEWIESEN |
 | `contexts/absence/leave-decision.ts:585`                                     | `SECTION9_AU_PENDING_MANAGER`                                                      | A, M  | `section9:decide`          | ZUGEWIESEN |
 | `contexts/scheduling/shift-leave-conflict-notify.ts:91`                      | `SHIFT_LEAVE_CONFLICT`                                                             | A, M  | `shift:plan`               | ZUGEWIESEN |
 | `contexts/scheduling/shift-week-capacity.ts:136`                             | `SHIFT_WEEK_OVERBOOKED`                                                            | A, M  | `shift:plan`               | ZUGEWIESEN |
+| `contexts/scheduling/minor-shift-limit-report.ts:64`                         | `SHIFT_JARBSCHG_VIOLATION`                                                         | A, M  | `shift:plan`               | ZUGEWIESEN |
 | `contexts/absence/api/leave.ts:3455`                                         | `SECTION9_AU_PENDING_MANAGER`                                                      | A, M  | `section9:decide`          | ZUGEWIESEN |
 | `contexts/absence/vocational-school-generator.ts:897`                        | `SHIFT_BS_CLEANUP`                                                                 | A, M  | `shift:plan`               | ZUGEWIESEN |
 | `contexts/absence/plugins/carryover-warning.ts:124`                          | `CARRYOVER_EXPIRING`                                                               | A     | `leave-config:manage`      | ZUGEWIESEN |
