@@ -136,6 +136,11 @@ export async function appointmentHintRoutes(app: FastifyInstance) {
         hints = loaded.filter((h) => sets.get(h.date)?.has(h.employeeId) === true);
       }
 
+      // The caller's own hints live on their own Mein Tag and Zeiten; a work list of the team never
+      // repeats them (a manager cannot answer „Stimmt so“ for a person anyway).
+      const ownEmployeeId = req.user.employeeId;
+      if (ownEmployeeId) hints = hints.filter((h) => h.employeeId !== ownEmployeeId);
+
       return {
         enabled: true,
         hints: [...hints]

@@ -285,6 +285,45 @@ describe("Issue #604 — GET /api/v1/appointment-hints/team", () => {
     expect(res.body).not.toContain(foreignPerson.id);
   });
 
+  it("a manager's own hint stays on her own view and never enters the team list", async () => {
+    const self = await createPerson("Mself", data.tenant.id);
+    await home(self.id, salonA, "2024-01-01");
+    await qualifyingDay(self.id, salonA, yesterday);
+    await app.prisma.roleAssignment.create({
+      data: {
+        tenantId: data.tenant.id,
+        userId: self.user.id,
+        accessRoleId: SYSTEM_ROLE_IDS.SALON_MANAGER,
+        scopeType: "SALONS",
+        salonIds: [salonA],
+        employeeIds: [],
+      },
+    });
+    const token = await login(self.user.email);
+
+    // Her team list keeps A1 and leaves her own day out ...
+    expect(idsOf(await teamBody(token))).toEqual([`${a1.id}:${yesterday}`]);
+    // ... while the other manager of the salon sees it, and her own endpoint lists it.
+    expect(idsOf(await teamBody(tokenMA))).toEqual(
+      [`${a1.id}:${yesterday}`, `${self.id}:${yesterday}`].sort(),
+    );
+    const own = await app.inject({
+      method: "GET",
+      url: "/api/v1/appointment-hints",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(own.statusCode).toBe(200);
+    expect(
+      (JSON.parse(own.body) as { hints: { date: string }[] }).hints.map((h) => h.date),
+    ).toEqual([yesterday]);
+
+    // Leave the shared fixture as the later tests expect it.
+    await app.prisma.roleAssignment.deleteMany({ where: { userId: self.user.id } });
+    await app.prisma.timeEntry.deleteMany({ where: { employeeId: self.id } });
+    await app.prisma.phorestAppointment.deleteMany({ where: { employeeId: self.id } });
+    await app.prisma.employeeSalonAssignment.deleteMany({ where: { employeeId: self.id } });
+  });
+
   it("judges the reach per hint day by that day's Stammsalon (Stichtag)", async () => {
     // A1's HOME in A ends at today - 3, a HOME in B starts at today - 2; A1 also qualifies at today - 4.
     await app.prisma.employeeSalonAssignment.deleteMany({ where: { employeeId: a1.id } });

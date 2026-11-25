@@ -812,7 +812,7 @@ schlägt fehl, wenn er oder ein Rollenvergleich zurückkommt (D-19).
 | `contexts/time-tracking/api/admin-presence-sources.ts:417` | `DELETE /:id/devices/:mac`                      | A       | `presence-source:manage`       | ZUGEWIESEN                                   |
 | `contexts/time-tracking/api/appointment-hints.ts:64`       | `GET /`                                         | A, M, E | `time-entry:read`              | ZUGEWIESEN oder EIGENE; eigene Person (#604) |
 | `contexts/time-tracking/api/appointment-hints.ts:100`      | `GET /team`                                     | A, M    | `time-entry:read`              | ZUGEWIESEN; Personen im Scope am Tag (#604)  |
-| `contexts/time-tracking/api/appointment-hints.ts:175`      | `POST /dismissals`                              | A, M, E | `time-entry:update`            | ZUGEWIESEN oder EIGENE; eigene Person (#604) |
+| `contexts/time-tracking/api/appointment-hints.ts:180`      | `POST /dismissals`                              | A, M, E | `time-entry:update`            | ZUGEWIESEN oder EIGENE; eigene Person (#604) |
 | `contexts/time-tracking/api/day-breaks.ts:580`             | `POST /acks`                                    | A, M    | `time-entry:update`            | ZUGEWIESEN                                   |
 | `contexts/time-tracking/api/day-breaks.ts:692`             | `DELETE /acks/:id`                              | A, M    | `time-entry:update`            | ZUGEWIESEN                                   |
 | `contexts/time-tracking/api/retro-entry-requests.ts:190`   | `GET /`                                         | A, M    | `retro-request:read`           | ZUGEWIESEN                                   |
