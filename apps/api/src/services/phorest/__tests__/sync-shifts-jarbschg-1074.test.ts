@@ -6,10 +6,12 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { getTestApp, grantSystemRole, soleNotification } from "../../../__tests__/setup";
+import { normalizeRolePermissions, roleNameKey } from "../../../contexts/platform";
 import { syncPhorestShifts } from "../sync-shifts";
 import {
   seedPhorestTenant,
   cleanupPhorestTenant,
+  addCoupledSalon,
   MAPPED_STAFF_ID,
   type PhorestSeed,
 } from "./helpers";
@@ -65,11 +67,51 @@ async function runSync(app: FastifyInstance, seed: PhorestSeed, slots: Slot[]) {
   return syncPhorestShifts(app, seed.tenantId, seed.target, WEEK_WINDOW);
 }
 
+/** A custom role holding only shift:plan:ZUGEWIESEN, assigned with SALONS scope. */
+async function createSalonsPlanner(
+  app: FastifyInstance,
+  seed: PhorestSeed,
+  label: string,
+  salonIds: string[],
+): Promise<string> {
+  const userId = await createUserInTenant(app, seed, label);
+  const name = `Planer1074 ${label} ${Math.random().toString(36).slice(2, 6)}`;
+  const role = await app.prisma.accessRole.create({
+    data: {
+      tenantId: seed.tenantId,
+      name,
+      nameKey: roleNameKey(name),
+      permissions: normalizeRolePermissions(["shift:plan:ZUGEWIESEN"]),
+    },
+  });
+  await app.prisma.roleAssignment.create({
+    data: {
+      tenantId: seed.tenantId,
+      userId,
+      accessRoleId: role.id,
+      scopeType: "SALONS",
+      salonIds,
+      employeeIds: [],
+    },
+  });
+  return userId;
+}
+
 async function createPlanner(
   app: FastifyInstance,
   seed: PhorestSeed,
   label: string,
   role: "MANAGER" | "EMPLOYEE" = "MANAGER",
+): Promise<string> {
+  const userId = await createUserInTenant(app, seed, label);
+  await grantSystemRole(app.prisma, { tenantId: seed.tenantId, userId, role });
+  return userId;
+}
+
+async function createUserInTenant(
+  app: FastifyInstance,
+  seed: PhorestSeed,
+  label: string,
 ): Promise<string> {
   const stamp = `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const user = await app.prisma.user.create({
@@ -89,7 +131,6 @@ async function createPlanner(
       hireDate: new Date("2024-01-01"),
     },
   });
-  await grantSystemRole(app.prisma, { tenantId: seed.tenantId, userId: user.id, role });
   return user.id;
 }
 
@@ -176,6 +217,7 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       });
       const rows = await app.prisma.notification.findMany({
         where: { userId: { in: users.map((u) => u.id) } },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
       expect(rows.some((r) => r.userId === plannerId && r.type === TYPE)).toBe(true);
       for (const r of rows) {
@@ -201,6 +243,201 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       await setBirthDate(app, seed.mappedEmployeeId, null);
       await runSync(app, seed, [THURSDAY_LONG]);
       expect(await findingsOf(app, plannerId)).toHaveLength(0);
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("adopt: a legacy Phorest row is updated in place and the padded times are reported", async () => {
+    const seed = await seedPhorestTenant(app, "jas-adopt");
+    try {
+      await app.prisma.tenantConfig.update({
+        where: { tenantId: seed.tenantId },
+        data: { phorestPrepMinutes: 30, phorestWrapupMinutes: 30 },
+      });
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+      await app.prisma.shift.create({
+        data: {
+          employeeId: seed.mappedEmployeeId,
+          salonId: seed.salonId,
+          date: new Date("2026-07-30"),
+          startTime: "08:00",
+          endTime: "17:00",
+          origin: "MANUAL",
+          label: "Phorest",
+        },
+      });
+
+      const res = await runSync(app, seed, [{ date: "2026-07-30", start: "08:00", end: "17:00" }]);
+      expect(res.status).toBe("SUCCESS");
+      expect(res.updated).toBe(1);
+      expect(res.created).toBe(0);
+
+      const rows = await app.prisma.shift.findMany({
+        where: { employeeId: seed.mappedEmployeeId, deletedAt: null },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].origin).toBe("PHOREST");
+      expect(rows[0].startTime).toBe("07:30");
+      expect(rows[0].endTime).toBe("17:30");
+
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message).toContain("30.07.2026");
+      expect(n.message).toContain("9:00 Stunden");
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("§ 12: a split day over 10 hours Schichtzeit is reported once, stored unchanged", async () => {
+    const seed = await seedPhorestTenant(app, "jas-s12");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+      const res = await runSync(app, seed, [
+        { date: "2026-07-30", start: "08:00", end: "12:00" },
+        { date: "2026-07-30", start: "15:00", end: "19:00" },
+      ]);
+      expect(res.created).toBe(2);
+
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message).toContain("Schichtzeit");
+      expect(n.message).toContain("10 Stunden");
+      expect(n.message).toContain("§ 12");
+      expect(n.message).not.toContain("Weitere Verstöße");
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("weekly: 42:30 over Mon-Fri is reported, exactly 40:00 is not", async () => {
+    const seed = await seedPhorestTenant(app, "jas-week");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+      const days = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"];
+
+      await runSync(
+        app,
+        seed,
+        days.map((date) => ({ date, start: "08:00", end: "17:00" })),
+      );
+      expect(await findingsOf(app, plannerId)).toHaveLength(0);
+
+      await runSync(
+        app,
+        seed,
+        days.map((date) => ({ date, start: "08:00", end: "17:30" })),
+      );
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message).toContain("40 Stunden");
+      expect(n.message).toContain("27.07.");
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("several findings of a week arrive as one notification naming the further ones", async () => {
+    const seed = await seedPhorestTenant(app, "jas-multi");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+      await runSync(app, seed, [{ date: "2026-07-30", start: "07:00", end: "18:30" }]);
+
+      const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.07.2026")).toBe(0);
+      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 30.07.2026 (Schichtzeit)");
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("birthday weeks: 18th birthday on Friday still reports Thursday, on Wednesday it does not", async () => {
+    const seed = await seedPhorestTenant(app, "jas-birthday");
+    try {
+      const plannerId = await createPlanner(app, seed, "mgr");
+
+      await setBirthDate(app, seed.mappedEmployeeId, "2008-07-31");
+      await runSync(app, seed, [THURSDAY_LONG]);
+      expect(await findingsOf(app, plannerId)).toHaveLength(1);
+
+      await app.prisma.notification.deleteMany({ where: { userId: plannerId } });
+      await setBirthDate(app, seed.mappedEmployeeId, "2008-07-29");
+      await runSync(app, seed, [THURSDAY_LONG]);
+      expect(await findingsOf(app, plannerId)).toHaveLength(0);
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("Reichweite: tenant manager and the salon's planner are told, others and the person are not", async () => {
+    const seed = await seedPhorestTenant(app, "jas-reach");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const other = await addCoupledSalon(app, seed.tenantId, "branch-2");
+      const managerId = await createPlanner(app, seed, "mgr");
+      const employeeRoleId = await createPlanner(app, seed, "emp", "EMPLOYEE");
+      const otherSalonPlannerId = await createSalonsPlanner(app, seed, "other", [other.salonId]);
+      const ownSalonPlannerId = await createSalonsPlanner(app, seed, "own", [seed.salonId]);
+      const erika = await app.prisma.employee.findUniqueOrThrow({
+        where: { id: seed.mappedEmployeeId },
+        select: { userId: true },
+      });
+
+      await runSync(app, seed, [THURSDAY_LONG]);
+
+      expect(await findingsOf(app, managerId)).toHaveLength(1);
+      expect(await findingsOf(app, ownSalonPlannerId)).toHaveLength(1);
+      expect(await findingsOf(app, otherSalonPlannerId)).toHaveLength(0);
+      expect(await findingsOf(app, employeeRoleId)).toHaveLength(0);
+      expect(await findingsOf(app, erika.userId)).toHaveLength(0);
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("a changed finding is reported anew, an unchanged one is not repeated", async () => {
+    const seed = await seedPhorestTenant(app, "jas-changed");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      const plannerId = await createPlanner(app, seed, "mgr");
+
+      await runSync(app, seed, [THURSDAY_LONG]);
+      expect(await findingsOf(app, plannerId)).toHaveLength(1);
+
+      const longer: Slot = { date: "2026-07-30", start: "08:00", end: "18:30" };
+      await runSync(app, seed, [longer]);
+      const rows = await findingsOf(app, plannerId);
+      expect(rows).toHaveLength(2);
+      expect(rows[1].message).toContain("9:30 Stunden");
+
+      await runSync(app, seed, [longer]);
+      expect(await findingsOf(app, plannerId)).toHaveLength(2);
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("a failing notification leaves the run SUCCESS and the shifts stored", async () => {
+    const seed = await seedPhorestTenant(app, "jas-failure");
+    try {
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+      await createPlanner(app, seed, "mgr");
+      vi.spyOn(app, "notify").mockRejectedValue(new Error("notify down"));
+
+      const res = await runSync(app, seed, [THURSDAY_LONG]);
+      expect(res.status).toBe("SUCCESS");
+      expect(res.created).toBe(1);
+
+      const runs = await app.prisma.phorestSyncRun.findMany({ where: { tenantId: seed.tenantId } });
+      expect(runs).toHaveLength(1);
+      expect(runs[0].status).toBe("SUCCESS");
+      const shifts = await app.prisma.shift.findMany({
+        where: { employeeId: seed.mappedEmployeeId, deletedAt: null },
+      });
+      expect(shifts).toHaveLength(1);
+      expect(shifts[0].endTime).toBe("18:00");
     } finally {
       await cleanupPhorestTenant(app, seed.tenantId);
     }
