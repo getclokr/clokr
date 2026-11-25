@@ -28,6 +28,8 @@ Du kannst auch ohne Knopfdruck stempeln:
 - **NFC-Karte am Terminal**, wenn dein Unternehmen ein Terminal einsetzt. Die Karte ordnet dir die Verwaltung einmalig zu.
 - **Handy im Salon-WLAN**, wenn du es gekoppelt hast. Siehe [Stempeln mit dem Handy im WLAN](#stempeln-mit-dem-handy-im-wlan).
 
+An einem freien Tag, ohne Soll und ohne Schicht, steht in der großen Anzeige „Frei“ statt einer Null. Einstempeln kannst du trotzdem.
+
 Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir die Stempel-Buttons gar nicht an. Das ist beabsichtigt.
 
 <!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-01.png role=emp url=/ich/tag show="Mein Tag mit der Stempeluhr (noch nicht eingestempelt) und dem Button Einstempeln, darunter die Kennzahlen zu Stundenkonto, Resturlaub und Diese Woche" -->
@@ -37,10 +39,10 @@ Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir di
 ### Was sonst auf Mein Tag steht
 
 - **Kennzahlen**: „Stundenkonto“ (mit dem Zusatz „Prognose“, solange der Monat läuft), „Resturlaub“, „Nächste Schicht“ oder „Nächster Arbeitstag“ und „Diese Woche“.
-- **Deine Woche**: ein Streifen mit deinen Tagen der Woche und dem Stand jedes Tages.
+- **Deine Woche**: ein Streifen mit deinen Tagen der Woche und dem Stand jedes Tages. Ein Tag führt zu seinen Zeiten, ein kommender Tag zum Dienstplan.
 - **Letzte Tage**: deine Zeiten der letzten zwei Wochen mit Pause, Arbeitszeit und Saldo des Tages. Fehlt die Pause, steht dort „Pause fehlt“. **Alle Zeiten** führt zu **Ich › Zeiten**.
 - **Für dich**: was gerade offen ist, zum Beispiel eine Pause zum Bestätigen, ein fehlender Eintrag oder ein Antrag, der noch wartet. Steht dort „Nichts offen. Alles erledigt.“, ist alles geklärt.
-- **Verlauf**: deine letzten Ereignisse, etwa Stempelungen und Entscheidungen.
+- **Verlauf**: deine letzten Ereignisse, etwa Stempelungen und Entscheidungen. Heute steht die Uhrzeit, an einem anderen Tag der Wochentag mit Datum.
 - **Krank melden** und **Urlaub beantragen** oben rechts führen direkt in den Antrag, siehe [Abwesenheiten](abwesenheiten.md).
 
 ### „Warum stempeln?“ beim ersten Mal
