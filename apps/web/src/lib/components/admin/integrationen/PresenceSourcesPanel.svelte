@@ -2,15 +2,18 @@
   PresenceSourcesPanel - the „WLAN-Anwesenheit“ tab of Verwalten › System › Integrationen (Issue #854, rebuilt on
   the blocks of #843; the data, the endpoints and the rules are those of the pre-#854 page /admin/integrations,
   Issues #388 and #610). A management section without configuration keys of its own (registry section
-  `integrationen-wlan`). Four groups: the presence sources, the pairing guide, the device list and the opt-in
-  overview.
+  `integrationen-wlan`). Four groups: the WLAN adapters (the API calls them presence sources), the pairing guide,
+  the device list and the list of the people who use WLAN presence.
 
-  Loads the sources and the opt-in overview itself, the first time the tab is shown, then the device list of the
-  first source. Writes are `POST` and `DELETE /admin/presence-sources` (create with the key shown ONCE in
-  OneTimeKey, revoke behind a confirmation) and the device assignment (`mapDevice` in a Dialog, `unmapDevice`
-  behind a confirmation); each acts at once and answers with a toast. Where the tenant has not booked the add-on
-  module the calm hint replaces the „Quelle anlegen“ action (Issue #566, display only; the server answers 409
-  either way) - sources already there stay listed and revocable.
+  Loads the sources and the opt-in list itself, the first time the tab is shown. The device list loads by itself
+  too (Issue #994, N-16): after the sources were read, when the adapter choice changes and after the first adapter
+  was created - never from an `$effect`; `devicesSourceId` remembers which adapter the list belongs to. Without an
+  active adapter the device and QR groups show one sentence and no button. Writes are `POST` and
+  `DELETE /admin/presence-sources` (create with the key shown ONCE in OneTimeKey, revoke behind a confirmation)
+  and the device assignment (`mapDevice` in a Dialog, `unmapDevice` behind a confirmation); each acts at once and
+  answers with a toast. Where the tenant has not booked the add-on module the calm hint replaces the create action
+  (Issue #566, display only; the server answers 409 either way) - adapters already there stay listed and
+  revocable.
 
   The pairing guide (Issue #610) is browser state only: this panel adds no request for it.
 
@@ -65,6 +68,9 @@
   let sources: PresenceSource[] = $state([]);
   let sourcesLoading = $state(false);
   let sourcesError = $state("");
+  // True once the first read of the sources has answered, so the device and QR groups never flash their
+  // „no adapter yet“ sentence while the adapters are still loading.
+  let sourcesLoaded = $state(false);
   // Shown once after the creation, then forgotten (T-854-34).
   let newRawKey = $state("");
 
@@ -88,15 +94,17 @@
         selectedSourceId = sources.find((src) => !src.revokedAt)?.id ?? "";
       }
       forbidden = false;
+      sourcesLoaded = true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         forbidden = true;
       } else {
-        sourcesError = "Die Präsenz-Quellen konnten nicht geladen werden.";
+        sourcesError = "Die WLAN-Adapter konnten nicht geladen werden.";
       }
     } finally {
       sourcesLoading = false;
     }
+    if (sourcesLoaded && !sourcesError && !forbidden) await syncDevices();
   }
 
   // Create dialog
@@ -116,7 +124,7 @@
   // Runs inside the Dialog's form: a refusal keeps the dialog open with its text.
   async function handleCreateSource() {
     if (!newSourceName.trim()) {
-      sourceCreateError = "Gib der Quelle einen Namen.";
+      sourceCreateError = "Gib dem Adapter einen Namen.";
       return;
     }
     sourceCreating = true;
@@ -154,11 +162,11 @@
       await revokeSource(source.id);
     } catch (err) {
       toasts.error(
-        err instanceof ApiError ? err.message : "Quelle konnte nicht widerrufen werden.",
+        err instanceof ApiError ? err.message : "Der Schlüssel konnte nicht widerrufen werden.",
       );
       throw err;
     }
-    toasts.success("Präsenz-Quelle widerrufen.");
+    toasts.success("Schlüssel widerrufen.");
     await loadSources();
   }
 
@@ -170,34 +178,66 @@
   let devicesLoading = $state(false);
   let devicesError = $state("");
   let devicesLastRefreshed = $state<Date | null>(null);
+  // The adapter the shown list belongs to (Issue #994, N-16): a load runs only when the chosen adapter differs.
+  let devicesSourceId = "";
   let deviceAssigning = $state<Record<string, boolean>>({}); // mac -> saving
   let devPage = $state(1);
   const activeSources = $derived(sources.filter((src) => !src.revokedAt));
 
   const deviceColumns: DataTableColumn[] = [
-    { key: "mac", label: "MAC-Adresse", primary: true },
-    { key: "hostname", label: "Hostname" },
+    { key: "mac", label: "WLAN-Adresse", primary: true },
+    { key: "hostname", label: "Gerätename" },
     { key: "lastSeen", label: "Zuletzt gesehen" },
     { key: "status", label: "Status" },
-    { key: "employee", label: "Mitarbeiter" },
+    { key: "employee", label: "Person" },
     { key: "actions", label: "Aktionen", align: "end" },
   ];
 
-  async function refreshDevices() {
-    if (!selectedSourceId) return;
+  // An answer of an adapter that is no longer the chosen one is dropped, so a quick switch cannot show the
+  // devices of the wrong adapter.
+  async function refreshDevices(sourceId: string = selectedSourceId) {
+    if (!sourceId) return;
+    if (devicesSourceId !== sourceId) {
+      devices = [];
+      devicesLastRefreshed = null;
+    }
+    devicesSourceId = sourceId;
     devicesLoading = true;
     devicesError = "";
     try {
-      devices = await listDevices(selectedSourceId);
+      const list = await listDevices(sourceId);
+      if (devicesSourceId !== sourceId) return;
+      devices = list;
       devicesLastRefreshed = new Date();
       devPage = 1;
     } catch {
+      if (devicesSourceId !== sourceId) return;
       devicesError =
         "Geräteliste konnte nicht geladen werden. Bitte prüf, ob der Adapter erreichbar ist.";
     } finally {
-      devicesLoading = false;
+      if (devicesSourceId === sourceId) devicesLoading = false;
     }
   }
+
+  // Called after every read of the sources: loads the list of the chosen adapter once, forgets it when no
+  // active adapter is left.
+  async function syncDevices() {
+    if (!selectedSourceId) {
+      devices = [];
+      devicesSourceId = "";
+      devicesLastRefreshed = null;
+      devicesError = "";
+      devicesLoading = false;
+      return;
+    }
+    if (selectedSourceId !== devicesSourceId) await refreshDevices(selectedSourceId);
+  }
+
+  const refreshedAt = $derived(
+    devicesLastRefreshed
+      ? devicesLastRefreshed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+      : "",
+  );
 
   function fullName(person: { firstName: string; lastName: string }): string {
     return `${person.firstName} ${person.lastName}`;
@@ -232,7 +272,7 @@
         d.mac === mac ? { ...d, assignedEmployeeId: employeeId, assignedEmployeeName: name } : d,
       );
       if (result.optInAutoEnabled) {
-        toasts.success(`${name} zugewiesen. WLAN-Präsenz ist automatisch eingeschaltet.`);
+        toasts.success(`${name} zugewiesen. WLAN-Anwesenheit ist automatisch eingeschaltet.`);
         // The opt-in overview reflects the new opt-in.
         void loadOptedIn();
       } else {
@@ -256,7 +296,7 @@
     unassignConfirm = {
       open: true,
       mac: device.mac,
-      name: device.assignedEmployeeName ?? "Mitarbeiter",
+      name: device.assignedEmployeeName ?? "Person",
     };
   }
 
@@ -271,7 +311,7 @@
         d.mac === mac ? { ...d, assignedEmployeeId: null, assignedEmployeeName: null } : d,
       );
       if (result.optInAutoDisabled) {
-        toasts.success(`Zuweisung aufgehoben. WLAN-Präsenz für ${name} ist ausgeschaltet.`);
+        toasts.success(`Zuweisung aufgehoben. WLAN-Anwesenheit für ${name} ist ausgeschaltet.`);
         void loadOptedIn();
       } else {
         toasts.success("Zuweisung aufgehoben.");
@@ -290,10 +330,10 @@
   let optInError = $state("");
 
   const optInColumns: DataTableColumn[] = [
-    { key: "name", label: "Mitarbeiter", primary: true },
-    { key: "optIn", label: "Opt-in" },
-    { key: "macs", label: "MAC-Adressen" },
-    { key: "since", label: "Aktiviert am" },
+    { key: "name", label: "Person", primary: true },
+    { key: "optIn", label: "Status" },
+    { key: "macs", label: "WLAN-Adressen" },
+    { key: "since", label: "Seit" },
   ];
 
   async function loadOptedIn() {
@@ -304,7 +344,7 @@
     } catch (err) {
       // A 403 is already shown by the sources group; anything else gets its own retry.
       if (!(err instanceof ApiError && err.status === 403)) {
-        optInError = "Die Opt-in-Übersicht konnte nicht geladen werden.";
+        optInError = "Die Liste der Personen mit WLAN-Anwesenheit konnte nicht geladen werden.";
       }
     } finally {
       optInLoading = false;
@@ -319,28 +359,31 @@
     untrack(() => void start());
   });
 
-  async function start() {
-    await Promise.all([loadSources(), loadOptedIn()]);
-    // GET /employees returns the array directly (not wrapped in { employees }); it feeds the assignment
-    // dropdown only, so a refusal is not an error of the page.
+  // GET /employees returns the array directly (not wrapped in { employees }); it feeds the assignment
+  // dropdown only, so a refusal is not an error of the page.
+  async function loadEmployees() {
     try {
       const res = await api.get<Employee[] | { employees: Employee[] }>("/employees");
       employees = Array.isArray(res) ? res : (res.employees ?? []);
     } catch {
       /* non-fatal - the dropdown stays empty */
     }
-    // Load the device list when a source is available - saves the manual refresh click.
-    if (selectedSourceId) await refreshDevices();
+  }
+
+  async function start() {
+    // loadSources() also loads the device list of the first active adapter (syncDevices); the people for the
+    // assignment dropdown load beside it so the list does not wait for them.
+    await Promise.all([loadSources(), loadOptedIn(), loadEmployees()]);
   }
 </script>
 
-<!-- ── Group 1: Präsenz-Quellen ──────────────────────────────────────────── -->
+<!-- ── Group 1: WLAN-Adapter ─────────────────────────────────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-quellen-title">
   <div class="hint-row">
-    <h2 class="settings-group-title" id="integrationen-quellen-title">Präsenz-Quellen</h2>
+    <h2 class="settings-group-title" id="integrationen-quellen-title">WLAN-Adapter</h2>
     <InfoHint
       text="Jeder WLAN-Adapter meldet sich mit einem eigenen Schlüssel an. Die Schlüssel verwaltest du hier."
-      label={hintLabel("Präsenz-Quellen")}
+      label={hintLabel("WLAN-Adapter")}
     />
   </div>
 
@@ -353,11 +396,11 @@
   {/if}
 
   {#if hardwareBooked === false}
-    <ModuleHint module="HARDWARE_CLOCK" subject="WLAN-Anwesenheitsquellen" />
+    <ModuleHint module="HARDWARE_CLOCK" subject="WLAN-Adapter" />
   {:else}
     <div class="ip-actions">
       <button type="button" class="btn btn-primary" onclick={openCreateSource}
-        >Quelle anlegen</button
+        >Adapter anlegen</button
       >
     </div>
   {/if}
@@ -375,7 +418,7 @@
     {#if hardwareBooked !== false}
       <EmptyState
         icon="wifi"
-        title="Noch keine Präsenz-Quellen"
+        title="Noch kein WLAN-Adapter"
         description="Leg einen Schlüssel für deinen ersten Adapter an."
       />
     {/if}
@@ -385,7 +428,7 @@
       columns={sourceColumns}
       rows={sources}
       rowKey={(row) => row.id}
-      caption="Präsenz-Quellen mit Schlüssel und Status"
+      caption="WLAN-Adapter mit Schlüssel und Status"
     >
       {#snippet cell(row, column)}
         {#if column.key === "keyPrefix"}
@@ -405,7 +448,7 @@
               class="btn btn-secondary btn-sm btn-danger"
               onclick={() => askRevokeSource(row)}
             >
-              Quelle widerrufen
+              Schlüssel widerrufen
             </button>
           {/if}
         {:else}
@@ -427,7 +470,15 @@
       label={hintLabel("Handys per QR-Code koppeln")}
     />
   </div>
-  <PairingGuide />
+  {#if !sourcesLoaded}
+    {#if !forbidden && !sourcesError}
+      <Skeleton shape="card" count={1} lines={3} />
+    {/if}
+  {:else if activeSources.length > 0}
+    <PairingGuide />
+  {:else}
+    <p class="ip-muted">Den QR-Code erstellst du, sobald ein WLAN-Adapter angemeldet ist.</p>
+  {/if}
 </section>
 
 <!-- ── Group 3: WLAN-Geräteliste ─────────────────────────────────────────── -->
@@ -440,109 +491,120 @@
     />
   </div>
 
-  <div class="ip-device-head">
-    {#if activeSources.length > 1}
-      <FormField label="Quelle">
-        {#snippet field({ id, describedBy })}
-          <select
-            {id}
-            class="form-input ip-source"
-            aria-describedby={describedBy}
-            bind:value={selectedSourceId}
-          >
-            {#each activeSources as src (src.id)}
-              <option value={src.id}>{src.name}</option>
-            {/each}
-          </select>
-        {/snippet}
-      </FormField>
+  {#if !sourcesLoaded}
+    {#if !forbidden && !sourcesError}
+      <Skeleton shape="card" count={1} lines={3} />
     {/if}
-    <span class="ip-refreshed">
-      {devicesLastRefreshed
-        ? `Zuletzt aktualisiert: ${devicesLastRefreshed.toLocaleTimeString("de-DE")}`
-        : "Noch nicht geladen"}
-    </span>
-    <button
-      type="button"
-      class="btn btn-secondary"
-      onclick={refreshDevices}
-      disabled={devicesLoading || !selectedSourceId}
-    >
-      {devicesLoading ? "Aktualisieren …" : "Liste aktualisieren"}
-    </button>
-  </div>
-
-  {#if devicesError}
-    <ErrorState message={devicesError} onRetry={refreshDevices} retrying={devicesLoading} />
-  {:else if devicesLoading && devices.length === 0}
-    <Skeleton shape="card" count={1} lines={3} />
-  {:else if devices.length > 0}
-    <DataTable
-      listId="verwalten.integrationen.wlan-geraete"
-      columns={deviceColumns}
-      rows={devices}
-      bind:page={devPage}
-      rowKey={(row) => row.mac}
-      caption="WLAN-Geräte mit Status und zugewiesenem Mitarbeiter"
-    >
-      {#snippet cell(row, column)}
-        {#if column.key === "mac"}
-          <code class="ip-code">{row.mac}</code>
-        {:else if column.key === "hostname"}
-          {row.hostname || "–"}
-        {:else if column.key === "lastSeen"}
-          {formatLastSeen(row.lastSeen)}
-        {:else if column.key === "status"}
-          {#if row.online}
-            <Chip tone="ok">Online</Chip>
-          {:else}
-            <Chip tone="neutral">Offline</Chip>
-          {/if}
-        {:else if column.key === "employee"}
-          {#if row.assignedEmployeeId}
-            {row.assignedEmployeeName ?? row.assignedEmployeeId}
-          {:else}
-            <span class="ip-muted">Nicht zugewiesen</span>
-          {/if}
-        {:else if row.assignedEmployeeId}
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm btn-danger"
-            onclick={() => askUnassign(row)}
-            disabled={deviceAssigning[row.mac]}
-          >
-            Aufheben
-          </button>
-        {:else}
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm"
-            onclick={() => openAssign(row)}
-            disabled={deviceAssigning[row.mac]}
-          >
-            Zuweisen
-          </button>
-        {/if}
-      {/snippet}
-    </DataTable>
-  {:else if devicesLastRefreshed}
-    <EmptyState
-      icon="wifi"
-      title="Keine Geräte gefunden"
-      description="Stell sicher, dass der WLAN-Adapter (z. B. FRITZ!Box) läuft und verbunden ist."
-    />
+  {:else if activeSources.length === 0}
+    <p class="ip-muted">
+      Sobald ein WLAN-Adapter angemeldet ist, erscheinen hier die Geräte in seinem WLAN.
+    </p>
   {:else}
-    <p class="ip-muted">Klick auf „Liste aktualisieren“, um die verbundenen Geräte zu laden.</p>
+    <div class="ip-device-head">
+      {#if activeSources.length > 1}
+        <FormField label="Adapter">
+          {#snippet field({ id, describedBy })}
+            <select
+              {id}
+              class="form-input ip-source"
+              aria-describedby={describedBy}
+              bind:value={selectedSourceId}
+              onchange={(event) => void refreshDevices(event.currentTarget.value)}
+            >
+              {#each activeSources as src (src.id)}
+                <option value={src.id}>{src.name}</option>
+              {/each}
+            </select>
+          {/snippet}
+        </FormField>
+      {/if}
+      {#if devicesLastRefreshed}
+        <span class="ip-refreshed">Stand {refreshedAt}</span>
+      {/if}
+      <button
+        type="button"
+        class="btn btn-secondary"
+        onclick={() => void refreshDevices()}
+        disabled={devicesLoading}
+      >
+        {devicesLoading ? "Aktualisieren …" : "Aktualisieren"}
+      </button>
+    </div>
+
+    {#if devicesError}
+      <ErrorState
+        message={devicesError}
+        onRetry={() => void refreshDevices()}
+        retrying={devicesLoading}
+      />
+    {:else if devicesLoading && devices.length === 0}
+      <Skeleton shape="card" count={1} lines={3} />
+    {:else if devices.length > 0}
+      <DataTable
+        listId="verwalten.integrationen.wlan-geraete"
+        columns={deviceColumns}
+        rows={devices}
+        bind:page={devPage}
+        rowKey={(row) => row.mac}
+        caption="WLAN-Geräte mit Status und zugewiesener Person"
+      >
+        {#snippet cell(row, column)}
+          {#if column.key === "mac"}
+            <code class="ip-code">{row.mac}</code>
+          {:else if column.key === "hostname"}
+            {row.hostname || "–"}
+          {:else if column.key === "lastSeen"}
+            {formatLastSeen(row.lastSeen)}
+          {:else if column.key === "status"}
+            {#if row.online}
+              <Chip tone="ok">Online</Chip>
+            {:else}
+              <Chip tone="neutral">Offline</Chip>
+            {/if}
+          {:else if column.key === "employee"}
+            {#if row.assignedEmployeeId}
+              {row.assignedEmployeeName ?? row.assignedEmployeeId}
+            {:else}
+              <span class="ip-muted">Nicht zugewiesen</span>
+            {/if}
+          {:else if row.assignedEmployeeId}
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm btn-danger"
+              onclick={() => askUnassign(row)}
+              disabled={deviceAssigning[row.mac]}
+            >
+              Aufheben
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => openAssign(row)}
+              disabled={deviceAssigning[row.mac]}
+            >
+              Zuweisen
+            </button>
+          {/if}
+        {/snippet}
+      </DataTable>
+    {:else if devicesLastRefreshed}
+      <EmptyState
+        icon="wifi"
+        title="Keine Geräte gefunden"
+        description="Stell sicher, dass der WLAN-Adapter (z. B. FRITZ!Box) läuft und verbunden ist."
+      />
+    {/if}
   {/if}
 </section>
 
-<!-- ── Group 4: Opt-in-Übersicht ─────────────────────────────────────────── -->
+<!-- ── Group 4: who uses WLAN presence ───────────────────────────────────── -->
 <section class="settings-group" aria-labelledby="integrationen-optin-title">
   <div class="hint-row">
-    <h2 class="settings-group-title" id="integrationen-optin-title">Opt-in-Übersicht</h2>
+    <h2 class="settings-group-title" id="integrationen-optin-title">Wer WLAN-Anwesenheit nutzt</h2>
     <InfoHint
-      text="Welche Mitarbeiter die WLAN-Präsenzerkennung aktiviert haben."
-      label={hintLabel("Opt-in-Übersicht")}
+      text="Wer die WLAN-Anwesenheit im eigenen Profil eingeschaltet hat."
+      label={hintLabel("Wer WLAN-Anwesenheit nutzt")}
     />
   </div>
 
@@ -553,8 +615,8 @@
   {:else if optedIn.length === 0}
     <EmptyState
       icon="inbox"
-      title="Noch kein Opt-in"
-      description="Kein Mitarbeiter hat die WLAN-Präsenzerkennung aktiviert."
+      title="Noch keine Person"
+      description="Noch niemand hat die WLAN-Anwesenheit eingeschaltet."
     />
   {:else}
     <DataTable
@@ -562,7 +624,7 @@
       columns={optInColumns}
       rows={optedIn}
       rowKey={(row) => row.id}
-      caption="Mitarbeiter mit WLAN-Präsenzerkennung"
+      caption="Personen mit WLAN-Anwesenheit"
     >
       {#snippet cell(row, column)}
         {#if column.key === "optIn"}
@@ -591,8 +653,8 @@
   {/if}
 </section>
 
-<!-- ── Dialog: create a presence source ───────────────────────────────────── -->
-<Dialog bind:open={createOpen} title="Quelle anlegen">
+<!-- ── Dialog: create a WLAN adapter ──────────────────────────────────────── -->
+<Dialog bind:open={createOpen} title="Adapter anlegen">
   <form
     id="presence-source-form"
     novalidate
@@ -643,7 +705,7 @@
   {/snippet}
 </Dialog>
 
-<!-- ── Dialog: assign a device to an employee ─────────────────────────────── -->
+<!-- ── Dialog: assign a device to a person ────────────────────────────────── -->
 {#if assignDevice}
   <Dialog
     bind:open={assignOpen}
@@ -652,7 +714,7 @@
   >
     <dl class="ip-meta">
       <div>
-        <dt>MAC-Adresse</dt>
+        <dt>WLAN-Adresse</dt>
         <dd><code class="ip-code">{assignDevice.mac}</code></dd>
       </div>
       <div>
@@ -665,8 +727,8 @@
       </div>
     </dl>
     <FormField
-      label="Mitarbeiter"
-      hint="Bei der ersten Zuweisung wird die WLAN-Präsenzerkennung für den Mitarbeiter automatisch aktiviert."
+      label="Person"
+      hint="Bei der ersten Zuweisung schaltet Clokr die WLAN-Anwesenheit für die Person ein."
     >
       {#snippet field({ id, describedBy })}
         <select
@@ -675,7 +737,7 @@
           aria-describedby={describedBy}
           bind:value={assignEmployeeId}
         >
-          <option value="">Mitarbeiter auswählen …</option>
+          <option value="">Person auswählen …</option>
           {#each employees as emp (emp.id)}
             <option value={emp.id}>{emp.firstName} {emp.lastName}</option>
           {/each}
@@ -704,8 +766,8 @@
 <!-- ── Confirmations ──────────────────────────────────────────────────────── -->
 <ConfirmDialog
   bind:open={revokeConfirm.open}
-  title="Präsenz-Quelle widerrufen?"
-  description="Aktive Adapter können sich dann nicht mehr anmelden."
+  title="Schlüssel des Adapters widerrufen?"
+  description="Der Adapter kann sich dann nicht mehr anmelden."
   confirmLabel="Widerrufen"
   danger
   onConfirm={confirmRevokeSource}
@@ -714,7 +776,7 @@
 <ConfirmDialog
   bind:open={unassignConfirm.open}
   title="Zuweisung aufheben?"
-  description={`Die MAC-Adresse wird von ${unassignConfirm.name} getrennt.`}
+  description={`Die WLAN-Adresse wird von ${unassignConfirm.name} getrennt.`}
   confirmLabel="Aufheben"
   danger
   onConfirm={confirmUnassign}

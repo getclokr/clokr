@@ -1,7 +1,9 @@
-// Issue #854 (plan 14) - the „WLAN-Anwesenheit“ tab of Verwalten › System › Integrationen, mounted: sources, the
+// Issue #854 (plan 14), #994 (N-16) - the „WLAN-Anwesenheit“ tab of Verwalten › System › Integrationen, mounted: sources, the
 // pairing guide, the device list and the opt-in overview load when the tab is first shown; a source key is shown
 // ONCE (T-854-34); revoke and unassign wait for their confirmation; a device is assigned in a Dialog; the package
 // hint (#566) replaces the create action; a 403 is a calm note.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
@@ -130,14 +132,14 @@ describe("PresenceSourcesPanel", () => {
 
   it("lists sources, devices and the opt-in overview, and renders the pairing guide in its own group", async () => {
     renderWithTheme(PresenceSourcesPanel, { active: true });
-    const sources = await screen.findByRole("table", { name: /Präsenz-Quellen/ });
+    const sources = await screen.findByRole("table", { name: /WLAN-Adapter/ });
     expect(sources.textContent).toContain("FritzBox Büro");
     expect(sources.textContent).toContain("prs_ab12");
     const devices = await screen.findByRole("table", { name: /WLAN-Geräte/ });
     expect(devices.textContent).toContain("iphone-anna");
     expect(devices.textContent).toContain("Nicht zugewiesen");
     expect(devices.textContent).toContain("Ben Beispiel");
-    const optIn = await screen.findByRole("table", { name: /Präsenzerkennung/ });
+    const optIn = await screen.findByRole("table", { name: /WLAN-Anwesenheit/ });
     expect(optIn.textContent).toContain("Ben Beispiel");
     expect(screen.getByRole("heading", { name: "Handys per QR-Code koppeln" })).toBeTruthy();
     expect(screen.getByLabelText("Adresse des Adapters im Salon-WLAN")).toBeTruthy();
@@ -153,8 +155,8 @@ describe("PresenceSourcesPanel", () => {
 
   it("creates a source, sends the adapter address only when typed, shows the key once", async () => {
     renderWithTheme(PresenceSourcesPanel, { active: true });
-    await screen.findByRole("table", { name: /Präsenz-Quellen/ });
-    await fireEvent.click(screen.getByRole("button", { name: "Quelle anlegen" }));
+    await screen.findByRole("table", { name: /WLAN-Adapter/ });
+    await fireEvent.click(screen.getByRole("button", { name: "Adapter anlegen" }));
     const dialog = await screen.findByRole("dialog");
     await fireEvent.input(within(dialog).getByLabelText(/^Name/), { target: { value: " Büro " } });
     await fireEvent.click(within(dialog).getByRole("button", { name: "Schlüssel erstellen" }));
@@ -171,11 +173,11 @@ describe("PresenceSourcesPanel", () => {
 
   it("a 409 shows the server's sentence, any other refusal the generic hint", async () => {
     renderWithTheme(PresenceSourcesPanel, { active: true });
-    await screen.findByRole("table", { name: /Präsenz-Quellen/ });
-    await fireEvent.click(screen.getByRole("button", { name: "Quelle anlegen" }));
+    await screen.findByRole("table", { name: /WLAN-Adapter/ });
+    await fireEvent.click(screen.getByRole("button", { name: "Adapter anlegen" }));
     const dialog = await screen.findByRole("dialog");
     await fireEvent.click(within(dialog).getByRole("button", { name: "Schlüssel erstellen" }));
-    expect(await within(dialog).findByText("Gib der Quelle einen Namen.")).toBeTruthy();
+    expect(await within(dialog).findByText("Gib dem Adapter einen Namen.")).toBeTruthy();
     await fireEvent.input(within(dialog).getByLabelText(/^Name/), { target: { value: "Büro" } });
 
     post.mockRejectedValueOnce(new ApiError(409, "Das Zusatzmodul ist nicht gebucht."));
@@ -189,13 +191,13 @@ describe("PresenceSourcesPanel", () => {
 
   it("revoking a source waits for the confirmation", async () => {
     renderWithTheme(PresenceSourcesPanel, { active: true });
-    await screen.findByRole("table", { name: /Präsenz-Quellen/ });
-    await fireEvent.click(screen.getByRole("button", { name: "Quelle widerrufen" }));
+    await screen.findByRole("table", { name: /WLAN-Adapter/ });
+    await fireEvent.click(screen.getByRole("button", { name: "Schlüssel widerrufen" }));
     const dialog = await screen.findByRole("dialog");
     expect(del).not.toHaveBeenCalled();
     await fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
     await waitFor(() => expect(del).toHaveBeenCalledWith("/admin/presence-sources/p1"));
-    await waitFor(() => expect(success).toHaveBeenCalledWith("Präsenz-Quelle widerrufen."));
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Schlüssel widerrufen."));
   });
 
   it("assigns a device to an employee from the dialog", async () => {
@@ -208,7 +210,7 @@ describe("PresenceSourcesPanel", () => {
       name: "Zuweisung speichern",
     }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
-    await fireEvent.change(within(dialog).getByLabelText("Mitarbeiter"), {
+    await fireEvent.change(within(dialog).getByLabelText("Person"), {
       target: { value: "e1" },
     });
     await fireEvent.click(save);
@@ -219,7 +221,7 @@ describe("PresenceSourcesPanel", () => {
     expect(post.mock.calls[0][1]).toEqual({ employeeId: "e1" });
     await waitFor(() =>
       expect(success).toHaveBeenCalledWith(
-        "Anna Muster zugewiesen. WLAN-Präsenz ist automatisch eingeschaltet.",
+        "Anna Muster zugewiesen. WLAN-Anwesenheit ist automatisch eingeschaltet.",
       ),
     );
   });
@@ -243,9 +245,153 @@ describe("PresenceSourcesPanel", () => {
   it("a tenant without the module sees the hint instead of the create action, sources stay revocable", async () => {
     salonStore().set({ loaded: true, salons: [], packages: { bookedModules: [] } });
     renderWithTheme(PresenceSourcesPanel, { active: true });
-    await screen.findByRole("table", { name: /Präsenz-Quellen/ });
+    await screen.findByRole("table", { name: /WLAN-Adapter/ });
     expect(screen.getByTestId("module-hint").getAttribute("data-module")).toBe("HARDWARE_CLOCK");
-    expect(screen.queryByRole("button", { name: "Quelle anlegen" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Quelle widerrufen" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Adapter anlegen" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Schlüssel widerrufen" })).toBeTruthy();
+  });
+});
+
+// Issue #994 (N-16, D-994-05 .. D-994-07): owner words, the device list loads by itself, no dead button.
+const SECOND_SOURCE = {
+  id: "p3",
+  name: "Zweiter Adapter",
+  keyPrefix: "prs_cd34",
+  adapterUrl: null,
+  lastUsedAt: null,
+  revokedAt: null,
+  createdAt: "2026-10-05T08:00:00.000Z",
+};
+
+function devicePaths(): string[] {
+  return get.mock.calls.map((call) => String(call[0])).filter((path) => path.endsWith("/devices"));
+}
+
+const headsOf = (table: HTMLElement): string[] =>
+  within(table)
+    .getAllByRole("columnheader")
+    .map((head) => head.textContent?.trim() ?? "");
+
+describe("PresenceSourcesPanel - owner words and loading (Issue #994, N-16)", () => {
+  it("without an adapter: one sentence per group, no refresh button, no device request", async () => {
+    get.mockImplementation((path: string) =>
+      path === "/admin/presence-sources" ? Promise.resolve({ sources: [] }) : route(path),
+    );
+    const { container } = renderWithTheme(PresenceSourcesPanel, { active: true });
+    expect(await screen.findByText("Noch kein WLAN-Adapter")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "WLAN-Adapter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Adapter anlegen" })).toBeTruthy();
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "Sobald ein WLAN-Adapter angemeldet ist, erscheinen hier die Geräte in seinem WLAN.",
+    );
+    expect(text).toContain("Den QR-Code erstellst du, sobald ein WLAN-Adapter angemeldet ist.");
+    expect(text).not.toContain("Noch nicht geladen");
+    expect(screen.queryByRole("button", { name: /aktualisieren/i })).toBeNull();
+    expect(screen.queryByLabelText("Adresse des Adapters im Salon-WLAN")).toBeNull();
+    expect(devicePaths()).toEqual([]);
+  });
+
+  it("with one adapter the device list loads without a click, says „Stand“ and renders the QR form", async () => {
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    const devices = await screen.findByRole("table", { name: /WLAN-Geräte/ });
+    expect(devicePaths()).toEqual(["/admin/presence-sources/p1/devices"]);
+    expect(headsOf(devices)).toEqual(
+      expect.arrayContaining(["WLAN-Adresse", "Gerätename", "Zuletzt gesehen", "Status", "Person"]),
+    );
+    expect(await screen.findByText(/^Stand \d{2}:\d{2}$/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Liste aktualisieren" })).toBeNull();
+    expect(screen.getByLabelText("Adresse des Adapters im Salon-WLAN")).toBeTruthy();
+  });
+
+  it("switching the adapter loads that adapter's devices once - two requests in all, no loop", async () => {
+    get.mockImplementation((path: string) =>
+      path === "/admin/presence-sources"
+        ? Promise.resolve({ sources: [...SOURCES, SECOND_SOURCE] })
+        : path === "/admin/presence-sources/p3/devices"
+          ? Promise.resolve({ devices: [] })
+          : route(path),
+    );
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    await screen.findByRole("table", { name: /WLAN-Geräte/ });
+    expect(devicePaths()).toEqual(["/admin/presence-sources/p1/devices"]);
+    await fireEvent.change(screen.getByLabelText("Adapter"), { target: { value: "p3" } });
+    await waitFor(() =>
+      expect(devicePaths()).toEqual([
+        "/admin/presence-sources/p1/devices",
+        "/admin/presence-sources/p3/devices",
+      ]),
+    );
+    // Give a stray effect loop the chance to show itself.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(devicePaths()).toHaveLength(2);
+  });
+
+  it("creating the first adapter loads its device list afterwards", async () => {
+    let created = false;
+    get.mockImplementation((path: string) =>
+      path === "/admin/presence-sources"
+        ? Promise.resolve({ sources: created ? [SOURCES[0]] : [] })
+        : route(path),
+    );
+    post.mockImplementation(() => {
+      created = true;
+      return Promise.resolve({ rawKey: "prs_SECRET_ONCE", source: SOURCES[0] });
+    });
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    await screen.findByText("Noch kein WLAN-Adapter");
+    expect(devicePaths()).toEqual([]);
+    await fireEvent.click(screen.getByRole("button", { name: "Adapter anlegen" }));
+    const dialog = await screen.findByRole("dialog");
+    await fireEvent.input(within(dialog).getByLabelText(/^Name/), { target: { value: "Büro" } });
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Schlüssel erstellen" }));
+    await screen.findByTestId("one-time-key");
+    await waitFor(() => expect(devicePaths()).toEqual(["/admin/presence-sources/p1/devices"]));
+  });
+
+  it("the opt-in group is „Wer WLAN-Anwesenheit nutzt“ with person, status, addresses and since", async () => {
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    const optIn = await screen.findByRole("table", { name: /WLAN-Anwesenheit/ });
+    expect(screen.getByRole("heading", { name: "Wer WLAN-Anwesenheit nutzt" })).toBeTruthy();
+    expect(headsOf(optIn)).toEqual(["Person", "Status", "WLAN-Adressen", "Seit"]);
+  });
+
+  it("the opt-in empty state names no Mitarbeiter", async () => {
+    get.mockImplementation((path: string) =>
+      path === "/admin/presence-sources/opted-in"
+        ? Promise.resolve({ employees: [] })
+        : route(path),
+    );
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    expect(
+      await screen.findByText("Noch niemand hat die WLAN-Anwesenheit eingeschaltet."),
+    ).toBeTruthy();
+  });
+
+  it("the assign dialog and the revoke confirmation use the new words", async () => {
+    renderWithTheme(PresenceSourcesPanel, { active: true });
+    await screen.findByRole("table", { name: /WLAN-Geräte/ });
+    await fireEvent.click(screen.getByRole("button", { name: "Zuweisen" }));
+    const assign = await screen.findByRole("dialog");
+    expect(within(assign).getByLabelText("Person")).toBeTruthy();
+    expect(within(assign).getByRole("option", { name: "Person auswählen …" })).toBeTruthy();
+    expect(within(assign).getByText("WLAN-Adresse")).toBeTruthy();
+    await fireEvent.click(within(assign).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await fireEvent.click(screen.getByRole("button", { name: "Schlüssel widerrufen" }));
+    const revoke = await screen.findByRole("dialog");
+    expect(within(revoke).getByText("Schlüssel des Adapters widerrufen?")).toBeTruthy();
+  });
+
+  it("no shown text of the panel says Präsenz, Opt-in, MAC or Mitarbeiter", () => {
+    const source = readFileSync(join(__dirname, "..", "PresenceSourcesPanel.svelte"), "utf8")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|\s)\/\/.*$/gm, "$1");
+    for (const word of ["Präsenz", "Opt-in", "MAC", "Mitarbeiter"]) {
+      expect(source, word).not.toContain(word);
+    }
   });
 });

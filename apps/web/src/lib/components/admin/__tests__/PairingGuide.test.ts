@@ -8,6 +8,7 @@ import { fireEvent, screen } from "@testing-library/svelte";
 
 import { renderWithTheme } from "$tests/test-utils";
 import PairingGuide from "../PairingGuide.svelte";
+import { hintLabel } from "$components/ui/info-hint";
 
 const SOURCE = readFileSync(join(__dirname, "..", "PairingGuide.svelte"), "utf8");
 
@@ -79,7 +80,7 @@ describe("PairingGuide", () => {
     expect(screen.getByText(/Der Port muss eine Zahl/)).toBeTruthy();
   });
 
-  it("always lists the network preconditions, the guest WLAN with client isolation included", () => {
+  it("always lists the network preconditions, the guest WLAN with client isolation included (technical reasons behind the info symbol)", () => {
     const { container } = renderWithTheme(PairingGuide, {});
     const text = container.textContent ?? "";
     expect(text).toContain("WPA2");
@@ -94,10 +95,37 @@ describe("PairingGuide", () => {
     expect(text).not.toMatch(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/);
     expect(text).toContain("mit dem Salon-WLAN verbunden");
     expect(text).toMatch(/nicht gespeichert/);
-    const guest = [...container.querySelectorAll("li")].find((li) =>
-      li.textContent?.includes("Geräteisolation"),
+    const why = screen.getByTestId("pairing-checklist-why").textContent ?? "";
+    expect(why).toMatch(
+      /Gast-WLAN mit Geräteisolation lässt das Handy den Adapter nicht erreichen/,
     );
-    expect(guest?.textContent).toMatch(/funktioniert nicht/);
+  });
+
+  it("states the four conditions in owner words without bold; the technical reasons sit behind one info symbol (Issue #994, N-16)", () => {
+    const { container } = renderWithTheme(PairingGuide, {});
+    const items = [...container.querySelectorAll(".pairing-checklist li")].map((li) =>
+      (li.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+    expect(items).toEqual([
+      "Das Salon-WLAN ist mit einem Passwort geschützt.",
+      "Du hängst den Code im WLAN deines Teams aus, nicht im Gast-WLAN.",
+      "Der Adapter ist für die Kopplung eingerichtet – das erledigt, wer ihn eingerichtet hat (Anleitung „WLAN-Kopplung per QR-Code“).",
+      "Das Handy ist beim Scannen mit dem Salon-WLAN verbunden, nicht über Mobilfunk.",
+    ]);
+    expect(container.querySelector(".pairing-checklist strong")).toBeNull();
+    const visible = items.join(" ");
+    for (const technical of ["WPA", "Client-Isolation", "Port", "LAN-Adresse"]) {
+      expect(visible, technical).not.toContain(technical);
+    }
+    const why = screen.getByTestId("pairing-checklist-why").textContent ?? "";
+    expect(why).toContain("WPA2 oder WPA3");
+    expect(why).toContain("Geräteisolation");
+    expect(why).toContain("Port");
+    expect(
+      screen.getByRole("button", {
+        name: hintLabel("Das muss stimmen, bevor du den Code aushängst"),
+      }),
+    ).toBeTruthy();
   });
 
   it("makes no network request and imports no API client or router", async () => {

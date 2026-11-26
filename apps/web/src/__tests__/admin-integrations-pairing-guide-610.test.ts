@@ -1,5 +1,5 @@
 // Issue #610 (P-610-22) - source pin for the pairing guide on System > Integrationen: the guide sits in its own
-// group right after "Präsenz-Quellen", and the group gains no API call for it. Since plan 854-14 the groups live in
+// group right after "WLAN-Adapter", and the group gains no API call for it. Since plan 854-14 the groups live in
 // the panel of the WLAN-Anwesenheit tab (`PresenceSourcesPanel.svelte`); routes cannot be mounted
 // (`apps/web/vitest.config.ts` has no `$app` alias), so the contract is read from source, and the panel itself is
 // mounted by `presence-sources-panel-854.test.ts`.
@@ -37,8 +37,8 @@ describe("integrations WLAN tab - pairing guide (Issue #610)", () => {
   const groupStart = (title: string): number =>
     source.search(new RegExp(`<h2[^>]*>\\s*${title}\\s*</h2>`));
 
-  it("renders it inside the group 'Handys per QR-Code koppeln' after 'Präsenz-Quellen'", () => {
-    const sources = groupStart("Präsenz-Quellen");
+  it("renders it inside the group 'Handys per QR-Code koppeln' after 'WLAN-Adapter'", () => {
+    const sources = groupStart("WLAN-Adapter");
     const guide = groupStart("Handys per QR-Code koppeln");
     const devices = groupStart("WLAN-Geräteliste");
     expect(sources).toBeGreaterThan(-1);

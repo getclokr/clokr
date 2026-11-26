@@ -16,6 +16,15 @@
   } from "$lib/presence/pairing-url";
   import { qrPathFor } from "$lib/presence/qr-svg";
   import FormField from "$components/ui/FormField.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
+
+  // Issue #994 (N-16, D-994-07): the technical reasons behind the four plain conditions sit behind the
+  // info symbol beside the checklist title.
+  const WHY_TEXT = [
+    "Offene Netze: Ein iPhone wechselt dort seine private WLAN-Adresse, die Kopplung hält nicht, und der Code ließe sich mitlesen. Nötig ist WPA2 oder WPA3.",
+    "Ein Gast-WLAN mit Geräteisolation lässt das Handy den Adapter nicht erreichen.",
+    "Am Adapter muss die Kopplung eingeschaltet, die https-Adresse deiner Clokr-Installation hinterlegt und der Kopplungs-Port unter seiner LAN-Adresse im Salon-WLAN freigegeben sein.",
+  ];
 
   let address = $state("");
   let port = $state(DEFAULT_PAIRING_PORT);
@@ -94,31 +103,22 @@
   {/if}
 
   <div class="pairing-checklist">
-    <div class="pairing-checklist-title">Das muss stimmen, bevor du den Code aushängst</div>
+    <div class="hint-row">
+      <div class="pairing-checklist-title">Das muss stimmen, bevor du den Code aushängst</div>
+      <InfoHint
+        text={WHY_TEXT}
+        label={hintLabel("Das muss stimmen, bevor du den Code aushängst")}
+        testId="pairing-checklist-why"
+      />
+    </div>
     <ul>
+      <li>Das Salon-WLAN ist mit einem Passwort geschützt.</li>
+      <li>Du hängst den Code im WLAN deines Teams aus, nicht im Gast-WLAN.</li>
       <li>
-        <strong>Das Salon-WLAN nutzt WPA2 oder WPA3.</strong> In offenen Netzen wechselt ein iPhone seine
-        private Adresse; die Kopplung hält dort nicht und der Code ließe sich mitlesen.
+        Der Adapter ist für die Kopplung eingerichtet – das erledigt, wer ihn eingerichtet hat
+        (Anleitung „WLAN-Kopplung per QR-Code“).
       </li>
-      <li>
-        <strong>Kein Gast-WLAN mit Geräteisolation.</strong> Ein Gast-WLAN mit Geräteisolation (Client-Isolation)
-        funktioniert nicht: Das Handy erreicht den Adapter dort nicht. Häng den Code nur für das Mitarbeiter-WLAN
-        auf, in dem auch der Adapter hängt.
-      </li>
-      <li>
-        <strong>Der Adapter ist eingeschaltet.</strong> Am Adapter ist die Kopplung eingeschaltet und
-        die https-Adresse deiner Clokr-Installation hinterlegt. Das richtet ein, wer den Adapter betreibt
-        — nach der Anleitung „WLAN-Kopplung per QR-Code“.
-      </li>
-      <li>
-        <strong>Der Kopplungs-Port ist im WLAN freigegeben.</strong> Standardmäßig lauscht der Adapter
-        nur auf dem Rechner selbst. Damit die Handys ihn erreichen, muss er unter seiner LAN-Adresse im
-        Salon-WLAN erreichbar sein — auch das steht in der Anleitung.
-      </li>
-      <li>
-        <strong>Das Handy ist mit dem Salon-WLAN verbunden</strong>, nicht über Mobilfunk. Nur dann
-        erkennt der Adapter, welches Gerät gerade scannt.
-      </li>
+      <li>Das Handy ist beim Scannen mit dem Salon-WLAN verbunden, nicht über Mobilfunk.</li>
     </ul>
   </div>
 </div>
@@ -187,9 +187,12 @@
     gap: var(--s-2);
   }
 
+  .pairing-checklist .hint-row {
+    margin-bottom: var(--s-2);
+  }
+
   .pairing-checklist-title {
     font-weight: 600;
-    margin-bottom: var(--s-2);
     color: var(--text);
   }
 
