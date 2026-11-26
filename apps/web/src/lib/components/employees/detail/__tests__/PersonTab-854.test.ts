@@ -175,6 +175,15 @@ describe("PersonTab", () => {
     expect(toggle.checked).toBe(true);
   });
 
+  it("names the Protokoll, not an Audit-Log, in the exemption confirm (#994, D-994-11)", async () => {
+    mount();
+    await fireEvent.click(screen.getByTestId("exemption-toggle"));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("Diese Änderung steht danach im Protokoll.");
+    expect(dialog.textContent).not.toContain("Audit-Log");
+    expect(dialog.textContent).toContain("Urlaubsanspruch nach BUrlG bleibt unverändert");
+  });
+
   it("without employee:update the fields are read-only and nothing offers a save", async () => {
     mount({ canEdit: false });
     expect((screen.getByLabelText(/^Vorname/) as HTMLInputElement).disabled).toBe(true);

@@ -375,7 +375,7 @@
     const name = monthName(confirmMonth);
     if (confirmEmployeeId) {
       const emp = detailEmployees.find((e) => e.employeeId === confirmEmployeeId);
-      return `${name} ${selectedYear}: ${emp?.employeeName ?? "Mitarbeiter"} sperren?`;
+      return `${name} ${selectedYear}: ${emp?.employeeName ?? "Person"} sperren?`;
     }
     return `${name} ${selectedYear} sperren?`;
   });
@@ -440,7 +440,7 @@
       const closable = res.employees.filter((e) => e.status === "ready" || e.status === "missing");
       closingTotal = closable.length;
       if (closable.length === 0) {
-        confirmError = "Keine Mitarbeiter zum Abschluss.";
+        confirmError = "Keine Person zum Abschließen.";
         return false;
       }
 
@@ -504,7 +504,7 @@
   const unlockTitle = $derived.by(() => {
     if (unlockMonth == null) return "Monat entsperren";
     const emp = detailEmployees.find((e) => e.employeeId === unlockEmployeeId);
-    return `${monthName(unlockMonth)} ${selectedYear}: ${emp?.employeeName ?? "Mitarbeiter"} entsperren?`;
+    return `${monthName(unlockMonth)} ${selectedYear}: ${emp?.employeeName ?? "Person"} entsperren?`;
   });
 
   function openUnlockDialog(employeeId: string, month: number) {
@@ -755,7 +755,7 @@
           value={closingProgress}
           aria-label="Fortschritt des Abschlusses"
         ></progress>
-        <span>{closingProgress} von {closingTotal} Mitarbeitern verarbeitet</span>
+        <span>{closingProgress} von {personsLabel(closingTotal)} verarbeitet</span>
       </div>
     {/if}
 
@@ -791,7 +791,7 @@
   <div class="mc-dialog">
     <Note tone="warn">
       Eine Entsperrung erfordert einen Grund. Das Entsperren hebt den Monatsabschluss auf und wird
-      im Audit-Log festgehalten. Der Grund wird dauerhaft gespeichert.
+      im Protokoll festgehalten. Der Grund wird dauerhaft gespeichert.
     </Note>
     <FormField label="Grund für die Entsperrung" required>
       {#snippet field({ id, describedBy })}

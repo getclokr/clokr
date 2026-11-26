@@ -224,7 +224,7 @@ const isShownLiteral = (/** @type {string} */ text) =>
  * @param {number} lineBase
  * @param {Push} push
  */
-function tsLiterals(code, lineBase, push) {
+export function tsLiterals(code, lineBase, push) {
   const sf = ts.createSourceFile("x.ts", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   /** @param {import("typescript").Node} node */
   const visit = (node) => {
@@ -296,7 +296,7 @@ function estreeLiterals(node, push, lineOf) {
  * @param {string} source
  * @param {Push} push
  */
-function svelteTexts(source, push) {
+export function svelteTexts(source, push) {
   const lineOf = (/** @type {number} */ offset) => source.slice(0, offset).split("\n").length;
   // scripts: scanned as TypeScript, line numbers offset to the script's position
   for (const match of source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) {
