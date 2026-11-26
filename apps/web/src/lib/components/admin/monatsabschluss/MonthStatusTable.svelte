@@ -269,6 +269,13 @@
         möglich.
       </Note>
     {/if}
+    {#if closesBlind(employees)}
+      <!-- #993: the rights line once above the persons, not repeated under every row (#947: at the
+           affected place, never page-wide). -->
+      <p class="mst-rights mst-rights--list" data-testid="month-close-person-withheld">
+        {WITHHELD_RIGHTS_LINE}
+      </p>
+    {/if}
     <DataTable
       listId="verwalten.monatsabschluss.personen"
       columns={personColumns}
@@ -317,10 +324,6 @@
             <span class="mst-gaps">{missingDaysText(emp)}</span>
             {#if !emp.dayDetailsWithheld}
               <span class="mst-gap-count">({gapCountOf(emp)})</span>
-            {:else}
-              <span class="mst-rights" data-testid="month-close-person-withheld">
-                {WITHHELD_RIGHTS_LINE}
-              </span>
             {/if}
           {:else}
             <span class="mst-none">–</span>
@@ -384,6 +387,11 @@
     color: var(--text-2);
     font-size: var(--fs-xs, 11px);
     white-space: normal;
+  }
+
+  .mst-rights--list {
+    margin: 0;
+    font-size: var(--fs-sm);
   }
 
   .mst-none {

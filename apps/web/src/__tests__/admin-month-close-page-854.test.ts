@@ -295,7 +295,7 @@ describe("Monatsabschluss page (#854)", () => {
     expect(within(table).getByRole("button", { name: "Entsperren" })).toBeTruthy();
   });
 
-  it("renders counts, never dates, for a reader without reach, plus the short rights line at the row", async () => {
+  it("renders counts, never dates, for a reader without reach, plus one short rights line above the persons", async () => {
     detail = [
       {
         ...anna,
@@ -310,10 +310,40 @@ describe("Monatsabschluss page (#854)", () => {
     const table = await within(section).findByRole("table");
     expect(within(table).getByText("4 Tage ohne Eintrag")).toBeTruthy();
     expect(table.textContent).not.toMatch(/\d{2}\.\d{2}\./);
-    expect(within(table).getByTestId("month-close-person-withheld")).toBeTruthy();
+    // #993: the rights line stands once above the person table, never repeated inside its rows.
+    expect(within(section).getAllByTestId("month-close-person-withheld")).toHaveLength(1);
+    expect(within(table).queryByTestId("month-close-person-withheld")).toBeNull();
     // Closing blind is the secondary „Trotzdem abschließen“, never the plain „Abschließen“ (Issue #947).
     expect(within(table).getByRole("button", { name: "Trotzdem abschließen" })).toBeTruthy();
     expect(within(table).queryByRole("button", { name: "Abschließen" })).toBeNull();
+  });
+
+  it("states the rights line once for several persons with withheld days (#993)", async () => {
+    detail = [
+      {
+        ...anna,
+        missingDates: [],
+        missingDateCount: 4,
+        breakFindingDays: [],
+        dayDetailsWithheld: true,
+      },
+      {
+        ...anna,
+        employeeId: "emp-993-b",
+        employeeName: "Berta Probe",
+        missingDates: [],
+        missingDateCount: 2,
+        breakFindingDays: [],
+        dayDetailsWithheld: true,
+      },
+    ];
+    renderWithTheme(Page, {});
+    const section = await openMarch();
+    const table = await within(section).findByRole("table");
+    expect(within(table).getByText("4 Tage ohne Eintrag")).toBeTruthy();
+    expect(within(table).getByText("2 Tage ohne Eintrag")).toBeTruthy();
+    expect(within(section).getAllByTestId("month-close-person-withheld")).toHaveLength(1);
+    expect(within(table).queryByTestId("month-close-person-withheld")).toBeNull();
   });
 
   it("names the next step at the open month whose gaps the reader cannot see (Issue #947)", async () => {
