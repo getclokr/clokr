@@ -157,9 +157,10 @@ describe("Issue #558 — the shift planner follows the header salon", () => {
 
   it("[label][404] the scope label sits once after the page head; a rejected salon is calm, no error, no toast", () => {
     expect(PAGE.split("<SalonScopeLabel").length - 1).toBe(1);
-    const head = PAGE.indexOf("</PageHead>");
+    // Issue #992: the head is the RosterHead (head + tab strip) above the page surface.
+    const head = PAGE.indexOf("</RosterHead>");
     expect(head).toBeGreaterThan(-1);
-    expect(PAGE.slice(head, head + 400)).toContain(
+    expect(PAGE.slice(head, head + 700)).toContain(
       "<SalonScopeLabel label={scopeLabel} rejected={weekRejected} />",
     );
     const body = functionBody("load");
