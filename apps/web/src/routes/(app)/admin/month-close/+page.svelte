@@ -43,6 +43,7 @@
     YearStatusResponse,
   } from "$lib/month-close/types";
   import { int, oneOf, urlState } from "$lib/table/url-state";
+  import { monthsLabel, personsLabel } from "$lib/utils/count-word";
   import { MONTH_STATUS_LABEL } from "$lib/saldo/month-status"; // Issue #598: one status wording
 
   // "Today" is the TENANT's day (Issue #1072). The values below start from the store's zone (the
@@ -80,7 +81,6 @@
   let loading = $state(true);
   let loadError = $state("");
   let loaded = $state(false);
-  let refreshing = $state(false);
   let monthStatuses: MonthStatus[] = $state([]);
   let earliestYear = $state(initYear);
 
@@ -303,17 +303,14 @@
     }
   }
 
-  /** After a write and for „Aktualisieren“: year, persons of the month in view and the deferred note. */
+  /** After every write: year, persons of the month in view and the deferred note (H-09: no manual refresh button). */
   async function refresh() {
-    refreshing = true;
     try {
       await fetchYear();
       if (selectedMonth !== null) await fetchDetail(selectedMonth);
       await loadDeferred();
     } catch (e) {
       toasts.error(errorText(e, "Die Daten konnten nicht aktualisiert werden."));
-    } finally {
-      refreshing = false;
     }
   }
 
@@ -578,20 +575,7 @@
 <!-- Phase 73-05 (D-05): data-testid surface for the admin Monatsabschluss flows. `display: contents`
      keeps the page layout intact while exposing a stable page-root selector to the e2e specs. -->
 <div data-testid="month-close-page" style="display: contents;">
-  <PageHead title={pageLabel("/admin/month-close")} hint="Monat prüfen, korrigieren und sperren">
-    {#snippet actions()}
-      <button
-        type="button"
-        class="btn btn-secondary"
-        onclick={refresh}
-        disabled={loading || refreshing}
-        aria-busy={refreshing}
-      >
-        {#if refreshing}<Spinner size={14} />{/if}
-        Aktualisieren
-      </button>
-    {/snippet}
-  </PageHead>
+  <PageHead title={pageLabel("/admin/month-close")} hint="Monat prüfen, korrigieren und sperren" />
 
   <CloseStepper
     steps={["Prüfen", "Korrigieren", "Bestätigen", "Sperren"]}
@@ -603,11 +587,11 @@
       <Note tone={deferredTone}>
         <b>{deferred.severity === "CRITICAL" ? "Dringend: " : ""}Monatsabschluss überfällig.</b>
         {deferred.employeeCount === 1
-          ? "1 Mitarbeiter hat"
-          : `${deferred.employeeCount} Mitarbeiter haben`}
+          ? `${personsLabel(1)} hat`
+          : `${personsLabel(deferred.employeeCount)} haben`}
         einen offenen Monatsabschluss. Ältester offener Monat:
         <b>{monthLabel(deferred.oldestOpenMonth)}</b>
-        ({deferred.monthsBehind === 1 ? "1 Monat" : `${deferred.monthsBehind} Monate`} Rückstand).
+        ({monthsLabel(deferred.monthsBehind)} Rückstand).
         {#if deferred.gapCount > 0}
           {deferred.gapCount === 1
             ? "1 fehlender Tageseintrag blockiert"
@@ -617,7 +601,7 @@
       <div class="mc-deferred-list">
         <ListWidget
           listId="verwalten.monatsabschluss.verschoben"
-          title="Betroffene Mitarbeiter"
+          title="Betroffene Personen"
           items={deferred.employees}
           itemKey={(e) => e.employeeId}
           testId="month-close-deferred-list"
