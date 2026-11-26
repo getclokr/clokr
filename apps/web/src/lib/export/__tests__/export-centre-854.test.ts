@@ -72,7 +72,7 @@ describe("exportHistoryRows", () => {
       }),
     ]);
     expect(r.kind).toBe("DATEV-Export einer Person");
-    expect(r.scope).toBe("Muster, Anna · September 2026");
+    expect(r.scope).toBe("Anna Muster · September 2026");
   });
 
   it("writes a month range of the period exports", () => {

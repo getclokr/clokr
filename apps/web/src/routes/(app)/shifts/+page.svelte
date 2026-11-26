@@ -949,7 +949,7 @@
           } else if (data?.code === "SHIFT_CONFLICT_UNAVAILABILITY") {
             toasts.error(
               data?.message ??
-                'Mitarbeiter ist am gewählten Tag nicht verfügbar. Über Klick + „Trotzdem zuweisen" zuweisen.',
+                "Die Person ist an diesem Tag nicht verfügbar. Öffne die Zelle und wähle „Trotzdem zuweisen“.",
             );
           } else if (data?.code === "SHIFT_OUTSIDE_STORE_HOURS") {
             toasts.error(
@@ -958,8 +958,7 @@
             );
           } else {
             toasts.error(
-              data?.message ??
-                "Schicht-Konflikt — Mitarbeiter hat Urlaub oder Abwesenheit am gewählten Tag.",
+              data?.message ?? "Die Person hat an diesem Tag eine genehmigte Abwesenheit.",
             );
           }
         } else {
@@ -1031,7 +1030,7 @@
         } else if (data?.code === "SHIFT_CONFLICT_UNAVAILABILITY") {
           toasts.error(
             data?.message ??
-              'Mitarbeiter ist am Zieltag nicht verfügbar. Über Klick + „Trotzdem zuweisen" zuweisen.',
+              "Die Person ist am Zieltag nicht verfügbar. Öffne die Zelle und wähle „Trotzdem zuweisen“.",
           );
         } else if (data?.code === "SHIFT_OUTSIDE_STORE_HOURS") {
           toasts.error(
@@ -1039,7 +1038,7 @@
               'Zielzeit liegt außerhalb der Öffnungszeiten. Über Klick + „Trotzdem zuweisen" zuweisen.',
           );
         } else {
-          toasts.error(data?.message ?? "Schicht-Konflikt — Mitarbeiter hat Urlaub am Zieltag.");
+          toasts.error(data?.message ?? "Die Person hat am Zieltag eine genehmigte Abwesenheit.");
         }
       } else {
         toasts.error(rosterRequestError(err, "Verschieben fehlgeschlagen."));
@@ -1144,9 +1143,15 @@
     return closedView.days.has(dow) || coverageByDate.get(iso.slice(0, 10))?.closed === true;
   }
   // Issue #923 — the tooltip of a shift pill (grid and day view); plain words, no emoji.
+  // Issue #994 (N-30, D-994-13): the conflict comes first, also on a past day, and names the approved
+  // absence (the API flags a shift when ANY approved leave request overlaps it, not only Urlaub).
   function shiftTitle(s: Shift, iso: string): string {
-    if (isPastDay(iso)) return "Schicht in der Vergangenheit (nur lesen)";
-    if (s.conflictsWithLeave) return "Konflikt mit Urlaub – bitte überprüfen oder entfernen";
+    const past = isPastDay(iso);
+    if (s.conflictsWithLeave) {
+      const conflict = "Konflikt mit einer genehmigten Abwesenheit – bitte prüfen oder entfernen";
+      return past ? `${conflict} · nur lesen` : conflict;
+    }
+    if (past) return "Schicht in der Vergangenheit (nur lesen)";
     const base = "Klicken zum Bearbeiten, ziehen zum Verschieben";
     // Issue #589 (D-589-07): a shift on a day the fixed or flexible contract leaves free gets a quiet
     // hint, never the conflict styling (#950) and never a block.
@@ -1799,7 +1804,7 @@
                       {shiftLabel(s)}
                       {#if s.conflictsWithLeave}
                         <span class="sp-mark" aria-hidden="true">!</span>
-                        <span class="sr-only">Konflikt mit Urlaub</span>
+                        <span class="sr-only">Konflikt mit einer genehmigten Abwesenheit</span>
                       {/if}
                     </button>
                   {/each}
@@ -1953,7 +1958,7 @@
                       {shiftLabel(s)}
                       {#if s.conflictsWithLeave}
                         <span class="sp-mark" aria-hidden="true">!</span>
-                        <span class="sr-only">Konflikt mit Urlaub</span>
+                        <span class="sr-only">Konflikt mit einer genehmigten Abwesenheit</span>
                       {/if}
                     </button>
                   {:else if isClosedDay(dayIso)}
@@ -1997,7 +2002,10 @@
           <ul class="sp-legend" aria-label="Legende">
             <li><span class="sp-key sp-key--shift"></span>Schicht</li>
             <li><span class="sp-key sp-key--under"></span>{ROSTER_LEGEND_PROBLEMS.under}</li>
-            <li><span class="sp-key sp-key--conflict"></span>{ROSTER_LEGEND_PROBLEMS.conflict}</li>
+            <li>
+              <span class="sp-key sp-key--conflict" aria-hidden="true">!</span
+              >{ROSTER_LEGEND_PROBLEMS.conflict}
+            </li>
             <li>
               <span class="sp-key" style:background="var({leaveTypeColor('VACATION').fill})"
               ></span>Urlaub
@@ -2790,11 +2798,9 @@
     color: var(--text);
     padding-right: 28px;
   }
-  .sp-mark {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    translate: 0 -50%;
+  /* The "!" of a conflict shift and the legend key that explains it are one disc (Issue #994, N-30). */
+  .sp-mark,
+  .sp-key--conflict {
     width: 16px;
     height: 16px;
     border-radius: 50%;
@@ -2804,6 +2810,13 @@
     color: var(--card);
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
+  }
+  .sp-mark {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    translate: 0 -50%;
   }
 
   /* Absence in a cell: the colour pair of leave-colors.ts (set by the availBadge snippet). */
@@ -2923,8 +2936,11 @@
   .sp-key--shift {
     background: var(--brand);
   }
+  /* After .sp-key so the disc size of the shared rule above wins over the 10 px square. */
   .sp-key--conflict {
-    background: var(--warn);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
   }
   .sp-key--under {
     background: var(--bad);

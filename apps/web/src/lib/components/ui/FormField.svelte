@@ -26,7 +26,7 @@
      * Issue #1058: an explanation as an info symbol next to the label. `help` stays the visible
      * line for text that must stay visible (a deadline, a lock, a warning, a consequence).
      */
-    hint?: string;
+    hint?: string | string[];
     error?: string;
     required?: boolean;
     field: Snippet<[FieldContext]>;

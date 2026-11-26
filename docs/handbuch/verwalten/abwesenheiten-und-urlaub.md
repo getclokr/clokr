@@ -31,7 +31,7 @@ Der Anspruch einer Person ist immer mindestens der gesetzliche Mindesturlaub. Be
 ### Krankmeldung
 
 - **Mitarbeitende dürfen eine Krankmeldung selbst eintragen**.
-- **Nachweispflicht nach (Kalendertagen)**: ab wann ein ärztlicher Nachweis dokumentiert wird. Standard sind 3 Kalendertage (§ 5 Abs. 1 EFZG), 0 heißt ab dem ersten Tag. Das betrifft nur die Dokumentation des Nachweises. Für die Gutschrift bei Krankheit im Urlaub (§ 9 BUrlG) spielt der Wert keine Rolle.
+- **Nachweispflicht nach (Kalendertagen)**: Dauert eine Krankheit länger als so viele Kalendertage, wird ein ärztlicher Nachweis dokumentiert. Standard und Höchstwert sind 3, 0 heißt ab dem ersten Tag. Für Krankheit im Urlaub gilt der Wert nicht: Ein Urlaubstag wird nur mit ärztlichem Zeugnis gutgeschrieben. Grundlage: § 5 Abs. 1 EFZG, § 9 BUrlG.
 
 ### Heiligabend und Silvester
 
@@ -39,7 +39,7 @@ Hier legst du fest, ob der 24. und der 31. Dezember als Arbeitstag, als halber f
 
 ## Sonderurlaub
 
-Auf dem Reiter **Sonderurlaub** pflegst du die **Sonderurlaubs-Regeln**: die Anlässe, die dein Unternehmen gewährt, mit Anzahl Tage, Nachweis, Art (gesetzlich oder betrieblich) und Status. Mitarbeitende wählen einen dieser Anlässe, wenn sie Sonderurlaub beantragen.
+Auf dem Reiter **Sonderurlaub** pflegst du die **Sonderurlaubs-Regeln**: die Anlässe, die dein Unternehmen gewährt, mit Anzahl Tage, Nachweis, Art (Vorschlag von Clokr oder eigener Anlass) und Status. Ein Gesetz mit festen Tagen für bestimmte Anlässe gibt es nicht; ob ein Anlass bezahlt frei ist, regeln Arbeits- oder Tarifvertrag (§ 616 BGB). Mitarbeitende wählen einen dieser Anlässe, wenn sie Sonderurlaub beantragen.
 
 1. Klicke auf **Regel anlegen**. Der Dialog heißt „Sonderurlaubsregel anlegen“.
 2. Trage den **Anlass** und optional eine **Beschreibung** ein, zum Beispiel „Ehrenamtlicher Einsatz“.

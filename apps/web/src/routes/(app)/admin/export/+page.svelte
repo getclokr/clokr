@@ -25,6 +25,7 @@
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDayAnchor } from "$lib/utils/tenant-day";
+  import { comparePersonsByLastName, personNameWithNumber } from "$lib/utils/person-name";
   import { salonContext, showSalonOptions } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions";
   import { addMonths, compareMonths } from "$lib/reports/period-state";
@@ -213,9 +214,10 @@
   }
 
   const personItems = $derived.by(() => {
-    const items = people
-      .map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName} (${p.employeeNumber})` }))
-      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+    // Issue #994 (D-994-10): sorted by last name, labelled „Vorname Nachname · Nr. 5“; never sorted by the label.
+    const items = [...people]
+      .sort(comparePersonsByLastName)
+      .map((p) => ({ value: p.id, label: personNameWithNumber(p) }));
     // A person named by a link but not in the offered list stays visible.
     if (personId !== "" && !items.some((item) => item.value === personId)) {
       items.push({ value: personId, label: "Ausgewählte Person" });

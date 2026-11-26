@@ -258,7 +258,7 @@ describe("D-11/D-12 — unsaved markers on admin/employees/[id]", () => {
   it("WR-01: snapshotsReady is set only after the record is hydrated, inside the try", () => {
     const iVacation = PAGE.indexOf("tenantBreakConfig = cfgRes.status");
     const iReady = PAGE.indexOf("snapshotsReady = true");
-    const iCatch = PAGE.indexOf('loadError = "Fehler beim Laden des Mitarbeiters."');
+    const iCatch = PAGE.indexOf('loadError = "Die Person konnte nicht geladen werden."');
     expect(iVacation).toBeGreaterThan(-1);
     // After the last hydration of page state...
     expect(iReady).toBeGreaterThan(iVacation);

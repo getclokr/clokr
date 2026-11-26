@@ -9,9 +9,12 @@ import {
   ageOn,
   bsSlotMessages,
   bsSlotValuesOf,
+  hoursError,
+  hoursFieldValue,
   inheritedFrom,
   isUnder18,
   minutesError,
+  minutesFromHoursField,
   overCreditNotice,
   pauseMessages,
   pauseValuesOf,
@@ -81,6 +84,62 @@ describe("bounds", () => {
   });
 });
 
+describe("Berufsschule slots are typed in hours and kept in minutes (Issue #994, N-12)", () => {
+  it("hoursFieldValue shows hours with at most two decimals", () => {
+    expect(hoursFieldValue(450)).toBe(7.5);
+    expect(hoursFieldValue(437)).toBe(7.28);
+    expect(hoursFieldValue(480)).toBe(8);
+    expect(hoursFieldValue(null)).toBeNull();
+    expect(hoursFieldValue(undefined)).toBeNull();
+  });
+
+  it("minutesFromHoursField rounds to whole minutes and reads an empty field as null", () => {
+    expect(minutesFromHoursField(7.5)).toBe(450);
+    expect(minutesFromHoursField(7.28)).toBe(437);
+    expect(minutesFromHoursField(Number.NaN)).toBeNull();
+    expect(minutesFromHoursField(null)).toBeNull();
+  });
+
+  it("every 15-minute step between 240 and 3000 survives the round trip", () => {
+    for (let minutes = 240; minutes <= 3000; minutes += 15) {
+      expect(minutesFromHoursField(hoursFieldValue(minutes))).toBe(minutes);
+    }
+  });
+
+  it("the messages speak hours; a value inside the bounds has none", () => {
+    expect(
+      bsSlotMessages({
+        bsSlotFirstLongDayMinutes: 200,
+        bsSlotSecondLongDayMinutes: 450,
+        bsSlotShortDayMinutes: null,
+        bsSlotBlockWeekMinutes: 900,
+      }),
+    ).toEqual({
+      bsSlotFirstLongDayMinutes: "Der Wert muss zwischen 4 und 10 Stunden liegen.",
+      bsSlotBlockWeekMinutes: "Der Wert muss zwischen 20 und 50 Stunden liegen.",
+    });
+    expect(hoursError(450, { min: 240, max: 600 })).toBeUndefined();
+    expect(hoursError(null, { min: 240, max: 600 })).toBeUndefined();
+  });
+
+  it("the inherited-from line and the over-credit notice name hours only", () => {
+    expect(inheritedFrom({ pattern: null, tenant: 450, dailySoll: 360 }, false)).not.toMatch(/Min/);
+    const notice = overCreditNotice(540, 450, { pattern: null, tenant: null, dailySoll: null });
+    expect(notice).toContain("9:00 h");
+    expect(notice).toContain("7:30 h");
+    expect(notice).not.toMatch(/Min/);
+  });
+
+  it("negative control: pauses and Phorest still speak minutes", () => {
+    expect(pauseMessages({ breakOver6hOverride: 20, breakOver9hOverride: null })).toEqual({
+      breakOver6hOverride: "Der Wert muss zwischen 30 und 120 Minuten liegen.",
+    });
+    expect(
+      phorestMessages({ phorestPrepMinutesOverride: 31, phorestWrapupMinutesOverride: 0 }),
+    ).toEqual({ phorestPrepMinutesOverride: "Der Wert muss zwischen 0 und 30 Minuten liegen." });
+  });
+});
+
 describe("under 18 (§ 11 JArbSchG)", () => {
   const now = new Date(2026, 10, 12);
 
@@ -105,13 +164,13 @@ describe("under 18 (§ 11 JArbSchG)", () => {
 describe("inheritance wording of the Berufsschule slots", () => {
   it("names the first lower layer that holds a value", () => {
     expect(inheritedFrom({ pattern: 480, tenant: 420, dailySoll: 360 }, false)).toBe(
-      "Erbt aus: Muster = 480 Min (8 h)",
+      "Erbt aus: Muster = 8:00 h",
     );
     expect(inheritedFrom({ pattern: null, tenant: 450, dailySoll: 360 }, false)).toBe(
-      "Erbt aus: Unternehmen = 450 Min (7,5 h)",
+      "Erbt aus: Unternehmen = 7:30 h",
     );
     expect(inheritedFrom({ pattern: null, tenant: null, dailySoll: 360 }, false)).toBe(
-      "Erbt aus: Tages-Soll = 360 Min (6 h)",
+      "Erbt aus: Tages-Soll = 6:00 h",
     );
   });
 

@@ -7,7 +7,7 @@
 // runtime, never in the source).
 // (c): no file outside the admin set-up areas mentions the hint, "Zusatzmodul" or "Anbieter
 // schaltet".
-// (d)-(g) (Plan 566-10): the other three spots — API-Schlüssel and Präsenz-Quellen (panels of System >
+// (d)-(g) (Plan 566-10): the other three spots — API-Schlüssel and WLAN-Adapter (panels of System >
 // Integrationen) and the Branch-ID field (the connection panel of System > Phorest, plan 854-16) — plus the total.
 // (i) (Issue #563, D-18): the fifth spot — the salon create action on /admin/salons.
 // (j) (Issue #624): the sixth spot — the create action of /admin/roles.
@@ -176,8 +176,10 @@ describe("module teaser placement — the other three set-up spots (Phase 566-10
     expect(apiKeys).toContain("toasts.error(");
   });
 
-  it("(e) Präsenz-Quellen: one HARDWARE_CLOCK hint, the create action only in the {:else}, list and revoke stay", () => {
+  it("(e) WLAN-Adapter: one HARDWARE_CLOCK hint, the create action only in the {:else}, list and revoke stay", () => {
     expect(presence.match(/<ModuleHint\s+module="HARDWARE_CLOCK"/g)).toHaveLength(1);
+    // Issue #994 (N-16): the hint names the adapters in the owner's word.
+    expect(presence).toContain('subject="WLAN-Adapter"');
     const [hintBranch, createBranch] = branchesOf(presence, "hardwareBooked === false");
     expect(hintBranch).toContain("<ModuleHint");
     expect(hintBranch).not.toContain("openCreateSource");

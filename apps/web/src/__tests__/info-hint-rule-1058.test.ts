@@ -299,8 +299,9 @@ export const VISIBLE_HELP: VisibleHelp[] = [
   {
     file: "lib/components/employees/detail/ZugangTab.svelte",
     component: "ToggleField",
-    prefix: "Diese Aktion wird im Audit-Log protokoll",
-    reason: "Folge: the irreversible hard delete is written to the audit log.",
+    prefix: "Diese Aktion steht danach im Protokoll.",
+    reason:
+      "Folge: the irreversible hard delete is written to the audit log (shown as the Protokoll).",
   },
   {
     file: "routes/(app)/inbox/+page.svelte",

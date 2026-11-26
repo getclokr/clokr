@@ -15,6 +15,8 @@ Die Wochenansicht ist ein Raster: eine Zeile pro Person, eine Spalte pro Wochent
 
 Unter der Wochenansicht erklärt eine Legende die Markierungen: Schicht, Unterbesetzung, Hinweis, Urlaub, Berufsschule und geschlossen. Auf schmalen Bildschirmen gibt es zusätzlich eine Tagesansicht.
 
+Ein Ausrufezeichen an einer Schicht heißt: Die Person hat an diesem Tag eine genehmigte Abwesenheit. Prüf die Schicht oder entferne sie.
+
 <!-- SCREENSHOT file=bilder/team-dienstplan-01.png role=manager url=/team/dienstplan show="Der Dienstplan im Reiter Woche mit Vorlagen, Personenzeilen, Schichten und der Besetzung über den Tagen" -->
 
 ![Der Dienstplan im Reiter Woche mit Vorlagen, Personenzeilen, Schichten und der Besetzung über den Tagen](../bilder/team-dienstplan-01.png)

@@ -123,6 +123,14 @@ describe("Verfügbarkeiten", () => {
     await waitFor(() => expect(bar()).toBeNull());
   });
 
+  it("Issue #994 (N-14, N-15): the help names who overrides by what they may do and says „Protokoll“", () => {
+    renderWithTheme(DienstplanSettingsPanel, { config: { availabilityEnabled: true } });
+    const help = document.querySelector(".tf-help")?.textContent ?? "";
+    expect(help).toContain("wer den Dienstplan bearbeitet");
+    expect(help).toContain("Das steht dann im Protokoll.");
+    expect(help).not.toMatch(/Vorgesetzte|Audit/);
+  });
+
   it("does not touch the navigation while nothing is saved or when the save is refused", async () => {
     put.mockRejectedValue(new Error("Kein Zugriff."));
     renderWithTheme(DienstplanSettingsPanel, { config: { availabilityEnabled: true } });

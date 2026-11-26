@@ -3,6 +3,8 @@
 // only while exactly one salon is active and the package allows a coupling (Issue #65, #566), an invalid value
 // blocks the save, and the staff mapping pre-fills the server's suggestion without calling it unsaved. The route
 // page cannot be mounted, so these mount tests are the panel's gate.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
@@ -290,7 +292,7 @@ describe("the load", () => {
       branchId: null,
     });
     expect(screen.queryByLabelText(/Vorbereitungszeit/)).toBeNull();
-    expect(screen.queryByText("Mitarbeiter-Zuordnung")).toBeNull();
+    expect(screen.queryByText("Zuordnung der Personen")).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Verbindung testen" }) as HTMLButtonElement).disabled,
     ).toBe(true);
@@ -303,7 +305,9 @@ describe("the connection test", () => {
     post.mockResolvedValueOnce({ ok: true, staffCount: 4, branchName: "Mitte" });
     await fireEvent.click(screen.getByRole("button", { name: "Verbindung testen" }));
     expect(
-      await screen.findByText(/Verbindung erfolgreich: Branch „Mitte“, 4 Mitarbeiter/),
+      await screen.findByText(
+        "Verbindung erfolgreich: Branch „Mitte“, 4 Personen in Phorest gefunden.",
+      ),
     ).toBeTruthy();
     expect(screen.getByTestId("h-test").textContent).toBe("true");
 
@@ -315,13 +319,44 @@ describe("the connection test", () => {
   });
 });
 
+describe("the connection test counts people in plain words (Issue #994, N-04)", () => {
+  it("says „1 Person“, leaves the count out when the server sends none", async () => {
+    await mount();
+    post.mockResolvedValueOnce({ ok: true, staffCount: 1 });
+    await fireEvent.click(screen.getByRole("button", { name: "Verbindung testen" }));
+    expect(
+      await screen.findByText("Verbindung erfolgreich: 1 Person in Phorest gefunden."),
+    ).toBeTruthy();
+
+    post.mockResolvedValueOnce({ ok: true, branchName: "Mitte" });
+    await fireEvent.click(screen.getByRole("button", { name: "Verbindung testen" }));
+    expect(await screen.findByText("Verbindung erfolgreich: Branch „Mitte“.")).toBeTruthy();
+
+    post.mockResolvedValueOnce({ ok: true });
+    await fireEvent.click(screen.getByRole("button", { name: "Verbindung testen" }));
+    expect(await screen.findByText("Verbindung erfolgreich.")).toBeTruthy();
+  });
+});
+
 describe("the staff mapping", () => {
+  it("is titled „Zuordnung der Personen“ with the heads „In Phorest“ and „Person in Clokr“ (Issue #994, N-04)", async () => {
+    await mount();
+    const table = await screen.findByRole("table");
+    expect(screen.getByRole("heading", { name: "Zuordnung der Personen" })).toBeTruthy();
+    const heads = within(table)
+      .getAllByRole("columnheader")
+      .map((head) => head.textContent?.trim());
+    expect(heads).toEqual(expect.arrayContaining(["In Phorest", "Person in Clokr"]));
+    const ben = within(table).getByLabelText("Person in Clokr für Ben Probe");
+    expect(
+      within(ben as HTMLElement).getByRole("option", { name: "Person auswählen …" }),
+    ).toBeTruthy();
+  });
+
   it("pre-fills the suggestion without counting it as unsaved and reports the figures", async () => {
     await mount();
     const table = await screen.findByRole("table");
-    const ben = within(table).getByLabelText(
-      "Clokr-Mitarbeiter für Ben Probe",
-    ) as HTMLSelectElement;
+    const ben = within(table).getByLabelText("Person in Clokr für Ben Probe") as HTMLSelectElement;
     expect(ben.value).toBe("e2");
     expect(within(table).getByText("Zugeordnet")).toBeTruthy();
     expect(within(table).getByText("Vorschlag")).toBeTruthy();
@@ -333,9 +368,7 @@ describe("the staff mapping", () => {
   it("counts a changed selection, saves one row and moves the baseline", async () => {
     await mount();
     const table = await screen.findByRole("table");
-    const ben = within(table).getByLabelText(
-      "Clokr-Mitarbeiter für Ben Probe",
-    ) as HTMLSelectElement;
+    const ben = within(table).getByLabelText("Person in Clokr für Ben Probe") as HTMLSelectElement;
     await fireEvent.change(ben, { target: { value: "e1" } });
     expect(screen.getByTestId("h-changes").textContent).toBe("1");
 
@@ -358,9 +391,22 @@ describe("the staff mapping", () => {
     await fireEvent.click(within(table).getByRole("button", { name: "Aufheben" }));
     expect(del).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain(
+      "Künftige Schichten dieser Person werden dann nicht mehr importiert.",
+    );
     await fireEvent.click(within(dialog).getByRole("button", { name: "Aufheben" }));
     await waitFor(() => expect(del).toHaveBeenCalledWith("/integrations/phorest/mappings/ps-1"));
     await waitFor(() => expect(screen.getByTestId("h-mapped").textContent).toBe("0/2"));
     expect(screen.getByTestId("h-changes").textContent).toBe("0");
+  });
+});
+
+describe("the panel's shown texts", () => {
+  it("never say a standalone Mitarbeiter (Issue #994, N-04)", () => {
+    const source = readFileSync(join(__dirname, "..", "PhorestConnectionPanel.svelte"), "utf8")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|\s)\/\/.*$/gm, "$1");
+    expect(source).not.toMatch(/Mitarbeiter(?!ende)/);
   });
 });

@@ -369,9 +369,9 @@ describe("WeekPatternsPanel", () => {
 
   it("shows one select per person and weekday, filled from the stored pattern", () => {
     mount();
-    expect(cell("Berg, Anna Montag").value).toBe("tpl-early");
-    expect(cell("Berg, Anna Dienstag").value).toBe("");
-    expect(cell("Claus, Ben Freitag").value).toBe("tpl-late");
+    expect(cell("Anna Berg Montag").value).toBe("tpl-early");
+    expect(cell("Anna Berg Dienstag").value).toBe("");
+    expect(cell("Ben Claus Freitag").value).toBe("tpl-late");
     // Mo-Fr columns carry the average Soll hint, Sa/So do not.
     const table = screen.getByRole("table", { name: /Wochenmuster/ });
     expect(table.textContent).toContain("Mo (Ø 6,0 h)");
@@ -388,7 +388,7 @@ describe("WeekPatternsPanel", () => {
     mount();
     expect(screen.queryByRole("button", { name: "Muster speichern" })).toBeNull();
     expect(put).not.toHaveBeenCalled();
-    await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
+    await fireEvent.change(cell("Anna Berg Dienstag"), { target: { value: "tpl-late" } });
     // A select change alone never writes.
     expect(put).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Muster speichern" })).toBeTruthy();
@@ -402,7 +402,7 @@ describe("WeekPatternsPanel", () => {
     vi.setSystemTime(new Date("2026-06-15T22:30:00Z"));
     try {
       mount();
-      await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
+      await fireEvent.change(cell("Anna Berg Dienstag"), { target: { value: "tpl-late" } });
       await fireEvent.click(screen.getByRole("button", { name: "Muster speichern" }));
       await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     } finally {
@@ -427,14 +427,14 @@ describe("WeekPatternsPanel", () => {
   it("a failed save keeps the unsaved edit and its bar (T-109-24)", async () => {
     put.mockRejectedValue(new Error("boom"));
     mount();
-    await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
+    await fireEvent.change(cell("Anna Berg Dienstag"), { target: { value: "tpl-late" } });
     await fireEvent.click(screen.getByRole("button", { name: "Muster speichern" }));
     await waitFor(() =>
       expect(error).toHaveBeenCalledWith("Speichern fehlgeschlagen für alle 1 Personen."),
     );
     expect(success).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Muster speichern" })).toBeTruthy();
-    expect(cell("Berg, Anna Dienstag").value).toBe("tpl-late");
+    expect(cell("Anna Berg Dienstag").value).toBe("tpl-late");
   });
 
   it("a partly failed save clears only the person that succeeded", async () => {
@@ -442,8 +442,8 @@ describe("WeekPatternsPanel", () => {
       url.includes("emp-2") ? Promise.reject(new Error("boom")) : Promise.resolve({}),
     );
     mount();
-    await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
-    await fireEvent.change(cell("Claus, Ben Montag"), { target: { value: "tpl-early" } });
+    await fireEvent.change(cell("Anna Berg Dienstag"), { target: { value: "tpl-late" } });
+    await fireEvent.change(cell("Ben Claus Montag"), { target: { value: "tpl-early" } });
     expect(screen.getByText("Nicht gespeichert · 2 Änderungen")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Muster speichern" }));
     await waitFor(() =>
@@ -456,9 +456,9 @@ describe("WeekPatternsPanel", () => {
 
   it("discards the edits back to the stored pattern", async () => {
     mount();
-    await fireEvent.change(cell("Berg, Anna Dienstag"), { target: { value: "tpl-late" } });
+    await fireEvent.change(cell("Anna Berg Dienstag"), { target: { value: "tpl-late" } });
     await fireEvent.click(screen.getByRole("button", { name: "Verwerfen" }));
-    expect(cell("Berg, Anna Dienstag").value).toBe("");
+    expect(cell("Anna Berg Dienstag").value).toBe("");
     expect(screen.queryByRole("button", { name: "Muster speichern" })).toBeNull();
   });
 });

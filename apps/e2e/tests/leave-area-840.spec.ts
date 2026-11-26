@@ -1106,8 +1106,8 @@ test.describe("Abwesenheiten area (Issue #840)", () => {
     await expect(who).toHaveValue("");
     await expect(page.locator("#f-type")).toBeHidden();
     await expect(page.locator("#f-start")).toBeHidden();
-    await chooseFromCombobox(who, page.getByRole("option", { name: /Zeile, Formular/ }), "Zeile");
-    await expect(who).toHaveValue(/Zeile, Formular/);
+    await chooseFromCombobox(who, page.getByRole("option", { name: /Formular Zeile/ }), "Zeile");
+    await expect(who).toHaveValue(/Formular Zeile/);
     await expect(page.locator("#f-type")).toBeVisible();
     // The person's balance block and the colleague hint load after the pick and grow (re-centre) the
     // dialog: the four boxes are read in ONE evaluate, so they come from the same layout.

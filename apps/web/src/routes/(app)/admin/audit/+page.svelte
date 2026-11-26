@@ -37,6 +37,11 @@
   } from "$lib/audit/list-url-state";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
+  import {
+    comparePersonsByLastName,
+    personName,
+    personNameWithNumber,
+  } from "$lib/utils/person-name";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import RetentionSection from "$lib/components/admin/protokoll/RetentionSection.svelte";
   import Chip, { type ChipTone } from "$components/ui/Chip.svelte";
@@ -182,14 +187,13 @@
   }
 
   const personItems = $derived.by(() => {
+    // Issue #994 (D-994-10): sorted by last name, labelled „Vorname Nachname · Nr. 5“; never sorted by the label.
     const items = [
       { value: ALL_PEOPLE, label: "Alle Personen" },
-      ...people
-        .map((p) => ({
-          value: p.id,
-          label: `${p.lastName}, ${p.firstName} (${p.employeeNumber})`,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label, "de")),
+      ...[...people].sort(comparePersonsByLastName).map((p) => ({
+        value: p.id,
+        label: personNameWithNumber(p),
+      })),
     ];
     // A person named by a link but not in the offered list stays selectable and visible.
     if (urlFilters.employeeId && !items.some((item) => item.value === urlFilters.employeeId)) {
@@ -423,8 +427,8 @@
                 <Chip tone={actionTone(row.action)}>{actionLabel(row.action)}</Chip>
               {:else if column.key === "person"}
                 {#if row.affectedEmployee}
-                  {row.affectedEmployee.lastName}, {row.affectedEmployee.firstName}
-                  <span class="audit-muted">({row.affectedEmployee.employeeNumber})</span>
+                  {personName(row.affectedEmployee)}
+                  <span class="audit-muted">· Nr. {row.affectedEmployee.employeeNumber}</span>
                 {:else}
                   <span class="audit-muted">—</span>
                 {/if}

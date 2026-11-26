@@ -51,7 +51,7 @@
   };
 
   const API_SCOPES = [
-    { scope: "read:employees", label: "Mitarbeiter lesen" },
+    { scope: "read:employees", label: "Personen lesen" },
     { scope: "read:time-entries", label: "Zeiteinträge lesen" },
     { scope: "write:time-entries", label: "Zeiteinträge schreiben" },
     { scope: "read:leave", label: "Abwesenheiten lesen" },

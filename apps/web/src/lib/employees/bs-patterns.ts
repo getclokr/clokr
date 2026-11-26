@@ -9,7 +9,7 @@
 import {
   BS_BLOCK_BOUNDS,
   BS_DAILY_BOUNDS,
-  minutesError,
+  hoursError,
   type BsSlotKey,
 } from "$lib/employees/overrides-form";
 import { sameSettingValue } from "$lib/settings/section-state";
@@ -215,7 +215,7 @@ export function patternMessages(draft: PatternDraft): PatternMessages {
     out.validUntil = "„Gültig bis“ darf nicht vor „Gültig ab“ liegen.";
   }
   for (const key of PATTERN_SLOT_KEYS) {
-    const message = minutesError(draft[key], SLOT_BOUNDS[key]);
+    const message = hoursError(draft[key], SLOT_BOUNDS[key]);
     if (message) out.slots[key] = message;
   }
   return out;

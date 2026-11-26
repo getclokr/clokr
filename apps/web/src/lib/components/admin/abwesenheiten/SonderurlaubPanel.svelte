@@ -6,7 +6,12 @@
   Loads `GET /special-leave/rules` itself, the first time the tab is shown (a person who never opens it costs no
   request). Writes are `POST /special-leave/rules` and `PUT /special-leave/rules/:id`; each acts at once and
   answers with a toast (docs/ADMIN_STRUCTURE.md §3.2.1: a list action saves instantly, there is no section
-  button). A rule is created and edited in a Dialog; the name of a statutory rule (§ 616 BGB) cannot be changed.
+  button). A rule is created and edited in a Dialog; the name of a suggested occasion cannot be changed.
+
+  Issue #994 (N-17): `isStatutory` (API) marks the occasions Clokr creates itself. They are suggestions, not
+  a legal entitlement: no statute names occasions or a number of days, and § 616 BGB can be excluded by
+  contract. The shown words are „Vorschlag“ / „Eigener Anlass“; the stored description of a suggestion is
+  Issue A of #994 (API seed) and is shown as it comes - the web never hides a stored text by comparing it.
 
   Props:
     active - true while the tab is the selected one
@@ -158,7 +163,10 @@
   <div class="hint-row">
     <h2 class="settings-group-title" id="abwesenheiten-sonderurlaub-title">Sonderurlaubs-Regeln</h2>
     <InfoHint
-      text="Gesetzliche Anlässe (§ 616 BGB) werden automatisch angelegt. Tage und Nachweispflicht kannst du anpassen und zusätzliche betriebliche Anlässe hinzufügen."
+      text={[
+        "Clokr legt übliche Anlässe als Vorschlag an. Tage und Nachweis passt du an, eigene Anlässe legst du dazu an.",
+        "Feste Tage für bestimmte Anlässe schreibt kein Gesetz vor: § 616 BGB erhält den Lohn nur bei einer kurzen Verhinderung aus einem persönlichen Grund, nennt keine Anlässe und kann im Arbeits- oder Tarifvertrag ausgeschlossen sein.",
+      ]}
       label={hintLabel("Sonderurlaubs-Regeln")}
     />
   </div>
@@ -175,7 +183,7 @@
     <EmptyState
       icon="calendar"
       title="Noch keine Sonderurlaubsregeln"
-      description="Lege einen betrieblichen Anlass an, z. B. einen ehrenamtlichen Einsatz."
+      description="Leg einen eigenen Anlass an, z. B. einen ehrenamtlichen Einsatz."
     />
   {:else}
     <DataTable
@@ -193,7 +201,7 @@
           {row.requiresProof ? "Ja" : "Nein"}
         {:else if column.key === "kind"}
           <Chip tone={row.isStatutory ? "neutral" : "brand"}>
-            {row.isStatutory ? "Gesetzlich" : "Betrieblich"}
+            {row.isStatutory ? "Vorschlag" : "Eigener Anlass"}
           </Chip>
         {:else if column.key === "status"}
           <Chip tone={row.isActive ? "ok" : "neutral"}>
@@ -215,8 +223,8 @@
   title={editing === null
     ? "Sonderurlaubsregel anlegen"
     : statutory
-      ? "Gesetzliche Regel bearbeiten"
-      : "Betriebliche Regel bearbeiten"}
+      ? "Vorgeschlagenen Anlass bearbeiten"
+      : "Eigenen Anlass bearbeiten"}
 >
   <form
     id="special-leave-form"
@@ -230,7 +238,9 @@
     <FormField
       label="Anlass"
       required
-      help={statutory ? "Der Name gesetzlicher Regeln kann nicht geändert werden." : undefined}
+      help={statutory
+        ? "Den Namen eines vorgeschlagenen Anlasses kannst du nicht ändern."
+        : undefined}
     >
       {#snippet field({ id, describedBy, invalid })}
         <input

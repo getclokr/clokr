@@ -105,7 +105,7 @@ test.describe("Tracking exemption — admin toggle (Phase 76.7 D-26)", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("§ 18 ArbZG");
     await expect(dialog).toContainText("BUrlG");
-    await expect(dialog).toContainText("Audit-Log");
+    await expect(dialog).toContainText("Protokoll");
 
     // Confirm → PATCH + toast.
     await dialog.getByRole("button", { name: "Bestätigen" }).click();

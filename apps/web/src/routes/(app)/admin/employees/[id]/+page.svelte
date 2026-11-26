@@ -134,7 +134,7 @@
       // The record and everything the tabs read are hydrated: the unsaved registration may arm now.
       snapshotsReady = true;
     } catch {
-      loadError = "Fehler beim Laden des Mitarbeiters.";
+      loadError = "Die Person konnte nicht geladen werden.";
     } finally {
       loading = false;
     }

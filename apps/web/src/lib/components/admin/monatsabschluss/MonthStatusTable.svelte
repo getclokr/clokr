@@ -264,9 +264,9 @@
     {/if}
     {#if ms.status === "ready"}
       <Note tone="warn">
-        Endgültiger Abschluss: Mit dem Abschluss werden alle Zeiteinträge dieses Monats gesperrt und
-        das Audit-Log fortgeschrieben. Änderungen sind danach nur noch durch Storno-Buchungen
-        möglich.
+        Endgültiger Abschluss: Mit dem Abschluss werden alle Zeiteinträge dieses Monats gesperrt;
+        das steht im Protokoll. Danach ändert sich der Monat nur noch über eine Korrektur im
+        laufenden Monat oder ein Entsperren mit Grund.
       </Note>
     {/if}
     {#if closesBlind(employees)}

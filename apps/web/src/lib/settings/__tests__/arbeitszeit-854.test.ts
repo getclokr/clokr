@@ -23,6 +23,7 @@ import {
   openEntriesFrom,
   openEntriesMessages,
   openEntriesWire,
+  VOCATIONAL_SLOT_FIELDS,
   retroFrom,
   retroMessages,
   retroWire,
@@ -253,12 +254,30 @@ describe("Berufsschule", () => {
     const bad = vocationalSlotsMessages({
       bsSlotFirstLongDayMinutes: 239,
       bsSlotSecondLongDayMinutes: 601,
-      bsSlotShortDayMinutes: 300.5,
+      bsSlotShortDayMinutes: 200,
       bsSlotBlockWeekMinutes: 1199,
     });
     expect(messageCount(bad)).toBe(4);
-    expect(bad.bsSlotShortDayMinutes).toContain("ganze Zahl");
-    expect(bad.bsSlotBlockWeekMinutes).toContain("1200");
+    // Issue #994 (N-12): the bounds are named in hours, the stored values stay minutes.
+    expect(bad.bsSlotShortDayMinutes).toBe(
+      "Kurztag: Der Wert muss zwischen 4 und 10 Stunden liegen.",
+    );
+    expect(bad.bsSlotBlockWeekMinutes).toBe(
+      "Blockunterricht-Woche: Der Wert muss zwischen 20 und 50 Stunden liegen.",
+    );
+    expect(Object.values(bad).join(" ")).not.toMatch(/Minuten|ganze Zahl/);
+  });
+
+  it("the four labels ask for hours and the wire still sends minutes", () => {
+    expect(VOCATIONAL_SLOT_FIELDS.map((field) => field.label)).toEqual([
+      "1. Berufsschul-Langtag (Stunden)",
+      "2. Berufsschul-Langtag (Stunden)",
+      "Berufsschul-Kurztag (Stunden)",
+      "Blockunterricht-Woche (Stunden)",
+    ]);
+    expect(
+      vocationalSlotsWire({ ...EMPTY, bsSlotFirstLongDayMinutes: 450 }).bsSlotFirstLongDayMinutes,
+    ).toBe(450);
   });
 
   it("an empty field sends an explicit null that clears the company value", () => {

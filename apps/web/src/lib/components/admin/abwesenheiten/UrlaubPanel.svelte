@@ -420,7 +420,7 @@
 
 <SettingsGroup
   title="Krankmeldung"
-  hint="Wer eine Krankmeldung einträgt und ab wann ein Nachweis dokumentiert wird (EFZG)."
+  hint="Wer eine Krankmeldung einträgt und ab wann ein ärztlicher Nachweis dokumentiert wird."
   changes={krankheitChanges}
   errors={messageCount(krankheitMsg)}
   saving={krankheitSaving}
@@ -436,7 +436,11 @@
   />
   <FormField
     label="Nachweispflicht nach (Kalendertagen)"
-    hint="§ 5 Abs. 1 EFZG – „länger als drei Kalendertage“. Standard: 3. 0 = ab dem ersten Tag. Gilt nur für die Nachweis-Dokumentation. Auf die Urlaubsgutschrift bei Krankheit im Urlaub (§ 9 BUrlG) hat dieser Wert keinen Einfluss – dort ist immer ein ärztliches Zeugnis erforderlich."
+    hint={[
+      "Dauert eine Krankheit länger als so viele Kalendertage, wird ein ärztlicher Nachweis dokumentiert. 0 heißt: ab dem ersten Tag. Standard und Höchstwert: 3 – ab dem vierten Kalendertag verlangt das Gesetz den Nachweis.",
+      "Für Krankheit im Urlaub gilt der Wert nicht: Ein Urlaubstag wird nur mit ärztlichem Zeugnis gutgeschrieben.",
+      "Grundlage: § 5 Abs. 1 EFZG, § 9 BUrlG.",
+    ]}
     error={krankheitMsg.sickNoteRequiredAfterDays}
   >
     {#snippet field({ id, describedBy, invalid })}

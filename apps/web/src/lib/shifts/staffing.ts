@@ -83,11 +83,13 @@ export const STAFFING_EXPLANATION =
 /**
  * The roster legend entries that name a problem. A shortfall (`under`) and a shift inside
  * approved leave (`conflict`) are different things and never share a word or a colour
- * (Issue #950): "Konflikt" is reserved for the shift in approved leave.
+ * (Issue #950): "Konflikt" is reserved for the shift in approved leave. The legend says
+ * "Konflikt mit Abwesenheit" (Issue #994, N-30) because the API flags a shift when ANY approved leave
+ * request overlaps it (`flagShiftsConflictingWithLeave`), not only Urlaub.
  */
 export const ROSTER_LEGEND_PROBLEMS = {
   under: staffingLegendUnder(),
-  conflict: "Konflikt",
+  conflict: "Konflikt mit Abwesenheit",
 } as const;
 
 function staffingLegendUnder(): string {

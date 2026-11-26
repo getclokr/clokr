@@ -80,7 +80,13 @@
   <ToggleField
     bind:checked={values.appointmentTimeHintsEnabled}
     label="Termine mit der erfassten Zeit abgleichen"
-    hint="Ist der Abgleich an, sehen Mitarbeitende unter Mein Tag und Zeiten einen Hinweis, wenn ihr letzter Termin eines vergangenen Tages mehr als 15 Minuten nach dem Ausstempeln endet oder sie an einem Tag Termine, aber keine Zeit erfasst haben. Manager sehen ihn unter Aufgaben für die Personen, deren Zeiten sie sehen dürfen. Clokr trägt nie selbst Zeit ein und ändert kein Stundenkonto. Gibt es in deinem Unternehmen einen Betriebsrat, stimm den Abgleich vorher mit ihm ab (§ 87 Abs. 1 Nr. 6 BetrVG). Deine Mitarbeitenden sehen in ihrem Profil, dass abgeglichen wird (Art. 13 DSGVO)."
+    hint={[
+      "Ist der Abgleich an, sehen Mitarbeitende unter Mein Tag und Zeiten einen Hinweis, wenn ihr letzter Termin eines vergangenen Tages mehr als 15 Minuten nach dem Ausstempeln endet oder sie an einem Tag Termine, aber keine Zeit erfasst haben.",
+      "Unter Aufgaben sieht ihn, wer die Zeiten der Person sehen darf.",
+      "Clokr trägt nie selbst Zeit ein und ändert kein Stundenkonto.",
+      "Gibt es in deinem Unternehmen einen Betriebsrat, stimm den Abgleich vorher mit ihm ab (§ 87 Abs. 1 Nr. 6 BetrVG).",
+      "Deine Mitarbeitenden sehen in ihrem Profil, dass abgeglichen wird (Art. 13 DSGVO).",
+    ]}
     disabled={!canEdit || saving}
     testid="arbeitszeit-terminabgleich-enabled"
   />

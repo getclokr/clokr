@@ -247,9 +247,9 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
     apiGet.mockResolvedValue([{ ...PATTERN, bsSlotFirstLongDayMinutes: 450 }]);
     mount({ tenant: { bsSlotShortDayMinutes: 420 }, dailySollMin: 480 });
     await screen.findByText("Muster 1");
-    expect(screen.getByText("Erbt aus: Muster = 450 Min (7,5 h)")).toBeTruthy();
-    expect(screen.getByText("Erbt aus: Unternehmen = 420 Min (7 h)")).toBeTruthy();
-    expect(screen.getByText("Erbt aus: Tages-Soll = 480 Min (8 h)")).toBeTruthy();
+    expect(screen.getByText("Erbt aus: Muster = 7:30 h")).toBeTruthy();
+    expect(screen.getByText("Erbt aus: Unternehmen = 7:00 h")).toBeTruthy();
+    expect(screen.getByText("Erbt aus: Tages-Soll = 8:00 h")).toBeTruthy();
     expect(screen.getByText("Erbt aus: Wochenstunden-Soll der Person")).toBeTruthy();
   });
 
@@ -257,7 +257,8 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
     const onSlotsSaved = vi.fn();
     mount({ onSlotsSaved });
     await screen.findByText("Muster 1");
-    await fireEvent.input(slot("short-day"), { target: { value: "300" } });
+    // Issue #994 (N-12): typed in hours, sent as the same whole minutes as before.
+    await fireEvent.input(slot("short-day"), { target: { value: "5" } });
     const bar = screen.getAllByRole("region", { name: "Speicherleiste" }).at(-1) as HTMLElement;
     await fireEvent.click(within(bar).getByRole("button", { name: "Zeitgutschrift speichern" }));
     await waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1));
@@ -273,11 +274,54 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
     expect(onSlotsSaved).toHaveBeenCalledOnce();
   });
 
+  it("Issue #994 (N-12): a stored 450 shows as 7,5 hours and is sent back as 450 minutes", async () => {
+    mount({ employee: { bsSlotFirstLongDayMinutes: 450 } });
+    await screen.findByText("Muster 1");
+    expect(slot("first-long").value).toBe("7.5");
+    await fireEvent.input(slot("second-long"), { target: { value: "7.25" } });
+    const bar = screen.getAllByRole("region", { name: "Speicherleiste" }).at(-1) as HTMLElement;
+    await fireEvent.click(within(bar).getByRole("button", { name: "Zeitgutschrift speichern" }));
+    await waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1));
+    expect(apiPatch).toHaveBeenCalledWith("/employees/emp-1", {
+      bsSlotFirstLongDayMinutes: 450,
+      bsSlotSecondLongDayMinutes: 435,
+      bsSlotShortDayMinutes: null,
+      bsSlotBlockWeekMinutes: null,
+    });
+  });
+
+  it("Issue #994 (N-12): „Leeren“ still sends null for a slot that was in hours", async () => {
+    mount({ employee: { bsSlotShortDayMinutes: 450 } });
+    await screen.findByText("Muster 1");
+    await fireEvent.click(screen.getByRole("button", { name: "Kurztag leeren und erben" }));
+    const bar = screen.getAllByRole("region", { name: "Speicherleiste" }).at(-1) as HTMLElement;
+    await fireEvent.click(within(bar).getByRole("button", { name: "Zeitgutschrift speichern" }));
+    await waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1));
+    expect(apiPatch.mock.calls[0][1]).toMatchObject({ bsSlotShortDayMinutes: null });
+  });
+
+  it("Issue #994 (N-12): a pattern draft takes hours and PUTs minutes", async () => {
+    apiGet.mockResolvedValue([{ ...PATTERN, bsSlotShortDayMinutes: 450 }]);
+    mount();
+    await screen.findByText("Muster 1");
+    const field = screen.getByLabelText("Berufsschul-Kurztag (Stunden)", {
+      selector: "fieldset input",
+    }) as HTMLInputElement;
+    expect(field.value).toBe("7.5");
+    await fireEvent.input(field, { target: { value: "6" } });
+    await fireEvent.click(
+      within(patternBar()).getByRole("button", { name: "Berufsschultage speichern" }),
+    );
+    await waitFor(() => expect(apiPut).toHaveBeenCalledTimes(1));
+    const body = apiPut.mock.calls[0][1] as { patterns: Record<string, unknown>[] };
+    expect(body.patterns[0].bsSlotShortDayMinutes).toBe(360);
+  });
+
   it("a value outside the bounds is named and blocks the save", async () => {
     mount();
     await screen.findByText("Muster 1");
-    await fireEvent.input(slot("block-week"), { target: { value: "100" } });
-    await screen.findByText("Der Wert muss zwischen 1200 und 3000 Minuten liegen.");
+    await fireEvent.input(slot("block-week"), { target: { value: "10" } });
+    await screen.findByText("Der Wert muss zwischen 20 und 50 Stunden liegen.");
     const bar = screen.getAllByRole("region", { name: "Speicherleiste" }).at(-1) as HTMLElement;
     const save = within(bar).getByRole("button", { name: "Zeitgutschrift speichern" });
     expect((save as HTMLButtonElement).disabled).toBe(true);
@@ -286,7 +330,7 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
   it("warns when the 2nd long day credits more than the 1st one", async () => {
     mount({ dailySollMin: 480 });
     await screen.findByText("Muster 1");
-    await fireEvent.input(slot("second-long"), { target: { value: "540" } });
+    await fireEvent.input(slot("second-long"), { target: { value: "9" } });
     const warn = await screen.findByTestId("bs-slot-over-credit");
     expect(warn.textContent).toContain("übersteigt den 1. Langtag");
   });
@@ -294,7 +338,7 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
   it("„Leeren“ gives the slot back to the next layer", async () => {
     mount({ employee: { bsSlotShortDayMinutes: 300 } });
     await screen.findByText("Muster 1");
-    expect(slot("short-day").value).toBe("300");
+    expect(slot("short-day").value).toBe("5");
     await fireEvent.click(screen.getByRole("button", { name: "Kurztag leeren und erben" }));
     expect(slot("short-day").value).toBe("");
     expect(screen.getAllByRole("region", { name: "Speicherleiste" }).length).toBeGreaterThan(0);
@@ -304,7 +348,7 @@ describe("BerufsschuleSection - Zeitgutschrift Berufsschule", () => {
     apiPatch.mockRejectedValueOnce(new Error("Wert nicht erlaubt."));
     mount();
     await screen.findByText("Muster 1");
-    await fireEvent.input(slot("first-long"), { target: { value: "300" } });
+    await fireEvent.input(slot("first-long"), { target: { value: "5" } });
     const bar = screen.getAllByRole("region", { name: "Speicherleiste" }).at(-1) as HTMLElement;
     await fireEvent.click(within(bar).getByRole("button", { name: "Zeitgutschrift speichern" }));
     expect((await screen.findByTestId("bs-slot-error")).textContent).toContain(

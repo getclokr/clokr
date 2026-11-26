@@ -2,6 +2,8 @@
 // import, no $api/$stores mocks needed — same "pure, dependency-free module" convention as
 // storno.test.ts / vacation-balance.test.ts in this directory.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   showsParentalReductionAction,
@@ -65,7 +67,18 @@ describe("formatDays", () => {
 describe("PARENTAL_REDUCTION_HINT", () => {
   it("quotes § 17 Abs. 1 BEEG verbatim", () => {
     expect(PARENTAL_REDUCTION_HINT).toBe(
-      "Die Kürzung wirkt nur, wenn sie dem Mitarbeiter gegenüber erklärt wurde (§ 17 Abs. 1 BEEG).",
+      "Die Kürzung wirkt nur, wenn sie der Person gegenüber erklärt wurde (§ 17 Abs. 1 BEEG).",
     );
+  });
+});
+
+describe("ParentalReductionDialog wording (Issue #994, N-04)", () => {
+  it("asks for the declaration date toward the Person, not toward a Mitarbeiter", () => {
+    const dialog = readFileSync(
+      join(__dirname, "../../components/leave/ParentalReductionDialog.svelte"),
+      "utf8",
+    );
+    expect(dialog).toContain("Erklärung gegenüber der Person abgegeben am");
+    expect(dialog).not.toMatch(/Mitarbeiter(?!ende)/);
   });
 });

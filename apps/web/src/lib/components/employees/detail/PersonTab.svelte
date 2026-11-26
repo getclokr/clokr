@@ -268,7 +268,7 @@
   const exemptDialogDescription = $derived(
     `Du bist dabei, die Zeiterfassungs-Pflicht für ${employee.firstName} ${employee.lastName} zu ${
       intendedExempt ? "befreien" : "unterstellen"
-    }. Diese Änderung wird im Audit-Log protokolliert. Hinweis: Urlaubsanspruch nach BUrlG bleibt unverändert.`,
+    }. Diese Änderung steht danach im Protokoll. Hinweis: Urlaubsanspruch nach BUrlG bleibt unverändert.`,
   );
 </script>
 

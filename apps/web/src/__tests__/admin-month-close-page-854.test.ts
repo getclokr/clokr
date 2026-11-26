@@ -3,6 +3,7 @@
 // month are tables, closing and unlocking are Dialogs with their unchanged rules, and a reader without
 // time-entry reach sees counts instead of dates.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { fireEvent, screen, waitFor, within } from "@testing-library/svelte";
 
 const get = vi.fn();
@@ -527,6 +528,37 @@ describe("Monatsabschluss page (#854)", () => {
       });
       await waitFor(() => expect(success).toHaveBeenCalledTimes(1));
     });
+  });
+
+  // Issue #994 (N-04, N-15 of 16.11.; D-994-09, D-994-11): Person and Protokoll, and the real correction path.
+  it("describes what a close does to a ready month in the words of the #599 path", async () => {
+    renderWithTheme(Page, {});
+    const row = await screen.findByTestId("month-close-row-2");
+    await fireEvent.click(within(row).getByRole("button", { name: /Februar/ }));
+    const detail = await screen.findByTestId("month-close-detail");
+    const text = (detail.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain(
+      "Mit dem Abschluss werden alle Zeiteinträge dieses Monats gesperrt; das steht im Protokoll. " +
+        "Danach ändert sich der Monat nur noch über eine Korrektur im laufenden Monat oder ein Entsperren mit Grund.",
+    );
+    expect(text).not.toContain("Audit-Log");
+    expect(text).not.toContain("Storno-Buchungen");
+  });
+
+  it("says Person and Protokoll in the close and unlock wording of the page (source pins)", () => {
+    const page = readFileSync("src/routes/(app)/admin/month-close/+page.svelte", "utf8");
+    expect(page).toContain("{closingProgress} von {personsLabel(closingTotal)} verarbeitet");
+    expect(page).toContain('"Keine Person zum Abschließen."');
+    expect(page).toContain('emp?.employeeName ?? "Person"} sperren?');
+    expect(page).toContain('emp?.employeeName ?? "Person"} entsperren?');
+    expect(page).toContain("im Protokoll festgehalten");
+    expect(page).not.toMatch(/Mitarbeiter|Audit-Log/);
+  });
+
+  it("counts the progress line like every other person count (negative control on the old form)", async () => {
+    const { personsLabel } = await import("$lib/utils/count-word");
+    expect(`3 von ${personsLabel(8)} verarbeitet`).toBe("3 von 8 Personen verarbeitet");
+    expect(`1 von ${personsLabel(1)} verarbeitet`).toBe("1 von 1 Person verarbeitet");
   });
 
   it("shows a retry state when the year status cannot be read", async () => {

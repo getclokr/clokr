@@ -25,6 +25,7 @@
   import { toasts } from "$stores/toast";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
+  import { personName } from "$lib/utils/person-name"; // Issue #994 (D-994-10)
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import Note from "$components/ui/Note.svelte";
   import SaveBar from "$components/ui/SaveBar.svelte";
@@ -82,7 +83,7 @@
   const rows = $derived<PersonRow[]>(
     employees.map((employee) => ({
       id: employee.id,
-      name: `${employee.lastName}, ${employee.firstName}`,
+      name: personName(employee),
     })),
   );
 

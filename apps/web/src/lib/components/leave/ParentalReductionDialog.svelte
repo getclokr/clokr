@@ -222,7 +222,7 @@
 
         <div class="form-group parental-declare-field">
           <label class="form-label" for="parental-declared-at"
-            >Erklärung gegenüber dem Mitarbeiter abgegeben am</label
+            >Erklärung gegenüber der Person abgegeben am</label
           >
           <input
             id="parental-declared-at"

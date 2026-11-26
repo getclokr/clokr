@@ -19,3 +19,7 @@ export const ALLOWED: { file: string; term: string; text: string }[];
 export function listScannedFiles(): string[];
 export function scanSource(file: string, source: string): Finding[];
 export function scan(files?: string[]): Finding[];
+// Issue #994: the two extractors, read by `person-word-994.test.ts` so the guard sees exactly what the lint sees.
+export type Push = (line: number, text: string) => void;
+export function tsLiterals(code: string, lineBase: number, push: Push): void;
+export function svelteTexts(source: string, push: Push): void;

@@ -8,7 +8,7 @@
       exactly the nine keys of the section to `PUT /integrations/phorest/config`. The API needs the Business-ID and
       the user name on every save, so the import fields cannot save alone. Phorest credentials are security
       configuration and never save on a single change (§3.2.1, D-07).
-    - „Mitarbeiter-Zuordnung“ (no configuration keys): the Phorest staff mapped to Clokr employees, one explicit
+    - „Zuordnung der Personen“ (no configuration keys): the Phorest staff mapped to Clokr persons, one explicit
       save per row. Phorest stays the roster master; an unmapped person's shifts are skipped.
 
   The Branch-ID (Issue #65, D-19/D-20): it lives on the salon coupling, so the field is editable only while exactly
@@ -43,6 +43,7 @@
   import Note from "$components/ui/Note.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
+  import { personsLabel } from "$lib/utils/count-word";
   import { countChanges, pickSection } from "$lib/settings/section-state";
   import { settingsSection } from "$lib/settings/settings-pages";
   import {
@@ -226,10 +227,18 @@
       // The API already words the failure (auth invalid vs. unreachable) in German (SS-02).
       status.testOk = res.ok;
       if (res.ok) {
-        const branch = res.branchName ? `Branch „${res.branchName}“, ` : "";
+        // Issue #994 (N-04): the count is named in persons and left out when the server sends none.
+        const found = typeof res.staffCount === "number" ? personsLabel(res.staffCount) : "";
+        const details = [
+          res.branchName ? `Branch „${res.branchName}“` : "",
+          found ? `${found} in Phorest gefunden` : "",
+        ].filter(Boolean);
         testResult = {
           ok: true,
-          text: `Verbindung erfolgreich: ${branch}${res.staffCount ?? "?"} Mitarbeiter gefunden.`,
+          text:
+            details.length > 0
+              ? `Verbindung erfolgreich: ${details.join(", ")}.`
+              : "Verbindung erfolgreich.",
         };
       } else {
         testResult = { ok: false, text: res.message ?? "Verbindung fehlgeschlagen." };
@@ -275,10 +284,10 @@
   });
 
   const mapColumns: DataTableColumn[] = [
-    { key: "name", label: "Phorest-Mitarbeiter", primary: true },
+    { key: "name", label: "In Phorest", primary: true },
     { key: "email", label: "E-Mail" },
     { key: "phorestStaffId", label: "Phorest-ID" },
-    { key: "employee", label: "Clokr-Mitarbeiter" },
+    { key: "employee", label: "Person in Clokr" },
     { key: "status", label: "Status" },
     { key: "actions", label: "Aktionen", align: "end" },
   ];
@@ -578,10 +587,10 @@
   {#if status.configured}
     <section class="settings-group" aria-labelledby="phorest-zuordnung-title">
       <div class="hint-row">
-        <h2 class="settings-group-title" id="phorest-zuordnung-title">Mitarbeiter-Zuordnung</h2>
+        <h2 class="settings-group-title" id="phorest-zuordnung-title">Zuordnung der Personen</h2>
         <InfoHint
           text="Verbinde die Phorest-Mitarbeitenden mit den Personen in Clokr. Die Schichten einer Person ohne Zuordnung werden übersprungen."
-          label={hintLabel("Mitarbeiter-Zuordnung")}
+          label={hintLabel("Zuordnung der Personen")}
         />
       </div>
 
@@ -618,11 +627,11 @@
             {:else if column.key === "employee"}
               <select
                 class="form-input pc-select"
-                aria-label={`Clokr-Mitarbeiter für ${row.name}`}
+                aria-label={`Person in Clokr für ${row.name}`}
                 value={row.selectedEmployeeId}
                 onchange={(event) => (row.selectedEmployeeId = event.currentTarget.value)}
               >
-                <option value="">Mitarbeiter auswählen …</option>
+                <option value="">Person auswählen …</option>
                 {#each phEmployees as employee (employee.id)}
                   <option value={employee.id}>{employee.firstName} {employee.lastName}</option>
                 {/each}
@@ -673,7 +682,7 @@
 <ConfirmDialog
   bind:open={removeConfirm.open}
   title="Zuordnung aufheben?"
-  description={`Die Verbindung zwischen dem Phorest-Mitarbeiter und ${removeConfirm.name} wird getrennt. Künftige Schichten dieses Mitarbeiters werden dann nicht mehr importiert.`}
+  description={`Die Verbindung zwischen der Person in Phorest und ${removeConfirm.name} wird getrennt. Künftige Schichten dieser Person werden dann nicht mehr importiert.`}
   confirmLabel="Aufheben"
   danger
   onConfirm={confirmRemove}

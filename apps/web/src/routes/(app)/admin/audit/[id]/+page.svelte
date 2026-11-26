@@ -19,6 +19,7 @@
   import { auditEntryTitle, auditFieldRows, type AuditFieldRow } from "$lib/audit/field-diff";
   import { entityLabel } from "$lib/audit/labels";
   import { listUrlSchema } from "$lib/audit/list-url-state";
+  import { personNameWithNumber } from "$lib/utils/person-name";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Chip from "$components/ui/Chip.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
@@ -125,8 +126,7 @@
           <dt>Betroffene Person</dt>
           <dd>
             {#if entry.affectedEmployee}
-              {entry.affectedEmployee.lastName}, {entry.affectedEmployee.firstName} ({entry
-                .affectedEmployee.employeeNumber})
+              {personNameWithNumber(entry.affectedEmployee)}
             {:else}
               —
             {/if}

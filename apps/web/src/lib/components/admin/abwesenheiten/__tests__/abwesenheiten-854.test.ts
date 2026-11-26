@@ -32,6 +32,7 @@ vi.mock("$stores/toast", () => ({
 import { renderWithTheme } from "$tests/test-utils";
 import { ApiError } from "$api/client";
 import { settingsSection } from "$lib/settings/settings-pages";
+import { hintLabel } from "$components/ui/info-hint";
 import {
   clampDayToMonth,
   clampKarenzDays,
@@ -147,6 +148,26 @@ describe("UrlaubPanel", () => {
     renderWithTheme(UrlaubPanel, { config, onSaved });
     return onSaved;
   };
+
+  it("Issue #994 (N-10): the Krankmeldung hint says what it does, then the default, the basis last", () => {
+    mount();
+    const text = document.getElementById(
+      screen
+        .getByRole("button", { name: hintLabel("Nachweispflicht nach (Kalendertagen)") })
+        .getAttribute("aria-describedby")!,
+    )!.textContent!;
+    expect(text).toContain("länger als so viele Kalendertage");
+    expect(text).toContain("0 heißt: ab dem ersten Tag");
+    expect(text).toContain("ärztlichem Zeugnis");
+    expect(text.endsWith("Grundlage: § 5 Abs. 1 EFZG, § 9 BUrlG.")).toBe(true);
+    expect(screen.queryByText(/\(EFZG\)/)).toBeNull();
+    const group = document.getElementById(
+      screen
+        .getByRole("button", { name: hintLabel("Krankmeldung") })
+        .getAttribute("aria-describedby")!,
+    )!.textContent!;
+    expect(group).not.toContain("(EFZG)");
+  });
 
   it("shows the overview figures and no SaveBar while nothing changed", () => {
     mount();
@@ -410,10 +431,52 @@ describe("SonderurlaubPanel", () => {
     const table = await screen.findByRole("table", { name: /Sonderurlaubsregeln/ });
     expect(get).toHaveBeenCalledWith("/special-leave/rules");
     expect(table.textContent).toContain("Eigene Hochzeit");
-    expect(table.textContent).toContain("Gesetzlich");
-    expect(table.textContent).toContain("Betrieblich");
+    // Issue #994 (N-17): Clokr's own occasions are suggestions, not a legal entitlement.
+    expect(table.textContent).toContain("Vorschlag");
+    expect(table.textContent).toContain("Eigener Anlass");
+    expect(screen.queryByText("Gesetzlich")).toBeNull();
+    expect(screen.queryByText("Betrieblich")).toBeNull();
+    // The stored description comes as it is stored: the web filters no stored text.
+    expect(table.textContent).toContain("Gesetzlicher Anspruch gemäß § 616 BGB");
     expect(table.textContent).toContain("Deaktiviert");
     expect(table.textContent).toContain("2.5");
+  });
+
+  it("Issue #994 (N-17): the group hint explains § 616 BGB and claims no entitlement", async () => {
+    get.mockResolvedValue(RULES);
+    renderWithTheme(SonderurlaubPanel, { active: true });
+    await screen.findByRole("table", { name: /Sonderurlaubsregeln/ });
+    const text = document.getElementById(
+      screen
+        .getByRole("button", { name: hintLabel("Sonderurlaubs-Regeln") })
+        .getAttribute("aria-describedby")!,
+    )!.textContent!;
+    expect(text).toContain("Clokr legt übliche Anlässe als Vorschlag an.");
+    expect(text).toContain("§ 616 BGB");
+    expect(text).toContain("kann im Arbeits- oder Tarifvertrag ausgeschlossen sein");
+    expect(text).not.toContain("Gesetzliche Anlässe");
+  });
+
+  it("Issue #994 (N-17): the edit dialogs name a suggested and an own occasion", async () => {
+    get.mockResolvedValue(RULES);
+    renderWithTheme(SonderurlaubPanel, { active: true });
+    await fireEvent.click(await screen.findByRole("button", { name: /^Eigene Hochzeit/ }));
+    let dialog = await screen.findByRole("dialog", { name: "Vorgeschlagenen Anlass bearbeiten" });
+    expect((within(dialog).getByLabelText(/^Anlass/) as HTMLInputElement).disabled).toBe(true);
+    expect(
+      within(dialog).getByText("Den Namen eines vorgeschlagenen Anlasses kannst du nicht ändern."),
+    ).toBeTruthy();
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await fireEvent.click(screen.getByRole("button", { name: /^Ehrenamtlicher Einsatz/ }));
+    dialog = await screen.findByRole("dialog", { name: "Eigenen Anlass bearbeiten" });
+    expect((within(dialog).getByLabelText(/^Anlass/) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it("Issue #994 (N-17): the empty state invites to an own occasion", async () => {
+    get.mockResolvedValue([]);
+    renderWithTheme(SonderurlaubPanel, { active: true });
+    expect(await screen.findByText(/Leg einen eigenen Anlass an/)).toBeTruthy();
   });
 
   it("says so when loading fails and offers a retry", async () => {

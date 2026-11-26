@@ -96,7 +96,7 @@
 
 <SettingsGroup
   title="Erinnerungen"
-  hint="Wann Clokr Mitarbeitende und Vorgesetzte an offene Punkte erinnert."
+  hint="Wann Clokr an offene Punkte erinnert."
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -128,7 +128,7 @@
 
   <FormField
     label="Erinnerung bei fehlenden Einträgen nach (Tagen)"
-    hint="Mitarbeitende und Vorgesetzte werden benachrichtigt, wenn keine Zeiteinträge erfasst wurden."
+    hint="Die Person und wer Heute im Salon sieht, werden benachrichtigt, wenn keine Zeit erfasst wurde."
     error={messages.missingEntriesDays}
   >
     {#snippet field({ id, describedBy, invalid })}
@@ -150,7 +150,8 @@
 
   <ToggleField
     bind:checked={values.reminderPendingLeaveEnabled}
-    label="Offene Urlaubsanträge: Vorgesetzte erinnern"
+    label="Offene Urlaubsanträge: an die Entscheidung erinnern"
+    hint="Erinnert wird, wer Anträge genehmigen darf."
     disabled={!canEdit || saving}
     testid="benachrichtigungen-erinnerungen-pending-enabled"
   />

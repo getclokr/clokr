@@ -35,7 +35,7 @@ describe("PersonPicker", () => {
     renderWithTheme(PersonPicker, { items });
     await fireEvent.keyDown(input(), { key: "ArrowDown" });
     await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
-    expect(screen.getByRole("option", { name: "Meier, Anna · Nr. 101" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Anna Meier · Nr. 101" })).toBeTruthy();
   });
 
   it("finds a person by the Personalnummer and picks it with Enter", async () => {
@@ -47,12 +47,12 @@ describe("PersonPicker", () => {
     await fireEvent.keyDown(input(), { key: "ArrowDown" });
     await fireEvent.keyDown(input(), { key: "Enter" });
     await waitFor(() => expect(onValueChange).toHaveBeenCalledWith("p2"));
-    await waitFor(() => expect(input().value).toBe("Schulz, Berta · Nr. 202"));
+    await waitFor(() => expect(input().value).toBe("Berta Schulz · Nr. 202"));
   });
 
   it("shows the label of the value it was given", () => {
     renderWithTheme(PersonPicker, { items, value: "p3" });
-    expect(input().value).toBe("Öztürk, Cem · Nr. 303");
+    expect(input().value).toBe("Cem Öztürk · Nr. 303");
   });
 
   it("is template only: no $app, store or request import", () => {

@@ -161,7 +161,7 @@
   caption="Personen"
   {selectable}
   bind:selectedKeys
-  selectionLabel={(row) => `${row.sortName} auswählen`}
+  selectionLabel={(row) => `${row.name} auswählen`}
 >
   {#snippet toolbar()}
     <div class="p-controls">

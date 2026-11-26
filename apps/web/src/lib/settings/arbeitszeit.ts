@@ -287,7 +287,7 @@ export const VOCATIONAL_SLOT_FIELDS: ReadonlyArray<{
 }> = [
   {
     key: "bsSlotFirstLongDayMinutes",
-    label: "1. Berufsschul-Langtag (Minuten)",
+    label: "1. Berufsschul-Langtag (Stunden)",
     name: "1. Langtag",
     min: BS_DAILY_MIN,
     max: BS_DAILY_MAX,
@@ -295,7 +295,7 @@ export const VOCATIONAL_SLOT_FIELDS: ReadonlyArray<{
   },
   {
     key: "bsSlotSecondLongDayMinutes",
-    label: "2. Berufsschul-Langtag (Minuten)",
+    label: "2. Berufsschul-Langtag (Stunden)",
     name: "2. Langtag",
     min: BS_DAILY_MIN,
     max: BS_DAILY_MAX,
@@ -303,7 +303,7 @@ export const VOCATIONAL_SLOT_FIELDS: ReadonlyArray<{
   },
   {
     key: "bsSlotShortDayMinutes",
-    label: "Berufsschul-Kurztag (Minuten)",
+    label: "Berufsschul-Kurztag (Stunden)",
     name: "Kurztag",
     min: BS_DAILY_MIN,
     max: BS_DAILY_MAX,
@@ -311,7 +311,7 @@ export const VOCATIONAL_SLOT_FIELDS: ReadonlyArray<{
   },
   {
     key: "bsSlotBlockWeekMinutes",
-    label: "Blockunterricht-Woche (Minuten)",
+    label: "Blockunterricht-Woche (Stunden)",
     name: "Blockunterricht-Woche",
     min: BS_BLOCK_MIN,
     max: BS_BLOCK_MAX,
@@ -328,20 +328,17 @@ export function vocationalSlotsFrom(config: WorkConfig): VocationalSlotsValues {
   };
 }
 
-/** An empty field is valid (no company value); a filled one is a whole number inside its bounds. */
+/**
+ * An empty field is valid (no company value); a filled one lies inside its bounds. The field is entered
+ * in hours and stored in whole minutes (Issue #994, N-12), so the bounds read as hours in the message.
+ */
 export function vocationalSlotsMessages(
   values: VocationalSlotsValues,
 ): FieldMessages<VocationalSlotsField> {
   const messages: FieldMessages<VocationalSlotsField> = {};
   for (const field of VOCATIONAL_SLOT_FIELDS) {
-    const value = values[field.key];
-    if (value === null || value === undefined) continue;
-    if (!Number.isFinite(value) || !Number.isInteger(value)) {
-      messages[field.key] = `${field.name}: Gib eine ganze Zahl ein.`;
-    } else if (value < field.min || value > field.max) {
-      messages[field.key] =
-        `${field.name}: Der Wert muss zwischen ${field.min} und ${field.max} Minuten liegen.`;
-    }
+    const message = hoursError(values[field.key], { min: field.min, max: field.max });
+    if (message) messages[field.key] = `${field.name}: ${message}`;
   }
   return messages;
 }
@@ -356,6 +353,36 @@ export function vocationalSlotsWire(
     bsSlotShortDayMinutes: values.bsSlotShortDayMinutes ?? null,
     bsSlotBlockWeekMinutes: values.bsSlotBlockWeekMinutes ?? null,
   };
+}
+
+// ── Hours on the field, minutes in the state (Issue #994, N-12) ─────────────────────────────────────
+// An amount of working time is entered in hours like the DayGrid does; the stored value, the bounds
+// and the wire body stay whole minutes, so the API and every figure are untouched.
+
+/** The number a field shows for a stored minute count (7.5 for 450); null while empty. */
+export function hoursFieldValue(minutes: number | null | undefined): number | null {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return null;
+  return Math.round((minutes / 60) * 100) / 100;
+}
+
+/** The whole minutes of what a person typed as hours (7.5 -> 450); null for an empty or unreadable field. */
+export function minutesFromHoursField(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return Math.round(value * 60);
+}
+
+/** The message of one stored minute value against minute bounds, in hours; undefined when fine (empty = fine). */
+export function hoursError(
+  minutes: number | null | undefined,
+  bounds: { min: number; max: number },
+): string | undefined {
+  if (minutes === null || minutes === undefined) return undefined;
+  if (!Number.isFinite(minutes)) return "Bitte eine Zahl eingeben.";
+  if (minutes < bounds.min || minutes > bounds.max) {
+    const hours = (value: number) => (value / 60).toLocaleString("de-DE");
+    return `Der Wert muss zwischen ${hours(bounds.min)} und ${hours(bounds.max)} Stunden liegen.`;
+  }
+  return undefined;
 }
 
 /**

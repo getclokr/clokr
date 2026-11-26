@@ -430,7 +430,7 @@
             <ToggleField
               bind:checked={hardDeleteForce}
               label="Ich kenne die Aufbewahrungsfrist und will den Datensatz trotzdem unwiderruflich löschen (z. B. Testdaten)."
-              help="Diese Aktion wird im Audit-Log protokolliert."
+              help="Diese Aktion steht danach im Protokoll."
             />
           {/if}
           <div>

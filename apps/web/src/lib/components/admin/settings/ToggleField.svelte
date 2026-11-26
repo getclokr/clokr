@@ -11,7 +11,7 @@
     label: string;
     help?: string;
     /** Issue #1058: an explanation as an info symbol next to the label; `help` stays visible. */
-    hint?: string;
+    hint?: string | string[];
     disabled?: boolean;
     /** Stable hook for the e2e specs. */
     testid?: string;

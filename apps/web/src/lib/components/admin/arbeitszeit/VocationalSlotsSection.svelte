@@ -4,7 +4,8 @@
   SaveBar sends the four keys of the registry section `arbeitszeit-berufsschule` to
   `PUT /settings/work` (#878). An empty field sends an explicit null, which clears the company value
   so the person's own daily Soll applies; the server may answer non-blocking warnings, shown after
-  the save.
+  the save. Issue #994 (N-12): the credits are entered in hours like every other amount of working
+  time, the state, the bounds and the wire body stay whole minutes.
 -->
 <script lang="ts">
   import { untrack } from "svelte";
@@ -18,7 +19,9 @@
   import {
     VOCATIONAL_SLOT_FIELDS,
     messageCount,
+    hoursFieldValue,
     minutesAsHours,
+    minutesFromHoursField,
     vocationalSlotsFrom,
     vocationalSlotsMessages,
     vocationalSlotsWire,
@@ -84,7 +87,11 @@
 
 <SettingsGroup
   title="Berufsschule"
-  hint="Zeitgutschrift für Berufsschultage im ganzen Unternehmen (§ 15 Abs. 2 BBiG). Eingegeben wird in Minuten, darunter siehst du die Stunden. Tageswerte: 4:00 bis 10:00 h (240–600 Minuten), Blockunterricht-Woche: 20:00 bis 50:00 h (1200–3000 Minuten)."
+  hint={[
+    "Zeitgutschrift für Berufsschultage im ganzen Unternehmen.",
+    "Ein leeres Feld nimmt das Tages-Soll der Person. Ein Tag zählt 4 bis 10 Stunden, eine Blockwoche 20 bis 50 Stunden.",
+    "Grundlage: § 15 Abs. 2 BBiG.",
+  ]}
   changes={changeCount}
   errors={errorCount}
   {saving}
@@ -93,8 +100,8 @@
   onDiscard={discard}
 >
   <p class="vs-intro">
-    Diese Werte überschreiben den Fallback für alle Mitarbeitenden. Lass ein Feld leer, damit der
-    Wert aus dem Tages-Soll der Person kommt. Änderungen wirken nur auf offene und künftige Monate.
+    Die Werte gelten für jede Person ohne eigenen Wert. Änderungen wirken nur auf offene und
+    künftige Monate.
   </p>
 
   {#each warnings as warning (warning)}
@@ -115,10 +122,14 @@
             {id}
             class="form-input"
             type="number"
-            min={slot.min}
-            max={slot.max}
-            step="1"
-            bind:value={values[slot.key]}
+            inputmode="decimal"
+            min={slot.min / 60}
+            max={slot.max / 60}
+            step="0.25"
+            bind:value={
+              () => hoursFieldValue(values[slot.key]),
+              (hours) => (values[slot.key] = minutesFromHoursField(hours))
+            }
             disabled={!canEdit || saving}
             data-testid={`arbeitszeit-berufsschule-${slot.testid}`}
             aria-invalid={invalid ? "true" : undefined}

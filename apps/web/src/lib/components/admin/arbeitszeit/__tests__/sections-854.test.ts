@@ -16,6 +16,8 @@ vi.mock("$stores/toast", () => ({
 
 import { renderWithTheme } from "$tests/test-utils";
 import { settingsSection } from "$lib/settings/settings-pages";
+import { hintLabel } from "$components/ui/info-hint";
+import AppointmentHintsSection from "../AppointmentHintsSection.svelte";
 import CoreHoursSection from "../CoreHoursSection.svelte";
 import RetroWindowSection from "../RetroWindowSection.svelte";
 import VocationalSlotsSection from "../VocationalSlotsSection.svelte";
@@ -23,6 +25,11 @@ import WorkDaysSection from "../WorkDaysSection.svelte";
 
 const keysOf = (id: string) => [...settingsSection(id).keys].sort();
 const bar = () => screen.queryByRole("region", { name: "Speicherleiste" });
+/** The hidden explanation text behind the info symbol of a label or heading. */
+const hintText = (subject: string) =>
+  document.getElementById(
+    screen.getByRole("button", { name: hintLabel(subject) }).getAttribute("aria-describedby")!,
+  )!.textContent;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,6 +60,29 @@ describe("RetroWindowSection", () => {
     expect(
       (screen.getByRole("button", { name: "Frist speichern" }) as HTMLButtonElement).disabled,
     ).toBe(true);
+  });
+});
+
+describe("Issue #994 hints (N-10, N-14, N-19)", () => {
+  it("the retro hint says what the setting does, names no role and no draft bill", () => {
+    renderWithTheme(RetroWindowSection, { config: {} });
+    const text = hintText("Selbstbearbeitungsfenster (Tage)")!;
+    expect(text).toContain(
+      "So viele Tage rückwirkend dürfen Mitarbeitende ihre Einträge selbst ändern.",
+    );
+    expect(text).toContain("darüber entscheidet, wer Zeitnachträge genehmigen darf.");
+    expect(text).toContain("Standard: 10 Tage.");
+    expect(text).not.toContain("7 Tage");
+    expect(text).not.toMatch(/Referent|Manager|Gesetzlich/);
+  });
+
+  it("the appointment hint names who sees it by what that person may do", () => {
+    renderWithTheme(AppointmentHintsSection, { config: {} });
+    const text = hintText("Termine mit der erfassten Zeit abgleichen")!;
+    expect(text).toContain("Unter Aufgaben sieht ihn, wer die Zeiten der Person sehen darf.");
+    expect(text).toContain("§ 87 Abs. 1 Nr. 6 BetrVG");
+    expect(text).toContain("Art. 13 DSGVO");
+    expect(text).not.toContain("Manager");
   });
 });
 
@@ -108,8 +138,8 @@ describe("VocationalSlotsSection", () => {
   it("saves the four keys, an empty field as null, and shows the server's warnings", async () => {
     put.mockResolvedValueOnce({ warnings: ["Die Gutschrift übersteigt das Tages-Soll."] });
     renderWithTheme(VocationalSlotsSection, { config: {} });
-    await fireEvent.input(screen.getByLabelText("Berufsschul-Kurztag (Minuten)"), {
-      target: { value: "360" },
+    await fireEvent.input(screen.getByLabelText("Berufsschul-Kurztag (Stunden)"), {
+      target: { value: "6" },
     });
     await fireEvent.click(await screen.findByRole("button", { name: "Zeitgutschrift speichern" }));
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
@@ -124,6 +154,46 @@ describe("VocationalSlotsSection", () => {
     await waitFor(() => expect(bar()).toBeNull());
   });
 
+  it("Issue #994 (N-12): 7,5 hours count as one change and save as 450 minutes", async () => {
+    renderWithTheme(VocationalSlotsSection, { config: {} });
+    const field = screen.getByLabelText("1. Berufsschul-Langtag (Stunden)") as HTMLInputElement;
+    expect(field.getAttribute("inputmode")).toBe("decimal");
+    expect(field.getAttribute("step")).toBe("0.25");
+    await fireEvent.input(field, { target: { value: "7.5" } });
+    const region = await screen.findByRole("region", { name: "Speicherleiste" });
+    expect(region.textContent).toContain("1 Änderung");
+    expect(screen.getByText("= 7:30 h")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Zeitgutschrift speichern" }));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0][1]).toMatchObject({ bsSlotFirstLongDayMinutes: 450 });
+  });
+
+  it("Issue #994 (N-12, N-10): a stored 450 shows as 7,5 and a value off the grid stays savable", async () => {
+    renderWithTheme(VocationalSlotsSection, {
+      config: { bsSlotFirstLongDayMinutes: 450, bsSlotShortDayMinutes: 437 },
+    });
+    expect(
+      (screen.getByLabelText("1. Berufsschul-Langtag (Stunden)") as HTMLInputElement).value,
+    ).toBe("7.5");
+    expect((screen.getByLabelText("Berufsschul-Kurztag (Stunden)") as HTMLInputElement).value).toBe(
+      "7.28",
+    );
+    // nothing was typed: the display rounding never turns into a change
+    expect(bar()).toBeNull();
+  });
+
+  it("Issue #994 (N-10): the hint ends with the legal basis, the intro has no „Fallback“", () => {
+    renderWithTheme(VocationalSlotsSection, { config: {} });
+    const text = hintText("Berufsschule")!;
+    expect(text).toContain("Ein Tag zählt 4 bis 10 Stunden, eine Blockwoche 20 bis 50 Stunden.");
+    expect(text.endsWith("Grundlage: § 15 Abs. 2 BBiG.")).toBe(true);
+    expect(text).not.toMatch(/Minuten|240|1200/);
+    expect(document.body.textContent).not.toContain("Fallback");
+    expect(document.body.textContent).toContain(
+      "Die Werte gelten für jede Person ohne eigenen Wert.",
+    );
+  });
+
   it("clears a stored value with „Leeren“ and sends null for it", async () => {
     renderWithTheme(VocationalSlotsSection, { config: { bsSlotShortDayMinutes: 300 } });
     await fireEvent.click(
@@ -136,8 +206,8 @@ describe("VocationalSlotsSection", () => {
 
   it("blocks a value outside the bounds", async () => {
     renderWithTheme(VocationalSlotsSection, { config: {} });
-    await fireEvent.input(screen.getByLabelText("Blockunterricht-Woche (Minuten)"), {
-      target: { value: "100" },
+    await fireEvent.input(screen.getByLabelText("Blockunterricht-Woche (Stunden)"), {
+      target: { value: "10" },
     });
     const region = await screen.findByRole("region", { name: "Speicherleiste" });
     expect(region.textContent).toContain("1 Fehler");

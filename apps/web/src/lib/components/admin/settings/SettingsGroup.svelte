@@ -19,7 +19,7 @@
     /** One muted line below the heading. */
     description?: string;
     /** Issue #1058: an explanation as an info symbol next to the heading; `description` stays visible. */
-    hint?: string;
+    hint?: string | string[];
     /** Number of unsaved changes; the SaveBar is hidden at 0. */
     changes: number;
     /** Number of invalid fields; saving is blocked while above 0. */

@@ -129,7 +129,7 @@ describe("LeaveRequestForm", () => {
   // ── No person selected (team context before a pick) ─────────────────────────────────────────
   it("empty employeeId: shows the picker hint, fetches nothing employee-scoped", async () => {
     renderForm({ employeeId: "" });
-    expect(screen.getByText("Bitte zuerst einen Mitarbeiter auswählen.")).toBeTruthy();
+    expect(screen.getByText("Wähl zuerst eine Person aus.")).toBeTruthy();
     await new Promise((r) => setTimeout(r, 0));
     expect(apiGet).not.toHaveBeenCalledWith(expect.stringContaining("/leave/entitlements/"));
     expect(apiGet).not.toHaveBeenCalledWith(expect.stringContaining("/leave/overtime-balance"));
@@ -324,9 +324,7 @@ describe("LeaveRequestForm", () => {
     });
     await fireEvent.click(screen.getByTestId("leave-form-submit"));
     await waitFor(() =>
-      expect(screen.getByTestId("leave-form-error").textContent).toContain(
-        "Bitte einen Mitarbeiter auswählen",
-      ),
+      expect(screen.getByTestId("leave-form-error").textContent).toContain("Wähl eine Person aus."),
     );
     expect(apiPost).not.toHaveBeenCalled();
   });

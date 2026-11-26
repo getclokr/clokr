@@ -16,7 +16,8 @@ describe("roster legend names a shortfall and a conflict apart (Issue #950)", ()
   it("words the shortfall from the staffing module, not as Konflikt", () => {
     expect(ROSTER_LEGEND_PROBLEMS.under).toBe(`${staffingStatusText("under")} besetzt`);
     expect(ROSTER_LEGEND_PROBLEMS.under).not.toMatch(/konflikt/i);
-    expect(ROSTER_LEGEND_PROBLEMS.conflict).toBe("Konflikt");
+    // Issue #994 (N-30, D-994-13): the legend names the reason, not just "Konflikt".
+    expect(ROSTER_LEGEND_PROBLEMS.conflict).toBe("Konflikt mit Abwesenheit");
   });
 
   it("lists both entries in the legend, with the page using the shared wording", () => {
