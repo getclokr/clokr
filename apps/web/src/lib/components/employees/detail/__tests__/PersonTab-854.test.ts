@@ -92,6 +92,15 @@ describe("PersonTab", () => {
     );
   });
 
+  it("says Personalnummer for the number field and in the group hint (N-10)", () => {
+    mount();
+    expect(screen.getByLabelText(/^Personalnummer/)).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      "Name, Personalnummer, Geburtsdatum und NFC-Karte.",
+    );
+    expect(document.body.textContent).not.toContain("Mitarbeiter-Nr");
+  });
+
   it("an empty first name blocks the save with the field message", async () => {
     mount();
     await fireEvent.input(screen.getByLabelText(/^Vorname/), { target: { value: "" } });
@@ -135,13 +144,15 @@ describe("PersonTab", () => {
   });
 
   it("a refused save toasts the server text and keeps the SaveBar", async () => {
-    patch.mockRejectedValue(new Error("Mitarbeiter-Nr. bereits vergeben."));
+    patch.mockRejectedValue(new Error("Diese Personalnummer ist schon vergeben."));
     mount();
-    await fireEvent.input(screen.getByLabelText(/^Mitarbeiter-Nr\./), { target: { value: "7" } });
+    await fireEvent.input(screen.getByLabelText(/^Personalnummer/), { target: { value: "7" } });
     await fireEvent.click(
       await screen.findByRole("button", { name: "Persönliche Daten speichern" }),
     );
-    await waitFor(() => expect(error).toHaveBeenCalledWith("Mitarbeiter-Nr. bereits vergeben."));
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("Diese Personalnummer ist schon vergeben."),
+    );
     expect(screen.getByRole("region", { name: "Speicherleiste" })).toBeTruthy();
   });
 

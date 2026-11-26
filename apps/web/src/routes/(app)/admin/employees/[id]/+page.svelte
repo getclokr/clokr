@@ -1,5 +1,6 @@
 <script lang="ts">
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
+  import { pageLabel } from "$lib/nav/page-labels";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { employeeAdminRights, contractShiftRights } from "$lib/page-rights";
@@ -120,7 +121,7 @@
       ]);
 
       if (empRes.status === "rejected") {
-        loadError = "Mitarbeiter nicht gefunden.";
+        loadError = "Person nicht gefunden.";
         return;
       }
       employee = empRes.value;
@@ -246,13 +247,18 @@
   }
 </script>
 
+<svelte:head
+  ><title>{displayName || "Person"} – {pageLabel("/verwalten/personen")} – Clokr</title
+  ></svelte:head
+>
+
 {#if loading}
   <div class="page-loading"><Skeleton shape="card" lines={3} /></div>
 {:else if loadError || !employee}
-  <div class="page-error">{loadError || "Mitarbeiter nicht gefunden."}</div>
+  <div class="page-error">{loadError || "Person nicht gefunden."}</div>
 {:else}
   <PageHeader
-    title={displayName || "Mitarbeiter"}
+    title={displayName || "Person"}
     subtitle={headSub}
     tabs={tabs.map((t) => ({ value: t.id, label: t.label }))}
     tab={activeTab}
@@ -264,7 +270,7 @@
       <span
         class="detail-avatar"
         style="--av: var(--a{avatarColour}); --av-t: var(--a{avatarColour}-t)"
-        aria-hidden="true">{initialsOf(displayName || "Mitarbeiter")}</span
+        aria-hidden="true">{initialsOf(displayName || "Person")}</span
       >
     {/snippet}
     {#snippet panel(tab)}

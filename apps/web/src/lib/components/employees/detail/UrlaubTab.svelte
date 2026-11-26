@@ -42,7 +42,13 @@
   import { CARRY_OVER_REASON_OPTIONS, carryOverReasonLabel } from "$lib/leave/carry-over-reason";
   import { countChanges, sectionErrors } from "$lib/settings/section-state";
   import { fmtDateDe } from "$lib/reports/period-format";
-  import { formatDayCount } from "$lib/leave/leave-days-label";
+  import { dayUnit, formatDayCount } from "$lib/leave/leave-days-label";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
+
+  const PRO_RATA_HINT = [
+    "Im Eintritts- oder Austrittsjahr gibt es ein Zwölftel je vollem Beschäftigungsmonat (§ 5 Abs. 1 BUrlG).",
+    "Ein Bruchteil ab einem halben Tag wird auf einen ganzen Tag aufgerundet, ein kleinerer bleibt stehen, zum Beispiel 6,25 Tage (§ 5 Abs. 2 BUrlG).",
+  ];
 
   interface Props {
     employeeId: string;
@@ -84,14 +90,16 @@
     {
       label: `Regulärer Anspruch ${year}`,
       value: suggestion,
-      unit: "Tage",
+      format: formatDays,
+      unit: dayUnit(suggestion),
       explanation:
-        "Basiswert der Person bzw. Unternehmensstandard, umgerechnet auf die Vertragstage, im Eintrittsjahr ggf. anteilig.",
+        "Basiswert der Person bzw. Unternehmensstandard, umgerechnet auf die Vertragstage.",
     },
     {
       label: "Gesetzlicher Mindesturlaub",
       value: minimum,
-      unit: "Tage",
+      format: formatDays,
+      unit: dayUnit(minimum),
     },
     ...(balance
       ? [
@@ -100,28 +108,28 @@
             label: "Verfügbar",
             value: balance.availableDays,
             format: formatDays,
-            unit: "Tage",
+            unit: dayUnit(balance.availableDays),
             explanation: `Anspruch + wirksamer Übertrag (${formatDays(balance.carriedOverEffectiveDays)})`,
           },
           {
             label: "Genommen",
             value: balance.takenDays,
             format: formatDays,
-            unit: "Tage",
+            unit: dayUnit(balance.takenDays),
             explanation: `bis ${fmtDateDe(balance.splitAsOf)}`,
           },
           {
             label: "Genehmigt",
             value: balance.approvedUpcomingDays,
             format: formatDays,
-            unit: "Tage",
+            unit: dayUnit(balance.approvedUpcomingDays),
             explanation: "noch nicht genommen",
           },
           {
             label: "Resturlaub",
             value: balance.remainingDays,
             format: formatDays,
-            unit: "Tage",
+            unit: dayUnit(balance.remainingDays),
             explanation: "Verfügbar − Genommen − Genehmigt",
           },
         ]
@@ -167,6 +175,15 @@
 {:else}
   <div class="urlaub-tab detail-form">
     <KpiStrip items={kpis} ariaLabel="Urlaubsanspruch {year}" />
+    <!-- N-08 (b), #993: the § 5 BUrlG pro-rata and rounding rule behind the entitlement figure. -->
+    <div class="hint-row">
+      <span class="urlaub-hint-caption">Wie der Anspruch entsteht</span>
+      <InfoHint
+        testId="urlaub-pro-rata-hint"
+        label={hintLabel("Regulärer Anspruch")}
+        text={PRO_RATA_HINT}
+      />
+    </div>
     {#if balance && balance.carryOverKeptWithoutNoticeDays > 0 && entitlement.carryOverDeadline}
       <div data-testid="urlaub-carry-kept">
         <Note tone="info">
@@ -190,7 +207,7 @@
       <div class="urlaub-pair">
         <FormField
           label="Urlaubstage gesamt"
-          help={`Leer lassen für den automatischen Wert (${suggestion.toLocaleString("de-DE", { maximumFractionDigits: 2 })}).`}
+          help={`Leer lassen für den automatischen Wert (${formatDays(suggestion)}).`}
           error={shown.totalDays}
         >
           {#snippet field({ id, describedBy, invalid })}
@@ -202,7 +219,7 @@
               max="365"
               step="0.01"
               bind:value={values.totalDays}
-              placeholder={String(suggestion)}
+              placeholder={formatDays(suggestion)}
               disabled={!canEdit}
               aria-invalid={invalid ? "true" : undefined}
               aria-describedby={describedBy}
@@ -296,6 +313,11 @@
 {/if}
 
 <style>
+  .urlaub-hint-caption {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+
   /* Two fields side by side (the prototype's form row), one column on a phone; the group is the
      container (.detail-form). */
   .urlaub-pair {

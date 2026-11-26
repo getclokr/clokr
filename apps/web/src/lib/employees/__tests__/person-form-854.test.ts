@@ -120,6 +120,7 @@ describe("validation", () => {
       employeeNumber: "",
     });
     expect(Object.keys(errors).sort()).toEqual(["employeeNumber", "firstName", "lastName"]);
+    expect(errors.employeeNumber).toBe("Gib die Personalnummer ein.");
     expect(identityErrors(personValuesOf(EMPLOYEE))).toEqual({});
   });
 

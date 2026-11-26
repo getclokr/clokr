@@ -225,6 +225,7 @@ describe("Personen list - the shared table", () => {
   });
 
   it("hides anonymised persons until „Anonymisierte anzeigen“ is ticked", async () => {
+    permissions.list = ["employee:read:ZUGEWIESEN", "employee:anonymize:ZUGEWIESEN"];
     get.mockImplementation(async (path: string) => {
       if (path.startsWith("/employees"))
         return [...PEOPLE, person("e9", "GELÖSCHT-9", { firstName: "Gelöscht" })];
@@ -234,5 +235,18 @@ describe("Personen list - the shared table", () => {
     expect(screen.queryByTestId("admin-employees-row-e9")).toBeNull();
     await fireEvent.click(screen.getByRole("checkbox", { name: "Anonymisierte anzeigen" }));
     expect(await screen.findByTestId("admin-employees-row-e9")).toBeInTheDocument();
+  });
+
+  // #993: the server sends anonymised persons only with employee:anonymize, so the toggle is not offered
+  // (and no such row can be listed) without it.
+  it("offers no „Anonymisierte anzeigen“ toggle without employee:anonymize", async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path.startsWith("/employees"))
+        return [...PEOPLE, person("e9", "GELÖSCHT-9", { firstName: "Gelöscht" })];
+      return {};
+    });
+    await mountList();
+    expect(screen.queryByRole("checkbox", { name: "Anonymisierte anzeigen" })).toBeNull();
+    expect(screen.queryByTestId("admin-employees-row-e9")).toBeNull();
   });
 });

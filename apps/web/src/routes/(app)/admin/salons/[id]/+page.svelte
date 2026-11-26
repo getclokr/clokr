@@ -1,5 +1,6 @@
 <script lang="ts">
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
+  import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -43,6 +44,12 @@
   let salon = $state<SalonDto | null>(null);
   // Create mode: the route `/admin/salons/neu`, until the created salon has been adopted.
   const isCreate = $derived(salonId === "neu" && salon === null);
+  // U-04 (#993): the browser tab names the salon (or the create form) before the list page.
+  const pageTitle = $derived(
+    [isCreate ? "Neuer Salon" : salon?.name, pageLabel("/admin/salons")]
+      .filter(Boolean)
+      .join(" – "),
+  );
   // The salon's name closes the top bar's path (#854: pages carry no breadcrumb of their own).
   $effect(() => showDetailCrumb(salon ? salon.name : isCreate ? "Neuer Salon" : null));
 
@@ -225,6 +232,8 @@
     toasts.success("Salon aktiviert.");
   }
 </script>
+
+<svelte:head><title>{pageTitle} – Clokr</title></svelte:head>
 
 {#if loading}
   <Skeleton shape="card" lines={3} />

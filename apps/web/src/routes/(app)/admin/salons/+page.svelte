@@ -148,6 +148,8 @@
   });
 </script>
 
+<svelte:head><title>{pageLabel("/admin/salons")} – Clokr</title></svelte:head>
+
 <PageHead
   title={pageLabel("/admin/salons")}
   hint="Standorte deines Unternehmens mit Adresse und Öffnungszeiten."
