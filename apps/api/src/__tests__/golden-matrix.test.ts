@@ -46,6 +46,13 @@
  * `az-shift-38-5-bs_absence` (OTHER), pin that a Berufsschultag inside an imposed absence of
  * another code reduces the Soll exactly once; derivation at the cells.
  *
+ * Issue #1136 (2026-11-26): `sb-38-4-krank_ohne_schicht` (February 2026, the calendar twin of the
+ * measured November 2026) pins that an approved SICK day on a usual
+ * workday WITHOUT a planned shift relieves the contractual O-day (owner decision 26.11.2026;
+ * Phorest is not reliably maintained for absences). A cell may now carry a leave code, so the
+ * pure-core gate maps approved leave through `toCloseMonthApprovedLeave` with the leave type
+ * (VACATION -> CONTRACT basis, byte-identical for every existing cell); derivation at the cell.
+ *
  * Model / references: golden-azubi-jan2026.test.ts (harness), shift-based-saldo-parity.test.ts,
  * close-employee-month.test.ts case 9 (pure-core pin), GOLDEN-MATRIX-SPEC.md.
  */
@@ -68,7 +75,10 @@ import { recalculateSnapshots } from "../contexts/working-time-account/recalcula
 import { computeMonthSaldo } from "../contexts/working-time-account/month-saldo"; // Issue #447 (D-13)
 import { updateOvertimeAccount } from "../contexts/time-tracking/api/time-entries";
 import type { CloseMonthInput } from "../contexts/working-time-account/close-employee-month";
-import { closeEmployeeMonth } from "../contexts/working-time-account/close-employee-month";
+import {
+  closeEmployeeMonth,
+  toCloseMonthApprovedLeave,
+} from "../contexts/working-time-account/close-employee-month";
 import bcrypt from "bcryptjs";
 
 const TZ = "Europe/Berlin";
@@ -89,6 +99,10 @@ interface ScheduleSpec {
   saturdayHours?: number;
   sundayHours?: number;
   workDays: number[];
+  /** Issue #1136 - SHIFT_BASED contract days per week (absent -> NULL, the DB default). */
+  contractWorkDaysPerWeek?: number;
+  /** Issue #1136 - SHIFT_BASED "usual workdays" Angabe, 0=So..6=Sa (absent -> [], the default). */
+  usualWorkDays?: number[];
 }
 
 interface Expected {
@@ -118,7 +132,7 @@ interface Cell {
   /** Shifts (SHIFT_BASED only): {date, netto} */
   shifts?: Array<{ date: string; netto: number }>;
   /** Approved leave ranges (inclusive, UTC-midnight bounds) */
-  leave?: Array<{ start: string; end: string }>;
+  leave?: Array<{ start: string; end: string; code?: "VACATION" | "SICK" }>;
   /** VOCATIONAL_SCHOOL absence days (source=PATTERN) */
   bsDays?: string[];
   /**
@@ -272,6 +286,22 @@ const SB_38_5: ScheduleSpec = {
   saturdayHours: 0,
   sundayHours: 0,
   workDays: [1, 2, 3, 4, 5],
+};
+
+// Issue #1136 - 38 h on a 4-day contract, Tue-Fri 9.5 h, usual workdays Tue-Fri (Angabe).
+const SB_38_4_DI_FR: ScheduleSpec = {
+  type: "SHIFT_BASED",
+  weeklyHours: 38,
+  mondayHours: 0,
+  tuesdayHours: 9.5,
+  wednesdayHours: 9.5,
+  thursdayHours: 9.5,
+  fridayHours: 9.5,
+  saturdayHours: 0,
+  sundayHours: 0,
+  workDays: [2, 3, 4, 5],
+  contractWorkDaysPerWeek: 4,
+  usualWorkDays: [2, 3, 4, 5],
 };
 
 // ── MONTHLY_HOURS shells ─────────────────────────────────────────────────────
@@ -1713,6 +1743,76 @@ const CELLS: Cell[] = [
     },
     expectedRed: false,
   },
+  {
+    id: "sb-38-4-krank_ohne_schicht",
+    scheduleType: "SHIFT_BASED",
+    classification: "REGULAR",
+    situation:
+      "Issue #1136 - SICK Tue-Fri, only Thu/Fri planned: the unplanned Tue/Wed relieve the O-day too",
+    schedule: SB_38_4_DI_FR,
+    year: 2026,
+    month: 2,
+    hireDate: "2024-01-01",
+    // February 2026 starts on a Sunday and has 28 days, so it has the same 16 Tue-Fri days and the
+    // same weekday layout as the issue's measured November 2026 - but it lies in the past, which the
+    // harness needs: the close runs with the clock set to the 16th of the NEXT month, and a month
+    // after the real "today" would put that clock past the admin JWT's lifetime (401).
+    // Shifts of 570 min on Thu 05., Fri 06. (inside the sick week) and on the 12 rostered days
+    // 10.-13., 17.-20., 24.-27.02.; no shift on the sick Tue 03. / Wed 04.
+    shifts: rows(
+      [
+        "2026-02-05",
+        "2026-02-06",
+        "2026-02-10",
+        "2026-02-11",
+        "2026-02-12",
+        "2026-02-13",
+        "2026-02-17",
+        "2026-02-18",
+        "2026-02-19",
+        "2026-02-20",
+        "2026-02-24",
+        "2026-02-25",
+        "2026-02-26",
+        "2026-02-27",
+      ],
+      570,
+    ),
+    // Entries of 600 min on the 12 rostered days (30 min over each shift), none on the sick days.
+    entries: rows(
+      [
+        "2026-02-10",
+        "2026-02-11",
+        "2026-02-12",
+        "2026-02-13",
+        "2026-02-17",
+        "2026-02-18",
+        "2026-02-19",
+        "2026-02-20",
+        "2026-02-24",
+        "2026-02-25",
+        "2026-02-26",
+        "2026-02-27",
+      ],
+      600,
+    ),
+    leave: [{ start: "2026-02-03", end: "2026-02-06", code: "SICK" }],
+    // Spec derivation: contract Soll = 38 * 60 * 16 / 4 = 9120 (16 Tue-Fri days x 570).
+    // SICK Thu/Fri are planned: 570 + 570 (Issue #429); SICK Tue/Wed have no shift: the O-day
+    // 570 + 570 (Issue #1136, usual workdays Tue-Fri) = 2280 -> C_net = 9120 - 2280 = 6840.
+    // R = 12 x 570 = 6840 (the two planned sick days are covered). W = 12 x 600 = 7200.
+    // overtime = max(0, W - C_net) = 360; undertime = max(0, R - W) = 0; balance = +360.
+    // Pre-fix: the unplanned Tue/Wed relieved nothing, C_net = 7980 > W 7200 -> overtime 0,
+    // balance 0 - the 360 minutes of real overtime were swallowed.
+    expected: {
+      workedMinutes: 7200,
+      expectedMinutes: 6840,
+      balanceMinutes: 360,
+      carryOver: 360,
+      overtimeHours: 6,
+    },
+    expectedRed: false,
+  },
 ];
 
 // ── Roster builders for AZUBI cells ──────────────────────────────────────────
@@ -1795,6 +1895,7 @@ const PARITY_IDS = new Set<string>([
   "fx-40-4-feiertag", // Issue #1133 — FLEXTIME holiday = Ø-day
   "mj-80-exit", // Issue #447 — MONTHLY_HOURS exit month
   "sb-40-5-exit", // Issue #447 — SHIFT_BASED exit month
+  "sb-38-4-krank_ohne_schicht", // Issue #1136 - SHIFT sick without roster
 ]);
 
 // ── Seeder ───────────────────────────────────────────────────────────────────
@@ -1908,6 +2009,8 @@ async function seedGoldenScenario(app: FastifyInstance, cell: Cell): Promise<See
       saturdayHours: sch.saturdayHours ?? 0,
       sundayHours: sch.sundayHours ?? 0,
       workDays: sch.workDays,
+      contractWorkDaysPerWeek: sch.contractWorkDaysPerWeek ?? null,
+      usualWorkDays: sch.usualWorkDays ?? [],
       overtimeMode: "CARRY_FORWARD",
       validFrom: new Date(cell.hireDate + "T00:00:00Z"),
     },
@@ -1970,14 +2073,20 @@ async function seedGoldenScenario(app: FastifyInstance, cell: Cell): Promise<See
 
   // Approved leave
   if (cell.leave?.length) {
-    const lt = await prisma.leaveType.create({
-      data: { tenantId, code: "VACATION", name: "Urlaub GM", isPaid: true },
-    });
+    // Issue #1136: one LeaveType per distinct code (VACATION "Urlaub GM" as before, SICK "Krank GM").
+    const leaveNames = { VACATION: "Urlaub GM", SICK: "Krank GM" } as const;
+    const leaveTypeIds = new Map<string, string>();
+    for (const code of new Set(cell.leave.map((l) => l.code ?? "VACATION"))) {
+      const lt = await prisma.leaveType.create({
+        data: { tenantId, code, name: leaveNames[code], isPaid: true },
+      });
+      leaveTypeIds.set(code, lt.id);
+    }
     for (const l of cell.leave) {
       await prisma.leaveRequest.create({
         data: {
           employeeId,
-          leaveTypeId: lt.id,
+          leaveTypeId: leaveTypeIds.get(l.code ?? "VACATION")!,
           status: "APPROVED",
           startDate: new Date(l.start + "T00:00:00Z"),
           endDate: new Date(l.end + "T00:00:00Z"),
@@ -2227,7 +2336,12 @@ describe.each(CELLS)("golden matrix — $id", (cell) => {
     });
     const approvedLeave = await app.prisma.leaveRequest.findMany({
       where: { employeeId, status: "APPROVED", deletedAt: null },
-      select: { startDate: true, endDate: true, halfDay: true },
+      select: {
+        startDate: true,
+        endDate: true,
+        halfDay: true,
+        leaveType: { select: { code: true } },
+      },
     });
     const tc = await app.prisma.tenantConfig.findFirst({ where: { tenantId } });
     const tenantConfig = tc
@@ -2263,7 +2377,9 @@ describe.each(CELLS)("golden matrix — $id", (cell) => {
       breakOver9hOverride: 0,
       entries: entries as CloseMonthInput["entries"],
       shifts: shifts as CloseMonthInput["shifts"],
-      approvedLeave: approvedLeave as CloseMonthInput["approvedLeave"],
+      // Issue #1136: through the shared mapper with the leave type - without the code a SICK row
+      // would be read as CONTRACT basis and this gate would pass on the pre-fix code too.
+      approvedLeave: toCloseMonthApprovedLeave(approvedLeave),
       absences: absences as CloseMonthInput["absences"],
       holidayDateStrings,
       tenantConfig,
