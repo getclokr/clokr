@@ -4,7 +4,7 @@
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features"; // Issue #1072
@@ -13,6 +13,8 @@
   import { proposeBreakSlot } from "$lib/breaks/break-proposal"; // Issue #1020
   import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1020
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
+  import { addOnArrival, teamZeitenSearch } from "$lib/team/zeiten-url"; // Issue #992
+  import { hasPermission } from "$lib/permissions";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import MonthBar from "$components/ui/MonthBar.svelte";
@@ -590,6 +592,7 @@
     selectedEmployeeId = person.id;
     selectedEmployeeRecord = person;
     await loadAll();
+    syncAddress();
     openDaySheet(day);
   }
 
@@ -613,6 +616,7 @@
     teamMode = mode;
     // The person view skips its month loads while the salon view is shown; catch up on return.
     if (mode === "person") await loadAll();
+    syncAddress();
   }
 
   // Issue #853 (D-853-10): the picker's items. A person kept selected across a salon change (the
@@ -625,9 +629,24 @@
     ),
   );
 
+  // Issue #992 (N-07, D-992-12): Heute im Salon › „Zeit eintragen“ arrives with `eintragen=1`. Without a
+  // person in the link the picker gets the focus and the add dialog opens once a person is chosen; the
+  // flag never survives that one choice.
+  let addAfterPick = $state(false);
+  let pickerHost: HTMLElement | null = $state(null);
+
   async function pickEmployee(id: string) {
     const emp = employees.find((e) => e.id === id);
-    if (emp) await selectEmployee(emp);
+    if (!emp) return;
+    const addNow = addAfterPick;
+    addAfterPick = false;
+    await selectEmployee(emp);
+    if (addNow) openAdd(todayStr);
+  }
+
+  async function focusPicker() {
+    await tick();
+    pickerHost?.querySelector("input")?.focus();
   }
 
   // ── Laden ─────────────────────────────────────────────────────────────────
@@ -643,6 +662,10 @@
       );
       return;
     }
+    // Issue #992 (D-992-12): read once, before the first address write drops the parameter.
+    const addOnLoad =
+      addOnArrival(page.url.searchParams) &&
+      hasPermission($authStore.user, "time-entry:create:ZUGEWIESEN");
     // Issue #1072 (R-A): the month of the first request derives from now, so the tenant's zone is
     // awaited first (a child's onMount runs before the layout's read settles).
     todayStr = tenantDay(new Date(), await tenantFeatures.loadTimezone());
@@ -697,6 +720,15 @@
       else teamMode = teamModeFor("salon", salonTabAvailable);
     }
     // Without a (valid) employee link do NOT call loadAll() here — wait for employee selection
+    if (addOnLoad && teamMode === "person") {
+      if (selectedEmployeeId !== null) {
+        // The link named a person: the dialog opens at once.
+        openAdd(todayStr);
+      } else {
+        addAfterPick = true;
+        await focusPicker();
+      }
+    }
   });
 
   // Issue #558 D-14: the effect owns the list loads; it waits for the salon context so the first
@@ -987,6 +1019,23 @@
     selectedEmployeeId = emp.id;
     selectedEmployeeRecord = emp;
     await loadAll();
+    syncAddress();
+  }
+
+  // Issue #992 (N-05, D-992-10): the chosen person and the selected day live in the address (`replaceState`,
+  // no history entry), so a link to „die Person, November“ can be passed on. `view` stays; `eintragen` goes.
+  function syncAddress() {
+    try {
+      const url = new URL(page.url.href);
+      url.search = teamZeitenSearch(page.url.searchParams, {
+        mode: teamMode,
+        employeeId: selectedEmployeeId,
+        date: selectedDate,
+      }).toString();
+      replaceState(url, {});
+    } catch {
+      // The router is not ready or the URL is unusable: the address just stays as it is, harmless.
+    }
   }
 
   let showMonthPicker = $state(false);
@@ -998,6 +1047,7 @@
     toDate = format(endOfMonth(calMonth), "yyyy-MM-dd");
     selectedDate = fromDate;
     await loadAll();
+    syncAddress();
   }
 
   async function gotoMonthYear(m: number, y: number) {
@@ -1007,6 +1057,7 @@
     selectedDate = fromDate;
     showMonthPicker = false;
     await loadAll();
+    syncAddress();
   }
 
   async function gotoToday() {
@@ -1014,6 +1065,7 @@
     anchorOnDay(todayStr);
     showMonthPicker = false;
     await loadAll();
+    syncAddress();
   }
 
   const MONTH_NAMES_SHORT = [
@@ -1418,9 +1470,11 @@
     base: string | undefined,
     entryCount: number,
     saldo?: DaySaldo,
+    // Issue #992 (D-992-11): the full „8:00 h“ lives in the title; the phone cell shows „8:00“ only.
+    worked?: string,
   ): string | undefined {
     const count = multiEntryUi ? entryCountTitle(entryCount) : null;
-    return [base, count, daySaldoTitle(saldo)].filter(Boolean).join(" · ") || undefined;
+    return [base, worked, count, daySaldoTitle(saldo)].filter(Boolean).join(" · ") || undefined;
   }
 
   function openEdit(entry: TimeEntry) {
@@ -2052,6 +2106,7 @@
     daySheetDay = day;
     selectedDate = day;
     daySheetOpen = true;
+    syncAddress();
   }
   let daySheetEntries = $derived(
     daySheetDay
@@ -2307,7 +2362,14 @@
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
                 disabled={day.isBeforeHire || !day.isCurrentMonth}
-                title={cellTitle(baseTitle, day.entryCount, ds)}
+                title={cellTitle(
+                  baseTitle,
+                  day.entryCount,
+                  ds,
+                  day.isCurrentMonth && day.hasEntries && !day.isBeforeHire
+                    ? `${fmtMin(day.workedMin)} h`
+                    : undefined,
+                )}
                 onclick={() => onCellClick(day.dateStr)}
               >
                 <span class="cal-day-num">{day.dayNum}</span>
@@ -2331,7 +2393,9 @@
                 {#if day.isBeforeHire}
                   <span class="day-before-hire">—</span>
                 {:else if day.isCurrentMonth && day.hasEntries}
-                  <span class="day-worked">{fmtMin(day.workedMin)}&thinsp;h</span>
+                  <span class="day-worked"
+                    >{fmtMin(day.workedMin)}<span class="day-unit">&thinsp;h</span></span
+                  >
                   <!-- Issue #1029: the day difference is the server's day step of the account
                      (`balanceMinutes`), never a browser subtraction. Where the server states none
                      (today, future, a closed month, withheld day details #86) the cell shows only
@@ -2475,7 +2539,12 @@
       description="Wessen Zeiten möchtest du sehen? Such nach dem Namen oder der Personalnummer."
     >
       {#snippet action()}
-        <div class="employee-selector">
+        {#if addAfterPick}
+          <p class="form-hint" data-testid="team-zeiten-add-hint">
+            Wähle eine Person, um ihre Zeit einzutragen.
+          </p>
+        {/if}
+        <div class="employee-selector" bind:this={pickerHost}>
           <PersonPicker
             items={pickerItems}
             value={selectedEmployeeId ?? ""}
@@ -2946,12 +3015,15 @@
 
   /* Status modifiers + cell-content typography → global app.css (v1.5 canonical). */
 
+  /* Issue #992 (D-992-11): calendar hours never wrap inside their 52 px cell. */
+  .day-worked {
+    white-space: nowrap;
+  }
+
   .cal-abs-type {
     display: block;
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     opacity: 0.65;
     line-height: 1.2;
     overflow: hidden;
@@ -2982,8 +3054,6 @@
   .leg-group-label {
     font-size: 0.6875rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-2);
     opacity: 0.7;
   }
@@ -3082,7 +3152,6 @@
   .day-detail-label {
     font-weight: 600;
     font-size: 0.9375rem;
-    text-transform: capitalize;
   }
 
   .day-detail-stats {
@@ -3127,8 +3196,6 @@
     padding: 0.45rem 0.75rem;
     font-weight: 600;
     font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-2);
     text-align: left;
     white-space: nowrap;
@@ -3226,8 +3293,6 @@
   .net-label {
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--text-3);
   }
   .net-value {
@@ -3411,9 +3476,13 @@
       display: none;
     }
 
-    /* Compact worked-hours display */
+    /* Compact worked-hours display: „8:00“ without the unit (the cell title keeps „8:00 h“) */
     .day-worked {
       font-size: 0.6875rem;
+    }
+
+    .day-unit {
+      display: none;
     }
 
     /* Smaller day numbers on mobile */
