@@ -420,6 +420,7 @@
           value={values.type}
           onchange={onTypeChange}
           disabled={!canEdit}
+          fill
         />
       </div>
     </div>
@@ -820,9 +821,16 @@
     min-width: 0;
   }
 
-  /* The model segments wrap onto further rows on a phone (SegmentedControl, #945) instead of scrolling. */
+  /* Four equal segments from 520 px of the section's width, two per row below it (#993 N-19), so no option
+     stands alone in a row. The section is the container (`.detail-form > *` in app.css). */
   .vt-model-field {
     min-width: 0;
+  }
+
+  @container (max-width: 519.98px) {
+    .vt-model-field {
+      --seg-cols: 2;
+    }
   }
 
   /* Two fields side by side (prototype form row), one column on a phone. */
