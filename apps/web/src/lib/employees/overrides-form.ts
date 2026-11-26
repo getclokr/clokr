@@ -5,8 +5,13 @@
 // here only save a round trip and name the field), and a section sends exactly its own keys
 // (#878), never a spread of the whole record.
 
-import { minutesAsHours } from "$lib/settings/arbeitszeit";
+import { hoursError, minutesAsHours } from "$lib/settings/arbeitszeit";
+import { fmtMin } from "$lib/utils/format-minutes";
 import type { ContractSchedule } from "$lib/employees/vertrag-form";
+
+// The Berufsschule slots are entered in hours and kept in minutes (Issue #994, N-12); the converters
+// live next to the company-wide section that shares them.
+export { hoursError, hoursFieldValue, minutesFromHoursField } from "$lib/settings/arbeitszeit";
 
 // ── Keys ─────────────────────────────────────────────────────────────────────
 
@@ -142,8 +147,14 @@ export function phorestMessages(values: PhorestValues): Messages<PhorestKey> {
   return messagesOf(PHOREST_KEYS, values, () => PHOREST_BOUNDS);
 }
 
+/** The slots are entered in hours, so their messages speak hours (the pauses and Phorest stay minutes). */
 export function bsSlotMessages(values: BsSlotValues): Messages<BsSlotKey> {
-  return messagesOf(BS_SLOT_KEYS, values, (key) => BS_SLOT_BOUNDS[key]);
+  const out: Messages<BsSlotKey> = {};
+  for (const key of BS_SLOT_KEYS) {
+    const message = hoursError(values[key], BS_SLOT_BOUNDS[key]);
+    if (message) out[key] = message;
+  }
+  return out;
 }
 
 // ── Under 18 (§ 11 JArbSchG) ─────────────────────────────────────────────────
@@ -189,22 +200,21 @@ export interface SlotLayers {
   dailySoll: number | null;
 }
 
+/** "7:30 h", H:MM like every other time figure of the app. */
 function hoursLabel(minutes: number): string {
-  return (minutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  return `${fmtMin(Math.round(minutes))} h`;
 }
 
 /**
- * "Erbt aus: Muster = 480 Min (8 h)" - the first lower layer that holds a value (person > Muster >
+ * "Erbt aus: Muster = 8:00 h" - the first lower layer that holds a value (person > Muster >
  * Unternehmen > Tages-Soll, 4-layer hierarchy of Phase 76.36); a block week falls back to the
  * weekly hours instead of the daily Soll.
  */
 export function inheritedFrom(layers: SlotLayers, isBlockWeek: boolean): string {
-  if (layers.pattern !== null)
-    return `Erbt aus: Muster = ${layers.pattern} Min (${hoursLabel(layers.pattern)} h)`;
-  if (layers.tenant !== null)
-    return `Erbt aus: Unternehmen = ${layers.tenant} Min (${hoursLabel(layers.tenant)} h)`;
+  if (layers.pattern !== null) return `Erbt aus: Muster = ${hoursLabel(layers.pattern)}`;
+  if (layers.tenant !== null) return `Erbt aus: Unternehmen = ${hoursLabel(layers.tenant)}`;
   if (!isBlockWeek && layers.dailySoll !== null)
-    return `Erbt aus: Tages-Soll = ${layers.dailySoll} Min (${hoursLabel(layers.dailySoll)} h)`;
+    return `Erbt aus: Tages-Soll = ${hoursLabel(layers.dailySoll)}`;
   return isBlockWeek
     ? "Erbt aus: Wochenstunden-Soll der Person"
     : "Erbt aus: Tages-Soll der Person";
@@ -230,7 +240,7 @@ export function overCreditNotice(
     firstLong ?? firstLayers.pattern ?? firstLayers.tenant ?? firstLayers.dailySoll;
   if (effectiveFirst === null || !Number.isFinite(effectiveFirst)) return "";
   if (secondLong <= effectiveFirst) return "";
-  return `Der 2. Langtag (${secondLong} Min = ${hoursLabel(secondLong)} h) übersteigt den 1. Langtag (${effectiveFirst} Min = ${hoursLabel(effectiveFirst)} h). Prüf, ob der zweite Berufsschul-Langtag so hoch gutgeschrieben werden soll.`;
+  return `Der 2. Langtag (${hoursLabel(secondLong)}) übersteigt den 1. Langtag (${hoursLabel(effectiveFirst)}). Prüf, ob der zweite Berufsschul-Langtag so hoch gutgeschrieben werden soll.`;
 }
 
 // ── Daily Soll (the lowest layer of the Berufsschule slots) ──────────────────

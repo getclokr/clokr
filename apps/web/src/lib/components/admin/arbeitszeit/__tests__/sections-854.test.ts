@@ -138,8 +138,8 @@ describe("VocationalSlotsSection", () => {
   it("saves the four keys, an empty field as null, and shows the server's warnings", async () => {
     put.mockResolvedValueOnce({ warnings: ["Die Gutschrift übersteigt das Tages-Soll."] });
     renderWithTheme(VocationalSlotsSection, { config: {} });
-    await fireEvent.input(screen.getByLabelText("Berufsschul-Kurztag (Minuten)"), {
-      target: { value: "360" },
+    await fireEvent.input(screen.getByLabelText("Berufsschul-Kurztag (Stunden)"), {
+      target: { value: "6" },
     });
     await fireEvent.click(await screen.findByRole("button", { name: "Zeitgutschrift speichern" }));
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
@@ -154,6 +154,46 @@ describe("VocationalSlotsSection", () => {
     await waitFor(() => expect(bar()).toBeNull());
   });
 
+  it("Issue #994 (N-12): 7,5 hours count as one change and save as 450 minutes", async () => {
+    renderWithTheme(VocationalSlotsSection, { config: {} });
+    const field = screen.getByLabelText("1. Berufsschul-Langtag (Stunden)") as HTMLInputElement;
+    expect(field.getAttribute("inputmode")).toBe("decimal");
+    expect(field.getAttribute("step")).toBe("0.25");
+    await fireEvent.input(field, { target: { value: "7.5" } });
+    const region = await screen.findByRole("region", { name: "Speicherleiste" });
+    expect(region.textContent).toContain("1 Änderung");
+    expect(screen.getByText("= 7:30 h")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Zeitgutschrift speichern" }));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0][1]).toMatchObject({ bsSlotFirstLongDayMinutes: 450 });
+  });
+
+  it("Issue #994 (N-12, N-10): a stored 450 shows as 7,5 and a value off the grid stays savable", async () => {
+    renderWithTheme(VocationalSlotsSection, {
+      config: { bsSlotFirstLongDayMinutes: 450, bsSlotShortDayMinutes: 437 },
+    });
+    expect(
+      (screen.getByLabelText("1. Berufsschul-Langtag (Stunden)") as HTMLInputElement).value,
+    ).toBe("7.5");
+    expect((screen.getByLabelText("Berufsschul-Kurztag (Stunden)") as HTMLInputElement).value).toBe(
+      "7.28",
+    );
+    // nothing was typed: the display rounding never turns into a change
+    expect(bar()).toBeNull();
+  });
+
+  it("Issue #994 (N-10): the hint ends with the legal basis, the intro has no „Fallback“", () => {
+    renderWithTheme(VocationalSlotsSection, { config: {} });
+    const text = hintText("Berufsschule")!;
+    expect(text).toContain("Ein Tag zählt 4 bis 10 Stunden, eine Blockwoche 20 bis 50 Stunden.");
+    expect(text.endsWith("Grundlage: § 15 Abs. 2 BBiG.")).toBe(true);
+    expect(text).not.toMatch(/Minuten|240|1200/);
+    expect(document.body.textContent).not.toContain("Fallback");
+    expect(document.body.textContent).toContain(
+      "Die Werte gelten für jede Person ohne eigenen Wert.",
+    );
+  });
+
   it("clears a stored value with „Leeren“ and sends null for it", async () => {
     renderWithTheme(VocationalSlotsSection, { config: { bsSlotShortDayMinutes: 300 } });
     await fireEvent.click(
@@ -166,8 +206,8 @@ describe("VocationalSlotsSection", () => {
 
   it("blocks a value outside the bounds", async () => {
     renderWithTheme(VocationalSlotsSection, { config: {} });
-    await fireEvent.input(screen.getByLabelText("Blockunterricht-Woche (Minuten)"), {
-      target: { value: "100" },
+    await fireEvent.input(screen.getByLabelText("Blockunterricht-Woche (Stunden)"), {
+      target: { value: "10" },
     });
     const region = await screen.findByRole("region", { name: "Speicherleiste" });
     expect(region.textContent).toContain("1 Fehler");

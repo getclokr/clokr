@@ -139,6 +139,13 @@ describe("validation", () => {
       "bsSlotFirstLongDayMinutes",
     ]);
     expect(patternsErrorCount([draftOf(STORED), newDraft(1, "2026-11-12")])).toBe(1);
+    // Issue #994 (N-12): the slots are typed in hours, so the message speaks hours.
+    expect(messages.slots.bsSlotFirstLongDayMinutes).toBe(
+      "Der Wert muss zwischen 4 und 10 Stunden liegen.",
+    );
+    expect(messages.slots.bsSlotBlockWeekMinutes).toBe(
+      "Der Wert muss zwischen 20 und 50 Stunden liegen.",
+    );
   });
 });
 

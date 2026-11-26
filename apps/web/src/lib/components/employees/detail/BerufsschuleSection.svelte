@@ -9,6 +9,9 @@
     Zeitgutschrift Berufsschule  the person's own four slot minutes, `PATCH /employees/:id` with
                                  exactly those keys (Phase 76.36); empty = inherit
 
+  Issue #994 (N-12): the four credits are entered in hours (decimal, step 0.25) like every other
+  amount of working time; the state, the bounds and the PATCH / PUT bodies stay whole minutes.
+
   Hierarchy of a slot: Person > Muster > Unternehmen > Tages-Soll; an empty field says where it
   inherits from. Retroactive changes are the API's business: the wizard shows what would change, the
   locked-month refusals and the per-day overrides are unchanged, and nothing is applied before the
@@ -68,6 +71,8 @@
   import {
     BS_BLOCK_BOUNDS,
     BS_DAILY_BOUNDS,
+    hoursFieldValue,
+    minutesFromHoursField,
     BS_SLOT_KEYS,
     bsSlotMessages,
     bsSlotValuesOf,
@@ -254,7 +259,7 @@
   const SLOT_FIELDS: SlotField[] = [
     {
       key: "bsSlotFirstLongDayMinutes",
-      label: "1. Berufsschul-Langtag (Minuten)",
+      label: "1. Berufsschul-Langtag (Stunden)",
       name: "1. Langtag",
       bounds: BS_DAILY_BOUNDS,
       block: false,
@@ -262,7 +267,7 @@
     },
     {
       key: "bsSlotSecondLongDayMinutes",
-      label: "2. Berufsschul-Langtag (Minuten)",
+      label: "2. Berufsschul-Langtag (Stunden)",
       name: "2. Langtag",
       bounds: BS_DAILY_BOUNDS,
       block: false,
@@ -270,7 +275,7 @@
     },
     {
       key: "bsSlotShortDayMinutes",
-      label: "Berufsschul-Kurztag (Minuten)",
+      label: "Berufsschul-Kurztag (Stunden)",
       name: "Kurztag",
       bounds: BS_DAILY_BOUNDS,
       block: false,
@@ -278,7 +283,7 @@
     },
     {
       key: "bsSlotBlockWeekMinutes",
-      label: "Blockunterricht-Woche (Minuten)",
+      label: "Blockunterricht-Woche (Stunden)",
       name: "Blockunterricht-Woche",
       bounds: BS_BLOCK_BOUNDS,
       block: true,
@@ -523,9 +528,9 @@
         <details class="bs-slots" open={SLOT_FIELDS.some((slot) => draft[slot.key] !== null)}>
           <summary>Zeitgutschrift für dieses Muster (optional)</summary>
           <p class="bs-help">
-            Leer = Wert aus den Einstellungen des Unternehmens bzw. dem Tages-Soll. Tages-Slots: {BS_DAILY_BOUNDS.min}–{BS_DAILY_BOUNDS.max}
-            Min (4–10 h). Blockunterricht-Woche: {BS_BLOCK_BOUNDS.min}–{BS_BLOCK_BOUNDS.max} Min (20–50
-            h). Änderungen wirken nur auf offene und künftige Monate.
+            Leer = Wert aus den Einstellungen des Unternehmens bzw. dem Tages-Soll. Ein Tag zählt 4
+            bis 10 Stunden, eine Blockwoche 20 bis 50 Stunden. Änderungen wirken nur auf offene und
+            künftige Monate.
           </p>
           {#each SLOT_FIELDS as slot (slot.key)}
             <FormField
@@ -542,10 +547,14 @@
                   {id}
                   class="form-input bs-number"
                   type="number"
-                  min={slot.bounds.min}
-                  max={slot.bounds.max}
-                  step="1"
-                  bind:value={draft[slot.key]}
+                  inputmode="decimal"
+                  min={slot.bounds.min / 60}
+                  max={slot.bounds.max / 60}
+                  step="0.25"
+                  bind:value={
+                    () => hoursFieldValue(draft[slot.key]),
+                    (hours) => (draft[slot.key] = minutesFromHoursField(hours))
+                  }
                   disabled={!canManagePattern || savingPatterns}
                   aria-invalid={invalid ? "true" : undefined}
                   aria-describedby={describedBy}
@@ -589,7 +598,10 @@
 <SettingsGroup
   id="vertrag-zeitgutschrift"
   title="Zeitgutschrift Berufsschule"
-  hint={`Überschreibt Muster- und Unternehmensvorgabe für diese Person (Person › Muster › Unternehmen › Tages-Soll). Leer = Wert aus der nächsten Ebene. Tages-Slots: ${BS_DAILY_BOUNDS.min}–${BS_DAILY_BOUNDS.max} Min (${BS_DAILY_BOUNDS.min / 60}–${BS_DAILY_BOUNDS.max / 60} h). Blockunterricht-Woche: ${BS_BLOCK_BOUNDS.min}–${BS_BLOCK_BOUNDS.max} Min (${BS_BLOCK_BOUNDS.min / 60}–${BS_BLOCK_BOUNDS.max / 60} h).`}
+  hint={[
+    "Überschreibt Muster- und Unternehmensvorgabe für diese Person (Person › Muster › Unternehmen › Tages-Soll). Leer = Wert aus der nächsten Ebene.",
+    "Ein Tag zählt 4 bis 10 Stunden, eine Blockwoche 20 bis 50 Stunden.",
+  ]}
   changes={canEditSlots ? slotChanges : 0}
   errors={sectionErrors(slotShown)}
   saving={savingSlots}
@@ -618,10 +630,14 @@
             {id}
             class="form-input bs-number"
             type="number"
-            min={slot.bounds.min}
-            max={slot.bounds.max}
-            step="1"
-            bind:value={slots[slot.key]}
+            inputmode="decimal"
+            min={slot.bounds.min / 60}
+            max={slot.bounds.max / 60}
+            step="0.25"
+            bind:value={
+              () => hoursFieldValue(slots[slot.key]),
+              (hours) => (slots[slot.key] = minutesFromHoursField(hours))
+            }
             placeholder="Leer = erben"
             disabled={!canEditSlots || savingSlots}
             data-testid={`bs-slot-${slot.testid}`}

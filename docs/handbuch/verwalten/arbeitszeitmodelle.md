@@ -53,7 +53,7 @@ Unter **Verwalten › Regeln › Arbeitszeit & Verträge** gelten die Vorgaben f
 - **Überstunden**: ein Limit, wie weit das Überstundensaldo ins Minus gehen darf.
 - **Pausen & ArbZG**: die Pflichtpausen nach § 4 ArbZG (ab 6 Stunden mindestens 30 Minuten, ab 9 Stunden mindestens 45 Minuten) mit der Option, Pausen automatisch abzuziehen, mit dem Standard-Pausenbeginn und mit der **Pausen-Bestätigung**. Dazu kommt die **ArbZG-Prüfung**, die Höchstarbeitszeit, Pausen und Ruhezeiten prüft.
 - **Einträge**: nach wie vielen Stunden ein Eintrag ohne Ausstempeln ungültig wird, und das **Selbstbearbeitungsfenster**: wie viele Tage Mitarbeitende ihre Einträge rückwirkend selbst ändern dürfen. Ältere Einträge tragen Mitarbeitende über einen Zeitnachtrag nach; darüber entscheidet, wer Zeitnachträge genehmigen darf. Dazu kommt der **Abgleich mit Terminen**: Ist er an, vergleicht Clokr die Phorest-Termine mit der erfassten Zeit und weist Mitarbeitende und alle, die die Zeiten der Person sehen dürfen, auf vermutlich nicht erfasste Zeit hin. Clokr trägt nie selbst Zeit ein. Der Abgleich ist für jedes Unternehmen zunächst aus. Gibt es einen Betriebsrat, stimm den Abgleich vorher mit ihm ab (§ 87 Abs. 1 Nr. 6 BetrVG). Ist er an, informiert Clokr die Mitarbeitenden in ihrem Profil darüber (Art. 13 DSGVO).
-- **Berufsschule**: die Zeitgutschrift für Berufsschultage von Auszubildenden.
+- **Berufsschule**: die Zeitgutschrift für Berufsschultage von Auszubildenden, in Stunden (ein Tag 4 bis 10, eine Blockwoche 20 bis 50).
 
 Pausen und Fenster wirken auf neue Einträge ab dem Speichern.
 
