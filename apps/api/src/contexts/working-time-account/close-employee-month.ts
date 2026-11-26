@@ -1263,8 +1263,9 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     // in this function (§ 2 Abs. 1 / § 12 EFZG is unabdingbar; a tenant cannot opt out).
     // `calcMonthlyHoursHolidayMinutesTz` owns the day-membership test (D-05: workDays ->
     // defaultWorkDays -> Mo-Fr, never {day}Hours) and the full-calendar-month denominator
-    // (D-06), shared with the full-Soll and leave/absence branches above/below. Every
-    // other non-SHIFT type keeps the existing per-holiday {day}Hours loop, byte-identical.
+    // (D-06), shared with the full-Soll and leave/absence branches above/below. FLEXTIME
+    // takes the Ø-day per holiday (Issue #1133, below); FIXED_SCHEDULE keeps the per-holiday
+    // {day}Hours loop, byte-identical.
     if (scheduleType === "MONTHLY_HOURS") {
       const filteredHolidayDateStrings = new Set<string>();
       for (const hDateStr of holidayDateStrings) {
@@ -1289,6 +1290,15 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
         // (effectiveEndStr === monthEnd's date) is unaffected by this guard.
         if (hDateStr < effectiveStartStr || hDateStr > effectiveEndStr) continue;
         const hDate = new Date(hDateStr + "T00:00:00Z");
+        if (scheduleType === "FLEXTIME") {
+          // Issue #1133: for FLEXTIME the {day}Hours columns are a legacy 1/0 flag, not hours
+          // (.claude/rules/schedule-types.md). The month Soll above is the Ø-Methode over the
+          // contract workdays (avgWorkMinutesCore), so a holiday takes back exactly that share:
+          // the Ø-day on a contract workday, nothing on any other day. The same kernel prices a
+          // leave day (calcLeaveAbsenceMinutesTz), so holiday and leave reduce by one value.
+          holidayMinutes += calcLeaveAbsenceMinutesTz(schedule, hDate, hDate, tz);
+          continue;
+        }
         const dow = getDayOfWeekInTz(hDate, tz);
         holidayMinutes += getDayHoursFromSchedule(schedule, dow) * 60;
       }

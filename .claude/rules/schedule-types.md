@@ -79,6 +79,12 @@ FULL calendar month)` (Ø-Methode; a half day reduces by half; one `Math.round()
   (preview and apply) refuse a mismatch with 400 `WEEKLY_HOURS_MISMATCH` before any write. A
   write-path guard only — no reader changes, other types are never compared, and divergent rows
   are listed by `scripts/audit-848-weekly-vs-day-hours.ts` (read-only, ids only), never corrected.
+- **FLEXTIME holidays take the Ø-day (Issue #1133).** A statutory or manual holiday reduces a
+  `FLEXTIME` month Soll by `calcLeaveAbsenceMinutesTz()` for that day — the `avgWorkMinutesCore`
+  Ø-day (`weeklyHours ÷ contract workdays`) on a contract workday, nothing on any other day — the
+  same value as a leave day, in the one holiday loop of `closeEmployeeMonth`. `{day}Hours` is
+  never read as hours for `FLEXTIME`. Months closed before the fix keep their figures;
+  `scripts/audit-1133-flextime-holiday-soll.ts` lists them read-only, corrections only via #599.
 - **Divergent legacy rows MUST NOT be "corrected" (Phase 95b, D-01).** Surface them with
   `pnpm --filter @clokr/api exec tsx scripts/audit-workdays-vs-day-hours.ts` — then leave them
   alone. `workDays` is the source of truth for leave consumption (`calculateWorkDays`) and pro-rata
