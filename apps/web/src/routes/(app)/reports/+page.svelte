@@ -899,6 +899,7 @@
 
 {#snippet periodPanel()}
   <div class="period-content" style="--period-bar-h: {barHeight}px">
+    <!-- Issue #993 N-10: the bar drives the absence tables and picks the Urlaubsjahr on the Urlaub tab, so it stays on both period tabs. -->
     <PeriodBar
       onHeight={(px) => (barHeight = px)}
       from={urlState.from}
@@ -943,6 +944,7 @@
           withoutHomeSalonCount={period?.withoutHomeSalonCount ?? null}
           loading={periodLoading}
           periodTo={period?.to ?? null}
+          tab={activeTab === "urlaub" ? "urlaub" : "zeiten"}
         />
       </div>
 

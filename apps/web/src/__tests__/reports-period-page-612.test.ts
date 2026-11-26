@@ -153,6 +153,17 @@ describe("/reports period area (Issue #612) - one period control, no old selects
     expect(PAGE).not.toContain("let selectedYear = $state");
   });
 
+  // Issue #993 N-10 (D-993-03): each period tab shows its own figures; the bar drives both.
+  it("passes the active period tab to <PeriodKpis> and keeps the period bar on both tabs", () => {
+    expect(TEMPLATE).toMatch(
+      /<PeriodKpis[^>]*tab=\{activeTab === "urlaub" \? "urlaub" : "zeiten"\}/s,
+    );
+    const panelStart = TEMPLATE.indexOf("{#snippet periodPanel()}");
+    const bar = TEMPLATE.indexOf("<PeriodBar", panelStart);
+    // The bar sits in the panel directly, not inside a tab condition.
+    expect(TEMPLATE.slice(panelStart, bar)).not.toMatch(/\{#if\s+activeTab/);
+  });
+
   it("the old team KPI row is gone and the personal KPI row stays", () => {
     expect(PAGE).not.toContain('label="Mitarbeiter"');
     expect(PAGE).not.toContain('label="Kritische Salden"');

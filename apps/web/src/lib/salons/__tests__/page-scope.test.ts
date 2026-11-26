@@ -70,7 +70,7 @@ describe("salonPageFilter — the same decision as the dashboard, under a page n
   it("a stale selection sends no salonId", () => {
     const state = { isMultiSalon: true, salons: [A, B], selection: "gone" };
     expect(salonPageFilter(state)).toBeNull();
-    expect(salonScopeLabel(state)).toBe("Alle Salons");
+    expect(salonScopeLabel(state)).toBe("Salon: alle");
   });
 
   it("a request path without a salon stays untouched", () => {
@@ -82,10 +82,11 @@ describe("salonPageFilter — the same decision as the dashboard, under a page n
 });
 
 describe("salonScopeLabel — German wording of what the page refers to", () => {
-  it('options plus "Alle Salons" say „Alle Salons“', () => {
+  // Issue #993 N-10 (D-993-02): a label:value pair like „Salon: Nord“, not a loose word.
+  it('options plus "Alle Salons" say „Salon: alle“', () => {
     const state = { isMultiSalon: true, salons: [A, B], selection: "ALL" };
     expect(salonPageFilter(state)).toBeNull();
-    expect(salonScopeLabel(state)).toBe("Alle Salons");
+    expect(salonScopeLabel(state)).toBe("Salon: alle");
   });
 
   it("options plus a chosen salon name it", () => {

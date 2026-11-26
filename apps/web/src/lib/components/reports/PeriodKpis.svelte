@@ -35,6 +35,11 @@
     loading: boolean;
     /** The answer's `to` (`YYYY-MM`); names the running month's Stichtag (#985). Null: no note. */
     periodTo?: string | null;
+    /**
+     * Issue #993 N-10 (D-993-03): each period tab shows its own figures - the time strip on
+     * "zeiten", the vacation strip on "urlaub". A caller that passes nothing gets the time figures.
+     */
+    tab?: "zeiten" | "urlaub";
   }
 
   let {
@@ -43,6 +48,7 @@
     withoutHomeSalonCount = null,
     loading,
     periodTo = null,
+    tab = "zeiten",
   }: Props = $props();
 
   const DASH = "—";
@@ -153,10 +159,12 @@
 <div class="period-figures" data-testid="period-kpis" aria-busy={loading}>
   {#if showSkeleton}
     <div class="figures-skeleton" data-testid="period-kpis-skeleton">
-      <Skeleton shape="block" count={8} height="3rem" />
+      <Skeleton shape="block" count={4} height="3rem" />
     </div>
   {:else if kpis}
-    <KpiStrip items={timeItems} ariaLabel="Zeiten und Konten im Zeitraum" />
+    {#if tab === "zeiten"}
+      <KpiStrip items={timeItems} ariaLabel="Zeiten und Konten im Zeitraum" />
+    {/if}
 
     {#if runningNote}
       <p class="period-figure-note" data-testid="period-kpis-running-month">{runningNote}</p>
@@ -167,8 +175,8 @@
     <div class="hint-row period-figure-hints">
       <InfoHint
         testId="period-kpis-persons"
-        text={saldoNote ? [personsNote ?? "", saldoNote] : (personsNote ?? "")}
-        label={hintLabel("Zeiten und Konten")}
+        text={tab === "zeiten" && saldoNote ? [personsNote ?? "", saldoNote] : (personsNote ?? "")}
+        label={hintLabel(tab === "zeiten" ? "Zeiten und Konten" : "Urlaub und Krankheit")}
       />
       {#if filterActive}
         <InfoHint
@@ -184,18 +192,20 @@
       {/if}
     </div>
 
-    <KpiStrip items={vacationItems} ariaLabel="Urlaub und Krankheit im Zeitraum" />
+    {#if tab === "urlaub"}
+      <KpiStrip items={vacationItems} ariaLabel="Urlaub und Krankheit im Zeitraum" />
+    {:else}
+      {#if salonItems.length > 0}
+        <div data-testid="period-kpis-salon-hours">
+          <KpiStrip items={salonItems} ariaLabel="Im Salon gearbeitet" />
+        </div>
+      {/if}
 
-    {#if salonItems.length > 0}
-      <div data-testid="period-kpis-salon-hours">
-        <KpiStrip items={salonItems} ariaLabel="Im Salon gearbeitet" />
-      </div>
-    {/if}
-
-    {#if forecastNote}
-      <p class="period-figure-note" data-testid="period-kpis-forecast-note">
-        Offene Monate sind eine Prognose und ändern sich bis zum Monatsabschluss.
-      </p>
+      {#if forecastNote}
+        <p class="period-figure-note" data-testid="period-kpis-forecast-note">
+          Offene Monate sind eine Prognose und ändern sich bis zum Monatsabschluss.
+        </p>
+      {/if}
     {/if}
   {/if}
 </div>
@@ -208,7 +218,7 @@
     min-width: 0;
   }
 
-  /* The Skeleton region lays its eight lines out in the columns of the real strips. */
+  /* The Skeleton region lays its four lines (one strip) out in the columns of the real strip. */
   .figures-skeleton :global(.skeleton-region) {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
