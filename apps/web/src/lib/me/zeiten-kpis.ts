@@ -64,8 +64,11 @@ export interface ZeitenAccountFigure {
   stand: string;
 }
 
-/** One wording for a saldo the viewer may not read (#85), shared by Monatssaldo and Gesamtsaldo. */
-const SALDO_WITHHELD_EXPLANATION = "sehen Inhaber, Personalabteilung und die Person selbst";
+/**
+ * One wording for a saldo the viewer may not read (#85), shared by Monatssaldo and Gesamtsaldo. Role
+ * names are tenant data and never named in a text (Issue #992, N-07 of 14.11., D-992-25).
+ */
+const SALDO_WITHHELD_EXPLANATION = "für dich nicht freigegeben";
 
 /**
  * „Stand gestern, 23.11.“ - the Stichtag wording of Ich › Konto (Issue #1029). `anchor` is the tenant

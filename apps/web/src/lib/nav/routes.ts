@@ -372,7 +372,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     href: "/verwalten/regeln",
     area: "verwalten",
     label: "Regeln",
-    icon: "check",
+    icon: "sliders",
     width: "read",
     requires: "children",
     inNav: true,
@@ -1071,6 +1071,40 @@ export const MOBILE_TAB_PRIORITY: readonly string[] = [
   "/ich/konto",
 ];
 
+/**
+ * Issue #992 (S-02, N-21, D-992-23; owner decision 25.11.2026: differences are labelled, not hidden) —
+ * the phone name of a Team page whose page name the person ALSO sees under Ich: "Team-Zeiten" next to
+ * the own "Zeiten". Null for every other page (an Ich page, a Team page without an Ich twin, a page the
+ * person may not see). The soft hyphen of `labelBreaks` is kept, so a long qualified name still breaks
+ * in its narrow slot. Display only: the page name of the table (= menu = H1) never changes, and the
+ * desktop rail keeps the plain name under its area heading.
+ */
+export function qualifiedNavLabel(
+  user: PermissionHolder | null | undefined,
+  route: AppRoute,
+  options: RouteOptions,
+): string | null {
+  if (route.area !== "team" || !visibleRoute(user, route, options)) return null;
+  const hasIchTwin = APP_ROUTES.some(
+    (entry) =>
+      entry.area === "ich" &&
+      entry.inNav &&
+      entry.label === route.label &&
+      visibleRoute(user, entry, options),
+  );
+  return hasIchTwin ? `Team-${route.labelBreaks ?? route.label}` : null;
+}
+
+/** The qualified name of the page at `pathname` for the phone crumb, or null when it has none. */
+export function phoneCrumbLabel(
+  pathname: string,
+  user: PermissionHolder | null | undefined,
+  options: RouteOptions,
+): string | null {
+  const route = routeFor(pathname);
+  return route === null ? null : qualifiedNavLabel(user, route, options);
+}
+
 /** The tab-bar targets of `user`: Mein Tag, then up to `MOBILE_TAB_SLOTS` entries of `MOBILE_TAB_PRIORITY`
  *  the user sees in the navigation (permissions and tenant features), each under its page name; „Mehr“
  *  follows in the bar itself. Never a dead link, never a role comparison. */
@@ -1087,7 +1121,7 @@ export function mobileTabs(
     tabs.push({
       href: route.href,
       label: route.label,
-      displayLabel: route.labelBreaks ?? route.label,
+      displayLabel: qualifiedNavLabel(user, route, options) ?? route.labelBreaks ?? route.label,
       icon: route.icon,
     });
   }

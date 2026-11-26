@@ -11,7 +11,8 @@
   import SalonSwitcher from "./SalonSwitcher.svelte";
   import { removeThisDevicePush } from "$lib/push/logout";
   import { pageLabel } from "$lib/nav/page-labels";
-  import { crumbTrail } from "$lib/nav/routes";
+  import { crumbTrail, phoneCrumbLabel } from "$lib/nav/routes";
+  import { tenantFeatures } from "$stores/tenant-features";
   import { detailCrumb } from "$lib/nav/detail-crumb";
   import { openPalette } from "$lib/nav/palette-event";
 
@@ -26,6 +27,15 @@
   // last a link, the record name of a detail page last). Outside the table it falls back to the labels.
   let { currentPath, currentPageLabel, currentAreaLabel = "" }: Props = $props();
   const trail = $derived(crumbTrail(currentPath, $authStore.user, $detailCrumb));
+  // Issue #992 (S-02, D-992-23): on a phone the current Team page that shares its name with an Ich page
+  // reads "Team-<Name>". A detail page closes the trail with the record's name, which needs no prefix.
+  const phoneLabel = $derived(
+    $detailCrumb === null
+      ? phoneCrumbLabel(currentPath, $authStore.user, {
+          availabilityEnabled: $tenantFeatures.availabilityEnabled,
+        })
+      : null,
+  );
 
   // ── Avatar dropdown ────────────────────────────────────────────
   let avatarMenuOpen = $state(false);
@@ -271,7 +281,10 @@
       {#each trail as crumb, i (i)}
         <span class="topbar-crumb-item" class:topbar-crumb-item--current={i === trail.length - 1}
           >{#if i > 0}<span class="topbar-sep" aria-hidden="true">/</span
-            >{/if}{#if i === trail.length - 1}<b aria-current="page">{crumb.label}</b
+            >{/if}{#if i === trail.length - 1}<b aria-current="page"
+              >{#if phoneLabel !== null}<span class="topbar-crumb-plain">{crumb.label}</span><span
+                  class="topbar-crumb-qualified">{phoneLabel}</span
+                >{:else}{crumb.label}{/if}</b
             >{:else if crumb.href}<a class="topbar-crumb-link" href={crumb.href}>{crumb.label}</a
             >{:else}<span>{crumb.label}</span>{/if}</span
         >
@@ -477,6 +490,16 @@
     .topbar-crumb-item--current .topbar-sep {
       display: none;
     }
+    /* Issue #992 (S-02): the qualified name replaces the plain one on a phone. */
+    .topbar-crumb-plain {
+      display: none;
+    }
+    .topbar-crumb-qualified {
+      display: inline;
+    }
+  }
+  .topbar-crumb-qualified {
+    display: none;
   }
   .topbar-crumb-link {
     color: var(--text-2);

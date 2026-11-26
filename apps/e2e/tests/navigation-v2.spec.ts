@@ -266,14 +266,17 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
       tabs: ["Mein Tag", "Zeiten", "Abwesenheiten", "Dienstplan", "Mehr"],
       page: "/ich/abwesenheiten",
       heading: "Abwesenheiten",
+      crumb: "Abwesenheiten",
     },
     {
       key: "salon945",
       title: "Salonleitung",
       template: "SALON_MANAGER",
-      tabs: ["Mein Tag", "Heute im Salon", "Aufgaben", "Zeiten", "Mehr"],
+      // Issue #992 (S-02): a Team page whose name the person also sees under Ich reads "Team-<Name>".
+      tabs: ["Mein Tag", "Heute im Salon", "Aufgaben", "Team-Zeiten", "Mehr"],
       page: "/team/dienstplan",
       heading: "Dienstplan",
+      crumb: "Team-Dienstplan",
     },
     {
       key: "hr945",
@@ -282,6 +285,7 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
       tabs: ["Mein Tag", "Personen", "Monatsabschluss", "Berichte", "Mehr"],
       page: "/verwalten/monatsabschluss",
       heading: "Monatsabschluss",
+      crumb: "Monatsabschluss",
     },
   ] as const;
 
@@ -324,7 +328,11 @@ test.describe("Navigation v2 — phone tab bar per role and an uncut title (#945
         expect(cut, `${role.title} ${width}: cut tab labels`).toBe(0);
 
         const crumb = page.getByTestId("topbar-crumb");
-        await expect(crumb.locator("b[aria-current='page']")).toHaveText(role.heading);
+        // The phone crumb shows the qualified name; both spans are in the DOM, so the text is read as
+        // rendered (innerText), not as textContent (Issue #992).
+        await expect(crumb.locator("b[aria-current='page']")).toHaveText(role.crumb, {
+          useInnerText: true,
+        });
         const fits = await crumb.evaluate(
           (el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1,
         );

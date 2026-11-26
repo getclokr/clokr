@@ -87,7 +87,8 @@ describe("BottomTabBar — current location (#515)", () => {
 
     const current = currentElements(nav);
     expect(current).toHaveLength(1);
-    const times = within(nav).getByRole("link", { name: "Zeiten", hidden: true });
+    // Issue #992 (S-02): the team's tab is qualified next to the own „Zeiten“ page.
+    const times = within(nav).getByRole("link", { name: "Team-Zeiten", hidden: true });
     expect(times).toHaveAttribute("href", "/team/zeiten");
     expect(current[0]).toBe(times);
     expect(times).toHaveAttribute("aria-current", "page");
@@ -114,7 +115,7 @@ describe("BottomTabBar — current location (#515)", () => {
     const nav = mobileNav();
 
     // The one „Zeiten“ tab is the team's (#945: a page name is in the bar once), and it is not current.
-    const times = within(nav).getAllByRole("link", { name: "Zeiten", hidden: true });
+    const times = within(nav).getAllByRole("link", { name: "Team-Zeiten", hidden: true });
     expect(times.map((link) => link.getAttribute("href"))).toEqual(["/team/zeiten"]);
     expect(times[0]).not.toHaveAttribute("aria-current");
     const mehr = within(nav).getByRole("button", { hidden: true });

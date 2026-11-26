@@ -675,7 +675,14 @@ describe("phone tabs (#945, derived from permissions and the route table)", () =
         const route = APP_ROUTES.find((r) => r.href === tab.href)!;
         expect(tab.label, `${persona} ${tab.href}`).toBe(route.label);
         expect(tab.icon, `${persona} ${tab.href}`).toBe(route.icon);
-        expect(tab.displayLabel.replace(/\u00AD/g, ""), `${persona} ${tab.href}`).toBe(route.label);
+        // Issue #992 (D-992-23): only a Team page whose name the person also sees under Ich is
+        // qualified ("Team-Zeiten"); every other display label is the page name itself.
+        const shown = tab.displayLabel.replace(/\u00AD/g, "");
+        const qualified = shown !== route.label;
+        if (qualified) expect(route.area, `${persona} ${tab.href}`).toBe("team");
+        expect(shown, `${persona} ${tab.href}`).toBe(
+          qualified ? `Team-${route.label}` : route.label,
+        );
       }
     }
   });

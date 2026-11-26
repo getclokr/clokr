@@ -115,7 +115,8 @@
       </div>
       <div class="userinfo">
         <div class="name">{$authStore.user.firstName ?? $authStore.user.email}</div>
-        <div class="role">
+        <!-- Issue #992 (S-03, D-992-24): one line with an ellipsis; the full text is the tooltip. -->
+        <div class="role" title={roleNamesLabel($salonContext)}>
           {roleNamesLabel($salonContext)}
         </div>
       </div>
@@ -327,6 +328,9 @@
   .userinfo .role {
     font-size: 11.5px;
     color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .icon-btn {

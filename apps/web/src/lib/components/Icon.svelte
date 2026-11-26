@@ -143,6 +143,13 @@
     <path d="M10 11v6" />
     <path d="M14 11v6" />
     <path d="M9 6V4h6v2" />
+  {:else if name === "sliders"}
+    <!-- Issue #992 (N-13): the glyph of „Regeln“ — three lines with a knob each, instead of a check mark
+         that reads as „done“. -->
+    <path d="M4 6h5M13 6h7M4 12h9M17 12h3M4 18h3M11 18h9" />
+    <circle cx="11" cy="6" r="2" />
+    <circle cx="15" cy="12" r="2" />
+    <circle cx="9" cy="18" r="2" />
   {:else if name === "graduation-cap"}
     <!-- v1.7.3: SVG replacement for legacy 🎓 emoji (Berufsschule). Lucide-style. -->
     <path d="M22 10v6" />

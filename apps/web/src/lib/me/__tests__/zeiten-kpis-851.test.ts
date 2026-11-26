@@ -61,7 +61,7 @@ describe("zeitenKpis", () => {
     });
     expect(worked).toMatchObject({ unit: "h" });
     expect(saldo.value).toBe("—");
-    expect(saldo.explanation).toBe("sehen Inhaber, Personalabteilung und die Person selbst");
+    expect(saldo.explanation).toBe("für dich nicht freigegeben");
     expect(saldo.explanation).not.toContain("ohne Sollvergleich");
   });
 
@@ -112,7 +112,7 @@ describe("zeitenKpis Gesamtsaldo (#1029)", () => {
     expect(items[2].value).toBe("—");
     expect(items[2].unit).toBeUndefined();
     expect(items[2].explanation).toBe(items[1].explanation);
-    expect(items[2].explanation).toBe("sehen Inhaber, Personalabteilung und die Person selbst");
+    expect(items[2].explanation).toBe("für dich nicht freigegeben");
   });
 
   it("claims no Gesamtsaldo for a contract without Soll", () => {
