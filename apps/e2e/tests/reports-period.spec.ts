@@ -1259,10 +1259,13 @@ test.describe("Issue #612 — Layoutprüfungen", () => {
         ).toBeLessThanOrEqual(t.tileRight + TOLERANCE_PX);
       }
       // Control: the probe sees an overflow when there is one (an oversized, unwrappable value).
+      // The strip in view is the Urlaub one (#993), whose short values („0 Tage“) can still fit a
+      // wide tile at 64 px, so the control repeats the value until it cannot.
       const controlOverflows = await page
         .locator("article.kpi .kpi-value")
         .first()
         .evaluate((el) => {
+          el.textContent = (el.textContent ?? "0").trim().repeat(8);
           (el as HTMLElement).style.fontSize = "64px";
           (el as HTMLElement).style.whiteSpace = "nowrap";
           return el.scrollWidth > el.clientWidth;
