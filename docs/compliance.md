@@ -78,16 +78,26 @@ Wer eine Schicht für eine Person plant, die am Schichttag unter 18 ist, bekommt
 
 ### Regeln
 
-Arbeitszeit ist die geplante Schichtzeit **abzüglich der Ruhepause** nach § 11 JArbSchG (dieselbe Pausenregel wie die Erfassung, `breakAmountFor`) plus die Berufsschulzeit des Tages nach § 9 Abs. 2 JArbSchG (die bestehende Anrechnung des Arbeitszeitkontos, nur gelesen).
+Arbeitszeit ist die geplante Schichtzeit **abzüglich der Ruhepause** nach § 11 JArbSchG (dieselbe Pausenregel wie die Erfassung, `breakAmountFor`) plus die Berufsschulzeit des Tages nach § 9 Abs. 2 JArbSchG (die bestehende Anrechnung des Arbeitszeitkontos, nur gelesen). Für die Wochengrenze zählt außerdem die Arbeitszeit, die an einem Feiertag ausfällt (§ 4 Abs. 4 Satz 2 JArbSchG, Issue #1077; Lesart unten).
 
-| Grenze               | Wert                                                                                                               | Rechtsgrund                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| Tag                  | höchstens 8 Stunden                                                                                                | § 8 Abs. 1 JArbSchG                         |
-| Tag, verkürzte Woche | bis 8,5 Stunden, wenn ein anderer Werktag (Mo–Sa) derselben Woche weniger als 8 Stunden Arbeitszeit hat            | § 8 Abs. 2a JArbSchG                        |
-| Woche                | höchstens 40 Stunden, Montag bis Sonntag, nur Tage als Jugendliche, Berufsschulzeit eingerechnet                   | § 8 Abs. 1, § 4 Abs. 4, § 9 Abs. 2 JArbSchG |
-| Schichtzeit          | höchstens 10 Stunden vom ersten Beginn bis zum letzten Ende des Tages, Pausen und Teildienst-Lücken eingeschlossen | § 12 JArbSchG                               |
+| Grenze               | Wert                                                                                                                  | Rechtsgrund                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Tag                  | höchstens 8 Stunden                                                                                                   | § 8 Abs. 1 JArbSchG                         |
+| Tag, verkürzte Woche | bis 8,5 Stunden, wenn ein anderer Werktag (Mo–Sa) derselben Woche weniger als 8 Stunden Arbeitszeit hat               | § 8 Abs. 2a JArbSchG                        |
+| Woche                | höchstens 40 Stunden, Montag bis Sonntag, nur Tage als Jugendliche, Berufsschulzeit und Feiertagsausfall eingerechnet | § 8 Abs. 1, § 4 Abs. 4, § 9 Abs. 2 JArbSchG |
+| Schichtzeit          | höchstens 10 Stunden vom ersten Beginn bis zum letzten Ende des Tages, Pausen und Teildienst-Lücken eingeschlossen    | § 12 JArbSchG                               |
 
 Lesart zu § 8 Abs. 2a: Ein Werktag ohne jede Arbeit zählt als „auf weniger als acht Stunden verkürzt“ (Wortlaut). Die engere Lesart (nur ein gearbeiteter kurzer Tag) würde rechtmäßige Wochen mit Urlaubs- oder Feiertag hart sperren, ohne Ausnahmemöglichkeit.
+
+Lesart zu § 4 Abs. 4 Satz 2 (Issue #1077, Owner-Entscheidung 26.11.2026): Die Arbeitszeit, die an einem Feiertag ausfällt, zählt auf die 40 Stunden der Woche.
+
+- **Ausfall = Soll des Tages laut Vertrag**, nicht die geplante Schicht und kein Schnitt aus geplanten Schichten. Ein Feiertag, den die Planung leer lässt, macht die Woche deshalb nicht kleiner.
+- **Bewertung wie im Arbeitszeitkonto** (`calcExpectedMinutesTz` über genau diesen Tag), für den **am Tag gültigen Vertrag**: fester Plan = Stunden des Wochentags; Monatsstunden = Ø-Tag des Monats; Schichtplan und Gleitzeit = Wochenstunden geteilt durch die Vertragstage, an einem Vertragstag. Ein Tag ohne Vertragssoll (zum Beispiel der freie Wochentag eines festen Plans) bewertet mit 0.
+- **Welche Feiertage:** gesetzliche und Salon-Feiertage am Arbeitsort des Tages, genau die Menge der zentralen Feiertagsauflösung (§ 2 EFZG), wie im Arbeitszeitkonto.
+- **Nur Werktage** (Mo–Sa; das Gesetz sagt „an einem Werktag“): ein Feiertag auf einen Sonntag zählt nichts. Es zählen nur Tage, an denen die Person unter 18 ist und im Arbeitsverhältnis steht (Eintritt bis Austritt).
+- **Eine Schicht am Feiertag** zählt nie doppelt: Der Tag zählt den größeren Wert aus Vertragssoll und geplanter Arbeitszeit.
+- **Nur die Wochensumme:** Tagesgrenze, § 8 Abs. 2a (der Feiertag bleibt ein verkürzter Werktag), §§ 12–17 und die Fünf-Tage-Woche bleiben unverändert; der Feiertag ist kein Arbeitstag nach § 15.
+- **Meldung:** Enthält die Woche Feiertagszeit, nennt die Meldung sie in einem zusätzlichen Satz („Darin sind 8:00 Stunden eingerechnet, die an einem Feiertag ausfallen“). Ohne Feiertag bleibt der Text unverändert.
 
 ### Meldung
 
@@ -106,9 +116,12 @@ Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder 
 - Dieselbe offene Meldung wird nicht wiederholt, ein geänderter Befund (anderer Tag, andere Stunden) kommt neu. Nach dem Ausblenden meldet der nächste Lauf erneut, solange der Plan unzulässig ist.
 - Der Lauf bleibt erfolgreich, auch wenn die Meldung scheitert. Es gibt keinen Audit-Eintrag: Es wird nichts geändert, die Benachrichtigung ist der Nachweis.
 
+### Einführung (Issue #1077)
+
+Der erste Phorest-Lauf nach dem Release kann für eine Woche mit Feiertag einmal neu benachrichtigen, weil die Meldung jetzt die Feiertagszeit nennt (inhaltsbewusste Dedup, Issue #1074). Bestehende Pläne werden nicht nachträglich abgelehnt: Abgelehnt wird nur, was einen Verstoß erzeugt oder vergrößert.
+
 ### Bekannte Grenzen
 
-- **§ 4 Abs. 4 Satz 2 JArbSchG (Feiertag):** Die wegen eines gesetzlichen Feiertags ausfallende Arbeitszeit wird nicht auf die Woche angerechnet. Welche Arbeitszeit für eine schichtgeplante Person „ausfällt“, ist eine offene Owner-Entscheidung; bis dahin ist eine Feiertagswoche zu niedrig gezählt.
 - **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074, siehe „Phorest-Import“ oben).
 - **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) prüft der Dienstplan seit Issue #1076, die Phorest-Meldung mit derselben Prüfung (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“).
