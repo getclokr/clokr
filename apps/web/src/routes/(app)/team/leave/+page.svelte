@@ -1387,7 +1387,7 @@
                         {:else}
                           <InfoHint
                             testId={`leave-team-row-${req.id}-decider-hint`}
-                            text="Die Salonleitung oder die Inhaberin entscheidet."
+                            text="Über diesen Antrag entscheidet, wer Anträge genehmigen darf. Du kannst ihn hier nur ansehen."
                             label={hintLabel("Entscheidung über den Antrag")}
                           />
                         {/if}
@@ -1522,7 +1522,7 @@
   <Modal bind:open={correctOpen} eyebrow="Antrag" title="Antrag korrigieren">
     <div data-testid="leave-correct-modal" style="display: contents">
       <div class="form-group">
-        <span class="review-label">Mitarbeiter</span>
+        <span class="review-label">Person</span>
         <span class="review-value"
           >{correctModal.employee.firstName} {correctModal.employee.lastName}</span
         >

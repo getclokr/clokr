@@ -247,9 +247,25 @@ afterEach(() => {
 });
 
 describe("LeavePlanningPanel - load", () => {
-  it("shows the salon empty state and loads nothing without a salon", () => {
+  // Issue #993 (N-16, D-993-16): a reader without the right to manage plans is told what she can do here.
+  it("tells a reader without leave-plan:manage that she can only look, and loads nothing without a salon", () => {
+    permissions = [];
+    render({ salonId: null });
+    expect(
+      screen.getByText(
+        "Wähle oben einen Salon, um seine Urlaubsplanung anzusehen. Ändern kannst du sie nicht.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Wähle oben einen Salon, um seine Planung zu sehen.")).toBeNull();
+    expect(listPlans).not.toHaveBeenCalled();
+    expect(getPlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps the plain salon prompt for a reader who may manage plans, and loads nothing", () => {
+    permissions = ["leave-plan:manage:ZUGEWIESEN"];
     render({ salonId: null });
     expect(screen.getByText("Wähle oben einen Salon, um seine Planung zu sehen.")).toBeTruthy();
+    expect(screen.queryByText(/Ändern kannst du sie nicht/)).toBeNull();
     expect(listPlans).not.toHaveBeenCalled();
     expect(getPlan).not.toHaveBeenCalled();
   });

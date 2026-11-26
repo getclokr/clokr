@@ -478,3 +478,26 @@ describe("Issue #853 (853-13) - the Anträge table and the create flow ask for w
     expect(run).toContain('createEmployeeId = person ? person.id : ""');
   });
 });
+
+// Issue #993 (U-03 of 16.11., N-10; D-993-17): role names are tenant data (D-992-25), so the decider hint of
+// an open request names none, and the correction dialog's first line says „Person“.
+describe("#993 - the decider hint names no role, the correction dialog says Person", () => {
+  it("the decider hint says who decides without a role name, under the unchanged test id", () => {
+    expect(PAGE).toContain("decider-hint`}");
+    expect(PAGE).toContain(
+      'text="Über diesen Antrag entscheidet, wer Anträge genehmigen darf. Du kannst ihn hier nur ansehen."',
+    );
+    expect(PAGE).not.toContain("Die Salonleitung oder die Inhaberin entscheidet.");
+  });
+
+  it("no role name appears in the template text of the page (comments excluded)", () => {
+    const shown = PAGE.slice(PAGE.indexOf("</script>")).replace(/<!--[\s\S]*?-->/g, "");
+    expect(shown).not.toMatch(/Salonleitung|Inhaberin/);
+  });
+
+  it("the first line of the Antrag-korrigieren dialog is labelled Person", () => {
+    const dialog = PAGE.slice(PAGE.indexOf('data-testid="leave-correct-modal"'));
+    expect(dialog.slice(0, 400)).toContain('<span class="review-label">Person</span>');
+    expect(dialog.slice(0, 400)).not.toContain('<span class="review-label">Mitarbeiter</span>');
+  });
+});

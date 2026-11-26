@@ -492,7 +492,9 @@
     <EmptyState
       icon="calendar"
       title="Salon wählen"
-      description="Wähle oben einen Salon, um seine Planung zu sehen."
+      description={mode === "team" && !canOpenHint
+        ? "Wähle oben einen Salon, um seine Urlaubsplanung anzusehen. Ändern kannst du sie nicht."
+        : "Wähle oben einen Salon, um seine Planung zu sehen."}
     />
   {:else if rejected || salonRejected}
     <div class="callout brand" role="status" data-testid="leave-plan-salon-unavailable">
