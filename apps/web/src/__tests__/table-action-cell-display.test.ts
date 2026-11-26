@@ -377,7 +377,7 @@ function attendanceMarkup(): string {
         <tr>
           <td data-label="Aktionen">
             <div class="row-actions__group">
-              <a class="btn btn-ghost xs" href="/team/time-entries">Eintrag nachtragen</a>
+              <a class="btn btn-ghost xs" href="/team/time-entries">Zeit nachtragen</a>
             </div>
           </td>
         </tr>

@@ -260,6 +260,43 @@ describe("TeamTrendsTab (Issue #895)", () => {
     expect(screen.queryByTestId("team-trends-saldo")).toBeNull();
   });
 
+  // #992 D-992-02: the hint names only what exists for the reader.
+  const HINT_BASE = "Die Verläufe zeigen immer die letzten sechs Monate.";
+  // With a period tab the closing full stop of the base sentence becomes the dash that continues it.
+  const HINT_PERIOD =
+    "Die Verläufe zeigen immer die letzten sechs Monate — unabhängig vom Zeitraum der anderen Reiter. Ein Klick auf einen Monat öffnet den Bericht dieses Monats.";
+  const hintText = () =>
+    document.querySelector(".info-hint .sr-only")?.textContent?.replace(/\s+/g, " ").trim();
+
+  it("the hint names the other Reiter and the month click only when a period tab exists (#992)", async () => {
+    mount();
+    await waitFor(() => expect(charts).toHaveLength(3));
+    expect(hintText()).toBe(HINT_PERIOD);
+    expect(hintText()).not.toContain("Tabs");
+  });
+
+  it("without a period tab the hint is exactly the six-month sentence (#992)", async () => {
+    hoisted.user.value = {
+      permissions: ["team-overview:read:ZUGEWIESEN", "overtime:read:ZUGEWIESEN"],
+    };
+    mount();
+    await waitFor(() => expect(charts).toHaveLength(3));
+    expect(hintText()).toBe(HINT_BASE);
+  });
+
+  it("draws Skeletons and no canvas until the trend has answered (#992 N-15)", async () => {
+    let release: (value: unknown) => void = () => {};
+    hoisted.get.mockImplementation(
+      (path: string) => new Promise((resolve) => (release = () => resolve(answer(path)))),
+    );
+    mount();
+    await waitFor(() => expect(hoisted.get).toHaveBeenCalled());
+    expect(document.querySelector("canvas")).toBeNull();
+    expect(screen.getAllByRole("status", { name: "Wird geladen" }).length).toBeGreaterThan(0);
+    expect(charts).toHaveLength(0);
+    release(undefined);
+  });
+
   it("destroys its charts on unmount", async () => {
     mount();
     await waitFor(() => expect(charts).toHaveLength(3));

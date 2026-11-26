@@ -276,6 +276,10 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   // Owner decision 14.11.2026 (Issue #936, replaces Z-03): the reports read the team over a period, so they
   // live under Team, after Dienstplan. The payroll exports (DATEV, Monatsexport) stay under Verwalten › Daten.
+  // Owner decision 25.11.2026 on #992 (N-15, D-992-01): the page also serves `team-overview:read` holders the
+  // tabs Heute and Verläufe (`reportRights().periodTabs`, pinned equal by `berichte-salonleitung-992.test.ts`),
+  // so the rail and ⌘K show it to them too. Only navigation visibility widens: no permission and no endpoint
+  // changed, and the page stays unguarded until #1114 decides what a person without the Team area sees.
   {
     href: "/team/berichte",
     salonFilter: true,
@@ -283,7 +287,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     label: "Berichte",
     icon: "chart",
     width: "full",
-    requires: [[Z("report:read")]],
+    requires: [[Z("report:read")], [Z("team-overview:read")]],
     file: "/reports",
     inNav: true,
     description: "Auswertungen nach Zeitraum, Person und Salon",

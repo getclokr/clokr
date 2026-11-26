@@ -252,15 +252,15 @@ describe("reports attendance list - action links (Issue #587, source pin)", () =
 
   it("offers the two links only on a missing row, each behind its flag", () => {
     expect(table).toContain('row.status === "missing"');
-    expect(table).toContain("Eintrag nachtragen");
-    expect(table).toContain("Abwesenheit erfassen");
+    expect(table).toContain("Zeit nachtragen");
+    expect(table).toContain("Abwesenheit eintragen");
     expect(table).toContain("teamDayHref(row.id, attendance.date)");
     expect(table).toContain("teamLeaveCreateHref(row.id, attendance.date)");
     const missingAt = table.indexOf('row.status === "missing"');
-    expect(table.indexOf("Eintrag nachtragen")).toBeGreaterThan(missingAt);
-    expect(table.indexOf("Abwesenheit erfassen")).toBeGreaterThan(missingAt);
-    expect(table).toMatch(/canAddTeamEntry[\s\S]*Eintrag nachtragen/);
-    expect(table).toMatch(/canRecordTeamAbsence[\s\S]*Abwesenheit erfassen/);
+    expect(table.indexOf("Zeit nachtragen")).toBeGreaterThan(missingAt);
+    expect(table.indexOf("Abwesenheit eintragen")).toBeGreaterThan(missingAt);
+    expect(table).toMatch(/canAddTeamEntry[\s\S]*Zeit nachtragen/);
+    expect(table).toMatch(/canRecordTeamAbsence[\s\S]*Abwesenheit eintragen/);
   });
 
   it("the page hands the component exactly the two rights, from reportRights", () => {
@@ -271,8 +271,8 @@ describe("reports attendance list - action links (Issue #587, source pin)", () =
   });
 
   it("no other status wording sits in the action cell", () => {
-    expect(table.match(/Eintrag nachtragen/g)).toHaveLength(1);
-    expect(table.match(/Abwesenheit erfassen/g)).toHaveLength(1);
+    expect(table.match(/Zeit nachtragen/g)).toHaveLength(1);
+    expect(table.match(/Abwesenheit eintragen/g)).toHaveLength(1);
   });
 });
 

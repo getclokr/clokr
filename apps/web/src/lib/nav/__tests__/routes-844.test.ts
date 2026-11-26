@@ -197,6 +197,10 @@ describe("old URLs of the acceptance criteria land on the new place", () => {
 
 describe("no permission change (D-06, AC: keine Berechtigungsänderung)", () => {
   const pinned: Record<string, string[][]> = { ...pre844.admin, ...pre844.team };
+  /** Alternatives added on top of the pre-#844 pin by an owner decision (#992 N-15). */
+  const WIDENED_992: Record<string, string[][]> = {
+    "/reports": [["team-overview:read:ZUGEWIESEN"]],
+  };
   it("pins at least 24 pre-#844 pages (non-vacuity)", () => {
     expect(Object.keys(pinned).length).toBeGreaterThanOrEqual(24);
   });
@@ -214,6 +218,14 @@ describe("no permission change (D-06, AC: keine Berechtigungsänderung)", () => 
       ) {
         for (const alternative of requires)
           expect(route.requires, file).toContainEqual(alternative);
+        return;
+      }
+      // Owner decision 25.11.2026 on #992 (N-15): Berichte is also shown to the holders of the permission the
+      // page already serves its Heute and Verläufe tabs to. The widening is named here, exactly, so any other
+      // change of this page's alternatives still fails the equality pin.
+      const widened992 = WIDENED_992[file];
+      if (widened992 !== undefined) {
+        expect(route?.requires ?? alias?.requires, file).toEqual([...requires, ...widened992]);
         return;
       }
       expect(route?.requires ?? alias?.requires, file).toEqual(requires);

@@ -100,6 +100,19 @@ test.describe("Navigation v2 — start page per role (Z-02)", () => {
     await expect(page.getByRole("heading", { level: 1, name: /Heute im Salon/ })).toBeVisible();
   });
 
+  // #992 N-15: the page serves her the tabs Heute and Verläufe (team-overview:read), so the Team rail lists it.
+  test("Salonmanager sees Berichte in the Team rail", async ({ page, request, tenant }) => {
+    const salonId = await firstSalonId(request, tenant);
+    const email = await createPerson(request, tenant, "salonberichte", {
+      id: TEMPLATE.SALON_MANAGER,
+      scope: { type: "SALONS", salonIds: [salonId] },
+    });
+    await login(page, email, PASSWORD);
+    const rail = page.getByRole("complementary", { name: "Hauptnavigation", exact: true });
+    const team = rail.getByRole("navigation", { name: "Team", exact: true });
+    await expect(team.getByRole("link", { name: "Berichte", exact: true })).toBeVisible();
+  });
+
   test("Inhaber → Team › Heute im Salon, with all three areas", async ({
     page,
     request,

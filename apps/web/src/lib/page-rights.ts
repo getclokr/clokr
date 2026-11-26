@@ -26,12 +26,12 @@ export interface ReportRights {
   /** The team area replaces the personal monthly closes for anyone holding any of its rights. */
   showTeamArea: boolean;
   /**
-   * Issue #587 - „Eintrag nachtragen“ on a „Fehlt“ row: links to Team-Zeiten, whose list needs
+   * Issue #587 - „Zeit nachtragen“ on a „Fehlt“ row: links to Team-Zeiten, whose list needs
    * time-entry:read and whose `POST /time-entries` for a person in scope needs time-entry:create.
    */
   canAddTeamEntry: boolean;
   /**
-   * Issue #587 - „Abwesenheit erfassen“ on a „Fehlt“ row: links to the create dialog of
+   * Issue #587 - „Abwesenheit eintragen“ on a „Fehlt“ row: links to the create dialog of
    * Team-Abwesenheiten, which lists with leave-request:read and files `POST /leave/requests` on
    * behalf with leave-request:create.
    */
