@@ -13,7 +13,7 @@ Oben zeigt eine Leiste die vier Schritte **Prüfen**, **Korrigieren**, **Bestät
 ### Prüfen
 
 1. Wähle oben das **Jahr** und bei Bedarf einen **Status**.
-2. Die Tabelle zeigt jeden Monat mit seinem Status und, wie viele Personen schon abgeschlossen sind. Die Spalte daneben nennt den Grund, zum Beispiel fehlende Tage.
+2. Die Tabelle zeigt jeden Monat mit seinem Status und, wie viele Personen schon abgeschlossen sind. Unter dem Status steht der Grund, zum Beispiel fehlende Tage. Die Spalte **Aktion** gibt es nur, wenn du Monate abschließen darfst.
 3. Klicke auf einen Monat, um die Personen und ihren Stand zu sehen: Personalnummer, **Fehlende Tage** und ein Hinweis, wenn Krankheitstage ohne Attest über die Karenzzeit nach § 5 EFZG hinausgehen.
 
 Die Monate haben diese Stände:

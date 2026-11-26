@@ -1,7 +1,7 @@
 // Issue #595 (D-04), Plan 595-04 - one label helper for the stored day count of a leave request.
 import { describe, it, expect } from "vitest";
 
-import { calendarDaysUnit, formatDayCount, leaveDaysLabel } from "../leave-days-label";
+import { calendarDaysUnit, dayUnit, formatDayCount, leaveDaysLabel } from "../leave-days-label";
 
 describe("leaveDaysLabel", () => {
   it("names the stored day count of a sick request Arbeitstage (it is a workday price)", () => {
@@ -56,5 +56,21 @@ describe("formatDayCount", () => {
   it("leaveDaysLabel uses it for a stored count with decimals, sick types included", () => {
     expect(leaveDaysLabel(2.5, false, "VACATION")).toBe("2,5 Tage");
     expect(leaveDaysLabel(2.5, false, "SICK")).toBe("2,5 Arbeitstage");
+  });
+});
+
+// Issue #993 N-05: the unit of a day figure follows the value that is shown.
+describe("dayUnit", () => {
+  it("is singular only when the shown value is exactly one", () => {
+    expect(dayUnit(1)).toBe("Tag");
+    expect(dayUnit(1.004)).toBe("Tag");
+  });
+
+  it("is plural for everything else, a negative count included", () => {
+    expect(dayUnit(0.5)).toBe("Tage");
+    expect(dayUnit(0)).toBe("Tage");
+    expect(dayUnit(2)).toBe("Tage");
+    expect(dayUnit(-1)).toBe("Tage");
+    expect(dayUnit(1.5)).toBe("Tage");
   });
 });

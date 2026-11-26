@@ -500,6 +500,9 @@ test.describe("Issue #612 — Berichtsseite: Zeitraum im Browser", () => {
     await expect(page).toHaveURL(/tab=urlaub/);
     await expect(page.getByText("Urlaubsübersicht", { exact: true }).first()).toBeVisible();
     expect(urls, "a tab switch makes no period request").toHaveLength(0);
+    // Issue #993 N-10: the Urlaub tab shows its own figures, not the saldo strip of the other tab.
+    await expect(page.getByText("Urlaub genommen", { exact: true })).toBeVisible();
+    await expect(page.locator(".kpi-label", { hasText: /^Saldo im Zeitraum$/ })).toHaveCount(0);
 
     const reloaded = periodResponse(page, prev, prev);
     await page.reload();
@@ -1216,22 +1219,32 @@ test.describe("Issue #612 — Layoutprüfungen", () => {
       await page.setViewportSize({ width, height: 900 });
       await openSynthetic(page, request, tenant, { theme: "pflaume", mode: "light" });
       await settle(page);
-      const tiles = await page.locator("article.kpi").evaluateAll((els) =>
-        els.map((el) => {
-          const value = el.querySelector(".kpi-value") as HTMLElement | null;
-          const tile = el.getBoundingClientRect();
-          const v = value?.getBoundingClientRect();
-          return {
-            label: el.querySelector(".kpi-label")?.textContent?.trim() ?? "",
-            text: value?.textContent?.replace(/\s+/g, " ").trim() ?? "",
-            scrollWidth: value?.scrollWidth ?? -1,
-            clientWidth: value?.clientWidth ?? -1,
-            valueRight: v?.right ?? -1,
-            tileRight: tile.right,
-            fontSize: value ? parseFloat(getComputedStyle(value).fontSize) : 0,
-          };
-        }),
-      );
+      const measureTiles = () =>
+        page.locator("article.kpi").evaluateAll((els) =>
+          els.map((el) => {
+            const value = el.querySelector(".kpi-value") as HTMLElement | null;
+            const tile = el.getBoundingClientRect();
+            const v = value?.getBoundingClientRect();
+            return {
+              label: el.querySelector(".kpi-label")?.textContent?.trim() ?? "",
+              text: value?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+              scrollWidth: value?.scrollWidth ?? -1,
+              clientWidth: value?.clientWidth ?? -1,
+              valueRight: v?.right ?? -1,
+              tileRight: tile.right,
+              fontSize: value ? parseFloat(getComputedStyle(value).fontSize) : 0,
+            };
+          }),
+        );
+      // Issue #993 N-10: each period tab carries its own strip of four tiles; both are measured.
+      const timeTiles = await measureTiles();
+      expect(timeTiles, "four time tiles on the Zeiten tab").toHaveLength(4);
+      await page.getByRole("tab", { name: "Urlaub & Abwesenheit" }).click();
+      await expect(page).toHaveURL(/tab=urlaub/);
+      await waitKpisSettled(page);
+      const vacationTiles = await measureTiles();
+      expect(vacationTiles, "four vacation tiles on the Urlaub tab").toHaveLength(4);
+      const tiles = [...timeTiles, ...vacationTiles];
       expect(tiles, "eight KPI tiles").toHaveLength(8);
       // eslint-disable-next-line no-console
       console.log(`[reports-period kpi] ${width}px: ${JSON.stringify(tiles)}`);
@@ -1246,10 +1259,13 @@ test.describe("Issue #612 — Layoutprüfungen", () => {
         ).toBeLessThanOrEqual(t.tileRight + TOLERANCE_PX);
       }
       // Control: the probe sees an overflow when there is one (an oversized, unwrappable value).
+      // The strip in view is the Urlaub one (#993), whose short values („0 Tage“) can still fit a
+      // wide tile at 64 px, so the control repeats the value until it cannot.
       const controlOverflows = await page
         .locator("article.kpi .kpi-value")
         .first()
         .evaluate((el) => {
+          el.textContent = (el.textContent ?? "0").trim().repeat(8);
           (el as HTMLElement).style.fontSize = "64px";
           (el as HTMLElement).style.whiteSpace = "nowrap";
           return el.scrollWidth > el.clientWidth;

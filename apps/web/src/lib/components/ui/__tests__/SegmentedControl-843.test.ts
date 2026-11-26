@@ -136,6 +136,31 @@ describe("SegmentedControl - v2 token recipe (D-843-01 item 7)", () => {
   });
 });
 
+describe("SegmentedControl - --seg-cols (Issue #993 N-19)", () => {
+  it("the fill track lays its columns out through --seg-cols first, then the option count", () => {
+    expect(segmentSource).toMatch(
+      /\.seg-control--fill\s*\{[^}]*grid-template-columns:\s*repeat\(\s*var\(--seg-cols,\s*var\(--seg-count,\s*1\)\)\s*,\s*minmax\(0,\s*1fr\)\s*\)/,
+    );
+  });
+
+  it("without --seg-cols a fill control still sets one column per option inline (default unchanged)", () => {
+    const { container } = mount({
+      fill: true,
+      options: [...OPTIONS, { value: "d", label: "Delta" }],
+    });
+    const group = container.querySelector(".seg-control--fill") as HTMLElement;
+    expect(group.style.getPropertyValue("--seg-count")).toBe("4");
+    expect(group.style.getPropertyValue("--seg-cols")).toBe("");
+  });
+
+  it("a control that is not fill sets no column count at all (positive control)", () => {
+    const { container } = mount();
+    const group = container.querySelector(".seg-control") as HTMLElement;
+    expect(group.classList.contains("seg-control--fill")).toBe(false);
+    expect(group.style.getPropertyValue("--seg-count")).toBe("");
+  });
+});
+
 describe("SegmentedControl - wrap (Issue #992 N-21)", () => {
   it("wraps by default (#945) and keeps one row with wrap={false}", () => {
     const wrapping = mount();

@@ -31,6 +31,15 @@ export function formatDayCount(days: number): string {
   return roundDays(days) === 1 ? "1 Tag" : `${formatDays(days)} Tage`;
 }
 
+/**
+ * Issue #993 N-05 (D-993-04) - the unit of a day figure that is printed without it ("Krankheitstage
+ * 1 Tag"): singular only when the value, rounded to the two decimals that are shown, is exactly one.
+ * A negative count is never singular.
+ */
+export function dayUnit(days: number): "Tag" | "Tage" {
+  return roundDays(days) === 1 ? "Tag" : "Tage";
+}
+
 /** The value `formatDays` prints, as a number: the singular is decided on what is shown. */
 function roundDays(days: number): number {
   return Math.round(days * 100) / 100;

@@ -496,10 +496,13 @@
       bind:selectedKeys={selectedIds}
     >
       {#snippet toolbarExtra()}
-        <label class="anon-toggle">
-          <input type="checkbox" bind:checked={showAnonymized} />
-          <span>Anonymisierte anzeigen</span>
-        </label>
+        <!-- #993: the server sends anonymised persons only with employee:anonymize, so the toggle is only offered then. -->
+        {#if rights.canAnonymize}
+          <label class="anon-toggle">
+            <input type="checkbox" bind:checked={showAnonymized} />
+            <span>Anonymisierte anzeigen</span>
+          </label>
+        {/if}
         {#if selectedCount > 0}
           <div class="bulk-bar" data-testid="admin-employees-bulk-bar">
             <span class="bulk-count" aria-live="polite">{selectedCount} ausgewählt</span>

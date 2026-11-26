@@ -160,6 +160,8 @@ test.describe("Navigation v2 — old URLs land on the new place", () => {
       ["/admin/system", /\/verwalten\/system\/allgemein(\?|#|$)/],
       ["/dashboard", /\/ich\/tag$/],
       ["/admin", /\/verwalten$/],
+      // One person list per reader (#993 N-13): the tenant admin has Verwalten › Personen in the menu.
+      ["/team/personen", /\/verwalten\/personen(\?|$)/],
     ];
     for (const [from, to] of CASES) {
       await page.goto(from);

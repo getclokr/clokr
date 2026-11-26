@@ -4,7 +4,7 @@ Unter **Verwalten › Personen** legst du Personen an, pflegst ihre Stammdaten, 
 
 ## Die Liste
 
-Die Liste zeigt alle Personen mit Name und Personalnummer, **Stammsalon**, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Mit **Anonymisierte anzeigen** blendest du auch bereits anonymisierte Personen ein. Fehlt bei Auszubildenden das Geburtsdatum, steht dort der Hinweis „Geburtsdatum fehlt“. Er erinnert dich daran, dass der gesetzliche Mindesturlaub dann nicht geprüft werden kann.
+Die Liste zeigt alle Personen mit Name und Personalnummer, **Stammsalon**, Vertrag, Wochenstunden (bei Monatsstunden die Stunden im Monat oder „ohne Soll“), Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Wenn du Personen anonymisieren darfst, blendest du mit **Anonymisierte anzeigen** auch bereits anonymisierte Personen ein. Fehlt bei Auszubildenden das Geburtsdatum, steht dort der Hinweis „Geburtsdatum fehlt“. Er erinnert dich daran, dass der gesetzliche Mindesturlaub dann nicht geprüft werden kann.
 
 Wählst du mehrere Personen aus, stehen oben Sammelaktionen bereit:
 
@@ -38,9 +38,9 @@ Ein Klick auf eine Person öffnet ihre Seite mit fünf Reitern.
 
 Hier pflegst du in getrennten Abschnitten, die du einzeln speicherst:
 
-- **Persönliche Daten**: Name, Mitarbeiter-Nr., Geburtsdatum und die **NFC-Karten-ID**. Die Karten-ID ist optional und erlaubt der Person, an einem Terminal zu stempeln.
+- **Persönliche Daten**: Name, Personalnummer, Geburtsdatum und die **NFC-Karten-ID**. Die Karten-ID ist optional und erlaubt der Person, an einem Terminal zu stempeln.
 - **Personalstruktur**: Personalkategorie, Schicht-Gewicht und Aufsichtspflicht.
-- **Austritt und Urlaubsbasis**: das **Austrittsdatum** (der Jahresurlaub wird dann anteilig berechnet, § 5 Abs. 2 BUrlG) und **Urlaubstage pro Jahr (5-Tage-Woche)** als persönlicher Basiswert. Bleibt das Feld leer, gilt der Wert des Unternehmens. Der Wert gilt für künftige Urlaubsjahre. Bestehende Ansprüche änderst du auf dem Reiter **Urlaub**.
+- **Austritt und Urlaubsbasis**: das **Austrittsdatum** (der Jahresurlaub wird dann anteilig berechnet, § 5 Abs. 1 BUrlG) und **Urlaubstage pro Jahr (5-Tage-Woche)** als persönlicher Basiswert. Bleibt das Feld leer, gilt der Wert des Unternehmens. Der Wert gilt für künftige Urlaubsjahre. Bestehende Ansprüche änderst du auf dem Reiter **Urlaub**.
 - **Zeiterfassungs-Pflicht**: der Schalter **Keine Zeiterfassungs-Pflicht (§ 18 ArbZG)** für Inhaberinnen, Geschäftsführung und leitende Angestellte. Er blendet das Stempeln für die Person aus. Der Urlaubsanspruch der Person bleibt davon unberührt. Clokr fragt vor dem Umschalten nach.
 
 ### Vertrag
@@ -49,7 +49,7 @@ Das Arbeitszeitmodell, die Wochenstunden und Arbeitstage, Überstunden-Regeln un
 
 ### Urlaub
 
-Das Urlaubskonto der Person: Urlaubsanspruch des Jahres mit Urlaubstagen gesamt, Resturlaub aus dem Vorjahr, Verfalldatum und Übertragsgrund. Jede Änderung wird protokolliert. Unter dem gesetzlichen Mindesturlaub speichert Clokr keinen neuen Wert. Die Regeln dahinter stehen auf der Seite [Abwesenheiten und Urlaub](abwesenheiten-und-urlaub.md).
+Das Urlaubskonto der Person: Urlaubsanspruch des Jahres mit Urlaubstagen gesamt, Resturlaub aus dem Vorjahr, Verfalldatum und Übertragsgrund. Jede Änderung wird protokolliert. Im Eintritts- oder Austrittsjahr gibt es ein Zwölftel je vollem Beschäftigungsmonat. Ein Bruchteil ab einem halben Tag wird aufgerundet, ein kleinerer bleibt stehen (§ 5 BUrlG). Unter dem gesetzlichen Mindesturlaub speichert Clokr keinen neuen Wert. Die Regeln dahinter stehen auf der Seite [Abwesenheiten und Urlaub](abwesenheiten-und-urlaub.md).
 
 ### Salons
 

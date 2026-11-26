@@ -180,13 +180,19 @@ export function personenRows(
       // Issue #1011: a monthly-hours contract stores weeklyHours 0 - the type decides, never the 0.
       const monthly = model === "MONTHLY_HOURS";
       const weeklyHours = monthly ? null : finiteNumber(person.workSchedule?.weeklyHours);
+      // Issue #993 N-07 (D-993-14): a monthly-hours contract without a positive monthly figure is a
+      // track-only contract (the API's `isTrackOnlySchedule` rule: no Soll); it reads „ohne Soll“, the
+      // dash stays for a missing contract.
+      const monthlyFigure = finiteNumber(person.workSchedule?.monthlyHours);
       const hoursLabel = monthly
-        ? contractExtent({
-            type: "MONTHLY_HOURS",
-            weeklyHours: person.workSchedule?.weeklyHours,
-            monthlyHours: person.workSchedule?.monthlyHours,
-            contractWorkDaysPerWeek: person.workSchedule?.contractWorkDaysPerWeek,
-          })
+        ? monthlyFigure === null || monthlyFigure <= 0
+          ? "ohne Soll"
+          : contractExtent({
+              type: "MONTHLY_HOURS",
+              weeklyHours: person.workSchedule?.weeklyHours,
+              monthlyHours: person.workSchedule?.monthlyHours,
+              contractWorkDaysPerWeek: person.workSchedule?.contractWorkDaysPerWeek,
+            })
         : weeklyHours === null
           ? "–"
           : fmtMin(Math.round(weeklyHours * 60));

@@ -275,7 +275,7 @@
 <div class="person-tab detail-form">
   <SettingsGroup
     title="Persönliche Daten"
-    hint="Name, Mitarbeiter-Nr., Geburtsdatum und NFC-Karte."
+    hint="Name, Personalnummer, Geburtsdatum und NFC-Karte."
     changes={canEdit ? identityChanges : 0}
     errors={sectionErrors(identityShown)}
     saving={savingIdentity}
@@ -312,7 +312,7 @@
         {/snippet}
       </FormField>
 
-      <FormField label="Mitarbeiter-Nr." required error={identityShown.employeeNumber}>
+      <FormField label="Personalnummer" required error={identityShown.employeeNumber}>
         {#snippet field({ id, describedBy, invalid })}
           <input
             {id}

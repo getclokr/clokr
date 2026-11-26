@@ -35,7 +35,7 @@ Oben rechts öffnen **Zeit eintragen** und **Abwesenheit eintragen** direkt den 
 
 - **Übersicht**: eine Zeitleiste mit allen Personen. Standardmäßig siehst du deinen eigenen Personenkreis. Der Filter **Personenkreis** mit der Auswahl **Alle Salons** nimmt die übrigen Salons dazu. Mit „Person suchen“ findest du jemanden direkt. Unter der Leiste erklärt eine Legende die Farben. In der Jahresansicht stehen Wochen am Jahresrand schraffiert; ihre Tage gehören zum Nachbarjahr.
 - **Anträge**: alle Anträge des Teams als Liste, filterbar nach Status, Art und Person. Je nach Status und Rechten stehen pro Zeile Aktionen zur Verfügung, zum Beispiel **Korrigieren** oder **Attest erfassen**.
-- **Planung**: die Urlaubsplanung mit den Wünschen deines Teams. Mit **Planung verwalten** richtest du sie ein und übernimmst Wünsche.
+- **Planung**: die Urlaubsplanung mit den Wünschen deines Teams. Mit **Planung verwalten** richtest du sie ein und übernimmst Wünsche. Ohne das Recht, die Planung zu verwalten, siehst du sie nur.
 
 **Abwesenheit eintragen** legt eine Abwesenheit für eine Person an, zum Beispiel eine Krankmeldung. Mit **Kalender abonnieren** holst du die Abwesenheiten in deine Kalender-App. Neue Anträge entscheidest du nicht hier, sie warten auf [Team › Aufgaben](aufgaben.md).
 
@@ -43,4 +43,4 @@ Oben rechts öffnen **Zeit eintragen** und **Abwesenheit eintragen** direkt den 
 
 **Team › Personen** ist die Nachschlageliste der Personen in deinem Bereich: Name mit Personalnummer (Nr.), Stammsalon, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Mit **Zeiten** in der Zeile gelangst du zu den Zeiten der Person, wenn du diese Seite nutzen darfst. Auf dem Telefon zeigen die Karten nur Name, Stammsalon, Vertrag und Status; Wochenstunden und Rollen siehst du in der Tabelle am Rechner.
 
-Hier bearbeitest du nichts. Daten einer Person ändert die Verwaltung unter **Verwalten › Personen**.
+Hier bearbeitest du nichts. Daten einer Person ändert die Verwaltung unter **Verwalten › Personen**. Wer Personen verwaltet, landet von hier aus unter **Verwalten › Personen**.

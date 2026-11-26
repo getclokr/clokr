@@ -475,6 +475,8 @@ test.describe("Issue #86 — Personalabteilung im Browser", () => {
     await expect(page.getByTestId("month-close-year-label")).toHaveText(hireDay.slice(0, 4));
     const monthRow = page.getByTestId(`month-close-row-${Number(hireDay.slice(5, 7))}`);
     await expect(monthRow).toBeVisible();
+    // N-18 (#993): a reader without month-close:close sees no „Aktion“ column at all.
+    await expect(page.getByRole("columnheader", { name: "Aktion" })).toHaveCount(0);
     await monthRow.locator("button.dt-primary").click();
     const monthPersons = page.getByTestId("month-close-detail");
     const xDetail = monthPersons.locator("tr").filter({ hasText: x.lastName });

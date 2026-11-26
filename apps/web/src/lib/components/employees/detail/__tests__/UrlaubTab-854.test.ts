@@ -74,6 +74,39 @@ describe("UrlaubTab", () => {
     expect(screen.queryByRole("region", { name: "Speicherleiste" })).toBeNull();
   });
 
+  // N-09 (#993): the entitlement figures read with a decimal comma like the rest of the app, and the unit
+  // follows the shown value.
+  it("prints a fractional entitlement with a comma and the unit by value (N-09)", () => {
+    mount({ entitlement: { ...ENTITLEMENT, regularDays: 6.25, statutoryMinimumDays: 3.3333 } });
+    const strip = screen.getByRole("group", { name: "Urlaubsanspruch 2026" });
+    expect(strip.textContent).toContain("6,25");
+    expect(strip.textContent).toContain("3,33");
+    expect(document.body.textContent).not.toMatch(/6\.25|3\.33/);
+    const field = screen.getByLabelText("Urlaubstage gesamt") as HTMLInputElement;
+    expect(field.placeholder).toBe("6,25");
+    expect(document.body.textContent).toContain("Leer lassen für den automatischen Wert (6,25).");
+  });
+
+  it("prints a whole entitlement without decimals and says Tag for exactly one (N-09)", () => {
+    mount({ entitlement: { ...ENTITLEMENT, regularDays: 1, statutoryMinimumDays: 20 } });
+    const strip = screen.getByRole("group", { name: "Urlaubsanspruch 2026" });
+    expect(strip.textContent).toMatch(/1\s*Tag(?!e)/);
+    expect(strip.textContent).toMatch(/20\s*Tage/);
+    expect(strip.textContent).not.toContain("20,");
+    expect(screen.getByLabelText("Urlaubstage gesamt").getAttribute("placeholder")).toBe("1");
+  });
+
+  it("explains the § 5 BUrlG pro-rata and rounding rule in an info hint (N-08 b)", () => {
+    mount();
+    const text = screen.getByTestId("urlaub-pro-rata-hint").textContent ?? "";
+    expect(text).toContain("ein Zwölftel je vollem Beschäftigungsmonat (§ 5 Abs. 1 BUrlG)");
+    expect(text).toContain(
+      "Ein Bruchteil ab einem halben Tag wird auf einen ganzen Tag aufgerundet",
+    );
+    expect(text).toContain("6,25 Tage (§ 5 Abs. 2 BUrlG)");
+    expect(screen.getByRole("button", { name: /Regulärer Anspruch/ })).toBeTruthy();
+  });
+
   // Issue #940: the tab shows the Resturlaub facade's split, not the stored usedDays as „Genommen“.
   it("shows the facade's taken/approved split under the Urlaubsübersicht's words", () => {
     mount();

@@ -138,6 +138,73 @@ describe("Monatsabschluss page (#854)", () => {
     expect(within(detailEl).queryByRole("button", { name: "Entsperren" })).toBeNull();
   });
 
+  // H-09 / N-18 (#993): no manual refresh button, the reason sits under the status chip and an action column
+  // exists only for a reader who may act in it.
+  it("has no refresh button: the lists reload on their own (H-09)", async () => {
+    renderWithTheme(Page, {});
+    await screen.findByTestId("month-close-row-2");
+    expect(screen.queryByRole("button", { name: "Aktualisieren" })).toBeNull();
+  });
+
+  it("draws Monat and Status, and the Aktion column only with the right to close (N-18)", async () => {
+    asCloser(["month-close:read:ZUGEWIESEN"]);
+    const { unmount } = renderWithTheme(Page, {});
+    const reader = (await screen.findByTestId("month-close-row-2")).closest("table") as HTMLElement;
+    const readerHeads = within(reader)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    expect(readerHeads).toEqual(["Monat", "Status"]);
+    unmount();
+
+    asCloser();
+    renderWithTheme(Page, {});
+    const closer = (await screen.findByTestId("month-close-row-2")).closest("table") as HTMLElement;
+    const closerHeads = within(closer)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    expect(closerHeads).toEqual(["Monat", "Status", "Aktion"]);
+  });
+
+  it("puts the reason under the status chip and never prints a dash as a reason (N-18)", async () => {
+    const blocked = months[2] as { status: string };
+    const savedStatus = blocked.status;
+    blocked.status = "blocked";
+    try {
+      renderWithTheme(Page, {});
+      const ready = await screen.findByTestId("month-close-row-2");
+      expect(ready.textContent).toContain("Alle Personen bereit");
+      expect(ready.textContent).not.toContain("Alle Mitarbeiter");
+      expect(screen.getByTestId("month-close-row-3").textContent).toContain("Februar noch offen");
+      for (const m of [1, 4]) {
+        const cells = screen.getByTestId(`month-close-row-${m}`).querySelectorAll("td");
+        const statusCell = cells[1];
+        expect(statusCell.textContent).not.toContain("–");
+        expect(statusCell.querySelector(".mst-reason")).toBeNull();
+      }
+    } finally {
+      blocked.status = savedStatus;
+    }
+  });
+
+  it("without the right to close or unlock the persons table has no Aktion column; with unlock it has one (N-18)", async () => {
+    asCloser(["month-close:read:ZUGEWIESEN"]);
+    const reader = renderWithTheme(Page, {});
+    const readerSection = await openMarch();
+    const readerHeads = within(readerSection)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    expect(readerHeads).not.toContain("Aktion");
+    reader.unmount();
+
+    asCloser(["month-close:read:ZUGEWIESEN", "month-close:unlock:ZUGEWIESEN"]);
+    renderWithTheme(Page, {});
+    const unlockSection = await openMarch();
+    const unlockHeads = within(unlockSection)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    expect(unlockHeads).toContain("Aktion");
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -228,7 +295,7 @@ describe("Monatsabschluss page (#854)", () => {
     expect(within(table).getByRole("button", { name: "Entsperren" })).toBeTruthy();
   });
 
-  it("renders counts, never dates, for a reader without reach, plus the short rights line at the row", async () => {
+  it("renders counts, never dates, for a reader without reach, plus one short rights line above the persons", async () => {
     detail = [
       {
         ...anna,
@@ -243,10 +310,40 @@ describe("Monatsabschluss page (#854)", () => {
     const table = await within(section).findByRole("table");
     expect(within(table).getByText("4 Tage ohne Eintrag")).toBeTruthy();
     expect(table.textContent).not.toMatch(/\d{2}\.\d{2}\./);
-    expect(within(table).getByTestId("month-close-person-withheld")).toBeTruthy();
+    // #993: the rights line stands once above the person table, never repeated inside its rows.
+    expect(within(section).getAllByTestId("month-close-person-withheld")).toHaveLength(1);
+    expect(within(table).queryByTestId("month-close-person-withheld")).toBeNull();
     // Closing blind is the secondary „Trotzdem abschließen“, never the plain „Abschließen“ (Issue #947).
     expect(within(table).getByRole("button", { name: "Trotzdem abschließen" })).toBeTruthy();
     expect(within(table).queryByRole("button", { name: "Abschließen" })).toBeNull();
+  });
+
+  it("states the rights line once for several persons with withheld days (#993)", async () => {
+    detail = [
+      {
+        ...anna,
+        missingDates: [],
+        missingDateCount: 4,
+        breakFindingDays: [],
+        dayDetailsWithheld: true,
+      },
+      {
+        ...anna,
+        employeeId: "emp-993-b",
+        employeeName: "Berta Probe",
+        missingDates: [],
+        missingDateCount: 2,
+        breakFindingDays: [],
+        dayDetailsWithheld: true,
+      },
+    ];
+    renderWithTheme(Page, {});
+    const section = await openMarch();
+    const table = await within(section).findByRole("table");
+    expect(within(table).getByText("4 Tage ohne Eintrag")).toBeTruthy();
+    expect(within(table).getByText("2 Tage ohne Eintrag")).toBeTruthy();
+    expect(within(section).getAllByTestId("month-close-person-withheld")).toHaveLength(1);
+    expect(within(table).queryByTestId("month-close-person-withheld")).toBeNull();
   });
 
   it("names the next step at the open month whose gaps the reader cannot see (Issue #947)", async () => {
@@ -300,6 +397,9 @@ describe("Monatsabschluss page (#854)", () => {
     renderWithTheme(Page, {});
     const note = await screen.findByTestId("month-close-deferred");
     expect(note.textContent).toContain("4 Tage ohne Eintrag");
+    expect(note.textContent).toContain("1 Person hat");
+    expect(note.textContent).toContain("2 Monate Rückstand");
+    expect(screen.getByText("Betroffene Personen")).toBeTruthy();
     await fireEvent.click(screen.getByTestId("month-close-deferred-jump"));
     await screen.findByTestId("month-close-detail");
     expect(get).toHaveBeenCalledWith(`/overtime/close-month/status?year=${YEAR}&month=3`);

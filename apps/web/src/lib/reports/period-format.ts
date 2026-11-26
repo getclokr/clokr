@@ -3,7 +3,7 @@
  *
  * Hours are always H:MM taken from whole minutes (built on `fmtMin` / `fmtBalance`) with a German
  * thousands separator on the hour part; never from rounded decimal hours (Pitfall 8). Days carry
- * at most one decimal comma.
+ * at most two decimals with a decimal comma (Issue #993 N-05).
  */
 
 import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
@@ -31,12 +31,26 @@ export function fmtHoursDe(min: number, opts?: { signed?: boolean }): string {
   return `${sign}${body}`;
 }
 
-/** Days with at most one decimal comma: 12.5 → "12,5", 12 → "12", 0.25 → "0,3". */
+/**
+ * Days with at most two decimals and a decimal comma, no trailing zeros: 12.5 → "12,5", 12 → "12",
+ * 6.25 → "6,25". Issue #993 N-05 (D-993-04): the same day figure reads the same in the table, the
+ * person tab (`formatDays`) and the PDF (`fmtDecimalDe`); the one-decimal rule of #612 showed 6,25 as
+ * 6,3. Integer arithmetic only, no `toFixed`.
+ */
 export function fmtDaysDe(days: number): string {
-  const rounded = Math.round(Math.abs(days) * 10) / 10;
-  const [int, frac] = String(rounded).split(".");
-  const text = frac ? `${group(int)},${frac}` : group(int);
-  return days < 0 && rounded !== 0 ? `−${text}` : text;
+  // The epsilon keeps a binary-float value such as 2.255 * 100 = 225.49999... on the side the
+  // decimal reading expects (the PDF helper does the same).
+  const scaled = Math.round(Math.abs(days) * 100 + 1e-9);
+  const int = Math.floor(scaled / 100);
+  const fraction = scaled % 100;
+  const intText = group(String(int));
+  const text = fraction === 0 ? intText : `${intText},${trimFraction(fraction)}`;
+  return days < 0 && scaled !== 0 ? `−${text}` : text;
+}
+
+/** 5 → "05", 50 → "5", 25 → "25" (a two-digit fraction without its trailing zero). */
+function trimFraction(fraction: number): string {
+  return fraction % 10 === 0 ? String(fraction / 10) : String(fraction).padStart(2, "0");
 }
 
 const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;

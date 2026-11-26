@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { forecastLabel } from "$lib/saldo/forecast-label";
 import { PERIOD_PERSON_ABSENCE_CODES, type PeriodRow } from "../period-report";
 import {
+  commonRowStatus,
   filterPeriodRows,
   firstDirection,
   hasSaldoFigures,
@@ -142,6 +143,64 @@ describe("rowStatus", () => {
 
   it("an empty period (no month) is not „Bestätigt“", () => {
     expect(rowStatus(row("1", { monthCount: 0, confirmedMonthCount: 0 })).kind).toBe("forecast");
+  });
+});
+
+// Issue #993 H-06 (D-993-01): the status every row WITH Soll shares, or null when they differ.
+describe("commonRowStatus", () => {
+  it("is null without any row", () => {
+    expect(commonRowStatus([])).toBeNull();
+  });
+
+  it("is the shared status when every row with Soll is confirmed", () => {
+    const rows = [
+      row("1", { monthCount: 3, confirmedMonthCount: 3 }),
+      row("2", { monthCount: 3, confirmedMonthCount: 3 }),
+    ];
+    expect(commonRowStatus(rows)).toEqual({ kind: "confirmed", label: "Bestätigt", detail: null });
+  });
+
+  it("is the shared forecast when label and detail are the same", () => {
+    const rows = [
+      row("1", { monthCount: 2, confirmedMonthCount: 1 }),
+      row("2", { monthCount: 2, confirmedMonthCount: 1 }),
+    ];
+    expect(commonRowStatus(rows)).toEqual({
+      kind: "forecast",
+      label: forecastLabel(1, true),
+      detail: "1 von 2 Monaten bestätigt",
+    });
+  });
+
+  it("is null when only the detail differs (a deviating row never hides behind the line)", () => {
+    const rows = [
+      row("1", { monthCount: 3, confirmedMonthCount: 1 }),
+      row("2", { monthCount: 4, confirmedMonthCount: 2 }),
+    ];
+    expect(rowStatus(rows[0]).label).toBe(rowStatus(rows[1]).label);
+    expect(commonRowStatus(rows)).toBeNull();
+  });
+
+  it("is null when a forecast row meets a confirmed row", () => {
+    const rows = [
+      row("1", { monthCount: 2, confirmedMonthCount: 2 }),
+      row("2", { monthCount: 2, confirmedMonthCount: 0 }),
+    ];
+    expect(commonRowStatus(rows)).toBeNull();
+  });
+
+  it("ignores a row without Soll and reads the status of the rows with Soll", () => {
+    const rows = [
+      row("1", { monthCount: 1, confirmedMonthCount: 1 }),
+      row("2", { labelled: false }),
+    ];
+    expect(commonRowStatus(rows)).toEqual({ kind: "confirmed", label: "Bestätigt", detail: null });
+  });
+
+  it("is null when only rows without Soll exist", () => {
+    expect(
+      commonRowStatus([row("1", { labelled: false }), row("2", { labelled: false })]),
+    ).toBeNull();
   });
 });
 

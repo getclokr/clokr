@@ -8,7 +8,7 @@ Ohne Berichtsrechte zeigt die Seite stattdessen deine eigenen abgeschlossenen Mo
 
 Oben stellst du den Zeitraum ein: mit den Pfeilen blätterst du Monat für Monat, über den Zeitraum-Dialog wählst du einen eigenen Bereich. Mehr als 12 Monate wertet Clokr nicht auf einmal aus. Offene Monate sind eine Prognose und ändern sich bis zum Monatsabschluss. Bestätigt sind nur abgeschlossene Monate.
 
-Über den Kennzahlen siehst du die wichtigsten Zahlen des Zeitraums, zum Beispiel Saldo im Zeitraum, Gesamtsaldo am Ende, Urlaub genommen, Urlaub genehmigt, Urlaubsanspruch und Krankheitstage.
+Über der Tabelle stehen die Kennzahlen des Reiters: unter **Zeiten & Konten** Saldo im Zeitraum, Gesamtsaldo am Ende, Ist und Soll, unter **Urlaub & Abwesenheit** Urlaub genommen, Urlaub genehmigt, Urlaubsanspruch und Krankheitstage.
 
 <!-- SCREENSHOT file=bilder/berichte-01.png role=manager url=/team/berichte show="Berichte mit den Reitern Zeiten & Konten, Urlaub & Abwesenheit, Heute und Verläufe, der Zeitraumleiste, den Kennzahlen und der Tabelle der Personen" -->
 
@@ -16,7 +16,7 @@ Oben stellst du den Zeitraum ein: mit den Pfeilen blätterst du Monat für Monat
 
 ## Die Reiter
 
-- **Zeiten & Konten**: eine Zeile pro Person mit Soll, Ist und Saldo für den Zeitraum, sortier- und durchsuchbar. Ein Klick auf eine Person öffnet eine Detailansicht mit den Tagen der Person und dem Stundennachweis als PDF. Wer im Zeitraum ausgetreten ist und noch einen offenen Endsaldo hat, steht gesondert darunter.
+- **Zeiten & Konten**: eine Zeile pro Person mit Soll, Ist und Saldo für den Zeitraum, sortier- und durchsuchbar. Haben alle Personen denselben Stand, steht er einmal über der Tabelle; sonst hat jede Zeile ihren Status. Ein Klick auf eine Person öffnet eine Detailansicht mit den Tagen der Person und dem Stundennachweis als PDF. Wer im Zeitraum ausgetreten ist und noch einen offenen Endsaldo hat, steht gesondert darunter.
 - **Urlaub & Abwesenheit**: die Urlaubsübersicht je Person mit Anspruch, Übertrag, genommenen, geplanten und verbleibenden Tagen, dazu die Abwesenheiten je Person. Für Resturlaub, der bald verfällt, kannst du mit **Hinweis senden** eine Erinnerung an die Person schicken. Das ist ein direkter Versand, kein Download.
 - **Heute**: die heutige Anwesenheit mit Zahlen zu den Status und einer Zeile pro Person. Fehlt ein Eintrag oder eine Abwesenheit, tragen dich **Zeit nachtragen** und **Abwesenheit eintragen** direkt dorthin. Die Spalte mit den Aktionen erscheint nur, wenn eine Zeile eine Aktion bietet. Der Reiter zeigt immer den Stand von heute, unabhängig vom Zeitraum.
 - **Verläufe**: Diagramme zum Verlauf der letzten Monate für dein Team. **Bericht →** führt zur passenden Tabelle.

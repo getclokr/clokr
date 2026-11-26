@@ -24,6 +24,7 @@ vi.mock("$stores/toast", () => ({
 
 import { renderWithTheme } from "$tests/test-utils";
 import VertragTab from "../VertragTab.svelte";
+import tabSource from "../VertragTab.svelte?raw";
 import type { ContractSchedule } from "$lib/employees/vertrag-form";
 
 const FIXED: ContractSchedule = {
@@ -185,6 +186,29 @@ describe("VertragTab - the form", () => {
       true,
     );
     expect(screen.queryByRole("region", { name: "Speicherleiste" })).toBeNull();
+  });
+});
+
+// Issue #993 (N-19, D-993-15): four equal segments, two per row below 520 px of the section.
+describe("VertragTab - the model choice layout (#993 N-19)", () => {
+  it("renders the model radiogroup as an equal-width fill control with its four options", () => {
+    mount();
+    const group = screen.getByRole("radiogroup", { name: "Arbeitszeitmodell" });
+    expect(group.classList.contains("seg-control--fill")).toBe(true);
+    expect(group.style.getPropertyValue("--seg-count")).toBe("4");
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent?.trim())).toEqual([
+      "Feste Arbeitszeit",
+      "Gleitzeit",
+      "Monatsstunden",
+      "Nach Schichtplan",
+    ]);
+  });
+
+  it("the style block sets --seg-cols: 2 on the model field below 520 px of the container", () => {
+    const style = tabSource.slice(tabSource.lastIndexOf("<style>"));
+    expect(style).toMatch(
+      /@container\s*\(max-width:\s*519\.98px\)\s*\{\s*\.vt-model-field\s*\{\s*--seg-cols:\s*2;/,
+    );
   });
 });
 

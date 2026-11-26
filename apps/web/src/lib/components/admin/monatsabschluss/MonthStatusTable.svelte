@@ -119,7 +119,7 @@
 
   function reasonText(ms: MonthStatus): string {
     if (isRunningMonthStatus(ms, year, today)) return RUNNING_MONTH_REASON;
-    if (ms.status === "closed" || ms.status === "future") return "–";
+    if (ms.status === "closed" || ms.status === "future") return "";
     if (ms.status === "no_data") return "Keine Erfassung in diesem Zeitraum";
     if (ms.status === "blocked") {
       const prev = months.find(
@@ -133,8 +133,8 @@
         .join("; ");
     }
     if (ms.status === "partial") return `${ms.closedCount} von ${ms.totalCount} abgeschlossen`;
-    if (ms.status === "ready") return "Alle Mitarbeiter bereit";
-    return "–";
+    if (ms.status === "ready") return "Alle Personen bereit";
+    return "";
   }
 
   /** Issue #947: the persons of an open month whose gap days the reader cannot see. */
@@ -146,20 +146,23 @@
     return nextStepText(withheldGapPersons(withheldOf(ms)));
   }
 
-  const monthColumns: DataTableColumn[] = [
+  // N-18 (#993): the reason sits under the status chip, and a column no reader of this page can act in is
+  // not drawn at all: „Aktion“ exists only with the right to close (#989).
+  const monthColumns = $derived<DataTableColumn[]>([
     { key: "name", label: "Monat", primary: true },
     { key: "status", label: "Status" },
-    { key: "reason", label: "Grund" },
-    { key: "action", label: "Aktion", align: "end" },
-  ];
+    ...(canClose ? [{ key: "action", label: "Aktion", align: "end" } as DataTableColumn] : []),
+  ]);
 
-  const personColumns: DataTableColumn[] = [
+  const personColumns = $derived<DataTableColumn[]>([
     { key: "employeeName", label: "Name", primary: true },
     { key: "employeeNumber", label: "Personalnummer" },
     { key: "status", label: "Status" },
     { key: "missing", label: "Fehlende Tage" },
-    { key: "action", label: "Aktion", align: "end" },
-  ];
+    ...(canClose || canUnlock
+      ? [{ key: "action", label: "Aktion", align: "end" } as DataTableColumn]
+      : []),
+  ]);
 
   const selected = $derived(months.find((m) => m.month === selectedMonth) ?? null);
   const selectedRunning = $derived(
@@ -216,8 +219,9 @@
         <Chip tone={statusTone(ms.status)}>
           {statusLabel(ms.status, ms.month)} ({ms.closedCount}/{ms.totalCount})
         </Chip>
-      {:else if column.key === "reason"}
-        <span class="mst-reason">{reasonText(ms)}</span>
+        {#if reasonText(ms)}
+          <span class="mst-reason">{reasonText(ms)}</span>
+        {/if}
         {#if ms.month === firstActionableMonth && nextStepOf(ms)}
           <span class="mst-next" data-testid="month-close-withheld-hint">
             {nextStepOf(ms)}
@@ -236,10 +240,6 @@
         >
           {closeLabelFor(withheldOf(ms))}
         </button>
-      {:else if ms.status === "closed"}
-        <span class="mst-none" data-testid={`month-close-row-${ms.month}-locked`}>–</span>
-      {:else}
-        <span class="mst-none">–</span>
       {/if}
     {/snippet}
   </DataTable>
@@ -268,6 +268,13 @@
         das Audit-Log fortgeschrieben. Änderungen sind danach nur noch durch Storno-Buchungen
         möglich.
       </Note>
+    {/if}
+    {#if closesBlind(employees)}
+      <!-- #993: the rights line once above the persons, not repeated under every row (#947: at the
+           affected place, never page-wide). -->
+      <p class="mst-rights mst-rights--list" data-testid="month-close-person-withheld">
+        {WITHHELD_RIGHTS_LINE}
+      </p>
     {/if}
     <DataTable
       listId="verwalten.monatsabschluss.personen"
@@ -317,10 +324,6 @@
             <span class="mst-gaps">{missingDaysText(emp)}</span>
             {#if !emp.dayDetailsWithheld}
               <span class="mst-gap-count">({gapCountOf(emp)})</span>
-            {:else}
-              <span class="mst-rights" data-testid="month-close-person-withheld">
-                {WITHHELD_RIGHTS_LINE}
-              </span>
             {/if}
           {:else}
             <span class="mst-none">–</span>
@@ -362,7 +365,8 @@
 
   /* The table keeps values on one line; a reason with several names may wrap inside its cell. */
   .mst-reason {
-    display: inline-block;
+    display: block;
+    margin-top: var(--s-1);
     max-width: 44ch;
     white-space: normal;
     color: var(--text-2);
@@ -383,6 +387,11 @@
     color: var(--text-2);
     font-size: var(--fs-xs, 11px);
     white-space: normal;
+  }
+
+  .mst-rights--list {
+    margin: 0;
+    font-size: var(--fs-sm);
   }
 
   .mst-none {

@@ -93,7 +93,7 @@ describe("status segments (#991)", () => {
     const rule = /\.seg-control--fill\s*\{([^}]*)\}/.exec(css);
     expect(rule).not.toBeNull();
     expect(rule![1]).toContain("display: grid");
-    expect(rule![1]).toContain("repeat(var(--seg-count");
+    expect(rule![1]).toContain("repeat(var(--seg-cols, var(--seg-count, 1))");
     const btn = /\.seg-control--fill \.seg-btn\s*\{([^}]*)\}/.exec(css);
     expect(btn![1]).toContain("white-space: normal");
   });

@@ -6,7 +6,7 @@
   import { SALON_VIEW_UNAVAILABLE_TEXT } from "$lib/salons/page-scope";
 
   interface Props {
-    /** „Salon: <Name>“ / „Alle Salons“; null while no salon options are shown. */
+    /** „Salon: <Name>“ / „Salon: alle“; null while no salon options are shown. */
     label: string | null;
     /** The server answered the one 404 for the chosen salon. */
     rejected?: boolean;

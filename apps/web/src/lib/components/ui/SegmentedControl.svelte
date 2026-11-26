@@ -140,10 +140,12 @@
   }
 
   /* #991: equal-width segments. The track is a grid of one row; a long label wraps inside its
-     segment, so the control is as wide as its container and never grows a second row of segments. */
+     segment, so the control is as wide as its container and never grows a second row of segments.
+     Issue #993 N-19: an optional custom property --seg-cols, set by the caller's own container rule, lays
+     the options out in fewer columns (for example 2x2); without it the column count is the option count. */
   .seg-control--fill {
     display: grid;
-    grid-template-columns: repeat(var(--seg-count, 1), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--seg-cols, var(--seg-count, 1)), minmax(0, 1fr));
     width: 100%;
     --seg-radius: var(--r-card);
   }

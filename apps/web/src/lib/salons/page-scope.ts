@@ -44,12 +44,13 @@ export function salonNameLabel(name: string): string {
 
 /**
  * What a filtered page says its content refers to: nothing while no salon options are shown,
- * „Alle Salons“ without a chosen salon, otherwise „Salon: <Name>“.
+ * „Salon: alle“ without a chosen salon, otherwise „Salon: <Name>“. Issue #993 N-10 (D-993-02): a
+ * label:value pair instead of a loose word; the header switcher keeps its option „Alle Salons“.
  */
 export function salonScopeLabel(state: PageScopeState): string | null {
   const name = teamViewLabel(state);
   if (name === null) return null;
-  if (salonPageFilter(state) === null) return "Alle Salons";
+  if (salonPageFilter(state) === null) return salonNameLabel("alle");
   return salonNameLabel(name);
 }
 

@@ -182,6 +182,9 @@ test.describe("Salonmanagerin sieht ihren Salon (AC-3)", () => {
       "salon B's person is not listed",
     ).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(personB.lastName);
+    // The Salonleitung keeps Team › Personen (no redirect, #993 N-13) and it stays free of axe violations.
+    await expect(page).toHaveURL(/\/team\/personen/);
+    expect(await axeViolations(page), "axe violations on /team/personen").toEqual([]);
     const rail = page.getByRole("complementary", { name: "Hauptnavigation", exact: true });
     await expect(
       rail.getByRole("navigation", { name: "Team", exact: true }).getByRole("link", {
@@ -276,7 +279,8 @@ const TEAM_PAGES: { path: string; heading: string }[] = [
   { path: "/team/dienstplan/konflikte", heading: "Dienstplan" },
   // The availability feature defaults to on for a tenant (`TenantConfig.availabilityEnabled`).
   { path: "/team/verfuegbarkeit", heading: "Dienstplan" },
-  { path: "/team/personen", heading: "Personen" },
+  // Team › Personen is not in this list: the tenant admin has Verwalten › Personen in the menu and is sent
+  // there (#993 N-13, own test below); the Salonleitung's axe check of Team › Personen sits in her block.
 ];
 
 test.describe("Team-Seiten: Barrierefreiheit und Kopf (AC-4)", () => {
@@ -309,6 +313,31 @@ test.describe("Team-Seiten: Barrierefreiheit und Kopf (AC-4)", () => {
       expect(await axeViolations(page), `axe violations on ${path}`).toEqual([]);
     });
   }
+
+  // Issue #993 (N-13, D-993-13): one person list per reader. The tenant admin has Verwalten › Personen in the
+  // menu, so Team › Personen sends her there with the query kept; the page keeps the same head and stays
+  // free of axe violations.
+  test("/team/personen: the tenant admin lands on Verwalten › Personen, query kept, H1 „Personen“", async ({
+    page,
+    request,
+    tenant,
+  }) => {
+    test.setTimeout(90_000);
+    await createEmployee(request, tenant, {
+      key: "red",
+      firstName: "Umleitung",
+      lastName: "Prüfzeile",
+      password: `Um-${randomUUID()}!`,
+    });
+
+    await loginAsTenantAdmin(page, tenant);
+    await page.goto("/team/personen?q=Pr%C3%BCfzeile");
+    await expect(page).toHaveURL(/\/verwalten\/personen\?(.*&)?q=Pr(%C3%BC|ü)fzeile/);
+    await pageReady(page, "Personen");
+    await expect(page.locator("h1")).toHaveCount(1);
+    await expect(page.locator("h1")).toHaveText("Personen");
+    expect(await axeViolations(page), "axe violations on /verwalten/personen").toEqual([]);
+  });
 });
 
 // ── Issue #941 / #948: Genehmigen asks first; the Aufgaben cell counts what the page lists ──────
@@ -578,10 +607,11 @@ defineVisibilityWalkthrough({
   ],
 });
 
-// Personen: the search narrows the table, the first row is in view.
+// Personen: the search narrows the table, the first row is in view. The tenant admin has the list under
+// Verwalten › Personen (Team › Personen sends her there, #993 N-13).
 defineVisibilityWalkthrough({
-  title: "Team Personen Suche",
-  path: "/team/personen",
+  title: "Personen Suche",
+  path: "/verwalten/personen",
   seed: async ({ request, tenant }) => {
     await createEmployee(request, tenant, {
       key: "per",
@@ -597,9 +627,9 @@ defineVisibilityWalkthrough({
       name: "Suche",
       act: async (page) => {
         await page.getByRole("searchbox", { name: "Name oder Nummer" }).fill("Wegprobe");
-        await expect(page.locator('[data-testid^="team-person-"]')).toHaveCount(1);
+        await expect(page.locator('tr[data-testid^="admin-employees-row-"]')).toHaveCount(1);
       },
-      target: (page) => page.locator('[data-testid^="team-person-"]').first(),
+      target: (page) => page.locator('tr[data-testid^="admin-employees-row-"]').first(),
     },
   ],
 });

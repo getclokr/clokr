@@ -135,7 +135,7 @@ export function identityErrors(values: PersonValues): PersonErrors {
   if (values.firstName.trim() === "") errors.firstName = "Gib den Vornamen ein.";
   if (values.lastName.trim() === "") errors.lastName = "Gib den Nachnamen ein.";
   if (values.employeeNumber.trim() === "") {
-    errors.employeeNumber = "Gib die Mitarbeiter-Nr. ein.";
+    errors.employeeNumber = "Gib die Personalnummer ein.";
   }
   return errors;
 }
