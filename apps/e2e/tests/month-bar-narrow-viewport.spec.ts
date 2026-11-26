@@ -63,6 +63,12 @@ interface Surface {
   today: boolean;
   /** The bar's next arrow is a real disabled button (the period may not pass the current month). */
   nextDisabled?: boolean;
+  /**
+   * Issue #991 (M-40): the own Planung tab shows its month bar only where a leave plan is open for
+   * the year in view. "open" seeds an open plan for the tenant's salon through the real API before
+   * the page loads; "none" leaves the year unplanned, where the toolbar steps by YEAR instead.
+   */
+  plan?: "open" | "none";
 }
 
 const MONTH = { label: "September 2026", prev: "Vorheriger Monat", next: "Nächster Monat" };
@@ -92,7 +98,18 @@ const SURFACES: Surface[] = [
     today: false,
   },
   { path: "/leave?tab=team&zoom=monat", ...MONTH, today: true },
-  { path: "/leave?tab=planung&zoom=monat", ...MONTH, today: true },
+  // Issue #991 (M-40): with an OPEN plan the own Planung keeps its month bar ...
+  { path: "/leave?tab=planung&zoom=monat", ...MONTH, today: true, plan: "open" },
+  // ... and without one it says „Noch keine Planung“ and steps by year (no month to step through).
+  {
+    path: "/leave?tab=planung&zoom=monat",
+    label: "2026",
+    prev: "Vorheriges Jahr",
+    next: "Nächstes Jahr",
+    // A year bar offers no „Heute“ (same as the Anträge year bar above).
+    today: false,
+    plan: "none",
+  },
   // Issue #612: the period bar of /reports (MonthBar with the period label); no "Heute" (the preset
   // "Dieser Monat" covers it) and, in the current month the clock is fixed on, a disabled next arrow.
   { path: "/reports", ...MONTH, today: false, nextDisabled: true },
@@ -207,6 +224,19 @@ async function waitForStableBox(locator: Locator): Promise<void> {
     .toBe(true);
 }
 
+/** Opens the 2026 leave plan of the tenant's salon through the API (the fixed browser clock year). */
+async function openLeavePlan(request: APIRequestContext, accessToken: string): Promise<void> {
+  const headers = { "content-type": "application/json", Authorization: `Bearer ${accessToken}` };
+  const salons = await request.get(`${API_BASE}/api/v1/salons`, { headers });
+  expect(salons.ok(), `list the salons (${salons.status()})`).toBe(true);
+  const salonId = ((await salons.json()) as { salons: Array<{ id: string }> }).salons[0].id;
+  const res = await request.post(`${API_BASE}/api/v1/leave/plans`, {
+    headers,
+    data: { salonId, year: 2026, deadline: null },
+  });
+  expect(res.status(), `open the 2026 plan (${await res.text()})`).toBe(201);
+}
+
 async function openSurface(page: Page, surface: Surface): Promise<Locator> {
   await page.goto(surface.path);
   if (surface.listView) {
@@ -227,11 +257,14 @@ for (const viewport of VIEWPORTS) {
 
     for (const theme of THEMES) {
       for (const surface of SURFACES) {
-        const surfaceName = `${surface.path}${surface.listView ? " list" : ""}`;
+        const surfaceName = `${surface.path}${surface.listView ? " list" : ""}${
+          surface.plan ? ` plan-${surface.plan}` : ""
+        }`;
         const id = `${surfaceName} — ${theme} — month bar fits ${viewport.width} px`;
 
         test(id, async ({ page, request, tenant }, testInfo) => {
           const auth = await login(request, tenant, theme);
+          if (surface.plan === "open") await openLeavePlan(request, auth.accessToken);
           await page.addInitScript(
             ({ accessToken, refreshToken, user, themeName }) => {
               try {
@@ -249,6 +282,14 @@ for (const viewport of VIEWPORTS) {
 
           const where = `${surfaceName} / ${theme} / ${viewport.width} px`;
           const bar = await openSurface(page, surface);
+
+          if (surface.plan === "none") {
+            // Anti-vacuity for the unplanned year: the page really is the empty state (not a plan
+            // that still loads), and its toolbar offers no zoom switch, only the year stepper.
+            await expect(
+              page.getByText("Noch keine Planung", { exact: false }).first(),
+            ).toBeVisible();
+          }
 
           // Anti-vacuity: the widest label is on screen and the theme under test is active.
           const label = bar.locator(LABEL_SELECTOR).first();
