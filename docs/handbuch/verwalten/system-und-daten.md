@@ -83,7 +83,7 @@ Auf dem Reiter **Aufbewahrung** stellst du ein, wie lange Daten aufbewahrt werde
 **Verwalten › Regeln › Benachrichtigungen & E-Mail** regelt, wann Clokr benachrichtigt:
 
 - **E-Mail-Benachrichtigungen**: Mit **E-Mail-Benachrichtigungen aktivieren** schickt Clokr zusätzlich zur Benachrichtigung in der App eine E-Mail. Dafür muss der E-Mail-Server eingerichtet sein. Je Ereignis schaltest du einzeln: neuer Urlaubsantrag, Urlaub genehmigt oder abgelehnt, Überstunden-Warnung, fehlende Zeiteinträge, vergessene Stempelung, Monatsabschluss und Zeitnachtrag.
-- **Erinnerungen**: wann Clokr an offene Punkte erinnert, zum Beispiel an eine offene Stempelung nach einer Zahl von Stunden, an fehlende Einträge nach einer Zahl von Tagen, an offene Urlaubsanträge und an bevorstehende Abwesenheiten.
+- **Erinnerungen**: wann Clokr an offene Punkte erinnert, zum Beispiel an eine offene Stempelung nach einer Zahl von Stunden, an fehlende Einträge nach einer Zahl von Tagen, an offene Urlaubsanträge und an bevorstehende Abwesenheiten. Erinnert wird die Person selbst; bei fehlenden Einträgen und offenen Stempelungen zusätzlich, wer Heute im Salon sieht, bei offenen Urlaubsanträgen, wer Anträge genehmigen darf.
 
 Jede Person kann einzelne E-Mails für sich abbestellen (**Ich › Profil**). Hinweise zur Sicherheit des Kontos und gesetzliche Hinweise bekommt sie immer.
 
@@ -94,4 +94,4 @@ Jede Person kann einzelne E-Mails für sich abbestellen (**Ich › Profil**). Hi
 - **Schichtvorlagen**: wiederkehrende Schichten mit Name, Start, Ende und Farbe. Mit **Vorlage anlegen** erstellst du eine. Im Dienstplan ziehst du sie auf einen Tag.
 - **Bedarfsregeln**: wie viele Personen je Vorlage und Wochentag mindestens eingeplant sein sollen, mit der Option **Aufsicht erforderlich**. Die genaueste Regel gilt. Ohne Regel gelten 2 Personen.
 - **Wochenmuster**: das wiederkehrende Muster je Person mit einer Vorlage pro Wochentag. Nur Personen mit dem Arbeitszeitmodell „Nach Schichtplan“ erscheinen hier. Mit **Muster anwenden** auf [Team › Dienstplan](../team/dienstplan.md) füllt Clokr eine Woche daraus.
-- **Einstellungen**: wie streng Schichten an die Öffnungszeiten der Salons gebunden sind, ob das Verfügbarkeits-System aktiv ist (dann sehen Mitarbeitende **Meine Verfügbarkeit**), ob Schichten auf Berufsschultagen automatisch entfernt werden, und die Schicht-Erinnerungen.
+- **Einstellungen**: wie streng Schichten an die Öffnungszeiten der Salons gebunden sind, ob das Verfügbarkeits-System aktiv ist (dann sehen Mitarbeitende **Meine Verfügbarkeit**; wer den Dienstplan bearbeitet, kann „Nicht verfügbar“ nach einer Bestätigung überschreiben, das steht im Protokoll), ob Schichten auf Berufsschultagen automatisch entfernt werden, und die Schicht-Erinnerungen.

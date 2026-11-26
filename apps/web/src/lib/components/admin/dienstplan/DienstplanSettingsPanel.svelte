@@ -266,7 +266,7 @@
       bind:checked={availability.availabilityEnabled}
       label="Verfügbarkeits-System aktivieren"
       help={availability.availabilityEnabled
-        ? "Mitarbeitende pflegen ihre Verfügbarkeit selbst, die Navigation zeigt „Verfügbarkeit“. Automatisches Erzeugen und „Woche kopieren“ respektieren „Nicht verfügbar“; Vorgesetzte können das nach einer Bestätigung überschreiben (mit Audit-Eintrag)."
+        ? "Mitarbeitende pflegen ihre Verfügbarkeit selbst, die Navigation zeigt „Verfügbarkeit“. „Muster anwenden“ und „Woche kopieren“ beachten „Nicht verfügbar“; wer den Dienstplan bearbeitet, kann das nach einer Bestätigung überschreiben. Das steht dann im Protokoll."
         : "Ausgeschaltet: „Verfügbarkeit“ ist in der Navigation ausgeblendet, das Erzeugen von Schichten ignoriert Verfügbarkeits-Markierungen. Bereits angelegte Verfügbarkeiten bleiben gespeichert."}
       disabled={availabilitySaving}
       testid="dienstplan-verfuegbarkeit-enabled"

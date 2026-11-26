@@ -32,6 +32,7 @@ vi.mock("$stores/toast", () => ({
 import { renderWithTheme } from "$tests/test-utils";
 import { ApiError } from "$api/client";
 import { settingsSection } from "$lib/settings/settings-pages";
+import { hintLabel } from "$components/ui/info-hint";
 import {
   clampDayToMonth,
   clampKarenzDays,
@@ -147,6 +148,26 @@ describe("UrlaubPanel", () => {
     renderWithTheme(UrlaubPanel, { config, onSaved });
     return onSaved;
   };
+
+  it("Issue #994 (N-10): the Krankmeldung hint says what it does, then the default, the basis last", () => {
+    mount();
+    const text = document.getElementById(
+      screen
+        .getByRole("button", { name: hintLabel("Nachweispflicht nach (Kalendertagen)") })
+        .getAttribute("aria-describedby")!,
+    )!.textContent!;
+    expect(text).toContain("länger als so viele Kalendertage");
+    expect(text).toContain("0 heißt: ab dem ersten Tag");
+    expect(text).toContain("ärztlichem Zeugnis");
+    expect(text.endsWith("Grundlage: § 5 Abs. 1 EFZG, § 9 BUrlG.")).toBe(true);
+    expect(screen.queryByText(/\(EFZG\)/)).toBeNull();
+    const group = document.getElementById(
+      screen
+        .getByRole("button", { name: hintLabel("Krankmeldung") })
+        .getAttribute("aria-describedby")!,
+    )!.textContent!;
+    expect(group).not.toContain("(EFZG)");
+  });
 
   it("shows the overview figures and no SaveBar while nothing changed", () => {
     mount();

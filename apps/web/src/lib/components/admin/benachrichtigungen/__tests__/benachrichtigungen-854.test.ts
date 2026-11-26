@@ -19,6 +19,7 @@ vi.mock("$stores/toast", () => ({
 
 import { renderWithTheme } from "$tests/test-utils";
 import { settingsSection } from "$lib/settings/settings-pages";
+import { hintLabel } from "$components/ui/info-hint";
 import EmailSection from "../EmailSection.svelte";
 import RemindersSection from "../RemindersSection.svelte";
 import SmtpSection from "../../integrationen/SmtpSection.svelte";
@@ -185,6 +186,12 @@ describe("EmailSection", () => {
   });
 });
 
+/** The hidden explanation text behind the info symbol of a label or heading. */
+const hintText = (subject: string) =>
+  document.getElementById(
+    screen.getByRole("button", { name: hintLabel(subject) }).getAttribute("aria-describedby")!,
+  )!.textContent;
+
 describe("RemindersSection", () => {
   const CONFIG = {
     clockOutReminderHours: 10,
@@ -194,6 +201,18 @@ describe("RemindersSection", () => {
     reminderUpcomingAbsenceEnabled: true,
     reminderUpcomingAbsenceDays: 3,
   };
+
+  it("Issue #994 (N-14, N-19): the texts name who is reminded by what that person may do", () => {
+    renderWithTheme(RemindersSection, { config: CONFIG });
+    expect(hintText("Erinnerungen")).toBe("Wann Clokr an offene Punkte erinnert.");
+    expect(hintText("Erinnerung bei fehlenden Einträgen nach (Tagen)")).toBe(
+      "Die Person und wer Heute im Salon sieht, werden benachrichtigt, wenn keine Zeit erfasst wurde.",
+    );
+    expect(hintText("Offene Urlaubsanträge: an die Entscheidung erinnern")).toBe(
+      "Erinnert wird, wer Anträge genehmigen darf.",
+    );
+    expect(document.body.textContent).not.toMatch(/Vorgesetzte|Manager/);
+  });
 
   it("sends exactly the six keys of its section to /settings/work, whole numbers", async () => {
     renderWithTheme(RemindersSection, { config: CONFIG });
@@ -212,7 +231,9 @@ describe("RemindersSection", () => {
 
   it("hides the threshold of a switched-off reminder and still sends a valid number for it", async () => {
     renderWithTheme(RemindersSection, { config: CONFIG });
-    await fireEvent.click(screen.getByLabelText("Offene Urlaubsanträge: Vorgesetzte erinnern"));
+    await fireEvent.click(
+      screen.getByLabelText("Offene Urlaubsanträge: an die Entscheidung erinnern"),
+    );
     expect(screen.queryByLabelText("Erinnern nach (Stunden)")).toBeNull();
     await fireEvent.click(await screen.findByRole("button", { name: "Erinnerungen speichern" }));
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));

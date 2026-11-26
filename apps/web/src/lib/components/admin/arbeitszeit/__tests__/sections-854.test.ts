@@ -16,6 +16,8 @@ vi.mock("$stores/toast", () => ({
 
 import { renderWithTheme } from "$tests/test-utils";
 import { settingsSection } from "$lib/settings/settings-pages";
+import { hintLabel } from "$components/ui/info-hint";
+import AppointmentHintsSection from "../AppointmentHintsSection.svelte";
 import CoreHoursSection from "../CoreHoursSection.svelte";
 import RetroWindowSection from "../RetroWindowSection.svelte";
 import VocationalSlotsSection from "../VocationalSlotsSection.svelte";
@@ -23,6 +25,11 @@ import WorkDaysSection from "../WorkDaysSection.svelte";
 
 const keysOf = (id: string) => [...settingsSection(id).keys].sort();
 const bar = () => screen.queryByRole("region", { name: "Speicherleiste" });
+/** The hidden explanation text behind the info symbol of a label or heading. */
+const hintText = (subject: string) =>
+  document.getElementById(
+    screen.getByRole("button", { name: hintLabel(subject) }).getAttribute("aria-describedby")!,
+  )!.textContent;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,6 +60,29 @@ describe("RetroWindowSection", () => {
     expect(
       (screen.getByRole("button", { name: "Frist speichern" }) as HTMLButtonElement).disabled,
     ).toBe(true);
+  });
+});
+
+describe("Issue #994 hints (N-10, N-14, N-19)", () => {
+  it("the retro hint says what the setting does, names no role and no draft bill", () => {
+    renderWithTheme(RetroWindowSection, { config: {} });
+    const text = hintText("Selbstbearbeitungsfenster (Tage)")!;
+    expect(text).toContain(
+      "So viele Tage rückwirkend dürfen Mitarbeitende ihre Einträge selbst ändern.",
+    );
+    expect(text).toContain("darüber entscheidet, wer Zeitnachträge genehmigen darf.");
+    expect(text).toContain("Standard: 10 Tage.");
+    expect(text).not.toContain("7 Tage");
+    expect(text).not.toMatch(/Referent|Manager|Gesetzlich/);
+  });
+
+  it("the appointment hint names who sees it by what that person may do", () => {
+    renderWithTheme(AppointmentHintsSection, { config: {} });
+    const text = hintText("Termine mit der erfassten Zeit abgleichen")!;
+    expect(text).toContain("Unter Aufgaben sieht ihn, wer die Zeiten der Person sehen darf.");
+    expect(text).toContain("§ 87 Abs. 1 Nr. 6 BetrVG");
+    expect(text).toContain("Art. 13 DSGVO");
+    expect(text).not.toContain("Manager");
   });
 });
 

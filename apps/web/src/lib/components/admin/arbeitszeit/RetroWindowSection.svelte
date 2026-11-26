@@ -89,7 +89,11 @@
 >
   <FormField
     label="Selbstbearbeitungsfenster (Tage)"
-    hint="Mitarbeitende können Einträge bis zu so vielen Tagen rückwirkend selbst bearbeiten. Ältere Einträge brauchen einen Antrag, den ein Manager genehmigt. Gesetzlicher Referenzwert (ArbZG-Referentenentwurf 2023): 7 Tage. Standard: 10 Tage."
+    hint={[
+      "So viele Tage rückwirkend dürfen Mitarbeitende ihre Einträge selbst ändern.",
+      "Ältere Tage tragen sie über einen Zeitnachtrag nach; darüber entscheidet, wer Zeitnachträge genehmigen darf.",
+      "Standard: 10 Tage.",
+    ]}
     error={messages.retroEntryWindowDays}
   >
     {#snippet field({ id, describedBy, invalid })}
