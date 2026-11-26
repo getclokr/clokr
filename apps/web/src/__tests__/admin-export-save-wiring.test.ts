@@ -236,3 +236,18 @@ describe("D-11/D-12 - unsaved marker and guard registration on admin/export", ()
     expect(PAGE).not.toMatch(/finally\s*\{[^}]*datevSnapshot =/s);
   });
 });
+
+// Issue #994 (N-04/N-19, D-994-10): the person picker of the export page reads „Vorname Nachname · Nr. 5“ and
+// still sorts by last name; an id the list does not offer stays visible as „Ausgewählte Person“.
+describe("export person picker name order (Issue #994, D-994-10)", () => {
+  it("labels with personNameWithNumber, sorts with comparePersonsByLastName and keeps the fallback entry", () => {
+    const start = EXPORT_PAGE.indexOf("const personItems = $derived.by");
+    expect(start).toBeGreaterThan(-1);
+    const body = EXPORT_PAGE.slice(start, EXPORT_PAGE.indexOf("return items;", start));
+    expect(body).toContain("comparePersonsByLastName");
+    expect(body).toContain("personNameWithNumber(");
+    expect(body).toContain('"Ausgewählte Person"');
+    expect(body).not.toMatch(/localeCompare|lastName\}, /);
+    expect(EXPORT_PAGE).toContain('from "$lib/utils/person-name"');
+  });
+});

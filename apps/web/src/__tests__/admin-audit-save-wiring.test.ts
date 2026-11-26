@@ -174,3 +174,42 @@ describe("D-11/D-12 - unsaved marker and guard registration", () => {
     expect(SECTION).not.toMatch(/finally\s*\{[^}]*snapshot =/s);
   });
 });
+
+// Issue #994 (N-04/N-19, D-994-10): one name order in the Protokoll - „Vorname Nachname“ in the filter, the list
+// and the detail, sorted by last name. Source pins; the routes cannot be mounted.
+describe("Protokoll name order (Issue #994, D-994-10)", () => {
+  const DETAIL = readSource(
+    "../routes/(app)/admin/audit/[id]/+page.svelte",
+    "src/routes/(app)/admin/audit/[id]/+page.svelte",
+  );
+
+  it("builds the person filter from the sorted people, labelled with personNameWithNumber, with „Alle Personen“ outside the sort", () => {
+    const start = PAGE.indexOf("const personItems = $derived.by");
+    expect(start).toBeGreaterThan(-1);
+    const body = PAGE.slice(start, PAGE.indexOf("return items;", start));
+    expect(body).toContain("comparePersonsByLastName");
+    expect(body).toContain("personNameWithNumber(");
+    expect(body).not.toMatch(/localeCompare/);
+    // Only the people are sorted; „Alle Personen“ stays the first entry and is never part of the sort.
+    expect(body).toContain("[...people].sort(comparePersonsByLastName)");
+    expect(body.match(/\.sort\(/g)).toHaveLength(1);
+    expect(PAGE).toContain('from "$lib/utils/person-name"');
+  });
+
+  it("renders the list cell as personName plus a muted „· Nr. …“", () => {
+    expect(PAGE).toContain("{personName(row.affectedEmployee)}");
+    expect(PAGE).toMatch(/audit-muted">· Nr\. \{row\.affectedEmployee\.employeeNumber\}</);
+  });
+
+  it("renders the detail with personNameWithNumber", () => {
+    expect(DETAIL).toContain("personNameWithNumber(entry.affectedEmployee)");
+    expect(DETAIL).toContain('from "$lib/utils/person-name"');
+  });
+
+  it("no template interpolates a „Nachname, Vorname“ order", () => {
+    for (const source of [PAGE, DETAIL]) {
+      expect(source).not.toMatch(/lastName\}, /);
+      expect(source).not.toMatch(/\.lastName\}, \$\{/);
+    }
+  });
+});

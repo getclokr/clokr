@@ -8,6 +8,7 @@
  */
 import { format } from "date-fns";
 import { auditActorLabel } from "$lib/audit/actor-label";
+import { personName } from "$lib/utils/person-name";
 import { exportTypeLabel } from "$lib/audit/labels";
 import { RANGE_ERROR_TEXT, validateRange } from "$lib/reports/period-state";
 import type { YearMonth } from "$lib/reports/period-report";
@@ -137,9 +138,7 @@ export function exportHistoryRows(logs: readonly ExportLogLike[]): ExportHistory
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .map((log) => {
       const type = field(log.newValue, "type");
-      const person = log.affectedEmployee
-        ? `${log.affectedEmployee.lastName}, ${log.affectedEmployee.firstName}`
-        : null;
+      const person = log.affectedEmployee ? personName(log.affectedEmployee) : null;
       const scope = [person, periodScope(log.newValue)].filter((part) => part !== null).join(" · ");
       return {
         id: log.id,
