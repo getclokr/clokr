@@ -516,7 +516,7 @@
   // ── Submit / mutation ────────────────────────────────────────────────────
   async function submitRequest() {
     if (!employeeId) {
-      formError = "Bitte einen Mitarbeiter auswählen";
+      formError = "Wähl eine Person aus.";
       return;
     }
     if (halfDayRangeErrorText) {
@@ -668,7 +668,7 @@
       onsubmit={preventDefault(submitRequest)}
       class="form-grid"
     >
-      <!-- Issue #840 G-9: row 1 = who and what (Mitarbeiter + Art; Anlass for Sonderurlaub),
+      <!-- Issue #840 G-9: row 1 = who and what (Person + Art; Anlass for Sonderurlaub),
            row 2 = when (Von + Bis). Every other group below stays a full-width line. -->
       <div
         class="form-row"
@@ -749,7 +749,7 @@
 
       {#if !employeeId}
         <div class="form-group form-group--full">
-          <p class="form-hint">Bitte zuerst einen Mitarbeiter auswählen.</p>
+          <p class="form-hint">Wähl zuerst eine Person aus.</p>
         </div>
       {/if}
 

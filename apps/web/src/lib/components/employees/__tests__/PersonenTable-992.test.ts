@@ -78,6 +78,12 @@ describe("PersonenTable (#992)", () => {
     expect(document.querySelectorAll(".p-number")).toHaveLength(1);
   });
 
+  it("names the selection checkbox after the shown name, first name first (#994 D-994-10)", () => {
+    mount({ selectable: true });
+    expect(screen.getByRole("checkbox", { name: "Mia Friseurin auswählen" })).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /Friseurin, Mia/ })).toBeNull();
+  });
+
   it("reads „Öffnen“ by default and the given text with openText, keeping the aria-label", () => {
     const first = mount();
     expect(

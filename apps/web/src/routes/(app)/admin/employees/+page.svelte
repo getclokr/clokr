@@ -54,6 +54,7 @@
   import { MISSING_BIRTH_DATE_HINT } from "$lib/statutory-minimum-vacation";
   import type { EmployeeClassification } from "$lib/employee-classification";
   import { tenantDay } from "$lib/utils/tenant-day";
+  import { personName } from "$lib/utils/person-name"; // Issue #994 (D-994-10): „Vorname Nachname“
   import { tenantFeatures } from "$stores/tenant-features";
   import {
     activeCount,
@@ -270,9 +271,6 @@
       !emp.user.isActive &&
       (emp.invitationStatus === "PENDING" || emp.invitationStatus === "EXPIRED")
     );
-  }
-  function personName(emp: Employee): string {
-    return `${emp.lastName}, ${emp.firstName}`;
   }
   function assignmentsOf(emp: Employee): RoleAssignment[] {
     return assignmentsByUser?.[emp.userId] ?? [];

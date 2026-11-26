@@ -497,7 +497,7 @@ defineVisibilityWalkthrough({
       act: async (page) => {
         await chooseFromCombobox(
           page.getByRole("combobox", { name: "Person" }),
-          page.getByRole("option", { name: /Wegprobe, Zeiten/ }),
+          page.getByRole("option", { name: /Zeiten Wegprobe/ }),
           "Wegprobe",
         );
         // #992 N-05: the chosen person and the day are part of the address (a link can be passed on).
