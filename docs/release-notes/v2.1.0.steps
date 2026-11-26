@@ -1,0 +1,38 @@
+# Machine-readable twin of "Betrieb & Migration" in v2.1.0.md (Issue #709). The release notes and
+# scripts/release-rehearsal.sh walk THIS list, in this order; a change to the steps in the notes
+# changes this file in the same commit.
+#
+# Format:  phase | expected exit | id | kind | argument
+#   expected exit: one code or a comma list; audits exit 2 when they list findings, which is information, not a failure
+#   phase   pre = before the deploy (read-only), migrate = prisma migrate deploy, post = after it
+#   kind    sql = psql -c on the throwaway DB, script = `pnpm tsx scripts/<arg>` in the new api image,
+#           migrate = `prisma migrate deploy` as the image entrypoint runs it
+# Operational steps with no exit code to prove (pg_dump, the deploy window, a sample sign-in per role)
+# stay in the notes only.
+#
+# Notes "Betrieb & Migration", before the deploy: the permission count of the seven global system-role
+# templates (Information only; on v2.0.3 expected 94 / 68 / 24 / 94 / 29 / 15 / 5 for a001..a007).
+# One data migration of this release (#1079) rewrites one of them (Salonmanager, a005).
+pre|0|role-templates-before-1079|sql|select "id", cardinality("permissions") as permissions from "AccessRole" where "tenantId" is null order by "id";
+# Deploy: the seven migrations of v2.1.0, all additive or data-only (#976, #1069, #1082, #1079 x2,
+# #606, #604); pg_dump first.
+migrate|0|migrate-deploy|migrate|
+# After the deploy (read-only assertion): the seven global templates carry exactly the permission counts
+# of SYSTEM_ROLE_PERMISSIONS (Admin 94, Manager 68, Mitarbeiter 24, Inhaber 94, Salonmanager 30,
+# Personalabteilung 15, Ausbilder 5). A mismatch divides by zero, psql exits 1 and the rehearsal fails.
+post|0|role-templates-after-1079|sql|select 1/(case when count(*)=7 then 1 else 0 end) as templates_ok from "AccessRole" where "tenantId" is null and (("id"='00000000-0000-4000-8000-00000000a001' and cardinality("permissions")=94) or ("id"='00000000-0000-4000-8000-00000000a002' and cardinality("permissions")=68) or ("id"='00000000-0000-4000-8000-00000000a003' and cardinality("permissions")=24) or ("id"='00000000-0000-4000-8000-00000000a004' and cardinality("permissions")=94) or ("id"='00000000-0000-4000-8000-00000000a005' and cardinality("permissions")=30) or ("id"='00000000-0000-4000-8000-00000000a006' and cardinality("permissions")=15) or ("id"='00000000-0000-4000-8000-00000000a007' and cardinality("permissions")=5));
+# After the deploy (read-only audits). All run in the new image, after the migrations, because the new
+# client selects the new columns. Ids, days, months and minutes only; exit 2 lists findings, which is
+# information, not a failure.
+# #1011: hire-year vacation entitlement rows whose stored value differs from the legal one (all tenants by default).
+post|0,2|audit-1011-hire-year-entitlements|script|audit-1011-hire-year-entitlements.ts
+# #1056: minors on SHIFT_BASED whose Soll changes by the § 11 JArbSchG roster break.
+post|0,2|audit-1056-minor-shift-soll|script|audit-1056-minor-shift-soll.ts --all-tenants
+# #1069: Betriebsurlaube without the bookings they promise (reads the new companyShutdownId / deletedAt columns).
+post|0,2|audit-1069-company-shutdown-bookings|script|audit-1069-company-shutdown-bookings.ts
+# #1080: months where a Berufsschultag inside an absence reduced the Soll twice.
+post|0,2|audit-1080-bs-day-absence-double-soll|script|audit-1080-bs-day-absence-double-soll.ts --all-tenants
+# #1085: open entries older than the tenant's retro window.
+post|0,2|audit-1085-open-entries-outside-window|script|audit-1085-open-entries-outside-window.ts
+# #1133: FLEXTIME months with a differing holiday reduction.
+post|0,2|audit-1133-flextime-holiday-soll|script|audit-1133-flextime-holiday-soll.ts --all-tenants
