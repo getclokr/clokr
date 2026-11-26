@@ -775,3 +775,37 @@ describe("heute-im-salon helpers", () => {
     expect(tasks.map((t) => t.id)).toEqual([LR1]);
   });
 });
+
+// Issue #992 (N-07, N-08) - the head, the Team-Woche and the dates, read from the page source.
+describe("Heute im Salon - head, Team-Woche and dates (Issue #992)", () => {
+  const page = readFileSync(resolve(__dirname, "../routes/(app)/dashboard/+page.svelte"), "utf8");
+
+  it("the head renders the links of teamHeadActions() in the small size of the Dienstplan", () => {
+    expect(page).toContain("teamHeadActions(reportRights($authStore.user))");
+    expect(page).toContain("class={`btn btn-${action.tone} sm`}");
+    expect(page).not.toContain("formatShortDate");
+  });
+
+  it("the Team-Woche has fixed, equal day columns and linked names", () => {
+    expect(page).toMatch(/\.ts-week\s*\{[^}]*table-layout:\s*fixed/);
+    expect(page).toMatch(/\.ts-week \.ts-col-name\s*\{[^}]*width:\s*28%/);
+    expect(page).toMatch(/<td class="ts-name">[^]*?canOpenTeamDay[^]*?href=\{teamDayHref\(/);
+  });
+
+  it("the widget dates go through dayRangeLabel()", () => {
+    expect(page).toContain("dayRangeLabel(leave.startDate, leave.endDate)");
+    expect(page).toContain("dayRangeLabel(teamWeek.weekStart, teamWeek.weekEnd)");
+  });
+
+  it("the head buttons of Team › Abwesenheiten use the small size too", () => {
+    const leave = readFileSync(
+      resolve(__dirname, "../routes/(app)/team/leave/+page.svelte"),
+      "utf8",
+    );
+    const head = leave.slice(leave.indexOf('<div class="lv-head-actions">'));
+    const block = head.slice(0, head.indexOf("</PageHead>"));
+    expect(block).toContain("btn btn-primary sm");
+    expect(block).toContain("btn btn-secondary sm");
+    expect(block).not.toContain("btn-sm");
+  });
+});

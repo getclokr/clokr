@@ -6,6 +6,7 @@
  *   AC-2  Every Kennzahl is a link to its filtered list (?status=… on the page, Aufgaben to Team ›
  *         Aufgaben).
  *   AC-3  A Salonmanager of one salon sees only the persons of that salon (reach rules #82/#84/#85).
+ *   AC-6  „Abwesenheit eintragen“ in the head opens the dialog at once (Issue #992 N-07).
  *   AC-5  An open request has one link „Prüfen“ (Issue #992 N-07, owner decision 25.11.2026: one
  *         decision path); it opens the review dialog in Team › Aufgaben, where „Genehmigen“
  *         decides and acknowledges with a toast; the request is APPROVED on the server afterwards.
@@ -96,6 +97,18 @@ async function tokenOf(request: APIRequestContext, email: string): Promise<strin
 }
 
 test.describe("Heute im Salon (#846)", () => {
+  test("„Abwesenheit eintragen“ in the head lands with the dialog open (Issue #992 N-07)", async ({
+    page,
+    tenant,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginAsTenantAdmin(page, tenant);
+    await page.goto("/team/heute");
+    await page.getByTestId("team-head-add-absence").click();
+    await expect(page).toHaveURL(/\/team\/abwesenheiten/);
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+
   test("every Kennzahl links to its filtered list and the four sit on the first screen (AC-1, AC-2)", async ({
     page,
     tenant,

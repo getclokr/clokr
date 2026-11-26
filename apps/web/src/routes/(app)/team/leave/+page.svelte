@@ -1112,7 +1112,7 @@
         {#if canManagePlan}
           <button
             type="button"
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary sm"
             data-testid="leave-plan-manage"
             onclick={() => (manageOpen = true)}
           >
@@ -1120,11 +1120,11 @@
           </button>
         {/if}
       {:else if canCreateForOthers}
-        <button class="btn btn-primary btn-sm" onclick={openCreate}>Abwesenheit eintragen</button>
+        <button class="btn btn-primary sm" onclick={openCreate}>Abwesenheit eintragen</button>
       {/if}
       <button
         type="button"
-        class="btn btn-secondary btn-sm"
+        class="btn btn-secondary sm"
         data-testid="leave-team-ical"
         onclick={() => (icalOpen = true)}
       >

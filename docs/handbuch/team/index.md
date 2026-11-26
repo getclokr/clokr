@@ -23,7 +23,7 @@ Der Bereich **Team** ist für Teamleitungen und alle, die Verantwortung für and
 - **Aufgaben**: die ersten offenen Anträge. **Prüfen** öffnet den Antrag in [Team › Aufgaben](aufgaben.md), wo du entscheidest. **Alle Aufgaben** öffnet die ganze Liste.
 - **Demnächst abwesend**: wer in den nächsten Wochen fehlt. **Kalender** öffnet **Team › Abwesenheiten**.
 
-Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit eintragen**, wenn du die Rechte dafür hast.
+Oben rechts öffnen **Zeit eintragen** und **Abwesenheit eintragen** direkt den Dialog, wenn du die Rechte dafür hast; für eine Zeit wählst du zuerst die Person.
 
 <!-- SCREENSHOT file=bilder/team-01.png role=manager url=/team/heute show="Heute im Salon mit den Kennzahlen, der Liste Jetzt im Salon und den Abschnitten Fehlende Zeiten, Aufgaben und Demnächst abwesend" -->
 
