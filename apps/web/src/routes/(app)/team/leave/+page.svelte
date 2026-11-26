@@ -2,7 +2,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { homeSalonMarksApply, salonContext } from "$stores/salon-context";
@@ -49,7 +49,11 @@
   } from "$lib/leave/team-calendar-visibility"; // Phase 257, Phase 262, #269, Issue #446 (D-04)
   import { leaveDaysLabel } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
-  import { parseLeaveCreateDeepLink, type LeaveCreateDeepLink } from "$lib/leave/create-deep-link"; // Issue #587
+  import {
+    parseLeaveCreateDeepLink,
+    withoutLeaveCreateDeepLink,
+    type LeaveCreateDeepLink,
+  } from "$lib/leave/create-deep-link"; // Issue #587, #992
   import LeaveLegend from "$lib/components/leave/LeaveLegend.svelte"; // Issue #840 (D-840-10)
   import LeaveTypeChip from "$lib/components/leave/LeaveTypeChip.svelte"; // Issue #840 (G-3)
   import LeavePlanningPanel from "$lib/components/leave/LeavePlanningPanel.svelte"; // Issue #840 (D-840-17)
@@ -542,6 +546,8 @@
       createEmployeeId = person ? person.id : "";
       createInitialDate = createLink.date ?? today;
       createModalOpen = true;
+      // Issue #992: the link has done its job; a reload must not open the dialog again.
+      replaceState(withoutLeaveCreateDeepLink(new URL(page.url.href)), page.state);
     }
   }
 
