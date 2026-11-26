@@ -350,6 +350,57 @@ function isoWeekOf(monday: string): number {
   return Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / DAY_MS / 7) + 1;
 }
 
+export interface WeekHeaderLabel {
+  /** Index of the week's first column inside the given columns. */
+  index: number;
+  /** How many of the given columns belong to the week (a partial first or last week is shorter). */
+  span: number;
+  /** „KW 48“. */
+  label: string;
+}
+
+/**
+ * Issue #992 (S-14, D-992-28): the week labels of a day-column header that is too narrow for day text.
+ * One entry per ISO week that has a column among `columns`; a partial first week is labelled too, with
+ * the ISO week number `isoWeekColumns()` counts (the Thursday rule).
+ */
+export function weekHeaderLabels(columns: ReadonlyArray<{ day: string }>): WeekHeaderLabel[] {
+  const labels: WeekHeaderLabel[] = [];
+  let currentMonday: string | null = null;
+  columns.forEach((column, index) => {
+    const monday = addDays(column.day, -weekdayIndex(column.day));
+    if (monday === currentMonday) {
+      labels[labels.length - 1].span += 1;
+      return;
+    }
+    currentMonday = monday;
+    labels.push({ index, span: 1, label: `KW ${isoWeekOf(monday)}` });
+  });
+  return labels;
+}
+
+export interface LoadCellLook {
+  /** The count as text, or "" when the column is too narrow for a digit. */
+  text: string;
+  /** Tint level of a narrow cell: 0 for no one, 1, 2, 3 for three or more. */
+  level: 0 | 1 | 2 | 3;
+}
+
+/**
+ * Issue #992 (S-14, D-992-28): how a load-row cell of the day grid reads at a given column width. From
+ * `minTextWidth` on the count is the digit; below it the cell is a tint by count (the number stays in
+ * the title and aria-label of the cell). The exceeded-limit flag is separate and wins in the cell.
+ */
+export function loadCellLook(
+  count: number,
+  columnWidth: number,
+  minTextWidth: number,
+): LoadCellLook {
+  const level = (count <= 0 ? 0 : count >= 3 ? 3 : count) as 0 | 1 | 2 | 3;
+  if (columnWidth >= minTextWidth) return { text: String(count), level };
+  return { text: "", level };
+}
+
 export interface IsoWeekColumn {
   monday: string;
   sunday: string;

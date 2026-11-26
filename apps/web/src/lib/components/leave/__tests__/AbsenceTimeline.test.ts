@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { screen, within, fireEvent } from "@testing-library/svelte";
+import { cleanup, screen, within, fireEvent } from "@testing-library/svelte";
 import { renderWithTheme } from "$tests/test-utils";
 import AbsenceTimeline from "../timeline/AbsenceTimeline.svelte";
 import { periodOf, type TimelineBar, type TimelinePerson } from "$lib/leave/timeline-model";
@@ -518,14 +518,21 @@ describe("load row", () => {
     expect(screen.getByTestId("day-load-2027-03-10").textContent?.trim()).toBe("3");
   });
 
-  // Issue #853 (owner review): the count is a number in every zoom, also in narrow day columns where
-  // the row used to show only a coloured pill.
-  it("shows the count as a number even in a narrow day column", () => {
-    renderPlan({ load: loadDay, columnWidthPx: 8 });
+  // Issue #853 (owner review): the count is a plain number, never a share pill. Issue #992 (S-14,
+  // D-992-28) narrows that: below the digit width (18 px) the cell is a tint by count and the number
+  // stays in its title and aria-label (AbsenceTimeline-992.test.ts pins the tint).
+  it("keeps the count as a number from the digit width on and the number in the label below it", () => {
+    renderPlan({ load: loadDay, columnWidthPx: 24 });
     expect(screen.getByTestId("day-load-2027-03-10").textContent?.trim()).toBe("3");
     expect(screen.getByTestId("day-load-2027-03-10").getAttribute("style") ?? "").not.toContain(
       "--tl-load-share",
     );
+    cleanup();
+    renderPlan({ load: loadDay, columnWidthPx: 8 });
+    const narrow = screen.getByTestId("day-load-2027-03-10");
+    expect(narrow.textContent?.trim()).toBe("");
+    expect(narrow.getAttribute("aria-label")).toContain("3 Personen abwesend");
+    expect(narrow.getAttribute("title")).toContain("3 Personen abwesend");
   });
 
   it("marks only the keys of `exceeded`, with their tooltip", () => {
@@ -706,15 +713,16 @@ describe("Jahr: the ISO week grid", () => {
     const first = screen.getByTestId("week-cell-e1-2025-12-29");
     expect(first.querySelector(".tl-week-out")).not.toBeNull();
     expect(first.classList.contains("tl-week--edge")).toBe(true);
-    expect(
-      screen.getByTestId("week-cell-e1-2026-11-16").classList.contains("tl-week--beantragt"),
-    ).toBe(true);
+    // Issue #992 (N-02): the requested look frames the fill, never the whole cell
+    const requested = screen.getByTestId("week-cell-e1-2026-11-16");
+    expect(requested.classList.contains("tl-week--beantragt")).toBe(false);
+    expect(requested.querySelector(".tl-week-fill--beantragt")).not.toBeNull();
     expect(screen.getByTestId("week-cell-e1-2026-11-23").classList.contains("tl-week--wish")).toBe(
       true,
     );
     expect(
-      screen.getByTestId("week-cell-e1-2026-11-02").classList.contains("tl-week--beantragt"),
-    ).toBe(false);
+      screen.getByTestId("week-cell-e1-2026-11-02").querySelector(".tl-week-fill--beantragt"),
+    ).toBeNull();
   });
 
   it("bars are not draggable: no bar elements and no handles", () => {

@@ -35,6 +35,11 @@
      * promises another look than the view shows.
      */
     holidayLook?: "timeline" | "calendar";
+    /**
+     * Issue #992 (N-02): the Jahr view hatches the days of an edge week that lie outside the year;
+     * a host sets this only for that zoom, so the legend names the hatch exactly where it is drawn.
+     */
+    yearEdge?: boolean;
   }
 
   let {
@@ -43,6 +48,7 @@
     markings = {},
     closedHint = null,
     holidayLook = "timeline",
+    yearEdge = false,
   }: Props = $props();
 
   // Display wording only; a style is decided by its code, never by this text.
@@ -62,6 +68,7 @@
     closed: "Schließtag",
     today: "Heute",
     mixed: "Mehrere Arten",
+    yearEdge: "Außerhalb des Jahres",
   } as const;
 
   const types = $derived(
@@ -139,6 +146,13 @@
     >
   {/if}
 
+  {#if yearEdge}
+    <span class="legend-item" data-testid="legend-marking-year-edge"
+      ><span class="legend-swatch legend-swatch--year-edge" aria-hidden="true"
+      ></span>{MARKING_LABELS.yearEdge}</span
+    >
+  {/if}
+
   {#if closedHint}
     <span class="legend-hint" data-testid="legend-closed-hint">{closedHint}</span>
   {/if}
@@ -184,6 +198,17 @@
   .legend-swatch--beantragt {
     background: color-mix(in srgb, var(--swatch) 18%, transparent);
     border: 1.5px dashed var(--swatch);
+  }
+
+  /* Edge-week days outside the year: the muted hatch of the Jahr cell (own copy, no shared class). */
+  .legend-swatch--year-edge {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--text-3) 0,
+      var(--text-3) 1px,
+      var(--sunk) 1px,
+      var(--sunk) 4px
+    );
   }
 
   /* Wish: diagonal brand stripes with an outline. */

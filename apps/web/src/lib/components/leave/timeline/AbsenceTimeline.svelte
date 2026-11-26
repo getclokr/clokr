@@ -27,6 +27,8 @@
     dayColumns,
     dayMarkings,
     isoWeekColumns,
+    loadCellLook,
+    weekHeaderLabels,
     weekCells,
     workdaySet,
     type Period,
@@ -237,16 +239,17 @@
     return index < 0 ? null : index * columnWidth;
   });
 
-  function isMonday(day: string): boolean {
-    const [y, m, d] = day.split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 1;
-  }
-
-  /** Weekday letter and number for a header cell; narrow columns print only Monday's number. */
+  /**
+   * Weekday letter and number for a header cell. A narrow column prints nothing: the header names
+   * the weeks instead (`weekLabels`, Issue #992 S-14), because a number in an 11 px cell is unreadable.
+   */
   function dayHeadText(column: { day: string; weekdayLetter: string; dayNumber: number }) {
     if (showDayText) return { letter: column.weekdayLetter, number: String(column.dayNumber) };
-    return { letter: "", number: isMonday(column.day) ? String(column.dayNumber) : "" };
+    return { letter: "", number: "" };
   }
+
+  // Issue #992 (S-14, D-992-28): one „KW 48“ label per week above narrow day columns.
+  const weekLabels = $derived(!isYear && !showDayText ? weekHeaderLabels(columns) : []);
 
   function dayHeadTitle(day: string): string | undefined {
     return holidayName.get(day);
@@ -595,6 +598,17 @@
                     <span class="absence-day-number">{text.number}</span>
                   </svelte:element>
                 {/each}
+                {#each weekLabels as week (week.index)}
+                  <div
+                    class="tl-kwhead"
+                    data-testid="week-label-{week.label.replace(' ', '-')}"
+                    style:left="{week.index * columnWidth}px"
+                    style:width="{week.span * columnWidth}px"
+                    title={week.label}
+                  >
+                    {week.label}
+                  </div>
+                {/each}
               {/if}
             </div>
           </div>
@@ -607,9 +621,12 @@
               </div>
               <div class="tl-track" style:width="{trackWidth}px" style:height="{LOAD_HEIGHT}px">
                 {#each loadCells as cell (cell.key)}
+                  {@const look = loadCellLook(cell.count, columnWidth, DAY_TEXT_MIN_WIDTH)}
                   <div
                     class="tl-load-cell"
                     class:tl-load-cell--exceeded={cell.exceeded}
+                    class:tl-load-cell--tint={look.text === ""}
+                    data-level={look.text === "" ? look.level : undefined}
                     data-testid="day-load-{cell.key}"
                     data-exceeded={cell.exceeded ? "true" : "false"}
                     style:left="{cell.index * columnWidth}px"
@@ -618,7 +635,7 @@
                     aria-label={loadLabel(cell)}
                     role="img"
                   >
-                    {cell.count}
+                    {look.text}
                   </div>
                 {/each}
               </div>
@@ -658,7 +675,6 @@
                     <button
                       type="button"
                       class="tl-week"
-                      class:tl-week--beantragt={cell.hasBeantragt}
                       class:tl-week--wish={cell.hasWish}
                       class:tl-week--mixed={cell.fill === "mixed"}
                       class:tl-week--edge={cell.outOfYearDays > 0}
@@ -671,8 +687,13 @@
                       onclick={() => onWeekSelect?.(cell.monday)}
                       onkeydown={(event) => onWeekKeydown(event, cell.monday)}
                     >
-                      {#if cell.share > 0}
-                        <span class="tl-week-fill" style:height="{cell.share * 100}%"></span>
+                      {#if cell.share > 0 || cell.hasBeantragt}
+                        <!-- Issue #992 (N-02): the requested look frames the fill only, like a requested bar -->
+                        <span
+                          class="tl-week-fill"
+                          class:tl-week-fill--beantragt={cell.hasBeantragt}
+                          style:height="{cell.share * 100}%"
+                        ></span>
                       {/if}
                       {#if cell.outOfYearDays > 0}
                         <span
@@ -1033,6 +1054,24 @@
     color: var(--text-2);
   }
 
+  /* Issue 992 (S-14): the week label above narrow day columns; it never takes the pointer. */
+  .tl-kwhead {
+    position: absolute;
+    top: 22px;
+    height: 30px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding-inline: var(--s-1);
+    border-left: 1px solid var(--line);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
   .tl-weekhead--today {
     background: var(--brand-soft);
     color: var(--text);
@@ -1162,6 +1201,17 @@
     border-radius: var(--r-control);
   }
 
+  /* Issue 992 (S-14): below the digit width the count reads as a tint, level 1 to 3. */
+  .tl-load-cell--tint[data-level="1"] {
+    background: color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+  .tl-load-cell--tint[data-level="2"] {
+    background: color-mix(in srgb, var(--brand) 34%, transparent);
+  }
+  .tl-load-cell--tint[data-level="3"] {
+    background: color-mix(in srgb, var(--brand) 52%, transparent);
+  }
+
   .tl-load-cell--exceeded {
     background: var(--bad-soft);
     color: var(--bad);
@@ -1214,9 +1264,12 @@
       color-mix(in srgb, var(--bar-fill) 22%, transparent);
   }
 
-  /* A requested day in the week: dashed 2 px border in the type colour. */
-  .tl-week--beantragt {
-    border: 2px dashed var(--bar-fill);
+  /* A requested day in the week: the soft tint and the dashed edge frame the fill only, exactly like a
+     requested bar (`absence-bar--beantragt`), never the whole empty cell (Issue 992 N-02). */
+  .tl-week-fill--beantragt {
+    background: color-mix(in srgb, var(--bar-fill) 22%, transparent);
+    outline: 2px dashed var(--bar-fill);
+    outline-offset: -2px;
   }
 
   /* A wish in the week: diagonal brand stripes over the cell. */

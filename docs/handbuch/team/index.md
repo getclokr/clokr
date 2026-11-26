@@ -33,7 +33,7 @@ Oben rechts öffnen **Zeit eintragen** und **Abwesenheit eintragen** direkt den 
 
 **Team › Abwesenheiten** zeigt die Urlaube, Krankmeldungen und anderen Abwesenheiten deines Teams. Oben wählst du den Zeitraum (Jahr, Quartal oder Monat) und blätterst vor und zurück. Es gibt drei Reiter:
 
-- **Übersicht**: eine Zeitleiste mit allen Personen. Standardmäßig siehst du deinen eigenen Personenkreis. Der Filter **Personenkreis** mit der Auswahl **Alle Salons** nimmt die übrigen Salons dazu. Mit „Person suchen“ findest du jemanden direkt. Unter der Leiste erklärt eine Legende die Farben.
+- **Übersicht**: eine Zeitleiste mit allen Personen. Standardmäßig siehst du deinen eigenen Personenkreis. Der Filter **Personenkreis** mit der Auswahl **Alle Salons** nimmt die übrigen Salons dazu. Mit „Person suchen“ findest du jemanden direkt. Unter der Leiste erklärt eine Legende die Farben. In der Jahresansicht stehen Wochen am Jahresrand schraffiert; ihre Tage gehören zum Nachbarjahr.
 - **Anträge**: alle Anträge des Teams als Liste, filterbar nach Status, Art und Person. Je nach Status und Rechten stehen pro Zeile Aktionen zur Verfügung, zum Beispiel **Korrigieren** oder **Attest erfassen**.
 - **Planung**: die Urlaubsplanung mit den Wünschen deines Teams. Mit **Planung verwalten** richtest du sie ein und übernimmst Wünsche.
 

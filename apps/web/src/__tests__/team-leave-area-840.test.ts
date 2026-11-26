@@ -277,10 +277,10 @@ describe("Issue #840 E-02 - Anträge: a status filter, open requests marked, dec
     expect(PAGE).not.toContain("statusClass(");
   });
 
-  it("[inbox link] the open row's action leads to the inbox, only behind the approve hint", () => {
-    const at = PAGE.indexOf("/inbox?request=");
+  it("[inbox link] the open row's action leads to Aufgaben, only behind the approve hint (#992: inboxRequestHref)", () => {
+    const at = PAGE.indexOf("inboxRequestHref(req.id, req.startDate)");
     expect(at).toBeGreaterThan(-1);
-    expect(count(PAGE, "/inbox?request=")).toBe(1);
+    expect(count(PAGE, "inboxRequestHref(req.id")).toBe(1);
     // The link is rendered inside `{#if canApproveHint}` (Pitfall 7: readers see the badge, not the action).
     const gate = PAGE.lastIndexOf("{#if canApproveHint}", at);
     expect(gate).toBeGreaterThan(-1);
@@ -288,7 +288,8 @@ describe("Issue #840 E-02 - Anträge: a status filter, open requests marked, dec
     expect(PAGE).toContain(
       'const canApproveHint = $derived(\n    hasPermission($authStore.user, "leave-request:approve:ZUGEWIESEN"),\n  )',
     );
-    expect(PAGE).toContain("href={`/inbox?request=${req.id}&year=${req.startDate.slice(0, 4)}`}");
+    expect(PAGE).toContain("href={reviewHref}");
+    expect(PAGE).toContain("In Aufgaben prüfen");
     // The testids of the former review buttons stay on the link.
     expect(PAGE).toContain("`leave-team-row-${req.id}-review-cancel`");
     expect(PAGE).toContain("`leave-team-row-${req.id}-review`");

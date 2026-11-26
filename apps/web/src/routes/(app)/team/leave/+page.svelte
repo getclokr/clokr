@@ -1237,6 +1237,7 @@
           styles={overviewLegend.styles}
           markings={overviewLegend.markings}
           closedHint={overviewLegend.closedHint}
+          yearEdge={overviewPeriod.zoom === "jahr"}
         />
       </div>
     {:else if value === "antraege"}
@@ -1736,9 +1737,15 @@
     min-width: 0;
   }
 
-  .lv-people,
   .lv-planner {
     flex: 1 1 18rem;
+    min-width: 0;
+  }
+
+  /* Issue #992 (N-02): the people toolbar takes a row of its own, so search and „+ Filter“ stay on one
+     line instead of wrapping inside a container squeezed beside the period control. */
+  .lv-people {
+    flex: 1 1 100%;
     min-width: 0;
   }
 
