@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.1.0](https://github.com/getclokr/clokr/compare/v2.0.3...v2.1.0) (2026-11-26)
+
+
+### Features
+
+* **1028:** lists and tables page with a stored size and filters — no more hidden rows ([#1086](https://github.com/getclokr/clokr/issues/1086)) ([da0620d](https://github.com/getclokr/clokr/commit/da0620df90e32efa706ee2153e49cb1c90befd2b))
+* **1029:** Team › Zeiten shows the Gesamtsaldo, labels the calendar figures, compact break hint ([#1061](https://github.com/getclokr/clokr/issues/1061)) ([4417370](https://github.com/getclokr/clokr/commit/4417370a23f1bc4fba1742c2e21b92a0d8486954))
+* **1030:** Salonansicht as an hours raster per person and day ([#1094](https://github.com/getclokr/clokr/issues/1094)) ([177e2f0](https://github.com/getclokr/clokr/commit/177e2f03e6e8dce0a295a2de0f6184fda14c194e))
+* **1058:** explanatory hints become info symbols (InfoHint), warnings and consequences stay visible ([#1071](https://github.com/getclokr/clokr/issues/1071)) ([27f712f](https://github.com/getclokr/clokr/commit/27f712fe5aede08f09cb40be68c53ab019a545a6))
+* **1076:** the roster checks §§ 13–17 JArbSchG for minors ([#1108](https://github.com/getclokr/clokr/issues/1108)) ([6cf5773](https://github.com/getclokr/clokr/commit/6cf5773573a58ba35e2a8d3c20a371ec8a67d694))
+* **1079:** a Betriebsurlaub can apply to single salons ([#1105](https://github.com/getclokr/clokr/issues/1105)) ([382516a](https://github.com/getclokr/clokr/commit/382516a39a469a19c9e1342ce2b9e426987bfabf))
+* **1082:** DATEV Lohnart for the paid release of a Betriebsurlaub ([#1098](https://github.com/getclokr/clokr/issues/1098)) ([d308221](https://github.com/getclokr/clokr/commit/d3082219d71b5f6b302e59613831b7a60132e759))
+* **604:** hints about time that was probably not recorded, from the salon appointments ([#1104](https://github.com/getclokr/clokr/issues/1104)) ([cdd3357](https://github.com/getclokr/clokr/commit/cdd33575a2b8771686b2238a6d234506c17d8357))
+* **606:** who sees my times, and a one-time „Warum stempeln?“ ([#1103](https://github.com/getclokr/clokr/issues/1103)) ([3574a21](https://github.com/getclokr/clokr/commit/3574a21a24b0709e93b45bea70b0454f07bb2cea))
+* **975,976:** colour mode follows the device, tenant default colour world ([#1063](https://github.com/getclokr/clokr/issues/1063)) ([b5f3f43](https://github.com/getclokr/clokr/commit/b5f3f43d87e3c67a2089dbe6a3eb3f87946a9356))
+
+
+### Bug Fixes
+
+* **1011:** own shifts readable in Ich › Dienstplan and Mein Tag for every contract model ([#1051](https://github.com/getclokr/clokr/issues/1051)) ([0807993](https://github.com/getclokr/clokr/commit/08079932d82fa4c209a1834543a8b0e15789f834))
+* **1011:** phone — „Für dich“ rows wrap, „Zeit nachtragen“ docks above the tab bar ([#1059](https://github.com/getclokr/clokr/issues/1059)) ([3febdf3](https://github.com/getclokr/clokr/commit/3febdf3291c6efbb4892d3bbfa8d7e3aeec175fd))
+* **1011:** roster nets minors with the § 11 JArbSchG break, Teilurlaub counts full months of employment (§ 5 BUrlG) ([#1060](https://github.com/getclokr/clokr/issues/1060)) ([63ee24d](https://github.com/getclokr/clokr/commit/63ee24dd9a85a4f7bd1ed20469f5bb02ee1b31b0))
+* **1011:** roster tabs redirect without shift:plan, Monatsabschluss opens months inline incl. the running one, plain What's-New texts ([#1054](https://github.com/getclokr/clokr/issues/1054)) ([8d9bf24](https://github.com/getclokr/clokr/commit/8d9bf24f74ad8675807bdcf63641bb1169520280))
+* **1011:** running-month report figures count through yesterday, monthly contracts show their hours ([#1062](https://github.com/getclokr/clokr/issues/1062)) ([5fd3cf3](https://github.com/getclokr/clokr/commit/5fd3cf36e4c63204dbc6cae84a9cc8618380e1da))
+* **1026:** Aufgaben reloads the open tasks after a Zeitnachtrag decision ([#1049](https://github.com/getclokr/clokr/issues/1049)) ([62fe667](https://github.com/getclokr/clokr/commit/62fe667879c42c2a0de3233658ca8726fb4b9bbe))
+* **1053:** SHIFT_BASED missing days stay inside the employment window and end at yesterday ([#1055](https://github.com/getclokr/clokr/issues/1055)) ([6925e74](https://github.com/getclokr/clokr/commit/6925e74d3b8b35ce5238ef7ef98a8ca573d02aac))
+* **1056:** Arbeitszeitkonto nets a minor's roster shift with the § 11 JArbSchG break ([#1081](https://github.com/getclokr/clokr/issues/1081)) ([af32f05](https://github.com/getclokr/clokr/commit/af32f05111b555824b05c3231a65e09d50918304))
+* **1057:** roster checks § 8 and § 12 JArbSchG for a minor's shift on every write path ([#1078](https://github.com/getclokr/clokr/issues/1078)) ([a58a371](https://github.com/getclokr/clokr/commit/a58a37159c3963978b4fe723ab461f80d0bf44d1))
+* **1066:** Mein Tag and Heute im Salon read today as the tenant day, not the device date ([#1073](https://github.com/getclokr/clokr/issues/1073)) ([5e51c75](https://github.com/getclokr/clokr/commit/5e51c75813ece296ead12b219d758b8207e186c7))
+* **1069:** a Betriebsurlaub books Urlaub within the Resturlaub, the rest is paid release ([#1096](https://github.com/getclokr/clokr/issues/1096)) ([8c1db11](https://github.com/getclokr/clokr/commit/8c1db110ef1d227a0570cd210e68d32997b9a073))
+* **1072:** the web reads today, month and year as the tenant's day ([#1093](https://github.com/getclokr/clokr/issues/1093)) ([c4d7539](https://github.com/getclokr/clokr/commit/c4d75399f2d88d4ec1b7ec4daec5628d8883fa87))
+* **1074:** the Phorest sync reports a minor's week that breaks § 8 / § 12 JArbSchG ([#1097](https://github.com/getclokr/clokr/issues/1097)) ([4bf9ae8](https://github.com/getclokr/clokr/commit/4bf9ae89e1aac8b3066db8175cdfa7da24c766a4))
+* **1075:** every roster write path runs the same shift checks ([#1102](https://github.com/getclokr/clokr/issues/1102)) ([341d41a](https://github.com/getclokr/clokr/commit/341d41a12885d49d5b8cc55aeb4b2f7d9466c241))
+* **1077:** count a holiday's contract Soll into a minor's 40-hour week ([#1130](https://github.com/getclokr/clokr/issues/1130)) ([acd5b79](https://github.com/getclokr/clokr/commit/acd5b7918b2f0d680872d87745ea88c643182314))
+* **1080:** a Berufsschultag inside an absence reduces the Soll only once ([#1088](https://github.com/getclokr/clokr/issues/1088)) ([35e3766](https://github.com/getclokr/clokr/commit/35e376677e8fcfdb0d974aa9ed8538583a112722))
+* **1085:** a day with an open entry opens that entry — the Zeitnachtrag ends it instead of failing as an overlap ([#1087](https://github.com/getclokr/clokr/issues/1087)) ([1eb3424](https://github.com/getclokr/clokr/commit/1eb342475a728d1486abddb939ab3961c68da99a))
+* **1133:** FLEXTIME holiday reduces the Soll by the Ø-day, not the 1/0 flag ([#1134](https://github.com/getclokr/clokr/issues/1134)) ([0f104f5](https://github.com/getclokr/clokr/commit/0f104f5bdec812931662c1064765109fb33e476d)), closes [#1133](https://github.com/getclokr/clokr/issues/1133)
+* **991:** polish of the Ich area from the user test of 15.11. ([#1115](https://github.com/getclokr/clokr/issues/1115)) ([88f5f42](https://github.com/getclokr/clokr/commit/88f5f42ea20a440258c08d72ecb87ffbd04730b7))
+* **992:** polish of the Team area from the user test of 15.11. ([#1121](https://github.com/getclokr/clokr/issues/1121)) ([64e260b](https://github.com/getclokr/clokr/commit/64e260b4980a5cf493f34e00090880e5f6d522d7))
+* **993:** polish of the HR view from the user test of 15.11. ([#1125](https://github.com/getclokr/clokr/issues/1125)) ([c527184](https://github.com/getclokr/clokr/commit/c52718478ac775c11b69ae29d481f90e9ffe68cc))
+* **994:** polish of the admin view from the user test of 15./16.11. ([#1129](https://github.com/getclokr/clokr/issues/1129)) ([c5a2853](https://github.com/getclokr/clokr/commit/c5a285357f9a2558f56c2ffd205f7eb9e192f45e))
+
 ## [2.0.3](https://github.com/getclokr/clokr/compare/v2.0.2...v2.0.3) (2026-11-24)
 
 
