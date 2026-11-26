@@ -120,14 +120,18 @@
   type MonthRow = PeriodMonth & Record<string, unknown>;
   type DayRow = DayEntry & Record<string, unknown>;
 
+  // Issue #993 N-06 (D-993-05): the closing saldo is shown once - in the SaldoAnzeige block below,
+  // with its confirmed/forecast split. The strip only carries it as a dash when the figure is
+  // withheld (no block then), so nothing disappears silently.
   const stats = $derived.by((): KpiItem[] => {
     if (row === null) return [];
-    return [
+    const items: KpiItem[] = [
       { label: "Soll", value: hours(row.expectedMinutes, false) },
       { label: "Ist", value: hours(row.workedMinutes, false) },
       { label: "Saldo Zeitraum", value: hours(row.balanceMinutes, true) },
-      { label: "Saldo am Ende", value: hours(row.closingBalanceMinutes, true) },
     ];
+    if (row.closingBalanceMinutes === null) items.push({ label: "Saldo am Ende", value: DASH });
+    return items;
   });
 
   const monthColumns: DataTableColumn[] = [
@@ -362,7 +366,7 @@
 >
   {#if row}
     <div class="drill">
-      <p class="drill-sub">Personalnr. {row.employeeNumber} · {periodLabel}</p>
+      <p class="drill-sub">Personalnummer {row.employeeNumber} · {periodLabel}</p>
 
       <KpiStrip items={stats} ariaLabel="Zahlen der Person im Zeitraum" />
 

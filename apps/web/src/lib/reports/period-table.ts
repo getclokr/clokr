@@ -71,6 +71,30 @@ export function rowStatus(row: PeriodRow): RowStatus {
   };
 }
 
+/**
+ * Issue #993 H-06 (D-993-01): the one status that every row WITH Soll shares, or null. Rows without
+ * Soll are ignored (they keep their own mark); null when there is no row with Soll or when two of
+ * them differ in kind, label or detail - a deviating row therefore always brings the column back
+ * and can never hide behind a shared line.
+ */
+export function commonRowStatus(rows: readonly PeriodRow[]): RowStatus | null {
+  let common: RowStatus | null = null;
+  for (const row of rows) {
+    if (!row.labelled) continue;
+    const status = rowStatus(row);
+    if (common === null) {
+      common = status;
+    } else if (
+      common.kind !== status.kind ||
+      common.label !== status.label ||
+      common.detail !== status.detail
+    ) {
+      return null;
+    }
+  }
+  return common;
+}
+
 function compareText(a: string, b: string): number {
   return a.localeCompare(b, "de");
 }

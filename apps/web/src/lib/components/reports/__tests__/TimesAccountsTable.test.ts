@@ -80,7 +80,11 @@ const names = () => bodyRows().map((r) => within(r).getByRole("link").textConten
 
 describe("TimesAccountsTable - columns and cells (wide)", () => {
   it("has the seven columns of the copy deck and one row per person", () => {
-    renderWithTheme(TimesAccountsTable, props([row("A"), row("B")]));
+    // The two rows differ in status, so the Status column exists (a shared status is #993 H-06).
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A"), row("B", { monthCount: 2, confirmedMonthCount: 0 })]),
+    );
     const headers = screen
       .getAllByRole("columnheader")
       .map((h) => h.textContent?.replace(/[▲▼]/g, "").trim());
@@ -130,8 +134,9 @@ describe("TimesAccountsTable - columns and cells (wide)", () => {
       "−0:45",
       "+2:15",
       "±0:00",
-      expect.stringContaining("Bestätigt"),
     ]);
+    // Issue #993 H-06: the one status of the row is named above the table, not in a column.
+    expect(screen.getByTestId("period-common-status")).toHaveTextContent("Bestätigt");
   });
 
   it("the three saldo columns are not rendered when no row carries a saldo figure", () => {
@@ -142,7 +147,10 @@ describe("TimesAccountsTable - columns and cells (wide)", () => {
       closingBalanceMinutes: null,
       sollUnavailableReason: "NO_PERMISSION" as const,
     };
-    renderWithTheme(TimesAccountsTable, props([row("A", withheld), row("B", withheld)]));
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A", withheld), row("B", { ...withheld, monthCount: 2, confirmedMonthCount: 0 })]),
+    );
     const headers = screen
       .getAllByRole("columnheader")
       .map((h) => h.textContent?.replace(/[▲▼]/g, "").trim());
@@ -188,6 +196,10 @@ describe("TimesAccountsTable - columns and cells (wide)", () => {
 describe("TimesAccountsTable - status chips (P-08, amendments 7 and 14)", () => {
   function statusCell(r: PeriodRow, overrides: Record<string, unknown> = {}) {
     renderWithTheme(TimesAccountsTable, props([r], overrides));
+    // Issue #993 H-06: a lone row with Soll shares its status with itself, so it is named in the
+    // line above the table; a row without Soll keeps its column.
+    const line = screen.queryByTestId("period-common-status");
+    if (line !== null) return line;
     const cells = within(bodyRows()[0]).getAllByRole("cell");
     return cells[cells.length - 1];
   }
@@ -264,6 +276,106 @@ describe("TimesAccountsTable - status chips (P-08, amendments 7 and 14)", () => 
       filterActive: true,
     });
     expect(cell.querySelector(".chip")).toHaveTextContent("ohne Soll");
+  });
+});
+
+// Issue #993 H-06 (D-993-01): the same pill in every row was the finding. A status that every row
+// with Soll shares is named once above the table; rows that differ keep the column.
+describe("TimesAccountsTable - the shared status (#993 H-06)", () => {
+  const headers = () =>
+    screen.getAllByRole("columnheader").map((h) => h.textContent?.replace(/[▲▼]/g, "").trim());
+
+  it("two rows with the same status: no Status column, one line above the table", () => {
+    renderWithTheme(TimesAccountsTable, props([row("A"), row("B")]));
+    expect(headers()).not.toContain("Status");
+    const line = screen.getByTestId("period-common-status");
+    expect(line).toHaveTextContent("Alle Personen:");
+    expect(line.querySelector(".chip")).toHaveClass("chip-ok");
+    expect(line).toHaveTextContent("Bestätigt");
+    // No row repeats the chip.
+    for (const r of bodyRows()) expect(r.querySelector(".chip")).toBeNull();
+  });
+
+  it("the line carries the detail of a shared forecast", () => {
+    renderWithTheme(
+      TimesAccountsTable,
+      props([
+        row("A", { monthCount: 2, confirmedMonthCount: 1 }),
+        row("B", { monthCount: 2, confirmedMonthCount: 1 }),
+      ]),
+    );
+    const line = screen.getByTestId("period-common-status");
+    expect(line.querySelector(".chip")).toHaveTextContent(forecastLabel(1, true));
+    expect(line).toHaveTextContent("1 von 2 Monaten bestätigt");
+  });
+
+  it("two rows that differ: the Status column exists, both rows show their chip, no line", () => {
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A"), row("B", { monthCount: 2, confirmedMonthCount: 0 })]),
+    );
+    expect(headers()).toContain("Status");
+    expect(screen.queryByTestId("period-common-status")).toBeNull();
+    const chips = bodyRows().map((r) => r.querySelector("td:last-child .chip"));
+    expect(chips[0]).toHaveTextContent("Bestätigt");
+    expect(chips[1]).toHaveTextContent(forecastLabel(2, false));
+  });
+
+  it("rows with the same label but another detail still differ (a deviating row never hides)", () => {
+    renderWithTheme(
+      TimesAccountsTable,
+      props([
+        row("A", { monthCount: 3, confirmedMonthCount: 1 }),
+        row("B", { monthCount: 4, confirmedMonthCount: 2 }),
+      ]),
+    );
+    expect(headers()).toContain("Status");
+    expect(screen.queryByTestId("period-common-status")).toBeNull();
+  });
+
+  it("a row without Soll beside rows with Soll: the line says „mit Soll“, the row keeps its mark", () => {
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A"), row("B"), row("C", { labelled: false, closingBalanceMinutes: null })]),
+    );
+    expect(headers()).not.toContain("Status");
+    expect(screen.getByTestId("period-common-status")).toHaveTextContent("Alle Personen mit Soll:");
+    const c = bodyRows().find((r) => within(r).queryByText("Person C") !== null)!;
+    expect(within(c).getByText("nur Zeiterfassung")).toBeInTheDocument();
+  });
+
+  it("without saldo figures the row without Soll says „ohne Soll“ in its sub line", () => {
+    const withheld = {
+      expectedMinutes: null,
+      balanceMinutes: null,
+      openingBalanceMinutes: null,
+      closingBalanceMinutes: null,
+      sollUnavailableReason: "NO_PERMISSION" as const,
+    };
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A", withheld), row("B", withheld), row("C", { ...withheld, labelled: false })]),
+    );
+    expect(headers()).not.toContain("Status");
+    expect(screen.getByTestId("period-common-status")).toHaveTextContent("Alle Personen mit Soll:");
+    const c = bodyRows().find((r) => within(r).queryByText("Person C") !== null)!;
+    expect(within(c).getAllByRole("cell")[0]).toHaveTextContent("N-C · ohne Soll");
+    const a = bodyRows().find((r) => within(r).queryByText("Person A") !== null)!;
+    expect(within(a).getAllByRole("cell")[0]).not.toHaveTextContent("ohne Soll");
+  });
+
+  it("only rows without Soll: the column stays and no line is shown", () => {
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A", { labelled: false }), row("B", { labelled: false })]),
+    );
+    expect(headers()).toContain("Status");
+    expect(screen.queryByTestId("period-common-status")).toBeNull();
+  });
+
+  it("no rows: no line", () => {
+    renderWithTheme(TimesAccountsTable, props([]));
+    expect(screen.queryByTestId("period-common-status")).toBeNull();
   });
 });
 
@@ -475,7 +587,10 @@ describe("TimesAccountsTable - opening a person", () => {
 
 describe("TimesAccountsTable - narrow containers", () => {
   it("is one table DOM at every width: the cells carry their column label for the card layout", () => {
-    renderWithTheme(TimesAccountsTable, props([row("A"), row("B")]));
+    renderWithTheme(
+      TimesAccountsTable,
+      props([row("A"), row("B", { monthCount: 2, confirmedMonthCount: 0 })]),
+    );
     expect(screen.getAllByRole("table")).toHaveLength(1);
     const labels = Array.from(bodyRows()[0].querySelectorAll("td")).map((td) =>
       td.getAttribute("data-label"),

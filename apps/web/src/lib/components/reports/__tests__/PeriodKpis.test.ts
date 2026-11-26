@@ -86,7 +86,7 @@ describe("PeriodKpis - the eight tiles", () => {
     expect(labels).toEqual(LABELS);
   });
 
-  it("formats hours from minutes (signed for the two saldo tiles) and days with one decimal comma", () => {
+  it("formats hours from minutes (signed for the two saldo tiles) and days with a decimal comma", () => {
     renderWithTheme(PeriodKpis, { kpis: kpis(), filterActive: false, loading: false });
     expect(tile("Saldo im Zeitraum").value).toBe("+12:45 h");
     expect(tile("Gesamtsaldo am Ende").value).toBe("+1.204:30 h");
@@ -96,6 +96,27 @@ describe("PeriodKpis - the eight tiles", () => {
     expect(tile("Urlaub genehmigt").value).toBe("35,5 Tage");
     expect(tile("Urlaubsanspruch").value).toBe("720 Tage");
     expect(tile("Krankheitstage").value).toBe("12,5 Tage");
+  });
+
+  // Issue #993 N-05 (D-993-04): two decimals like the PDF, and a unit that agrees with the value.
+  it("prints two decimals and a unit that agrees with the shown value (#993 N-05)", () => {
+    renderWithTheme(PeriodKpis, {
+      kpis: kpis({ vacationEntitlementDays: 79.25, vacationTakenDays: 6.25, sickDays: 1 }),
+      filterActive: false,
+      loading: false,
+    });
+    expect(tile("Urlaubsanspruch").value).toBe("79,25 Tage");
+    expect(tile("Urlaub genommen").value).toBe("6,25 Tage");
+    expect(tile("Krankheitstage").value).toBe("1 Tag");
+  });
+
+  it("keeps the plural for every other count of sick days (#993 N-05)", () => {
+    renderWithTheme(PeriodKpis, {
+      kpis: kpis({ sickDays: 2 }),
+      filterActive: false,
+      loading: false,
+    });
+    expect(tile("Krankheitstage").value).toBe("2 Tage");
   });
 
   it("a negative saldo carries U+2212 and a zero saldo the plus-minus sign", () => {

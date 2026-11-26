@@ -176,12 +176,12 @@ function props(overrides: Record<string, unknown> = {}) {
 const HR_E2E_PHRASE = ["PDF", "herunterladen"].join(" ");
 
 describe("PersonDrilldown - header and figures", () => {
-  it("names the person, the number and the period; four figures in the copy-deck order", async () => {
+  it("names the person, the number and the period; three figures in the strip, the closing saldo once (#993 N-06)", async () => {
     renderWithTheme(PersonDrilldown, props());
     expect(screen.getByRole("dialog", { name: "Person A" })).toBeInTheDocument();
     expect(screen.getByText("Personenansicht")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Person A" })).toBeInTheDocument();
-    expect(screen.getByText("Personalnr. 0042 · Jul – Sep 2026")).toBeInTheDocument();
+    expect(screen.getByText("Personalnummer 0042 · Jul – Sep 2026")).toBeInTheDocument();
     const stats = [...document.querySelectorAll(".kpi-strip .kpi")].map((el) => [
       el.querySelector(".kpi-label")?.textContent?.trim(),
       el.querySelector(".kpi-value")?.textContent?.trim(),
@@ -190,8 +190,11 @@ describe("PersonDrilldown - header and figures", () => {
       ["Soll", "475:00"],
       ["Ist", "480:00"],
       ["Saldo Zeitraum", "+5:00"],
-      ["Saldo am Ende", "+12:15"],
     ]);
+    // Issue #993 N-06 (D-993-05): the closing saldo is named once, in the SaldoAnzeige block with
+    // its split, not a second time in the strip.
+    expect(screen.getAllByText(/Saldo am Ende/)).toHaveLength(1);
+    expect(screen.getByTestId("saldo-anzeige")).toHaveTextContent("+12:15");
     // #843 D-843-07: the pending state is the Skeleton status; its absence proves the days arrived.
     await waitFor(() => expect(screen.queryByRole("status", { name: "Wird geladen" })).toBeNull());
   });
@@ -227,7 +230,11 @@ describe("PersonDrilldown - header and figures", () => {
     expect(values[0]).toContain("—");
     expect(values[1]).toContain("480:00");
     expect(values[2]).toContain("—");
+    // Issue #993 D-993-05: a withheld closing saldo keeps a fourth item with a dash, so the figure
+    // never disappears silently (there is no SaldoAnzeige block to carry it).
     expect(values[3]).toContain("—");
+    expect(values).toHaveLength(4);
+    expect(screen.getByText("Saldo am Ende", { selector: ".kpi-label" })).toBeInTheDocument();
     expect(screen.queryByTestId("saldo-anzeige")).toBeNull();
   });
 });
@@ -313,6 +320,14 @@ describe("PersonDrilldown - the month series", () => {
     expect(
       screen.getByText("Urlaubsjahr 2026: Anspruch 30 · Genommen 12 · Genehmigt 5 · Resturlaub 13"),
     ).toBeInTheDocument();
+  });
+
+  it("prints vacation day figures with two decimals (#993 N-05)", () => {
+    renderWithTheme(
+      PersonDrilldown,
+      props({ vacationRow: { ...VACATION, entitlementDays: 6.25, takenDays: 0.5 } }),
+    );
+    expect(screen.getByText(/Anspruch 6,25 · Genommen 0,5 /)).toBeInTheDocument();
   });
 
   it("a missing entitlement is named instead of zeros, no vacation row hides the line", () => {

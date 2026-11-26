@@ -20,6 +20,7 @@
   import { fmtDateDe, fmtHoursDe } from "$lib/reports/period-format";
   import type { PeriodRow } from "$lib/reports/period-report";
   import {
+    commonRowStatus,
     filterPeriodRows,
     hasSaldoFigures,
     nextSort,
@@ -27,6 +28,7 @@
     sortPeriodRows,
     withheldReason,
     type PeriodSortKey,
+    type RowStatus,
     type SortDir,
   } from "$lib/reports/period-table";
   import {
@@ -70,7 +72,15 @@
 
   const all = $derived(rows ?? []);
   const showSaldo = $derived(hasSaldoFigures(all));
-  const visible = $derived(sortPeriodRows(filterPeriodRows(all, search), sort.key, sort.dir));
+  // Issue #993 H-06 (D-993-01): when every row with Soll shares one status, the status is named once
+  // above the table and the column is not rendered. Rows that differ keep the column as before.
+  const common = $derived(commonRowStatus(all));
+  const hasUnlabelled = $derived(all.some((r) => !r.labelled));
+  // Sorting by a column that is not there falls back to the name order.
+  const sortKey = $derived<PeriodSortKey>(
+    common !== null && sort.key === "status" ? "name" : sort.key,
+  );
+  const visible = $derived(sortPeriodRows(filterPeriodRows(all, search), sortKey, sort.dir));
   // DataTable's row type is a string-keyed record; the interface of the period row has no index
   // signature, so the shown rows carry the intersection.
   type TableRow = PeriodRow & Record<string, unknown>;
@@ -95,13 +105,13 @@
           { key: "closing", label: "Saldo Ende (h)", sortable: true, align: "end" as const },
         ]
       : []),
-    { key: "status", label: "Status", sortable: true },
+    ...(common === null ? [{ key: "status", label: "Status", sortable: true }] : []),
   ]);
 
   // The table cycles none -> asc -> desc; this page keeps its own cycle (a figure starts at its
   // first direction, a name at ascending) and never sits in "unsorted", so the click is mapped to
   // the column and the module's `nextSort` decides.
-  const tableSort = $derived<DataTableSort>({ key: sort.key, dir: sort.dir });
+  const tableSort = $derived<DataTableSort>({ key: sortKey, dir: sort.dir });
   function onSort(next: DataTableSort | null) {
     sort = nextSort(sort, (next?.key ?? sort.key) as PeriodSortKey);
   }
@@ -117,6 +127,15 @@
     }`,
   );
 
+  // The line under a name: personnel number, exit day and, when the Status column is gone and no
+  // exclusion chip marks the row, „ohne Soll“ (Issue #993 H-06).
+  function personSubline(row: PeriodRow, hasExclusionChip: boolean): string {
+    let text = row.employeeNumber;
+    if (row.exitDay) text += ` · ausgetreten am ${fmtDateDe(row.exitDay)}`;
+    if (common !== null && !row.labelled && !hasExclusionChip) text += " · ohne Soll";
+    return text;
+  }
+
   function resetSearch() {
     search = "";
   }
@@ -131,8 +150,7 @@
   {/if}
 {/snippet}
 
-{#snippet statusChip(row: PeriodRow)}
-  {@const status = rowStatus(row)}
+{#snippet statusMark(status: RowStatus)}
   {#if status.kind === "confirmed"}
     <Chip tone="ok">{status.label}</Chip>
   {:else if status.kind === "forecast"}
@@ -155,8 +173,7 @@
         onclick={(e) => onOpenPerson(e, row)}>{row.employeeName}</a
       >
       <span class="period-sub">
-        {row.employeeNumber}{#if row.exitDay}
-          · ausgetreten am {fmtDateDe(row.exitDay)}{/if}
+        {personSubline(row, exclusion !== null)}
       </span>
       {#if exclusion !== null}
         <Chip tone="neutral" title="Nicht im Median">{TEAM_SALDO_EXCLUSION_LABEL[exclusion]}</Chip>
@@ -173,7 +190,7 @@
   {:else if column.key === "closing"}
     {@render figure(row.closingBalanceMinutes, true, row)}
   {:else if column.key === "status"}
-    <span class="period-status">{@render statusChip(row)}</span>
+    <span class="period-status">{@render statusMark(rowStatus(row))}</span>
   {/if}
 {/snippet}
 
@@ -199,6 +216,12 @@
         {/if}
       </div>
       <p class="settings-group-desc period-label">{periodLabel}</p>
+      {#if rows !== null && rows.length > 0 && common !== null}
+        <p class="period-common-status" data-testid="period-common-status">
+          <span>{hasUnlabelled ? "Alle Personen mit Soll:" : "Alle Personen:"}</span>
+          {@render statusMark(common)}
+        </p>
+      {/if}
     </div>
     {#if rows !== null && rows.length > 0 && showSaldo}
       <p class="period-median" data-testid="period-median">{medianText}</p>
@@ -267,6 +290,21 @@
     font-size: var(--fs-sm);
     line-height: 1.4;
     color: var(--text-2);
+  }
+
+  /* Issue #993 H-06: the shared status of all rows with Soll, named once above the table. */
+  .period-common-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    margin: var(--s-2) 0 0;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+
+  .period-common-status .period-sub {
+    display: inline;
   }
 
   .period-median {

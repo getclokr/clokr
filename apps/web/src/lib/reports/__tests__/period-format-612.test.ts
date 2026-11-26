@@ -47,18 +47,26 @@ describe("fmtHoursDe", () => {
 });
 
 describe("fmtDaysDe", () => {
-  it("uses at most one decimal comma", () => {
+  // #993 N-05 (D-993-04): at most two decimals, like the PDF and the person tab, so the same day
+  // figure reads the same in the table, the tab and the PDF. This replaces the one-decimal rule of
+  // #612 on purpose: 6,25 was shown as 6,3.
+  it("uses at most two decimals, like the PDF and the person tab (#993 N-05)", () => {
     expect(fmtDaysDe(12.5)).toBe("12,5");
     expect(fmtDaysDe(12)).toBe("12");
-    expect(fmtDaysDe(0.25)).toBe("0,3");
+    expect(fmtDaysDe(0.25)).toBe("0,25");
+    expect(fmtDaysDe(6.25)).toBe("6,25");
+    expect(fmtDaysDe(79.25)).toBe("79,25");
+    expect(fmtDaysDe(3.333)).toBe("3,33");
     expect(fmtDaysDe(0)).toBe("0");
-    expect(fmtDaysDe(30.04)).toBe("30");
+    expect(fmtDaysDe(30.04)).toBe("30,04");
+    expect(fmtDaysDe(30.004)).toBe("30");
   });
 
   it("groups large day counts and keeps a real minus", () => {
     expect(fmtDaysDe(1234.5)).toBe("1.234,5");
     expect(fmtDaysDe(-2.5)).toBe("−2,5");
-    expect(fmtDaysDe(-0.01)).toBe("0");
+    expect(fmtDaysDe(-0.01)).toBe("−0,01");
+    expect(fmtDaysDe(-0.001)).toBe("0");
   });
 });
 

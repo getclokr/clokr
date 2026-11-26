@@ -14,6 +14,7 @@
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
   import Skeleton from "$components/ui/Skeleton.svelte";
   import type { PeriodKpis } from "$lib/reports/period-report";
+  import { dayUnit } from "$lib/leave/leave-days-label"; // Issue #993 N-05
   import { fmtDateDe, fmtDaysDe, fmtHoursDe, runningMonthNote } from "$lib/reports/period-format";
   import {
     HOME_SALON_CHANGE_NOTE,
@@ -99,28 +100,28 @@
         label: "Urlaub genommen",
         value: kpis.vacationTakenDays,
         format: fmtDaysDe,
-        unit: "Tage",
+        unit: dayUnit(kpis.vacationTakenDays),
         delta: `bis ${fmtDateDe(kpis.vacationAsOf)}, Urlaubsjahr ${kpis.vacationYear}`,
       },
       {
         label: "Urlaub genehmigt",
         value: kpis.vacationApprovedDays,
         format: fmtDaysDe,
-        unit: "Tage",
+        unit: dayUnit(kpis.vacationApprovedDays),
         delta: `nach ${fmtDateDe(kpis.vacationAsOf)}, Urlaubsjahr ${kpis.vacationYear}`,
       },
       {
         label: "Urlaubsanspruch",
         value: kpis.vacationEntitlementDays,
         format: fmtDaysDe,
-        unit: "Tage",
+        unit: dayUnit(kpis.vacationEntitlementDays),
         delta: `Urlaubsjahr ${kpis.vacationYear}`,
       },
       {
         label: "Krankheitstage",
         value: kpis.sickDays,
         format: fmtDaysDe,
-        unit: "Tage",
+        unit: dayUnit(kpis.sickDays),
         delta: "Kalendertage",
       },
     ];
