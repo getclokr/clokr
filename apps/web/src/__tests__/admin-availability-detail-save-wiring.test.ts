@@ -168,28 +168,28 @@ describe("WR-01 — the baseline gate", () => {
     expect(PAGE.match(/snapshotsReady = true/g) ?? []).toHaveLength(1);
   });
 
-  it("the Speichern button is disabled on the load-error path (fails without the gate)", () => {
-    // Evaluates the REAL `dirty` and `disabled` expressions extracted from source — not a
-    // paraphrase — against the exact state reachable after a failed employee load: onMount sets
-    // `loading = false` and returns before `applyEntries()` ever runs, so `snapshotsReady` stays
-    // `false`, `lastSnapshot` stays `""`, and the entry arrays stay at their initial `[]`. Without
-    // `snapshotsReady &&` in `dirty`'s derivation this evaluates to `disabled === false` (the
-    // WR-01 defect); with the gate it is `true`.
+  it("the SaveBar stays hidden on the load-error path (fails without the gate)", () => {
+    // Evaluates the REAL `dirty` and `changes` expressions extracted from source — not a
+    // paraphrase — against the exact state reachable after a failed employee load: the load
+    // sets `loading = false` and returns before `applyEntries()` ever runs, so `snapshotsReady`
+    // stays `false`, `lastSnapshot` stays `""`, and the entry arrays stay at their initial `[]`.
+    // Without `snapshotsReady &&` in `dirty`'s derivation `changes` is 1 and the SaveBar (Issue
+    // #992: it replaced the head's Speichern button) offers to save an empty list over the stored
+    // one (the WR-01 defect); with the gate it is 0 and the bar renders nothing.
     const dirtyExprMatch = PAGE.match(/const dirty = \$derived\(([\s\S]*?)\);/);
     expect(dirtyExprMatch, "dirty derivation not found").not.toBeNull();
     // Strip a trailing comma left over from `$derived(\n  expr,\n)` formatting — valid in a call
     // argument list, not inside a parenthesized expression passed to `new Function`.
     const dirtyExpr = dirtyExprMatch![1].trim().replace(/,\s*$/, "");
 
-    const disabledExprMatch = PAGE.match(/disabled=\{([^}]+)\}/);
-    expect(disabledExprMatch, "disabled attribute not found").not.toBeNull();
-    const disabledExpr = disabledExprMatch![1];
+    const changesExprMatch = PAGE.match(/const changes = \$derived\(([\s\S]*?)\);/);
+    expect(changesExprMatch, "changes derivation not found").not.toBeNull();
+    const changesExpr = changesExprMatch![1].trim().replace(/,\s*$/, "");
 
     // State reachable after a failed employee load (onMount's early-return branch).
     const snapshotsReady = false;
     const loading = false;
     const featureDisabled = false;
-    const saving = false;
     const lastSnapshot = "";
     const currentSnapshot = JSON.stringify({ r: [], o: [] });
 
@@ -202,15 +202,12 @@ describe("WR-01 — the baseline gate", () => {
       `return (${dirtyExpr});`,
     )(snapshotsReady, loading, featureDisabled, currentSnapshot, lastSnapshot);
 
-    const disabled = new Function(
-      "featureDisabled",
-      "dirty",
-      "saving",
-      `return (${disabledExpr});`,
-    )(featureDisabled, dirty, saving);
+    const changes = new Function("dirty", `return (${changesExpr});`)(dirty);
 
     expect(dirty).toBe(false);
-    expect(disabled).toBe(true);
+    expect(changes).toBe(0);
+    // The bar is the SaveBar block: hidden at 0 changes, fed by `changes` and nothing else.
+    expect(PAGE).toMatch(/<SaveBar\s+\{changes\}/);
   });
 });
 
@@ -231,9 +228,12 @@ describe("D-12 — guard registration on admin/availability/[employeeId]", () =>
     expect(PAGE).toMatch(/const dirty = \$derived\(\s*snapshotsReady &&/);
   });
 
-  it("the marker is the global recipe, rendered inline (no Section footer on this page)", () => {
-    expect(PAGE).toContain('<span class="unsaved-hint" role="status">Nicht gespeichert</span>');
-    expect(PAGE.match(/class="unsaved-hint"/g) ?? []).toHaveLength(1);
+  it("the marker is the SaveBar block, fed by the same dirty (Issue #992: no inline hint, no Section footer)", () => {
+    // The SaveBar names the unsaved state itself; a second hand-drawn marker would be a second
+    // source. `changes` derives from `dirty` and from nothing else.
+    expect(PAGE).toMatch(/const changes = \$derived\(dirty \? 1 : 0\)/);
+    expect(PAGE).toContain("<SaveBar");
+    expect(PAGE).not.toContain('class="unsaved-hint"');
     expect(PAGE).not.toContain("dirty={");
   });
 

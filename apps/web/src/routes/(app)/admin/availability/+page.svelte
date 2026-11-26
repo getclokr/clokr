@@ -25,6 +25,7 @@
     sortAvailability,
     type AvailabilityEmployee,
   } from "$lib/team/availability-list";
+  import { personNumberLabel } from "$lib/team/personen-model"; // Issue #992 (S-22)
 
   let employees = $state<AvailabilityEmployee[]>([]);
   let loading = $state(true);
@@ -59,7 +60,7 @@
       employees = list ?? [];
     } catch (err) {
       const msg =
-        err instanceof ApiError ? err.message : "Mitarbeiter konnten nicht geladen werden.";
+        err instanceof ApiError ? err.message : "Die Personen konnten nicht geladen werden.";
       toasts.error(msg);
     } finally {
       loading = false;
@@ -116,7 +117,9 @@
           >
           <span class="av-text">
             <span class="av-title">{row.name}</span>
-            {#if row.number !== ""}<span class="av-number">{row.number}</span>{/if}
+            {#if personNumberLabel(row.number) !== ""}<span class="av-number"
+                >{personNumberLabel(row.number)}</span
+              >{/if}
           </span>
         </span>
       {:else if column.key === "open"}

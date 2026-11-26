@@ -8,17 +8,28 @@
   // F-21 fix: 410 + AVAILABILITY_FEATURE_DISABLED is detected and shown as
   // an actionable empty state instead of silently swallowed. The backend 410
   // is CORRECT (Phase 47.3 feature toggle) — this is a UX bug on the web side.
+  //
+  // Issue #992 (N-13, D-992-22): the markup is the shape of the own page (Ich › Dienstplan ›
+  // Verfügbarkeit) — page head with the person's name, a Note, the two blocks, the SaveBar; the
+  // person is named in the top-bar crumb. The script logic (snapshot, registry, save) is unchanged.
 
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api, ApiError } from "$api/client";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
+  import { authStore } from "$stores/auth";
   import { toasts } from "$stores/toast";
   import { markUnsaved } from "$stores/unsaved";
-  import ListDetail from "$lib/components/admin/ListDetail.svelte";
-  import Section from "$lib/components/admin/Section.svelte";
+  import { showDetailCrumb } from "$lib/nav/detail-crumb";
+  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import EmptyState from "$components/ui/EmptyState.svelte";
+  import ErrorState from "$components/ui/ErrorState.svelte";
+  import Note from "$components/ui/Note.svelte";
+  import SaveBar from "$components/ui/SaveBar.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import { hasPermission } from "$lib/permissions";
   import AvailabilityWeekGrid, {
     type RecurringEntry,
   } from "$lib/components/availability/AvailabilityWeekGrid.svelte";
@@ -91,6 +102,24 @@
     return () => markUnsaved("admin-availability-detail", false);
   });
 
+  // Issue #992 (D-992-22): the SaveBar shows one change while the page is dirty; the registry above
+  // reads the same `dirty`, so the bar and the unsaved-changes guard never disagree.
+  const changes = $derived(dirty ? 1 : 0);
+
+  // The top bar names the person (the trail itself comes from the route table); cleared on leaving.
+  $effect(() => showDetailCrumb(employee ? `${employee.firstName} ${employee.lastName}` : null));
+
+  /** Verwerfen: back to the last saved state. */
+  function discard(): void {
+    const saved = JSON.parse(lastSnapshot) as { r: RecurringEntry[]; o: OneOffEntry[] };
+    recurringEntries = saved.r;
+    oneOffEntries = saved.o;
+  }
+
+  // The switch lives in Verwalten › Regeln › Dienstplan (section Verfügbarkeiten); offered only to
+  // whoever may change it.
+  const mayChangeSettings = $derived(hasPermission($authStore.user, "tenant-settings:update"));
+
   function applyEntries(entries: ApiAvailabilityEntry[]): void {
     const recurring: RecurringEntry[] = [];
     const oneoff: OneOffEntry[] = [];
@@ -162,156 +191,86 @@
 
   onMount(() => {
     // Issue #83 (D-13): access is decided by the admin layout guard; the API answers 403 regardless.
-
-    void (async () => {
-      loading = true;
-      const [empRes, avRes] = await Promise.allSettled([
-        api.get<Employee>(`/employees/${employeeId}`),
-        api.get<AvailabilityListResponse>(`/employees/${employeeId}/availability`),
-      ]);
-      // An entry without a start day falls back to the tenant's today (Issue #1072): the zone is
-      // known before the entries are mapped.
-      await tenantFeatures.loadTimezone();
-
-      if (empRes.status === "fulfilled") {
-        employee = empRes.value;
-      } else {
-        const err = empRes.reason as ApiError;
-        loadError =
-          err instanceof ApiError ? err.message : "Mitarbeiter konnte nicht geladen werden.";
-        loading = false;
-        return;
-      }
-
-      if (avRes.status === "rejected") {
-        const err = avRes.reason as { status?: number; data?: { code?: string } };
-        if (err?.status === 410 && err?.data?.code === "AVAILABILITY_FEATURE_DISABLED") {
-          featureDisabled = true;
-          tenantFeatures.applyLocal(false);
-        }
-        // For any other rejection: availabilityData stays empty — show generic error
-        // only if employee itself failed to load (handled above via loadError).
-      } else {
-        applyEntries(avRes.value.entries ?? []);
-      }
-
-      loading = false;
-    })();
+    void loadPerson();
   });
+
+  async function loadPerson(): Promise<void> {
+    loading = true;
+    loadError = "";
+    const [empRes, avRes] = await Promise.allSettled([
+      api.get<Employee>(`/employees/${employeeId}`),
+      api.get<AvailabilityListResponse>(`/employees/${employeeId}/availability`),
+    ]);
+    // An entry without a start day falls back to the tenant's today (Issue #1072): the zone is
+    // known before the entries are mapped.
+    await tenantFeatures.loadTimezone();
+
+    if (empRes.status === "fulfilled") {
+      employee = empRes.value;
+    } else {
+      const err = empRes.reason as ApiError;
+      loadError = err instanceof ApiError ? err.message : "Die Person konnte nicht geladen werden.";
+      loading = false;
+      return;
+    }
+
+    if (avRes.status === "rejected") {
+      const err = avRes.reason as { status?: number; data?: { code?: string } };
+      if (err?.status === 410 && err?.data?.code === "AVAILABILITY_FEATURE_DISABLED") {
+        featureDisabled = true;
+        tenantFeatures.applyLocal(false);
+      }
+      // For any other rejection: availabilityData stays empty — show generic error
+      // only if employee itself failed to load (handled above via loadError).
+    } else {
+      applyEntries(avRes.value.entries ?? []);
+    }
+
+    loading = false;
+  }
 </script>
 
-<ListDetail
-  view="detail"
-  eyebrow="Administration"
-  title={employee ? `${employee.firstName} ${employee.lastName}` : "Verfügbarkeit"}
-  sub="Wann kann dieser Mitarbeiter arbeiten? Urlaub und Abwesenheit werden automatisch berücksichtigt."
-  crumbs={[
-    { label: pageLabel("/admin/availability"), href: "/admin/availability" },
-    { label: employee ? `${employee.firstName} ${employee.lastName}` : "Detail" },
-  ]}
->
-  {#snippet actions()}
-    <a class="btn btn-ghost btn-sm" href="/admin/availability">Zurück</a>
-    <!-- Neither Section on this page has a footer snippet, so Section.dirty would render
-         nothing — the global .unsaved-hint recipe is rendered directly here, next to the
-         button it refers to, same as the inline case on admin/system. -->
-    {#if dirty}
-      <span class="unsaved-hint" role="status">Nicht gespeichert</span>
-    {/if}
-    <button
-      class="btn btn-primary btn-sm"
-      disabled={featureDisabled || !dirty || saving}
-      onclick={save}
-    >
-      {saving ? "Speichert…" : "Speichern"}
-    </button>
-  {/snippet}
-  {#snippet tabContent(_tab)}
-    {#if loading}
-      <Skeleton shape="card" lines={3} />
-    {:else if loadError}
-      <Section>
-        <div class="av-load-error">
-          <p class="av-load-error-msg">{loadError}</p>
-          <a class="btn btn-secondary btn-sm" href="/admin/availability">Zurück zur Übersicht</a>
-        </div>
-      </Section>
-    {:else if featureDisabled}
-      <div class="av-feature-disabled" role="status">
-        <div class="av-feature-disabled-icon" aria-hidden="true">⚙️</div>
-        <h2 class="av-feature-disabled-title">Verfügbarkeits-System deaktiviert</h2>
-        <p class="av-feature-disabled-body">
-          Diese Funktion ist für dein Unternehmen ausgeschaltet. Aktiviere sie in den
-          System-Einstellungen unter <strong>Features</strong>.
-        </p>
-        <a class="btn btn-primary" href="/admin/system#features">Zu den Features</a>
-      </div>
-    {:else}
-      <div class="alert alert-info" role="alert">
-        <span aria-hidden="true">ℹ</span>
-        <span
-          >Urlaub und Abwesenheit werden automatisch als „nicht verfügbar" angezeigt — bitte direkt
-          in der jeweiligen Quelle bearbeiten.</span
-        >
-      </div>
+<PageHead
+  title={employee ? `${employee.firstName} ${employee.lastName}` : pageLabel("/admin/availability")}
+  hint="Wann kann die Person arbeiten? Urlaub und Abwesenheiten werden automatisch berücksichtigt."
+/>
 
-      <Section title="Wochenraster">
-        <AvailabilityWeekGrid bind:entries={recurringEntries} disabled={loading} />
-      </Section>
+{#if loading}
+  <Skeleton shape="card" lines={3} />
+{:else if loadError}
+  <ErrorState message={loadError} hint="" onRetry={() => void loadPerson()} />
+{:else if featureDisabled}
+  <EmptyState
+    icon="calendar"
+    title="Die Verfügbarkeit ist für dein Unternehmen ausgeschaltet."
+    description="Solange sie aus ist, können Personen keine Verfügbarkeit angeben und der Dienstplan wertet keine aus."
+    actionLabel={mayChangeSettings ? "Zu den Einstellungen" : undefined}
+    onaction={mayChangeSettings ? () => void goto("/verwalten/regeln/dienstplan") : undefined}
+  />
+{:else}
+  <div class="page">
+    <Note tone="info">
+      Urlaub und Abwesenheiten erscheinen automatisch als „nicht verfügbar“. Du änderst sie an ihrer
+      Quelle.
+    </Note>
 
-      <Section title="Einmaltermine">
-        <AvailabilityOneOffList bind:entries={oneOffEntries} disabled={loading} />
-      </Section>
-    {/if}
-  {/snippet}
-</ListDetail>
+    <section class="settings-group">
+      <h2 class="settings-group-title">Wochenraster</h2>
+      <AvailabilityWeekGrid bind:entries={recurringEntries} disabled={loading} />
+    </section>
 
-<style>
-  .av-load-error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--s-3);
-    padding: var(--s-6) var(--s-4);
-    text-align: center;
-  }
+    <section class="settings-group">
+      <h2 class="settings-group-title">Einmaltermine</h2>
+      <AvailabilityOneOffList bind:entries={oneOffEntries} disabled={loading} />
+    </section>
+  </div>
+{/if}
 
-  .av-load-error-msg {
-    color: var(--bad);
-    margin: 0;
-  }
-
-  .av-feature-disabled {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: var(--s-3);
-    padding: var(--s-8) var(--s-4);
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: var(--r-card);
-    color: var(--text);
-  }
-
-  .av-feature-disabled-icon {
-    font-size: 48px;
-    line-height: 1;
-  }
-
-  .av-feature-disabled-title {
-    font-family: var(--font-ui);
-    font-weight: 400;
-    font-size: 24px;
-    margin: 0;
-    color: var(--text);
-  }
-
-  .av-feature-disabled-body {
-    margin: 0;
-    max-width: 480px;
-    color: var(--text-2);
-    font-size: 0.9375rem;
-    line-height: 1.55;
-  }
-</style>
+<SaveBar
+  {changes}
+  errors={0}
+  {saving}
+  saveLabel="Verfügbarkeit speichern"
+  onSave={save}
+  onDiscard={discard}
+/>

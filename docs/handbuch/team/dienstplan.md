@@ -65,7 +65,7 @@ Ein Klick auf das Info-Zeichen erklärt dir jede Art genauer.
 
 ## Verfügbarkeit
 
-Der Reiter **Verfügbarkeit** (nur sichtbar, wenn dein Unternehmen die Verfügbarkeit nutzt) listet die Personen. Mit **Öffnen** siehst du, wann eine Person arbeiten kann: das wiederkehrende Wochenmuster und einzelne Ausnahmen. Die Angaben fließen als Markierungen in die Wochenansicht ein, zum Beispiel „nicht verfügbar“ oder „bevorzugt“. Die Personen tragen sie unter [Ich › Dienstplan](../ich/dienstplan.md) selbst ein.
+Der Reiter **Verfügbarkeit** (nur sichtbar, wenn dein Unternehmen die Verfügbarkeit nutzt) listet die Personen, jeweils mit „Nr.“ und der Nummer. Mit **Öffnen** siehst du, wann eine Person arbeiten kann: das wiederkehrende Wochenmuster und einzelne Ausnahmen. Änderungen speicherst du mit **Verfügbarkeit speichern**. Die Angaben fließen als Markierungen in die Wochenansicht ein, zum Beispiel „nicht verfügbar“ oder „bevorzugt“. Die Personen tragen sie unter [Ich › Dienstplan](../ich/dienstplan.md) selbst ein.
 
 ## Urlaub und Dienstplan
 
