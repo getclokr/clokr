@@ -19,7 +19,7 @@
  * the tenant TZ).
  */
 import { todayInTz, dateStrInTz, monthRangeUtc } from "../contexts/working-time-account/timezone";
-import { getHolidays, type FederalStateCode } from "../contexts/platform/holidays";
+import { getHolidays, STATE_MAP, type FederalStateCode } from "../contexts/platform/holidays";
 
 /** Must mirror the tenant timezone seeded in `setup.ts:61`. */
 export const TEST_TZ = "Europe/Berlin";
@@ -338,6 +338,26 @@ export function holidayFreeMondayStr(
     `holidayFreeMondayStr: no holiday-free Monday found within ${MAX_WEEKS} weeks of ` +
       `weeksAhead=${weeksAhead}, state=${state}`,
   );
+}
+
+/**
+ * True when any of the `spanDays` calendar days from `fromStr` is a statutory holiday of ANY
+ * Bundesland (Issue #1077). A minor's weekly sum counts a holiday at the work location as working
+ * time (§ 4 Abs. 4 Satz 2 JArbSchG), so a fixture week whose expected sums are plain shift
+ * arithmetic must not contain one, whatever the salon's Bundesland. Reads the engine's own
+ * `getHolidays`, like `holidayFreeMondayStr`, so it only selects the FIXTURE week.
+ */
+export function holdsStatutoryHolidayInAnyState(fromStr: string, spanDays: number): boolean {
+  const days = Array.from({ length: spanDays }, (_, i) => addDaysStr(fromStr, i));
+  const years = new Set(days.map((d) => Number(d.slice(0, 4))));
+  const states = new Set<FederalStateCode>(Object.values(STATE_MAP));
+  const holidays = new Set<string>();
+  for (const year of years) {
+    for (const state of states) {
+      for (const h of getHolidays(year, state)) holidays.add(h.date);
+    }
+  }
+  return days.some((d) => holidays.has(d));
 }
 
 /**

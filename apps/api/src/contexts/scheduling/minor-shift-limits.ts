@@ -19,8 +19,12 @@
  *    same week has less than 8:00; then up to 8:30 is allowed. A Werktag without work counts as
  *    shortened (the statute says "shortened to less than eight hours"). § 8 Abs. 2 proper (Brückentage,
  *    five-week average) is not modelled.
- *  - Week (§ 4 Abs. 4 S. 1): Monday to Sunday, minor days only, limit 40:00. § 4 Abs. 4 S. 2 (the
- *    working time lost to a public holiday counts) is NOT applied: an owner decision is open.
+ *  - Week (§ 4 Abs. 4 S. 1): Monday to Sunday, minor days only, limit 40:00. § 4 Abs. 4 S. 2 (Issue
+ *    #1077, owner decision 26.11.2026): the working time that falls out on a holiday at the work
+ *    location on a Werktag counts as well. It is the day's contract Soll as the Arbeitszeitkonto
+ *    prices it (`MinorShiftWeek.holidaySollMinutesByDate`), not the planned shift and not an
+ *    average, so a holiday the planner leaves empty cannot lower the week. Only the weekly sum
+ *    reads it; the daily limit, § 8 Abs. 2a, §§ 12-17 are unchanged.
  *  - § 12: Schichtzeit = earliest start to latest end of the day's shifts (every interruption of at
  *    least 15 min is a Ruhepause, so gaps are inside it), at most 10:00.
  *  - § 13: at least 12:00 uninterrupted Freizeit between the latest end of a day and the earliest
@@ -52,12 +56,15 @@
  */
 import type { PrismaClient } from "@clokr/db";
 import { hasVocationalSchoolDay, isMinorAtDate, mondayOfWeekUtc } from "../absence";
+import { holidaysAtWorkLocation, type EmployeeScope } from "../platform";
 import {
+  calcExpectedMinutesTz,
+  dateStrInTz,
   dayRangeUtc,
   getTenantTimezone,
   getVocationalSchoolMinutesForDate,
 } from "../working-time-account";
-import type { BreakTenantConfigShape } from "../time-tracking";
+import { getWorkedEntriesInRange, type BreakTenantConfigShape } from "../time-tracking";
 import { shiftNettoMinutes, type ShiftBreakEmployee } from "./shift-netto";
 
 /** § 8 Abs. 1 JArbSchG: 8 h a day. */
@@ -115,6 +122,14 @@ export interface MinorShiftWeek {
   creditedMinutesByDate: Record<string, number>;
   /** ISO days of `weekDays` on which the person is a minor and has a Berufsschule (§ 15, § 16 Abs. 3). */
   schoolDays: string[];
+  /**
+   * § 4 Abs. 4 Satz 2 JArbSchG (Issue #1077): per ISO day of `weekDays` on which the person is a
+   * minor and employed and the work location has a holiday, that day's contract Soll as the
+   * Arbeitszeitkonto prices it. A missing day means no holiday Soll. Always set by
+   * `loadMinorShiftWeeks`; optional only so the holiday-free week literals of the #1057 / #1074 /
+   * #1075 / #1076 tests stay valid.
+   */
+  holidaySollMinutesByDate?: Record<string, number>;
   /** The shifts of the week AND of the Sunday before / the Monday after (see `minorWeekHorizon`). */
   shifts: Array<ShiftDraft & { id: string }>;
 }
@@ -136,6 +151,11 @@ export interface MinorDayFigures {
   shiftMinutes: number;
   /** The day is a Berufsschultag (an `Absence` of type VOCATIONAL_SCHOOL). */
   isSchoolDay: boolean;
+  /**
+   * The holiday time that falls out on this day (§ 4 Abs. 4 Satz 2): the contract Soll beyond what
+   * is planned. Read by the weekly sum only (Issue #1077).
+   */
+  holidayMinutes: number;
 }
 
 /** The figures of a week and of the two edge days that border it (the horizon). */
@@ -218,7 +238,7 @@ function spanBad(figures: MinorDayFigures[], index: number): boolean {
 }
 
 function weekSum(figures: MinorDayFigures[]): number {
-  return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes : 0), 0);
+  return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes + f.holidayMinutes : 0), 0);
 }
 
 // § 14 Abs. 1: any shift minute outside 06:00-20:00.
@@ -576,6 +596,9 @@ function dayFigures(
     night += gross - inside;
   }
   const hasShift = latest > Number.NEGATIVE_INFINITY;
+  // § 4 Abs. 4 Satz 2: only what is not worked falls out, so the day counts the larger of its
+  // contract Soll and its planned Arbeitszeit, never both (Issue #1077).
+  const holidayMinutes = Math.max(0, (week.holidaySollMinutesByDate?.[iso] ?? 0) - work);
   return {
     isMinor: isMinorAtDate(week.birthDate, utcMidnightOf(iso)),
     workMinutes: work,
@@ -585,6 +608,7 @@ function dayFigures(
     nightMinutes: night,
     shiftMinutes,
     isSchoolDay: week.schoolDays.includes(iso),
+    holidayMinutes,
   };
 }
 
@@ -650,7 +674,9 @@ export function minorShiftLimitReplyBody(v: MinorShiftLimitViolation): {
 /**
  * The week context of every person in `employeeIds` who is a minor on at least one day of the week
  * containing `anyDayOfWeek`. Adults and persons without a birth date are not in the map; they cost
- * exactly one employee read.
+ * exactly one employee read. For the minors it also reads the work-location holidays of the week
+ * (the Unterbau, fed with the Zeiterfassung's closed work entries, like the roster week view) and
+ * prices each one with the Arbeitszeitkonto's day Soll (Issue #1077).
  */
 export async function loadMinorShiftWeeks(
   prisma: PrismaClient,
@@ -674,7 +700,14 @@ export async function loadMinorShiftWeeks(
 
   const employees = await prisma.employee.findMany({
     where: { id: { in: Array.from(new Set(employeeIds)) }, tenantId },
-    select: { id: true, birthDate: true, breakOver6hOverride: true, breakOver9hOverride: true },
+    select: {
+      id: true,
+      birthDate: true,
+      hireDate: true,
+      exitDate: true,
+      breakOver6hOverride: true,
+      breakOver9hOverride: true,
+    },
   });
   const minors = employees.filter(
     (e) => e.birthDate && weekDays.some((iso) => isMinorAtDate(e.birthDate, utcMidnightOf(iso))),
@@ -686,6 +719,7 @@ export async function loadMinorShiftWeeks(
     select: {
       defaultBreakOver6h: true,
       defaultBreakOver9h: true,
+      defaultWorkDays: true,
       vocationalSchoolMinutesPerDay: true,
       vocationalSchoolBlockMinutesPerWeek: true,
       bsSlotFirstLongDayMinutes: true,
@@ -700,7 +734,32 @@ export async function loadMinorShiftWeeks(
   };
   const tz = await getTenantTimezone(prisma, tenantId);
 
+  // § 4 Abs. 4 Satz 2 (Issue #1077, D-02): the holidays of the week at each person's work location,
+  // ONE batched read for all minors, resolved only by the Unterbau — the same pair of calls the
+  // roster week view uses. The scope carries the tenant, and the minors come from the tenant-scoped
+  // employee query above.
+  const minorIds = minors.map((e) => e.id);
+  const holidayScope: EmployeeScope = { kind: "employees", employeeIds: minorIds, tenantId };
+  const weekEntries = await getWorkedEntriesInRange(
+    prisma,
+    holidayScope,
+    utcMidnightOf(weekDays[0]),
+    utcMidnightOf(weekDays[6]),
+  );
+  const holidaysByEmployee = await holidaysAtWorkLocation(
+    prisma,
+    tenantId,
+    minorIds,
+    weekDays[0],
+    weekDays[6],
+    weekEntries,
+  );
+
   for (const emp of minors) {
+    const holidays = holidaysByEmployee.get(emp.id);
+    // The employment window in tenant-local days (like the Arbeitszeitkonto's exit clip, Issue #447).
+    const hireDay = dateStrInTz(emp.hireDate, tz);
+    const exitDay = emp.exitDate ? dateStrInTz(emp.exitDate, tz) : null;
     const shifts = await prisma.shift.findMany({
       where: {
         employeeId: emp.id,
@@ -720,6 +779,7 @@ export async function loadMinorShiftWeeks(
     });
 
     const creditedMinutesByDate: Record<string, number> = {};
+    const holidaySollMinutesByDate: Record<string, number> = {};
     const schoolDays: string[] = [];
     for (const iso of weekDays) {
       if (!isMinorAtDate(emp.birthDate, utcMidnightOf(iso))) continue;
@@ -730,6 +790,28 @@ export async function loadMinorShiftWeeks(
       }
       const dayEnd = dayRangeUtc(iso, tz).end;
       const schedule = schedules.find((s) => s.validFrom <= dayEnd) ?? null;
+      // D-01: the time that falls out on a holiday is the day's Soll per contract, priced by the
+      // Arbeitszeitkonto's own day Soll over this ONE day under the contract valid on it (D-03):
+      // FIXED_SCHEDULE = the weekday's hours (like the month close's holiday reduction),
+      // MONTHLY_HOURS = its Ø-day, SHIFT_BASED / FLEXTIME = weeklyHours over the contract days on a
+      // contract weekday (like the roster's Planungs-Soll); a non-contract day prices 0.
+      if (
+        holidays?.has(iso) &&
+        schedule &&
+        hireDay <= iso &&
+        (exitDay === null || iso <= exitDay)
+      ) {
+        const { start, end } = dayRangeUtc(iso, tz);
+        const soll = calcExpectedMinutesTz(
+          schedule,
+          start,
+          end,
+          tz,
+          undefined,
+          tenantConfig?.defaultWorkDays,
+        );
+        if (soll > 0) holidaySollMinutesByDate[iso] = soll;
+      }
       creditedMinutesByDate[iso] = await getVocationalSchoolMinutesForDate(
         prisma,
         emp.id,
@@ -751,6 +833,7 @@ export async function loadMinorShiftWeeks(
       breakTenantConfig,
       creditedMinutesByDate,
       schoolDays,
+      holidaySollMinutesByDate,
       shifts,
     });
   }
