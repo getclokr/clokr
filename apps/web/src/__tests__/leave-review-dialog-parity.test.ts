@@ -101,7 +101,7 @@ function countOccurrences(src: string, needle: string): number {
 
 // Constants shared by more than one test group below — declared once, at module scope, so every
 // test measures the identical literal string.
-const REVIEW_DIALOG_MARKER = "Kolleg:innen im gleichen Zeitraum";
+const REVIEW_DIALOG_MARKER = "Im gleichen Zeitraum abwesend"; // Issue #992 N-09 (was the colon form)
 const SELF_APPROVAL_SENTENCE = "Eigene Anträge können nicht selbst genehmigt werden.";
 
 // ── Full apps/web/src tree walk (Test 3, Test 4, Test 5) ───────────────────
@@ -231,7 +231,7 @@ describe("Test 1 — AC-2: rendering the review dialog implies offering attest c
 
 // ── Test 2 — AC-3: the §7 notice is unique tree-wide and gated on a named condition ──
 describe("Test 2 — AC-3: the §7 notice is unique in the corpus and bound to a named condition", () => {
-  const SECTION7_SENTENCE = "Urlaubsantrag muss zeitnah entschieden werden";
+  const SECTION7_SENTENCE = "Entscheide zeitnah: Urlaub muss im laufenden Jahr gewährt werden"; // Issue #992 N-09
   const SECTION7_GATE = "{#if showsBurlgSection7Notice(";
 
   it("the sentence occurs exactly once across the review-dialog corpus", () => {

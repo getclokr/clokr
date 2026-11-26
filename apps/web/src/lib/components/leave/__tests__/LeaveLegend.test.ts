@@ -20,6 +20,7 @@ type Props = {
   };
   closedHint?: string | null;
   holidayLook?: "timeline" | "calendar";
+  yearEdge?: boolean;
 };
 
 function render(props: Props) {
@@ -190,5 +191,19 @@ describe("accessibility", () => {
     const swatches = legend.querySelectorAll(".legend-swatch");
     expect(swatches.length).toBe(3);
     for (const swatch of swatches) expect(swatch.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+describe("year edge (Issue #992 N-02)", () => {
+  it("names the hatched edge weeks only when asked", () => {
+    render({ typeCodes: [], styles: [], yearEdge: true });
+    const key = screen.getByTestId("legend-marking-year-edge");
+    expect(key.textContent).toContain("Außerhalb des Jahres");
+    expect(key.querySelector(".legend-swatch--year-edge")).not.toBeNull();
+  });
+
+  it("is absent without the prop", () => {
+    render({ typeCodes: [], styles: [] });
+    expect(screen.queryByTestId("legend-marking-year-edge")).toBeNull();
   });
 });

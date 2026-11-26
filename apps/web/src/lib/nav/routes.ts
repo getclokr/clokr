@@ -18,6 +18,7 @@
  */
 import { hasPermission, type PermissionHolder } from "$lib/permissions";
 import { activeNavHref, matchesRoute } from "$lib/nav/active-route";
+import { joinGerman } from "$lib/utils/german-list";
 
 export type Area = "ich" | "team" | "verwalten";
 export type PermissionAlternatives = readonly (readonly string[])[];
@@ -276,6 +277,10 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   // Owner decision 14.11.2026 (Issue #936, replaces Z-03): the reports read the team over a period, so they
   // live under Team, after Dienstplan. The payroll exports (DATEV, Monatsexport) stay under Verwalten › Daten.
+  // Owner decision 25.11.2026 on #992 (N-15, D-992-01): the page also serves `team-overview:read` holders the
+  // tabs Heute and Verläufe (`reportRights().periodTabs`, pinned equal by `berichte-salonleitung-992.test.ts`),
+  // so the rail and ⌘K show it to them too. Only navigation visibility widens: no permission and no endpoint
+  // changed, and the page stays unguarded until #1114 decides what a person without the Team area sees.
   {
     href: "/team/berichte",
     salonFilter: true,
@@ -283,7 +288,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     label: "Berichte",
     icon: "chart",
     width: "full",
-    requires: [[Z("report:read")]],
+    requires: [[Z("report:read")], [Z("team-overview:read")]],
     file: "/reports",
     inNav: true,
     description: "Auswertungen nach Zeitraum, Person und Salon",
@@ -367,7 +372,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     href: "/verwalten/regeln",
     area: "verwalten",
     label: "Regeln",
-    icon: "check",
+    icon: "sliders",
     width: "read",
     requires: "children",
     inNav: true,
@@ -916,6 +921,36 @@ export function visibleChildren(
   return childrenOf(hubHref).filter((route) => visibleRoute(user, route, options));
 }
 
+/**
+ * Issue #992 (N-13 of 14.11., D-992-08): what a hub row says it contains. A page entry keeps its own
+ * description; a hub entry (`requires: "children"`) names exactly the children `user` sees, so a row never
+ * promises pages the reader cannot open. Empty for a hub with no visible child.
+ */
+export function hubRowDescription(
+  user: PermissionHolder | null | undefined,
+  route: AppRoute,
+  options: RouteOptions,
+): string {
+  if (route.requires !== "children") return route.description ?? "";
+  return joinGerman(visibleChildren(user, route.href, options).map((child) => child.label));
+}
+
+/**
+ * Issue #992 (N-14, D-992-05): the person list `user` has in her menu - Verwalten › Personen for whoever
+ * creates or edits persons, else the read list Team › Personen, else null (no link at all). A link must
+ * never lead to a list without a menu entry for the reader.
+ */
+export function personListHref(
+  user: PermissionHolder | null | undefined,
+  options: RouteOptions,
+): string | null {
+  for (const href of ["/verwalten/personen", "/team/personen"]) {
+    const route = routeByKey(href);
+    if (route !== null && visibleRoute(user, route, options)) return href;
+  }
+  return null;
+}
+
 /** The start page of `user` (Z-02), from permissions only — never a role comparison:
  *  1. Heute im Salon for whoever may open it (the team reach: Salonmanager, Manager, Inhaber, Admin);
  *  2. Verwalten › Übersicht for an administration role — a Verwalten entry, but no access to the team's time
@@ -1036,6 +1071,40 @@ export const MOBILE_TAB_PRIORITY: readonly string[] = [
   "/ich/konto",
 ];
 
+/**
+ * Issue #992 (S-02, N-21, D-992-23; owner decision 25.11.2026: differences are labelled, not hidden) —
+ * the phone name of a Team page whose page name the person ALSO sees under Ich: "Team-Zeiten" next to
+ * the own "Zeiten". Null for every other page (an Ich page, a Team page without an Ich twin, a page the
+ * person may not see). The soft hyphen of `labelBreaks` is kept, so a long qualified name still breaks
+ * in its narrow slot. Display only: the page name of the table (= menu = H1) never changes, and the
+ * desktop rail keeps the plain name under its area heading.
+ */
+export function qualifiedNavLabel(
+  user: PermissionHolder | null | undefined,
+  route: AppRoute,
+  options: RouteOptions,
+): string | null {
+  if (route.area !== "team" || !visibleRoute(user, route, options)) return null;
+  const hasIchTwin = APP_ROUTES.some(
+    (entry) =>
+      entry.area === "ich" &&
+      entry.inNav &&
+      entry.label === route.label &&
+      visibleRoute(user, entry, options),
+  );
+  return hasIchTwin ? `Team-${route.labelBreaks ?? route.label}` : null;
+}
+
+/** The qualified name of the page at `pathname` for the phone crumb, or null when it has none. */
+export function phoneCrumbLabel(
+  pathname: string,
+  user: PermissionHolder | null | undefined,
+  options: RouteOptions,
+): string | null {
+  const route = routeFor(pathname);
+  return route === null ? null : qualifiedNavLabel(user, route, options);
+}
+
 /** The tab-bar targets of `user`: Mein Tag, then up to `MOBILE_TAB_SLOTS` entries of `MOBILE_TAB_PRIORITY`
  *  the user sees in the navigation (permissions and tenant features), each under its page name; „Mehr“
  *  follows in the bar itself. Never a dead link, never a role comparison. */
@@ -1052,7 +1121,7 @@ export function mobileTabs(
     tabs.push({
       href: route.href,
       label: route.label,
-      displayLabel: route.labelBreaks ?? route.label,
+      displayLabel: qualifiedNavLabel(user, route, options) ?? route.labelBreaks ?? route.label,
       icon: route.icon,
     });
   }

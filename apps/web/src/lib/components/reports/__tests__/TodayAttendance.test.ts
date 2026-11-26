@@ -130,14 +130,17 @@ describe("TodayAttendance - summary and table", () => {
       }),
     );
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim());
-    expect(headers).toEqual(["Mitarbeiter", "Nr.", "Status"]);
+    expect(headers).toEqual(["Person", "Nr.", "Status"]);
     const body = within(screen.getAllByRole("rowgroup")[1]).getAllByRole("row");
     const statusOf = (r: HTMLElement) => within(r).getAllByRole("cell")[2].textContent?.trim();
     expect(statusOf(body[0])).toBe("Anwesend");
     expect(statusOf(body[1])).toBe("Urlaub");
     expect(statusOf(body[2])).toBe("Fehlt · erwartet 09:00 · 25 Min. zu spät");
     expect(statusOf(body[3])).toBe("Geplant · ab 13:00");
-    expect(statusOf(body[4])).toBe("—");
+    // #992 D-992-03: „—“ in a chip is no status; a person without a plan reads „Nicht eingeplant“ as quiet text.
+    expect(statusOf(body[4])).toBe("Nicht eingeplant");
+    expect(body[4].querySelector(".chip")).toBeNull();
+    expect(body[0].querySelector(".chip")).not.toBeNull();
     expect(body[0].textContent).toContain("Person 1");
     expect(body[0].textContent).toContain("N-1");
     expect(source).not.toContain("Fehlend");
@@ -203,11 +206,24 @@ describe("TodayAttendance - action links of a „Fehlt“ row (Issue #587)", () 
     expect(screen.queryByRole("link")).toBeNull();
   });
 
+  it("offers no Aktionen column with a right but without a „Fehlt“ row (#992 D-992-03)", () => {
+    renderWithTheme(
+      TodayAttendance,
+      props({
+        attendance: data([person(1), person(2, { status: "none" })]),
+        canAddTeamEntry: true,
+        canRecordTeamAbsence: true,
+      }),
+    );
+    expect(screen.queryByRole("columnheader", { name: "Aktionen" })).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("offers both links, built by the shared href builders, on the missing row only", () => {
     links(true, true);
     expect(screen.getByRole("columnheader", { name: "Aktionen" })).toBeTruthy();
-    const entry = screen.getByRole("link", { name: "Eintrag nachtragen" });
-    const absence = screen.getByRole("link", { name: "Abwesenheit erfassen" });
+    const entry = screen.getByRole("link", { name: "Zeit nachtragen" });
+    const absence = screen.getByRole("link", { name: "Abwesenheit eintragen" });
     expect(entry.getAttribute("href")).toBe(
       `/team/time-entries?employeeId=${UUID(3)}&date=2026-10-15`,
     );
@@ -219,8 +235,8 @@ describe("TodayAttendance - action links of a „Fehlt“ row (Issue #587)", () 
 
   it("each link needs its own right", () => {
     links(true, false);
-    expect(screen.getByRole("link", { name: "Eintrag nachtragen" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Abwesenheit erfassen" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Zeit nachtragen" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Abwesenheit eintragen" })).toBeNull();
   });
 
   it("the action cell stays a table cell and wraps a div (Issue #442)", () => {

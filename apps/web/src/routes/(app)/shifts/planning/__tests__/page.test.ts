@@ -122,10 +122,11 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
 
     await waitFor(() => expect(screen.getByText("Lena Beispiel")).toBeTruthy());
     expect(screen.getByText("5 Tage")).toBeTruthy();
-    expect(screen.getByText("2 (Do, Fr)")).toBeTruthy();
+    // Issue #992 (D-992-20): every day figure carries its unit.
+    expect(screen.getByText("2 Tage (Do, Fr)")).toBeTruthy();
     expect(screen.getByText("3 Tage")).toBeTruthy();
     // geplant/Differenz columns are absent entirely when no row carries them.
-    expect(screen.queryByText("geplant")).toBeNull();
+    expect(screen.queryByText("Geplant")).toBeNull();
     expect(screen.queryByText("Differenz")).toBeNull();
   });
 
@@ -148,8 +149,10 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
 
     renderWithTheme(PlanningOverviewPage, {});
 
-    await waitFor(() => expect(screen.getByText("geplant")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Geplant")).toBeTruthy());
     expect(screen.getByText("Differenz")).toBeTruthy();
+    // The difference is signed and carries its unit (Issue #992, D-992-20).
+    expect(screen.getByText("0 Tage")).toBeTruthy();
   });
 
   it("no leave this week -> renders 0, not '0 ()'", async () => {
@@ -170,7 +173,7 @@ describe("Wochenübersicht Planungsbedarf (Phase 430, Issue #430)", () => {
     renderWithTheme(PlanningOverviewPage, {});
 
     await waitFor(() => expect(screen.getByText("Sam Null")).toBeTruthy());
-    expect(screen.getByText("0")).toBeTruthy();
+    expect(screen.getByText("0 Tage")).toBeTruthy();
     expect(screen.queryByText(/0 \(/)).toBeNull();
   });
 

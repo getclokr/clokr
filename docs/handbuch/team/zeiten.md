@@ -13,7 +13,7 @@ Den Monat wählst du über die Monatsleiste.
 
 ## Zeiten einer Person ansehen
 
-1. Wähle in der Personenansicht eine Person. Solange keine Person gewählt ist, steht dort „Wähle eine Person“. Du suchst nach dem Namen oder der Personalnummer.
+1. Wähle in der Personenansicht eine Person. Solange keine Person gewählt ist, steht dort „Wähle eine Person“. Du suchst nach dem Namen oder der Personalnummer. Die Adresse der Seite enthält danach die Person und den Tag; du kannst sie weitergeben.
 2. Wähle den Monat und schalte zwischen **Kalender** und **Liste** um.
 3. Die Kennzahlen **Monat in Zahlen** zeigen Gearbeitet, Soll, Differenz, Monatssaldo, Gesamtsaldo und Pausen der Person, so wie sie die Person selbst auf **Ich › Zeiten** sieht. Der Status sagt, ob der Monat läuft oder abgeschlossen ist.
 
@@ -34,7 +34,7 @@ Die Hinweise sind eine Kontrolle und blockieren das Speichern nicht. Im Tagesfen
 
 ## Zeit eintragen und korrigieren
 
-**Zeit eintragen** (oben rechts, sobald eine Person gewählt ist) legt für die Person einen Eintrag an: Datum, Arbeitsbeginn, Arbeitsende, Pausen und optional eine Notiz. Für einen neuen Eintrag brauchst du keine Begründung. Pro Tag kann eine Person mehrere Einträge haben, solange sie sich nicht überschneiden. **Weiteren Eintrag an diesem Tag** legt einen weiteren an.
+**Zeit eintragen** (oben rechts, sobald eine Person gewählt ist) legt für die Person einen Eintrag an: Datum, Arbeitsbeginn, Arbeitsende, Pausen und optional eine Notiz. Für einen neuen Eintrag brauchst du keine Begründung. Pro Tag kann eine Person mehrere Einträge haben, solange sie sich nicht überschneiden. **Weiteren Eintrag an diesem Tag** legt einen weiteren an. Von Heute im Salon aus öffnet **Zeit eintragen** diese Seite; nach der Wahl der Person öffnet sich der Dialog.
 
 So korrigierst du einen vorhandenen Eintrag:
 

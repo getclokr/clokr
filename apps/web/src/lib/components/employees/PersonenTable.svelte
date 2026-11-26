@@ -16,7 +16,7 @@
   import Chip from "$components/ui/Chip.svelte";
   import type { ListId } from "$lib/lists/list-registry";
   import { scheduleModelLabel } from "$lib/employees/contract-history";
-  import type { PersonenRow } from "$lib/team/personen-model";
+  import { personNumberLabel, type PersonenRow } from "$lib/team/personen-model";
   import { PERSONEN_VERTRAG_CODES } from "$lib/team/personen-url-state";
 
   interface FilterState {
@@ -56,6 +56,13 @@
     openHref?: (row: PersonenRow) => string;
     /** Accessible name of a row's „Öffnen“ link. */
     openLabel?: (row: PersonenRow) => string;
+    /** The visible text of that link (Issue #992: Team › Personen says where it leads, „Zeiten“). */
+    openText?: string;
+    /**
+     * Issue #992 (D-992-06): on a phone the cards keep Name with number, Stammsalon, Vertrag and Status;
+     * Std./Woche and Rollen stay in the wide table.
+     */
+    compactCards?: boolean;
     onOpen?: (row: PersonenRow) => void;
     /** Row selection with a checkbox column (the admin list's bulk changes and CSV export). */
     selectable?: boolean;
@@ -84,6 +91,8 @@
     cellTestIds = false,
     openHref,
     openLabel = (row) => `${row.name} öffnen`,
+    openText = "Öffnen",
+    compactCards = false,
     onOpen,
     selectable = false,
     selectedKeys = $bindable([]),
@@ -129,8 +138,8 @@
     { key: "name", label: "Name", primary: true, sortable: true },
     { key: "salon", label: "Stammsalon", sortable: true },
     { key: "vertrag", label: "Vertrag", sortable: true },
-    { key: "stunden", label: "Std./Woche", sortable: true, align: "end" },
-    { key: "rollen", label: "Rollen" },
+    { key: "stunden", label: "Std./Woche", sortable: true, align: "end", cardHidden: compactCards },
+    { key: "rollen", label: "Rollen", cardHidden: compactCards },
     { key: "status", label: "Status", sortable: true },
     ...(openHref ? [{ key: "open", label: "", align: "end" as const }] : []),
   ]);
@@ -179,7 +188,9 @@
         >
         <span class="p-text">
           <span class="p-title">{row.name}</span>
-          <span class="p-number">{row.number}</span>
+          {#if personNumberLabel(row.number) !== ""}
+            <span class="p-number">{personNumberLabel(row.number)}</span>
+          {/if}
           {#if nameMeta}<span class="p-meta">{@render nameMeta(row)}</span>{/if}
         </span>
       </span>
@@ -208,7 +219,7 @@
         class="p-open row-action"
         href={openHref(row)}
         aria-label={openLabel(row)}
-        data-testid={cellTestIds ? `${rowTestIdPrefix}-${row.id}-open` : undefined}>Öffnen</a
+        data-testid={cellTestIds ? `${rowTestIdPrefix}-${row.id}-open` : undefined}>{openText}</a
       >
     {/if}
   {/snippet}

@@ -98,10 +98,30 @@
 
   /** Focus the first [data-autofocus] element instead of bits-ui's first tabbable. */
   function onOpenAutoFocus(e: Event) {
-    const target = contentEl?.querySelector<HTMLElement>("[data-autofocus]");
+    const target =
+      contentEl?.querySelector<HTMLElement>("[data-autofocus]") ?? firstTabbableExceptHint();
     if (!target) return;
     e.preventDefault();
     target.focus();
+  }
+
+  /**
+   * Issue #992: an InfoHint opens its popover on keyboard focus, so it must never take the
+   * dialog's first focus — the dialog would open with an explanation already covering it.
+   * Without a [data-autofocus] element the first tabbable control that is no InfoHint trigger
+   * gets the focus; with none, bits-ui keeps its own choice.
+   */
+  function firstTabbableExceptHint(): HTMLElement | null {
+    if (!contentEl?.querySelector(".ih-trigger")) return null;
+    const candidates = contentEl.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    for (const el of candidates) {
+      if (el.classList.contains("ih-trigger")) continue;
+      if (el.closest("[inert], [hidden]")) continue;
+      return el;
+    }
+    return null;
   }
 </script>
 

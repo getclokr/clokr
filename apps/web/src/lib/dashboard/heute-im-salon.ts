@@ -15,6 +15,7 @@
 import type { TodayAttendanceData, TodayEmployee } from "$lib/reports/today-attendance";
 import type { LeaveReviewRequest } from "$lib/leave/leave-review";
 import { LEAVE_TYPE_OPTIONS } from "$lib/leave/team-calendar-visibility";
+import type { ReportRights } from "$lib/page-rights";
 
 /** Statuses that mean the person is expected in the salon today. */
 const EXPECTED_TODAY: ReadonlySet<TodayEmployee["status"]> = new Set([
@@ -254,4 +255,74 @@ export function missingDaysOfMonth(
   return [...byPerson.entries()]
     .map(([id, v]) => ({ id, name: v.name, days: [...v.days].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id));
+}
+
+/**
+ * The unit and the explanation of the first two Kennzahlen (Issue #992 N-08, D-992-17). With nobody
+ * expected today there is no „von 0“ and no „alle da“: nothing was checked, so nothing is claimed.
+ * `firstMissing` is the first person whose shift began unclocked (or null).
+ */
+export function teamBandTexts(
+  band: AttendanceBand,
+  firstMissing: { name: string; expectedStart?: string | null } | null,
+): {
+  present: { unit: string | undefined; explanation: string };
+  expected: { explanation: string };
+} {
+  if (band.expected === 0) {
+    return {
+      present: { unit: undefined, explanation: "niemand erwartet" },
+      expected: { explanation: "niemand eingeplant" },
+    };
+  }
+  return {
+    present: {
+      unit: `von ${band.expected}`,
+      explanation: band.done > 0 ? `${band.done} heute schon gearbeitet` : "gerade eingestempelt",
+    },
+    expected: {
+      explanation: firstMissing
+        ? `${firstMissing.name}${firstMissing.expectedStart ? ` · Schicht seit ${firstMissing.expectedStart}` : ""}${band.missing > 1 ? ` · +${band.missing - 1}` : ""}`
+        : band.scheduled > 0
+          ? "kommen noch"
+          : "alle da",
+    },
+  };
+}
+
+export interface TeamHeadAction {
+  label: string;
+  href: string;
+  /** `btn-outline` or `btn-primary`. */
+  tone: "outline" | "primary";
+  testId: string;
+}
+
+/**
+ * The two actions in the head of Heute im Salon (Issue #992 N-07, D-992-12): each only with the create
+ * right of its target (`reportRights()`); the target page and the API decide again. „Abwesenheit
+ * eintragen“ opens the dialog directly (#587), „Zeit eintragen“ opens Team › Zeiten in the
+ * choose-a-person flow (`eintragen=1`).
+ */
+export function teamHeadActions(
+  rights: Pick<ReportRights, "canAddTeamEntry" | "canRecordTeamAbsence">,
+): TeamHeadAction[] {
+  const actions: TeamHeadAction[] = [];
+  if (rights.canAddTeamEntry) {
+    actions.push({
+      label: "Zeit eintragen",
+      href: "/team/zeiten?eintragen=1",
+      tone: "outline",
+      testId: "team-head-add-time",
+    });
+  }
+  if (rights.canRecordTeamAbsence) {
+    actions.push({
+      label: "Abwesenheit eintragen",
+      href: "/team/abwesenheiten?create=1",
+      tone: "primary",
+      testId: "team-head-add-absence",
+    });
+  }
+  return actions;
 }

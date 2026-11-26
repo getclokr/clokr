@@ -1798,6 +1798,7 @@
             styles={teamLegend.styles}
             markings={teamLegend.markings}
             closedHint={teamLegend.closedHint}
+            yearEdge={activePeriod.zoom === "jahr"}
           />
         {/if}
         {#if teamRows.length === 0 && teamLoading}

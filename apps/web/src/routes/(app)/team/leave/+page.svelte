@@ -2,7 +2,7 @@
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { homeSalonMarksApply, salonContext } from "$stores/salon-context";
@@ -28,6 +28,7 @@
   import { matchesSearch } from "$lib/table/search";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import Spinner from "$components/ui/Spinner.svelte";
+  import { inboxRequestHref } from "$lib/leave/inbox-deep-link"; // Issue #992 N-07: one decision path
   import Modal from "$components/ui/Modal.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte"; // Quick 260824-ef6
   import { toasts } from "$stores/toast";
@@ -48,7 +49,11 @@
   } from "$lib/leave/team-calendar-visibility"; // Phase 257, Phase 262, #269, Issue #446 (D-04)
   import { leaveDaysLabel } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
-  import { parseLeaveCreateDeepLink, type LeaveCreateDeepLink } from "$lib/leave/create-deep-link"; // Issue #587
+  import {
+    parseLeaveCreateDeepLink,
+    withoutLeaveCreateDeepLink,
+    type LeaveCreateDeepLink,
+  } from "$lib/leave/create-deep-link"; // Issue #587, #992
   import LeaveLegend from "$lib/components/leave/LeaveLegend.svelte"; // Issue #840 (D-840-10)
   import LeaveTypeChip from "$lib/components/leave/LeaveTypeChip.svelte"; // Issue #840 (G-3)
   import LeavePlanningPanel from "$lib/components/leave/LeavePlanningPanel.svelte"; // Issue #840 (D-840-17)
@@ -541,6 +546,8 @@
       createEmployeeId = person ? person.id : "";
       createInitialDate = createLink.date ?? today;
       createModalOpen = true;
+      // Issue #992: the link has done its job; a reload must not open the dialog again.
+      replaceState(withoutLeaveCreateDeepLink(new URL(page.url.href)), page.state);
     }
   }
 
@@ -1111,7 +1118,7 @@
         {#if canManagePlan}
           <button
             type="button"
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary sm"
             data-testid="leave-plan-manage"
             onclick={() => (manageOpen = true)}
           >
@@ -1119,11 +1126,11 @@
           </button>
         {/if}
       {:else if canCreateForOthers}
-        <button class="btn btn-primary btn-sm" onclick={openCreate}>Abwesenheit eintragen</button>
+        <button class="btn btn-primary sm" onclick={openCreate}>Abwesenheit eintragen</button>
       {/if}
       <button
         type="button"
-        class="btn btn-secondary btn-sm"
+        class="btn btn-secondary sm"
         data-testid="leave-team-ical"
         onclick={() => (icalOpen = true)}
       >
@@ -1236,6 +1243,7 @@
           styles={overviewLegend.styles}
           markings={overviewLegend.markings}
           closedHint={overviewLegend.closedHint}
+          yearEdge={overviewPeriod.zoom === "jahr"}
         />
       </div>
     {:else if value === "antraege"}
@@ -1364,15 +1372,18 @@
                         <!-- #840 (E-02): decisions are made in the inbox only; the action is offered
                    to approvers (Pitfall 7: a reader sees the badge without it). -->
                         {#if canApproveHint}
-                          <a
-                            data-testid={req.status === "CANCELLATION_REQUESTED"
-                              ? `leave-team-row-${req.id}-review-cancel`
-                              : `leave-team-row-${req.id}-review`}
-                            class="btn btn-sm btn-ghost"
-                            href={`/inbox?request=${req.id}&year=${req.startDate.slice(0, 4)}`}
-                          >
-                            Im Posteingang prüfen
-                          </a>
+                          {@const reviewHref = inboxRequestHref(req.id, req.startDate)}
+                          {#if reviewHref}
+                            <a
+                              data-testid={req.status === "CANCELLATION_REQUESTED"
+                                ? `leave-team-row-${req.id}-review-cancel`
+                                : `leave-team-row-${req.id}-review`}
+                              class="btn btn-sm btn-ghost"
+                              href={reviewHref}
+                            >
+                              In Aufgaben prüfen
+                            </a>
+                          {/if}
                         {:else}
                           <InfoHint
                             testId={`leave-team-row-${req.id}-decider-hint`}
@@ -1732,9 +1743,15 @@
     min-width: 0;
   }
 
-  .lv-people,
   .lv-planner {
     flex: 1 1 18rem;
+    min-width: 0;
+  }
+
+  /* Issue #992 (N-02): the people toolbar takes a row of its own, so search and „+ Filter“ stay on one
+     line instead of wrapping inside a container squeezed beside the period control. */
+  .lv-people {
+    flex: 1 1 100%;
     min-width: 0;
   }
 
@@ -1878,8 +1895,6 @@
   .review-label {
     font-size: 0.75rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--text-2);
   }
   .review-value {

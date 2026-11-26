@@ -471,6 +471,9 @@ defineVisibilityWalkthrough({
           page.getByRole("option", { name: /Wegprobe, Zeiten/ }),
           "Wegprobe",
         );
+        // #992 N-05: the chosen person and the day are part of the address (a link can be passed on).
+        await expect(page).toHaveURL(/employeeId=[0-9a-f-]{36}/);
+        await expect(page).toHaveURL(/date=\d{4}-\d{2}-\d{2}/);
       },
       // The first thing a pick shows is the chosen person's month figures; on a phone the calendar
       // starts below that strip (the Liste step brings its view into view).

@@ -1018,7 +1018,7 @@
         <div class="form-group form-group--full">
           <div class="overlap-box">
             <p class="overlap-title">
-              Kolleg:innen im gleichen Zeitraum
+              Im gleichen Zeitraum abwesend
               {#if overlapLoading}<Skeleton inline width={6} />{/if}
             </p>
             {#if !overlapLoading && overlapEntries.filter((o) => o.status === "APPROVED").length === 0}

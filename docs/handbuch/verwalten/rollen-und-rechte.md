@@ -20,15 +20,15 @@ Wer keine Rolle hat, kann sich nicht anmelden.
 
 Clokr bringt sieben Systemrollen mit. Diese Rollen sind fest, du siehst sie, kannst sie aber nicht ändern oder löschen. Willst du eine abgewandelte Fassung, **kopierst** du die Rolle und passt die Kopie an.
 
-| Rolle                 | Wofür sie gedacht ist                                                                                                                                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Mitarbeiter**       | die eigenen Daten: eigene Zeiten, Abwesenheiten, Dienstplan und Konto                                                                                                |
-| **Manager**           | Anträge und Zeitnachträge entscheiden, Team-Ansichten, Berichte, Schichtplanung                                                                                      |
-| **Admin**             | die Verwaltung des Unternehmens: Personen, Regeln, Daten und System                                                                                                  |
-| **Inhaber**           | alle Rechte                                                                                                                                                          |
-| **Salonmanager**      | die Führung eines oder mehrerer Salons: Zeiten, Anträge, Dienstplan und Urlaubsplanung des Salons. Verträge, Saldo, Monatsabschluss und Berichte gehören nicht dazu. |
-| **Personalabteilung** | Personen-, Vertrags- und Urlaubsdaten sowie Berichte lesen. Die Tageszeiten der Personen gehören nicht dazu.                                                         |
-| **Ausbilder**         | für Ausbilderinnen und Ausbilder, vergeben für ausgewählte Personen                                                                                                  |
+| Rolle                 | Wofür sie gedacht ist                                                                                                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mitarbeiter**       | die eigenen Daten: eigene Zeiten, Abwesenheiten, Dienstplan und Konto                                                                                                                                                        |
+| **Manager**           | Anträge und Zeitnachträge entscheiden, Team-Ansichten, Berichte, Schichtplanung                                                                                                                                              |
+| **Admin**             | die Verwaltung des Unternehmens: Personen, Regeln, Daten und System                                                                                                                                                          |
+| **Inhaber**           | alle Rechte                                                                                                                                                                                                                  |
+| **Salonmanager**      | die Führung eines oder mehrerer Salons: Zeiten, Anträge, Dienstplan und Urlaubsplanung des Salons. Verträge, Saldo und Monatsabschluss gehören nicht dazu; unter Berichte sieht die Rolle nur die Reiter Heute und Verläufe. |
+| **Personalabteilung** | Personen-, Vertrags- und Urlaubsdaten sowie Berichte lesen. Die Tageszeiten der Personen gehören nicht dazu.                                                                                                                 |
+| **Ausbilder**         | für Ausbilderinnen und Ausbilder, vergeben für ausgewählte Personen                                                                                                                                                          |
 
 Wer als Salonmanager, Personalabteilung oder Ausbilder selbst arbeitet, bekommt zusätzlich die Rolle Mitarbeiter für die eigenen Daten.
 

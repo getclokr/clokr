@@ -30,6 +30,7 @@
   import FormField from "$components/ui/FormField.svelte";
   import Note from "$components/ui/Note.svelte";
   import Chip from "$components/ui/Chip.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
   import AttestFields from "./AttestFields.svelte";
@@ -61,6 +62,7 @@
   import { reviewResultToast, type DirectDecision } from "$lib/leave/review-facts"; // Issue #853 (S-29)
   import LeaveDecisionFacts from "./LeaveDecisionFacts.svelte"; // Issue #941: the facts, one place
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import { dayRangeLabel } from "$lib/utils/day-label"; // Issue #992 D-992-16
 
   interface Props {
     /** Bindable open state. The page owns the boolean, exactly like Modal/ConfirmDialog. */
@@ -147,11 +149,9 @@
   });
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function fmtDate(iso: string): string {
-    if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
-  }
+  // Issue #992 (N-09): the reject button is described by the reason field's help line.
+  const uid = $props.id();
+  const reasonHelpId = `${uid}-reason-help`;
 
   let approvedOverlap = $derived(overlap.filter((o) => o.status === "APPROVED"));
   let isCancellationReview = $derived(request?.status === "CANCELLATION_REQUESTED");
@@ -376,7 +376,7 @@
 
       <!-- Overlapping colleagues -->
       <section class="overlap-box review-section">
-        <p class="overlap-title">Kolleg:innen im gleichen Zeitraum</p>
+        <p class="overlap-title">Im gleichen Zeitraum abwesend</p>
         {#if loadingOverlap}
           <Skeleton shape="line" />
         {:else if approvedOverlap.length === 0}
@@ -387,7 +387,9 @@
               <div class="overlap-row">
                 <span class="overlap-name">{o.employeeName}</span>
                 <Chip>{o.typeName ?? NEUTRAL_CHIP_LABEL}</Chip>
-                <span class="overlap-dates">{fmtDate(o.startDate)} – {fmtDate(o.endDate)}</span>
+                <span class="overlap-dates"
+                  >{dayRangeLabel(o.startDate, o.endDate, { year: true })}</span
+                >
               </div>
             {/each}
           </div>
@@ -395,11 +397,12 @@
       </section>
 
       {#if showsBurlgSection7Notice(request.typeCode)}
-        <div class="review-section">
+        <div class="review-section hint-row" data-testid="review-burlg-notice">
           <Note tone="info">
-            <b>BUrlG § 7:</b> Urlaubsantrag muss zeitnah entschieden werden — gewährter Urlaub muss im
-            laufenden Jahr gewährt werden, andernfalls verfällt er gem. § 7 Abs. 3 zum 31.03. des Folgejahres.
+            Entscheide zeitnah: Urlaub muss im laufenden Jahr gewährt werden, sonst kann er am 31.
+            März des Folgejahres verfallen.
           </Note>
+          <InfoHint text="Grundlage: § 7 Abs. 3 BUrlG" label={hintLabel("Urlaub verfällt")} />
         </div>
       {/if}
 
@@ -417,7 +420,7 @@
 
       <!-- Review note: the reason is required for a rejection (Issue #853, D-853-09) -->
       <div class="review-section">
-        <FormField label="Begründung" help="Pflicht beim Ablehnen">
+        <FormField label="Begründung" help="Pflicht beim Ablehnen" helpId={reasonHelpId}>
           {#snippet field({ id, describedBy, invalid })}
             <input
               {id}
@@ -456,22 +459,18 @@
       >
         Abbrechen
       </button>
-      <span class="spacer"></span>
       {#if isSelfApproval}
         <p class="text-muted self-approval-note" data-testid="leave-approval-modal-self-block">
           {SELF_APPROVAL_TEXT}
         </p>
       {:else if isDecidable}
-        {#if reasonMissing}
-          <p class="text-muted reason-hint" id="review-reason-hint">Bitte nenne einen Grund.</p>
-        {/if}
         {#if isCancellationReview}
           <button
             data-testid="leave-cancel-approval-modal-reject"
             class="btn btn-secondary"
             onclick={() => submitReview("REJECTED")}
             disabled={saving || reasonMissing}
-            aria-describedby={reasonMissing ? "review-reason-hint" : undefined}
+            aria-describedby={reasonMissing ? reasonHelpId : undefined}
           >
             {saving ? "…" : "Stornierung ablehnen"}
           </button>
@@ -489,7 +488,7 @@
             class="btn btn-secondary"
             onclick={() => submitReview("REJECTED")}
             disabled={saving || reasonMissing}
-            aria-describedby={reasonMissing ? "review-reason-hint" : undefined}
+            aria-describedby={reasonMissing ? reasonHelpId : undefined}
           >
             {saving ? "…" : "Ablehnen"}
           </button>
@@ -577,10 +576,9 @@
     font-size: var(--fs-sm);
     margin-left: auto;
   }
-  .self-approval-note,
-  .reason-hint {
+  .self-approval-note {
     font-size: var(--fs-sm);
-    margin: 0 auto 0 0;
+    margin: 0;
   }
   .footer-note {
     font-size: var(--fs-sm);

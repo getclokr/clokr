@@ -135,3 +135,17 @@ describe("SegmentedControl - v2 token recipe (D-843-01 item 7)", () => {
     expect(style).toMatch(/\.seg-btn:focus-visible\s*\{[^}]*outline:[^;]*var\(--brand\)/);
   });
 });
+
+describe("SegmentedControl - wrap (Issue #992 N-21)", () => {
+  it("wraps by default (#945) and keeps one row with wrap={false}", () => {
+    const wrapping = mount();
+    expect(wrapping.container.querySelector(".seg-control--nowrap")).toBeNull();
+    cleanup();
+    const oneRow = mount({ wrap: false });
+    expect(oneRow.container.querySelector(".seg-control--nowrap")).toBeTruthy();
+  });
+
+  it("the scoped rule of the one-row track switches the wrapping off", () => {
+    expect(segmentSource).toMatch(/\.seg-control--nowrap\s*\{[^}]*flex-wrap:\s*nowrap/);
+  });
+});

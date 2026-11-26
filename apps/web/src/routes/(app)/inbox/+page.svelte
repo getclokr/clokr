@@ -1007,6 +1007,7 @@
           name="aufgaben-typ"
           ariaLabel="Art der Aufgabe"
           size="sm"
+          wrap={false}
           onchange={onTypSelected}
         />
       </div>

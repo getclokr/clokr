@@ -275,6 +275,11 @@
       "file": "apps/e2e/tests/appearance-mode-975.spec.ts",
       "category": "in-ci",
       "reason": "Issue #975 proof that the colour mode follows the device without a light flash: with every /_app script aborted the login page is dark on a dark device, light on a light device and light with a stored light choice, so only the pre-paint script of app.html and its CSP nonce can have set data-mode; with the app running a device switch flips data-mode live; for the tenant fixture admin an account choice (PUT /me/preferences light) wins over the dark device after a reload and system follows it again; the profile shows Wie Gerät checked for a person who never chose. Needs the running stack with the tenant fixture; tenant fixture only, no seed, no date dependency; CI (the e2e-ci project) is the arbiter, not a local run."
+    },
+    {
+      "file": "apps/e2e/tests/roster-tabs-geometry-992.spec.ts",
+      "category": "in-ci",
+      "reason": "Issue #992 (N-12) geometry proof that the four Dienstplan tabs (Woche, Bedarf, Hinweise, Verfügbarkeit) are one page: at 1440 x 900 the h1 and the tab strip (the navigation named Dienstplan) have the same top edge on all four tabs, within one pixel, so switching a tab never makes the head jump. Needs only the tenant fixture admin (the availability feature defaults to on, so the fourth tab exists); no seed, no data, no date dependency, no sleeps. CI (the e2e-ci project) is the arbiter, not a local run."
     }
   ]
 }

@@ -122,7 +122,7 @@ describe("LeaveReviewDialog", () => {
     it.each(ALL_CODES)("%s", (code) => {
       renderDialog({ typeCode: code });
       const expected = showsBurlgSection7Notice(code);
-      const notice = screen.queryByText("BUrlG § 7:");
+      const notice = screen.queryByTestId("review-burlg-notice");
       if (expected) {
         expect(notice).toBeTruthy();
       } else {
@@ -403,15 +403,17 @@ describe("LeaveReviewDialog - a rejection needs a reason (#853)", () => {
     [false, "PENDING"],
     [true, "CANCELLATION_REQUESTED"],
   ] as const)(
-    "the hint is shown and referenced by aria-describedby (cancellation: %s)",
+    "the reject button is described by the field's help line, no reason text sits in the footer (cancellation: %s, Issue #992 N-09)",
     async (cancellation, status) => {
       renderDialog({ status });
-      const hint = screen.getByText(REASON_TEXT);
-      expect(hint.id).toBe("review-reason-hint");
-      expect(rejectButton(cancellation).getAttribute("aria-describedby")).toBe(hint.id);
-      // The hint goes away together with the missing reason.
-      await fireEvent.input(reasonField(cancellation), { target: { value: "Grund" } });
       expect(screen.queryByText(REASON_TEXT)).toBeNull();
+      const describedBy = rejectButton(cancellation).getAttribute("aria-describedby");
+      expect(describedBy).toBeTruthy();
+      expect(document.getElementById(describedBy as string)?.textContent).toBe(
+        "Pflicht beim Ablehnen",
+      );
+      // The description goes away together with the missing reason.
+      await fireEvent.input(reasonField(cancellation), { target: { value: "Grund" } });
       expect(rejectButton(cancellation).getAttribute("aria-describedby")).toBeNull();
     },
   );
@@ -600,22 +602,21 @@ describe("LeaveReviewDialog - decision facts (#853)", () => {
     expect(screen.queryByTestId("review-fact-home-salon")).toBeNull();
   });
 
-  it("Stammsalon: absent when the caller reaches only one salon (no choice, nothing to tell apart)", async () => {
+  it("Stammsalon: shown when the caller reaches only one salon of a multi-salon company (Issue #992 S-27)", async () => {
     await loadSalonContext({ ...CONTEXT, salons: [{ id: "salon-nord", name: "Salon Nord" }] });
     answerWith({ "/employees/emp-1/salon-assignments": ASSIGNMENTS });
     renderFacts({ canReadEmployee: true });
-    await waitFor(() => expect(paths()).toContain("/employees/emp-1/salon-assignments"));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(screen.queryByTestId("review-fact-home-salon")).toBeNull();
+    const line = await screen.findByTestId("review-fact-home-salon");
+    expect(line.textContent).toContain("Salon Nord");
   });
 
-  it("Stammsalon: absent when the salon is outside the caller's reachable list", async () => {
+  it("Stammsalon: a salon outside the caller's reachable list reads „Anderer Stammsalon“, never its name (Issue #992 S-27, #949)", async () => {
     await loadSalonContext({ ...CONTEXT, salons: [{ id: "salon-ost", name: "Salon Ost" }] });
     answerWith({ "/employees/emp-1/salon-assignments": ASSIGNMENTS });
     renderFacts({ canReadEmployee: true });
-    await waitFor(() => expect(paths()).toContain("/employees/emp-1/salon-assignments"));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(screen.queryByTestId("review-fact-home-salon")).toBeNull();
+    const line = await screen.findByTestId("review-fact-home-salon");
+    expect(line.textContent).toContain("Anderer Stammsalon");
+    expect(line.textContent).not.toContain("Salon Nord");
   });
 
   it("Stammsalon: absent while the salon context is not loaded", async () => {
@@ -693,7 +694,7 @@ describe("LeaveReviewDialog - decision facts (#853)", () => {
     answerWith({ "/shifts/range": [] });
     renderFacts({ canReadShifts: true });
     const block = await screen.findByTestId("review-fact-shifts");
-    expect(block.textContent).toContain("Keine geplanten Schichten sichtbar");
+    expect(block.textContent).toContain("Keine Schichten im Dienstplan");
     expect(block.querySelectorAll("li").length).toBe(0);
   });
 

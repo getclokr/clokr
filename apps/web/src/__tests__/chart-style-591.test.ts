@@ -18,6 +18,7 @@
 //   G5  every `<canvas` of a walked `.svelte` file carries `role="img"` and an
 //       `aria-label={chartAriaLabel(...)}` - never a literal text
 //   G6  no hex or rgb/hsl colour literal in `lib/utils/chart-theme.ts` or in a builder file
+//   G8  (runtime, Issue #992 N-15) every builder draws without animation: `options.animation === false`
 //   G7  no walked file builds a report URL by hand: a string or template literal that starts with
 //       `/reports?` and contains `from=` is a violation - the query comes from `periodSearch` of
 //       `$lib/reports/period-state` (D-591-3)
@@ -314,6 +315,11 @@ function deepTensions(value: unknown, found: unknown[] = []): unknown[] {
 
 // ── Anti-vacuity and positive controls ─────────────────────────────────────────────────────────
 
+/** G8: a chart config that switches chart.js' entry animation off. */
+function drawsWithoutAnimation(config: { options?: unknown }): boolean {
+  return (config.options as { animation?: unknown } | undefined)?.animation === false;
+}
+
 describe("Issue #591 - the chart style guard looks at a real source tree", () => {
   it("walks a real source tree (vacuity)", () => {
     expect(WALKED.length).toBeGreaterThan(WALK_FLOOR);
@@ -370,6 +376,12 @@ describe("Issue #591 - the chart style guard looks at a real source tree", () =>
     expect(hasHandBuiltReportUrl('"/reports?from=2026-01"')).toBe(true);
     expect(hasHandBuiltReportUrl("`/reports?${periodSearch(state)}`")).toBe(false);
     expect(hasHandBuiltReportUrl('href="/reports"')).toBe(false);
+
+    // G8 controls: an in-memory config without the switch fails, one with it passes.
+    expect(drawsWithoutAnimation({ options: { responsive: true } })).toBe(false);
+    expect(drawsWithoutAnimation({ options: { animation: { duration: 400 } } })).toBe(false);
+    expect(drawsWithoutAnimation({})).toBe(false);
+    expect(drawsWithoutAnimation({ options: { animation: false } })).toBe(true);
 
     expect(isChartFile("const c = new Chart(el, x);")).toBe(true);
     expect(isChartFile('import { Chart } from "chart.js";')).toBe(true);
@@ -465,6 +477,8 @@ describe("Issue #591 - one chart style (D-591-5)", () => {
           chartJsType(descriptor.kind),
         );
         expect(chartAriaLabel(descriptor), name).toMatch(/, in (Stunden|Kalendertagen)$/);
+        // G8: the bars appear with their axes (Issue #992 N-15); the Skeleton covers the load.
+        expect(drawsWithoutAnimation(config), `${name}: options.animation is false`).toBe(true);
         if (signed) {
           const color = axis?.grid?.color;
           expect(typeof color, `${name}: a signed series draws a zero line`).toBe("function");

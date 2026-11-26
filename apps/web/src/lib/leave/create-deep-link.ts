@@ -26,3 +26,14 @@ export function parseLeaveCreateDeepLink(
     date: normalizeDateParam(params.get("date")),
   };
 }
+
+/**
+ * Issue #992: the address after the create link was applied. `create`, `employeeId` and `date` belong
+ * only to the create link on this page, so they are dropped once the dialog is open — a reload or
+ * the back button never opens the dialog a second time. Every other parameter stays.
+ */
+export function withoutLeaveCreateDeepLink(url: URL): URL {
+  const next = new URL(url.href);
+  for (const key of ["create", "employeeId", "date"]) next.searchParams.delete(key);
+  return next;
+}

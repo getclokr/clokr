@@ -67,7 +67,7 @@ const PERSONALABTEILUNG_PERMISSIONS = [
 
 describe("visibleTeamNavItems", () => {
   // #844: new URLs (Heute im Salon first); Berichte left the Team area for Verwalten (Z-03)
-  it("AK-378-1: Salonmanager sees Heute im Salon, Aufgaben, Zeiten, Abwesenheiten, Dienstplan — not Berichte", () => {
+  it("AK-378-1: Salonmanager sees Heute im Salon, Aufgaben, Zeiten, Abwesenheiten, Dienstplan and (since #992) Berichte", () => {
     const items = visibleTeamNavItems({ permissions: SALONMANAGER_PERMISSIONS });
     const hrefs = items.map((i) => i.href);
     expect(hrefs).toEqual([
@@ -76,10 +76,12 @@ describe("visibleTeamNavItems", () => {
       "/team/zeiten",
       "/team/abwesenheiten",
       "/team/dienstplan",
+      "/team/berichte", // #992 N-15: she holds team-overview:read, which the page serves Heute and Verläufe
       "/team/personen", // #853: the read-only team directory (employee:read, no person-management right)
     ]);
-    // The Salonmanager template holds no report:read, so Berichte stays hidden for her (#936 moved it to Team).
-    expect(hrefs).not.toContain("/team/berichte");
+    // Owner decision 25.11.2026 on #992 (N-15): the Salonmanager template still holds no report:read, but the
+    // page serves her the tabs Heute and Verläufe through team-overview:read, so the menu shows it.
+    expect(hrefs).toContain("/team/berichte");
   });
 
   it("AK-378-2: Ausbilder sees only Team-Zeiten, Abwesenheiten — no Aufgaben, no Schichtplanung, no Berichte", () => {
@@ -146,6 +148,7 @@ describe("visibleTeamNavItems", () => {
       "/team/zeiten",
       "/team/abwesenheiten",
       "/team/dienstplan",
+      "/team/berichte",
       "/team/personen",
     ]);
   });

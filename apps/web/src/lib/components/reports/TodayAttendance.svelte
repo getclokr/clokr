@@ -36,6 +36,18 @@
 
   const showAttendanceActions = $derived(canAddTeamEntry || canRecordTeamAbsence);
 
+  // Issue #992 (D-992-03): the action column exists only when at least one row offers an action - a
+  // „Fehlt“ row with a day link the rights allow. Otherwise it was an empty column of headings.
+  const hasActionRows = $derived(
+    showAttendanceActions &&
+      (attendance?.employees ?? []).some(
+        (row) =>
+          row.status === "missing" &&
+          ((canAddTeamEntry && teamDayHref(row.id, attendance?.date ?? "") !== null) ||
+            (canRecordTeamAbsence && teamLeaveCreateHref(row.id, attendance?.date ?? "") !== null)),
+      ),
+  );
+
   const summaryItems = $derived.by((): KpiItem[] => {
     if (attendance === null) return [];
     const { summary } = attendance;
@@ -50,12 +62,10 @@
   });
 
   const columns = $derived<DataTableColumn[]>([
-    { key: "name", label: "Mitarbeiter", primary: true },
+    { key: "name", label: "Person", primary: true },
     { key: "employeeNumber", label: "Nr." },
     { key: "status", label: "Status" },
-    ...(showAttendanceActions
-      ? [{ key: "actions", label: "Aktionen", align: "end" as const }]
-      : []),
+    ...(hasActionRows ? [{ key: "actions", label: "Aktionen", align: "end" as const }] : []),
   ]);
 
   // The status vocabulary stays the API's (#587); the chip only picks the tone.
@@ -115,7 +125,12 @@
   {:else if column.key === "employeeNumber"}
     {row.employeeNumber}
   {:else if column.key === "status"}
-    <Chip tone={STATUS_TONE[row.status]}>{attendanceStatusText(row)}</Chip>
+    {#if row.status === "none"}
+      <!-- #992 N-14: „—“ in a chip is no status; nobody planned this person, so it is quiet text. -->
+      <span class="ta-quiet">Nicht eingeplant</span>
+    {:else}
+      <Chip tone={STATUS_TONE[row.status]}>{attendanceStatusText(row)}</Chip>
+    {/if}
     {#if row.workedElsewhere}
       <Chip tone="neutral" title="In einem anderen Salon gearbeitet">anderer Salon</Chip>
     {/if}
@@ -125,10 +140,10 @@
         {@const entryHref = teamDayHref(row.id, attendance.date)}
         {@const absenceHref = teamLeaveCreateHref(row.id, attendance.date)}
         {#if canAddTeamEntry && entryHref !== null}
-          <a class="btn btn-ghost" href={entryHref}>Eintrag nachtragen</a>
+          <a class="btn btn-ghost" href={entryHref}>Zeit nachtragen</a>
         {/if}
         {#if canRecordTeamAbsence && absenceHref !== null}
-          <a class="btn btn-ghost" href={absenceHref}>Abwesenheit erfassen</a>
+          <a class="btn btn-ghost" href={absenceHref}>Abwesenheit eintragen</a>
         {/if}
       {/if}
     </div>
@@ -136,6 +151,10 @@
 {/snippet}
 
 <style>
+  .ta-quiet {
+    color: var(--text-2);
+  }
+
   .attendance-date {
     color: var(--text);
     font-weight: 600;

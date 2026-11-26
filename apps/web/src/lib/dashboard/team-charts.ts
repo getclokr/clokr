@@ -115,6 +115,8 @@ export function teamSickDaysChartConfig(
       responsive: defaults.responsive,
       maintainAspectRatio: defaults.maintainAspectRatio,
       locale: defaults.locale,
+      // Issue #992 N-15: the bars appear with their axes; the Skeleton covers the load.
+      animation: false,
       plugins: {
         legend: { display: false },
         tooltip: defaults.plugins.tooltip,
@@ -188,6 +190,8 @@ export function teamHoursChartConfig(
       responsive: defaults.responsive,
       maintainAspectRatio: defaults.maintainAspectRatio,
       locale: defaults.locale,
+      // Issue #992 N-15: the bars appear with their axes; the Skeleton covers the load.
+      animation: false,
       plugins: {
         legend: { position: "bottom", labels: defaults.plugins.legend.labels },
         tooltip: defaults.plugins.tooltip,
@@ -239,6 +243,8 @@ export function teamSaldoTrendChartConfig(
       responsive: defaults.responsive,
       maintainAspectRatio: defaults.maintainAspectRatio,
       locale: defaults.locale,
+      // Issue #992 N-15: the bars appear with their axes; the Skeleton covers the load.
+      animation: false,
       plugins: {
         legend: { display: false },
         tooltip: defaults.plugins.tooltip,

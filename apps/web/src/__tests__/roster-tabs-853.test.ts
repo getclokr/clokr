@@ -28,7 +28,8 @@ const HINWEISE = readRouteFile(
   "src/routes/(app)/shifts/conflicts/+page.svelte",
 );
 
-const TAB_STRIP = /<PageTabs\b[^>]*\/>/;
+// Issue #992: the strip is rendered by `RosterHead` (head + PageTabs of the four tabs), so the pins read its tag.
+const TAB_STRIP = /<RosterHead\b[^>]*>/;
 
 describe("Dienstplan tabs - Woche and Hinweise sit on the route table's link tabs", () => {
   it("[floor] the walked sources are the real pages", () => {
@@ -49,7 +50,7 @@ describe("Dienstplan tabs - Woche and Hinweise sit on the route table's link tab
   it("[woche] the strip is built from rosterTabs() and marks /team/dienstplan", () => {
     expect(WOCHE.match(/rosterTabs\(/g)).toHaveLength(1);
     const strip = TAB_STRIP.exec(WOCHE);
-    expect(strip, "no <PageTabs … /> on the Woche page").not.toBeNull();
+    expect(strip, "no <RosterHead …> on the Woche page").not.toBeNull();
     expect(strip![0]).toContain("tabs={rosterTabsList}");
     expect(strip![0]).toContain('tab="/team/dienstplan"');
   });
@@ -57,7 +58,7 @@ describe("Dienstplan tabs - Woche and Hinweise sit on the route table's link tab
   it("[hinweise] the strip is built from rosterTabs() and marks /team/dienstplan/konflikte", () => {
     expect(HINWEISE.match(/rosterTabs\(/g)).toHaveLength(1);
     const strip = TAB_STRIP.exec(HINWEISE);
-    expect(strip, "no <PageTabs … /> on the Hinweise page").not.toBeNull();
+    expect(strip, "no <RosterHead …> on the Hinweise page").not.toBeNull();
     expect(strip![0]).toContain("tabs={rosterTabsList}");
     expect(strip![0]).toContain('tab="/team/dienstplan/konflikte"');
   });

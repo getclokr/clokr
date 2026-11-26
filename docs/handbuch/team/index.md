@@ -20,10 +20,10 @@ Der Bereich **Team** ist für Teamleitungen und alle, die Verantwortung für and
 
 - **Jetzt im Salon**: wer heute da ist, wer fehlt oder abwesend ist. Jede Zeile zeigt den Status der Person als Hinweis, zum Beispiel eingestempelt, fehlt, Feiertag oder abwesend. Ein Klick öffnet die Zeiten der Person, wenn du diese Seite nutzen darfst. Mit dem Filter schränkst du die Liste auf einen Status ein, **Alle zeigen** hebt ihn wieder auf.
 - **Fehlende Zeiten**: Personen mit Tagen ohne Eintrag in diesem Monat. Ein Klick führt zum ersten betroffenen Tag.
-- **Aufgaben**: die ersten offenen Anträge, direkt zu entscheiden. **Alle Aufgaben** öffnet [Team › Aufgaben](aufgaben.md).
+- **Aufgaben**: die ersten offenen Anträge. **Prüfen** öffnet den Antrag in [Team › Aufgaben](aufgaben.md), wo du entscheidest. **Alle Aufgaben** öffnet die ganze Liste.
 - **Demnächst abwesend**: wer in den nächsten Wochen fehlt. **Kalender** öffnet **Team › Abwesenheiten**.
 
-Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit eintragen**, wenn du die Rechte dafür hast.
+Oben rechts öffnen **Zeit eintragen** und **Abwesenheit eintragen** direkt den Dialog, wenn du die Rechte dafür hast; für eine Zeit wählst du zuerst die Person.
 
 <!-- SCREENSHOT file=bilder/team-01.png role=manager url=/team/heute show="Heute im Salon mit den Kennzahlen, der Liste Jetzt im Salon und den Abschnitten Fehlende Zeiten, Aufgaben und Demnächst abwesend" -->
 
@@ -33,7 +33,7 @@ Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit ein
 
 **Team › Abwesenheiten** zeigt die Urlaube, Krankmeldungen und anderen Abwesenheiten deines Teams. Oben wählst du den Zeitraum (Jahr, Quartal oder Monat) und blätterst vor und zurück. Es gibt drei Reiter:
 
-- **Übersicht**: eine Zeitleiste mit allen Personen. Standardmäßig siehst du deinen eigenen Personenkreis. Der Filter **Personenkreis** mit der Auswahl **Alle Salons** nimmt die übrigen Salons dazu. Mit „Person suchen“ findest du jemanden direkt. Unter der Leiste erklärt eine Legende die Farben.
+- **Übersicht**: eine Zeitleiste mit allen Personen. Standardmäßig siehst du deinen eigenen Personenkreis. Der Filter **Personenkreis** mit der Auswahl **Alle Salons** nimmt die übrigen Salons dazu. Mit „Person suchen“ findest du jemanden direkt. Unter der Leiste erklärt eine Legende die Farben. In der Jahresansicht stehen Wochen am Jahresrand schraffiert; ihre Tage gehören zum Nachbarjahr.
 - **Anträge**: alle Anträge des Teams als Liste, filterbar nach Status, Art und Person. Je nach Status und Rechten stehen pro Zeile Aktionen zur Verfügung, zum Beispiel **Korrigieren** oder **Attest erfassen**.
 - **Planung**: die Urlaubsplanung mit den Wünschen deines Teams. Mit **Planung verwalten** richtest du sie ein und übernimmst Wünsche.
 
@@ -41,6 +41,6 @@ Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit ein
 
 ## Personen
 
-**Team › Personen** ist die Nachschlageliste der Personen in deinem Bereich: Name mit Personalnummer, Stammsalon, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Über die Zeile gelangst du zu den Zeiten der Person, wenn du diese Seite nutzen darfst.
+**Team › Personen** ist die Nachschlageliste der Personen in deinem Bereich: Name mit Personalnummer (Nr.), Stammsalon, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Mit **Zeiten** in der Zeile gelangst du zu den Zeiten der Person, wenn du diese Seite nutzen darfst. Auf dem Telefon zeigen die Karten nur Name, Stammsalon, Vertrag und Status; Wochenstunden und Rollen siehst du in der Tabelle am Rechner.
 
 Hier bearbeitest du nichts. Daten einer Person ändert die Verwaltung unter **Verwalten › Personen**.

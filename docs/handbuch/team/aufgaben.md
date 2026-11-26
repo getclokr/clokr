@@ -31,12 +31,12 @@ Ein neuer Antrag löst eine Benachrichtigung aus. Die Benachrichtigung erscheint
 
 1. Öffne **Team › Aufgaben**.
 2. Genehmige oder lehne den Antrag direkt in der Zeile ab. **Ablehnen** fragt nach einem Grund, den du angeben musst. **Genehmigen** zeigt dir vorher die Fakten der Entscheidung und fragt nach.
-3. Möchtest du erst alles sehen, klicke auf den Titel der Zeile. Im Dialog „Antrag prüfen“ stehen Person, Art, Zeitraum, Umfang und die Anmerkung. Unter „Kolleg:innen im gleichen Zeitraum“ siehst du, wer sonst abwesend ist. Das hilft bei Engpässen.
+3. Möchtest du erst alles sehen, klicke auf den Titel der Zeile. Im Dialog „Antrag prüfen“ stehen Person, Art, Zeitraum, Umfang und die Anmerkung. Unter „Im gleichen Zeitraum abwesend“ siehst du, wer sonst abwesend ist. Das hilft bei Engpässen.
 4. Entscheide dort mit **Genehmigen** oder **Ablehnen**. Bei einer Ablehnung gibst du eine Begründung an („Pflicht beim Ablehnen“).
 
 Einige Hinweise können dabei erscheinen:
 
-- Bei einem Urlaubsantrag erinnert ein Hinweis an § 7 BUrlG: Der Antrag muss zeitnah entschieden werden. Gewährter Urlaub, der nicht im laufenden Jahr genommen wird, verfällt nach § 7 Abs. 3 BUrlG zum 31.03. des Folgejahres.
+- Bei einem Urlaubsantrag erinnert ein Hinweis an § 7 BUrlG: Der Antrag muss zeitnah entschieden werden. Urlaub muss im laufenden Jahr gewährt werden, sonst kann er nach § 7 Abs. 3 BUrlG am 31. März des Folgejahres verfallen.
 - Sind im Zeitraum Kundentermine gebucht, fragt Clokr vor der Genehmigung nach („Kundentermine im Zeitraum gebucht“). Mit **Trotzdem fortfahren** genehmigst du trotzdem.
 - Überschreitet die Genehmigung eine Urlaubsgrenze, bittest Clokr dich um eine **Begründung der Ausnahme**. Mit **Trotzdem genehmigen** bestätigst du sie.
 - Bei einer Krankmeldung kannst du vermerken, ob ein **Attest** vorliegt, mit Gültigkeitszeitraum.

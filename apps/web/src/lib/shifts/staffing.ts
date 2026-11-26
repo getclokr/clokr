@@ -93,3 +93,17 @@ export const ROSTER_LEGEND_PROBLEMS = {
 function staffingLegendUnder(): string {
   return `${staffingStatusText("under")} besetzt`;
 }
+
+/**
+ * Issue #992 (D-992-21) — the ONE tone of a day's Besetzung: the desktop staffing cell and the
+ * phone's day dot read it, so the same state never has two colours. A shortfall is `bad`, a missing
+ * supervision `warn`; a closed day has no Mindestbesetzung and is never a shortfall.
+ */
+export type StaffingTone = "ok" | "bad" | "warn" | "closed";
+
+export function staffingTone(status: StaffingStatus | undefined, closed: boolean): StaffingTone {
+  if (closed) return "closed";
+  if (status === "under") return "bad";
+  if (status === "supervision-missing") return "warn";
+  return "ok";
+}

@@ -12,13 +12,12 @@
   import { tenantFeatures } from "$stores/tenant-features";
   import { toasts } from "$stores/toast";
   import { rosterTabs } from "$lib/nav/routes";
-  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import RosterHead from "$lib/components/team/RosterHead.svelte";
   import DataTable, {
     type DataTableColumn,
     type DataTableSort,
   } from "$components/ui/DataTable.svelte";
   import { avatarIndex, initialsOf } from "$components/ui/ListRow.svelte";
-  import PageTabs from "$components/ui/PageTabs.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
   import {
     availabilityRows,
@@ -26,6 +25,7 @@
     sortAvailability,
     type AvailabilityEmployee,
   } from "$lib/team/availability-list";
+  import { personNumberLabel } from "$lib/team/personen-model"; // Issue #992 (S-22)
 
   let employees = $state<AvailabilityEmployee[]>([]);
   let loading = $state(true);
@@ -60,7 +60,7 @@
       employees = list ?? [];
     } catch (err) {
       const msg =
-        err instanceof ApiError ? err.message : "Mitarbeiter konnten nicht geladen werden.";
+        err instanceof ApiError ? err.message : "Die Personen konnten nicht geladen werden.";
       toasts.error(msg);
     } finally {
       loading = false;
@@ -77,11 +77,12 @@
   <title>{pageLabel("/admin/availability")} – Clokr</title>
 </svelte:head>
 
-<PageHead
+<RosterHead
   title={pageLabel("/admin/availability")}
   hint="Wer kann wann arbeiten? Wähle eine Person, um ihre Verfügbarkeit zu bearbeiten."
+  tabs={rosterTabsList}
+  tab="/team/verfuegbarkeit"
 />
-<PageTabs tabs={rosterTabsList} tab="/team/verfuegbarkeit" tabsLabel="Dienstplan" />
 
 <div class="page" data-testid="availability-page">
   <DataTable
@@ -116,7 +117,9 @@
           >
           <span class="av-text">
             <span class="av-title">{row.name}</span>
-            {#if row.number !== ""}<span class="av-number">{row.number}</span>{/if}
+            {#if personNumberLabel(row.number) !== ""}<span class="av-number"
+                >{personNumberLabel(row.number)}</span
+              >{/if}
           </span>
         </span>
       {:else if column.key === "open"}

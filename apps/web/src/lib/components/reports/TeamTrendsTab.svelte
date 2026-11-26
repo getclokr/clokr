@@ -95,6 +95,13 @@
   // ── What the caller may open ─────────────────────────────────────────────────
   const canSaldo = $derived(mayReadTeamSaldo($authStore.user));
   const reportTabs = $derived(reportRights($authStore.user).periodTabs);
+  // Issue #992 (D-992-02): the other Reiter and the month click exist only for a reader with a period tab.
+  const opensReports = $derived(reportTabs.includes("zeiten") || reportTabs.includes("urlaub"));
+  const trendsHint = $derived(
+    opensReports
+      ? "Die Verläufe zeigen immer die letzten sechs Monate — unabhängig vom Zeitraum der anderen Reiter. Ein Klick auf einen Monat öffnet den Bericht dieses Monats."
+      : "Die Verläufe zeigen immer die letzten sechs Monate.",
+  );
   const canOpenTeamDay = $derived(mayOpenTeamPage("/team/time-entries", $authStore.user));
 
   /** The click handler of a month chart for this report tab, or null when the tab is not offered. */
@@ -276,10 +283,7 @@
             <div class="hint-row">
               <h2 class="settings-group-title" id="trend-hours-title">Arbeitsstunden</h2>
               <!-- Issue #1058: the note about the three charts sits beside the first chart's heading. -->
-              <InfoHint
-                text="Die Verläufe zeigen immer die letzten sechs Monate, unabhängig vom Zeitraum der anderen Tabs. Ein Klick auf einen Monat öffnet den Bericht dieses Monats."
-                label={hintLabel("Arbeitsstunden")}
-              />
+              <InfoHint text={trendsHint} label={hintLabel("Arbeitsstunden")} />
             </div>
             <p class="settings-group-desc">{view?.chartSub ?? "Letzte 6 Monate"}</p>
           </div>

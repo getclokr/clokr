@@ -6,8 +6,10 @@
  *   AC-2  Every Kennzahl is a link to its filtered list (?status=… on the page, Aufgaben to Team ›
  *         Aufgaben).
  *   AC-3  A Salonmanager of one salon sees only the persons of that salon (reach rules #82/#84/#85).
- *   AC-5  „Genehmigen“ decides through the dialog of Aufgaben and acknowledges with a toast; the
- *         request is APPROVED on the server afterwards.
+ *   AC-6  „Abwesenheit eintragen“ in the head opens the dialog at once (Issue #992 N-07).
+ *   AC-5  An open request has one link „Prüfen“ (Issue #992 N-07, owner decision 25.11.2026: one
+ *         decision path); it opens the review dialog in Team › Aufgaben, where „Genehmigen“
+ *         decides and acknowledges with a toast; the request is APPROVED on the server afterwards.
  *
  * Own tenant per test (tenant fixture); persons and the second salon are created through the API,
  * the system role template ids are copied from SYSTEM_ROLE_IDS (this package cannot import apps/api).
@@ -95,6 +97,18 @@ async function tokenOf(request: APIRequestContext, email: string): Promise<strin
 }
 
 test.describe("Heute im Salon (#846)", () => {
+  test("„Abwesenheit eintragen“ in the head lands with the dialog open (Issue #992 N-07)", async ({
+    page,
+    tenant,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginAsTenantAdmin(page, tenant);
+    await page.goto("/team/heute");
+    await page.getByTestId("team-head-add-absence").click();
+    await expect(page).toHaveURL(/\/team\/abwesenheiten/);
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+
   test("every Kennzahl links to its filtered list and the four sit on the first screen (AC-1, AC-2)", async ({
     page,
     tenant,
@@ -169,8 +183,15 @@ test.describe("Heute im Salon (#846)", () => {
     await expect(week).toContainText("Heute nord");
     await expect(week).not.toContainText("Heute sued");
 
-    // D-03: decided through the dialog of Aufgaben, acknowledged in the toast status region
-    await page.getByRole("button", { name: "Genehmigen", exact: true }).first().click();
+    // Issue #992 N-07: Heute im Salon decides nothing - „Prüfen“ leads to the dialog of Aufgaben,
+    // where the decision is acknowledged in the toast status region (D-03)
+    await expect(page.getByRole("button", { name: "Genehmigen", exact: true })).toHaveCount(0);
+    await page
+      .getByTestId("team-tasks")
+      .getByRole("link", { name: "Prüfen", exact: true })
+      .first()
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/team/aufgaben\\?request=${leave.id}`));
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Genehmigen", exact: true }).click();

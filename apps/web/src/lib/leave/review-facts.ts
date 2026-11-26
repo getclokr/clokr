@@ -94,9 +94,9 @@ export function vacationBeforeAfter(input: VacationFactInput): VacationFact | nu
 
 const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
-/** Shown when no shift is returned. An out-of-scope person also yields an empty list, so the text
- *  is neutral: it never says that the person has no shifts. */
-export const NO_SHIFTS_TEXT = "Keine geplanten Schichten sichtbar";
+/** Shown when no shift is returned: the roster holds none in the period. The contract days of a
+ *  fixed-contract person are not readable for every reader (Issue #992 S-27, follow-up issue). */
+export const NO_SHIFTS_TEXT = "Keine Schichten im Dienstplan";
 
 export interface RangeShift {
   date: string;

@@ -87,11 +87,11 @@ describe("Issue #558 — Planungsbedarf follows the header salon", () => {
     expect(PAGE).toContain('<div class="callout error">{loadError}</div>');
   });
 
-  it("[label] the scope label sits once, directly after the page head", () => {
+  it("[label] the scope label sits once, directly after the page head (Issue #992: below the tabs)", () => {
     expect(PAGE.split("<SalonScopeLabel").length - 1).toBe(1);
-    const head = PAGE.indexOf("<PageHead");
+    const head = PAGE.indexOf("<RosterHead");
     expect(head).toBeGreaterThan(-1);
-    const after = PAGE.slice(head, head + 400);
+    const after = PAGE.slice(head, head + 600);
     expect(after).toContain("<SalonScopeLabel label={scopeLabel} rejected={salonRejected} />");
   });
 });

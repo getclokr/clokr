@@ -21,6 +21,11 @@
      * does not fit its segment wraps inside it instead of pushing one option onto a row of its own.
      */
     fill?: boolean;
+    /**
+     * Additive (#992 N-21): `false` keeps all options in ONE row that scrolls sideways inside its
+     * container instead of wrapping onto a further row (#945). The default `true` is unchanged.
+     */
+    wrap?: boolean;
     disabled?: boolean;
     onchange?: (value: string) => void;
   }
@@ -32,6 +37,7 @@
     ariaLabel,
     size = "md",
     fill = false,
+    wrap = true,
     disabled = false,
     onchange,
   }: Props = $props();
@@ -69,6 +75,7 @@
   class="seg-control seg-control--{size}"
   class:seg-control--disabled={disabled}
   class:seg-control--fill={fill}
+  class:seg-control--nowrap={!wrap}
   style:--seg-count={fill ? options.length : undefined}
   role="radiogroup"
   aria-label={ariaLabel ?? name}
@@ -111,6 +118,16 @@
     background: var(--sunk);
     border: 1px solid var(--line);
     border-radius: var(--seg-radius);
+  }
+
+  /* #992 (N-21): one row, the container scrolls it when it is wider than the screen. */
+  .seg-control--nowrap {
+    flex-wrap: nowrap;
+    max-width: none;
+  }
+  .seg-control--nowrap .seg-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .seg-control--md {

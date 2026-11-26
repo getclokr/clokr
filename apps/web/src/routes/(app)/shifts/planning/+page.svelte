@@ -12,13 +12,12 @@
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDayAnchor } from "$lib/utils/tenant-day";
-  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import RosterHead from "$lib/components/team/RosterHead.svelte";
   import { pageLabel } from "$lib/nav/page-labels";
   import { rosterTabs } from "$lib/nav/routes";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
   import EmptyState from "$components/ui/EmptyState.svelte";
-  import PageTabs from "$components/ui/PageTabs.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import {
     isSalonFilterRejected,
@@ -26,9 +25,13 @@
     salonScopeLabel,
     withSalonId,
   } from "$lib/salons/page-scope"; // Issue #558 (D-03/D-04/D-07)
-  import { mondayOfWeek, planningWeekLabel } from "$lib/shifts/planning-week"; // Issue #849
+  import {
+    differenceLabel,
+    mondayOfWeek,
+    plannedLabel,
+    planningWeekLabel,
+  } from "$lib/shifts/planning-week"; // Issues #849, #992
   import { formatDayCount } from "$lib/leave/leave-days-label"; // Issue #853-19
-  import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
 
   interface PlanningRow {
     employeeId: string;
@@ -81,11 +84,11 @@
   const PLANNING_COLUMNS: DataTableColumn[] = [
     { key: "name", label: "Person", primary: true },
     { key: "contract", label: "Vertrag" },
-    { key: "leave", label: "Urlaub diese Woche (Tage)" },
-    { key: "toPlan", label: "noch einzuplanen" },
+    { key: "leave", label: "Urlaub diese Woche" },
+    { key: "toPlan", label: "Noch einzuplanen" },
   ];
   const PLANNED_COLUMNS: DataTableColumn[] = [
-    { key: "planned", label: "geplant" },
+    { key: "planned", label: "Geplant" },
     { key: "difference", label: "Differenz" },
   ];
   const columns = $derived(
@@ -100,8 +103,8 @@
       contract: formatDayCount(e.contractDays),
       leave: leaveCell(e),
       toPlan: formatDayCount(e.stillToPlan),
-      planned: e.plannedDays ?? "–",
-      difference: e.difference ?? "–",
+      planned: plannedLabel(e.plannedDays),
+      difference: differenceLabel(e.difference),
     })),
   );
 
@@ -166,8 +169,8 @@
   }
 
   function leaveCell(row: PlanningRow): string {
-    if (row.leaveDays === 0) return "0";
-    return `${formatDays(row.leaveDays)} (${row.leaveWeekdays.join(", ")})`;
+    if (row.leaveDays === 0) return formatDayCount(0);
+    return `${formatDayCount(row.leaveDays)} (${row.leaveWeekdays.join(", ")})`;
   }
 
   // Issue #558: this effect starts the first load (once the salon context is known, so the first
@@ -184,12 +187,13 @@
   <title>{pageLabel("/shifts/planning")} – Clokr</title>
 </svelte:head>
 
-<PageHead
+<RosterHead
   title={pageLabel("/shifts/planning")}
   hint="Wie viele Tage pro Person in dieser Woche noch einzuplanen sind: Vertrag, Urlaub und, sobald Schichten bestehen, der Plan."
+  tabs={rosterTabsList}
+  tab="/team/dienstplan/planung"
 />
 <SalonScopeLabel label={scopeLabel} rejected={salonRejected} />
-<PageTabs tabs={rosterTabsList} tab="/team/dienstplan/planung" tabsLabel="Dienstplan" />
 
 <div class="page" data-testid="shifts-planning-page">
   <!-- One toolbar row (prototype .toolbar2): the week on the left. The scope label sits right under the head. -->

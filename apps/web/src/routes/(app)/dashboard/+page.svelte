@@ -9,11 +9,6 @@
       Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
     );
   }
-
-  function formatShortDate(dateStr: string): string {
-    const d = new Date(dateStr + "T00:00:00");
-    return `${d.getDate()}.${d.getMonth() + 1}.`;
-  }
 </script>
 
 <script lang="ts">
@@ -71,6 +66,9 @@
     teamMissingTitle,
   } from "$lib/dashboard/day-status-label"; // Issue #587 (P-06)
   import { teamDayHref, teamCellAriaLabel } from "$lib/dashboard/team-day-links"; // Issue #587 (D-587-4), #588
+  import { teamBandTexts, teamHeadActions } from "$lib/dashboard/heute-im-salon"; // Issue #992 N-07, N-08
+  import { reportRights } from "$lib/page-rights"; // Issue #992 N-07
+  import { dayRangeLabel } from "$lib/utils/day-label"; // Issue #992 D-992-16
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import {
     clockInBlocked,
@@ -161,7 +159,7 @@
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
   import type { TodayAttendanceData } from "$lib/reports/today-attendance";
-  import LeaveReviewDialog from "$lib/components/leave/LeaveReviewDialog.svelte"; // #846 D-03: the dialog of Aufgaben
+  import { inboxRequestHref } from "$lib/leave/inbox-deep-link"; // #992 N-07: one decision path
   import {
     loadOpenTaskSources,
     openTaskBreakdown,
@@ -909,8 +907,6 @@
   // open rows of ONE `loadOpenTaskSources()` answer, through the model of Team › Aufgaben. So a counted
   // task is always listable and chip, cell and list are one figure. `null` = not loaded yet.
   let taskSources = $state<TaskSources | null>(null);
-  let reviewOpen = $state(false);
-  let reviewRequest = $state<TeamTaskLeave | null>(null);
   // Issue #948: the cell and the section are offered exactly to whom the page is (its gate).
   const taskSourceGates = $derived(taskGates($authStore.user));
   // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
@@ -1005,8 +1001,9 @@
     }
   }
 
-  // D-03: the open leave requests decided here go through the SAME dialog as Aufgaben
-  // (LeaveReviewDialog) - this page never writes a decision of its own. Issue #1028 (P-04, replaces
+  // Issue #992 (N-07, owner decision 25.11.2026): one decision path - this page decides nothing. An
+  // open request row links to Team › Aufgaben, which opens the review dialog with the facts of the
+  // decision (Resturlaub, Schichten). Issue #1028 (P-04, replaces
   // #84 D-07 for this one list): the widget and the count of the „Aufgaben“ cell are one set - the same
   // sources, gates and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon
   // selection (#558, #948). The old „N weitere Aufgaben warten“ row covered other kinds, other salons
@@ -1087,16 +1084,23 @@
         ),
     ),
   );
+  // Issue #992 (N-08): a name in the Team-Woche opens that person's Team › Zeiten on today when today lies
+  // inside the shown week, else on the Monday of the week.
+  const teamWeekPersonDay = $derived(
+    (teamWeek?.weekDays ?? []).find((d) => isToday(d)) ?? teamWeek?.weekStart ?? "",
+  );
   const firstMissing = $derived(
     (attendance?.employees ?? []).find((e) => e.status === "missing") ?? null,
   );
   const teamKpis = $derived.by((): KpiItem[] => {
+    // Issue #992 (N-08): with nobody expected there is no „von 0“ and no „alle da“ - teamBandTexts() words it.
+    const texts = teamBandTexts(band, firstMissing);
     const items: KpiItem[] = [
       {
         label: "Anwesend",
         value: band.present,
-        unit: `von ${band.expected}`,
-        explanation: band.done > 0 ? `${band.done} heute schon gearbeitet` : "gerade eingestempelt",
+        unit: texts.present.unit,
+        explanation: texts.present.explanation,
         derivationHref: statusHref("anwesend"),
         derivationLabel: "Liste →",
         testId: "kpi-present",
@@ -1105,11 +1109,7 @@
         label: "Erwartet",
         value: band.missing + band.scheduled,
         // prototype: „Timo · Schicht seit 09:00“ — the first person whose shift began unclocked
-        explanation: firstMissing
-          ? `${firstMissing.name}${firstMissing.expectedStart ? ` · Schicht seit ${firstMissing.expectedStart}` : ""}${band.missing > 1 ? ` · +${band.missing - 1}` : ""}`
-          : band.scheduled > 0
-            ? "kommen noch"
-            : "alle da",
+        explanation: texts.expected.explanation,
         deltaTone: band.missing > 0 ? "bad" : "neutral",
         derivationHref: statusHref("erwartet"),
         derivationLabel: "Liste →",
@@ -1150,11 +1150,6 @@
     }
     return items;
   });
-
-  function openReview(request: TeamTaskLeave) {
-    reviewRequest = request;
-    reviewOpen = true;
-  }
 
   // Own next leave (personal, for all users) — unrelated to the salon filter.
   async function loadMyNextLeave(today: string) {
@@ -1929,12 +1924,11 @@
       {#if view === "team"}
         <span class="ts-actions">
           <!-- #846 (prototype v5): the two team actions, each only where the person may open the page -->
-          {#if view === "team" && mayOpenPath($authStore.user, "/team/zeiten")}
-            <a class="btn btn-outline btn-sm" href="/team/zeiten">Zeit eintragen</a>
-          {/if}
-          {#if view === "team" && mayOpenPath($authStore.user, "/team/abwesenheiten")}
-            <a class="btn btn-primary btn-sm" href="/team/abwesenheiten">Abwesenheit eintragen</a>
-          {/if}
+          {#each teamHeadActions(reportRights($authStore.user)) as action (action.testId)}
+            <a class={`btn btn-${action.tone} sm`} href={action.href} data-testid={action.testId}
+              >{action.label}</a
+            >
+          {/each}
           <!-- Owner 13.11.2026: no own clock action on Heute im Salon (was #846 D-05); the own clock
                lives on Mein Tag, the team page stays a team page. -->
         </span>
@@ -2394,16 +2388,10 @@
                     >
                       {#snippet actions()}
                         {#if request}
-                          <button
-                            type="button"
-                            class="btn btn-outline btn-sm"
-                            onclick={() => openReview(request)}>Ablehnen</button
-                          >
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm"
-                            onclick={() => openReview(request)}>Genehmigen</button
-                          >
+                          {@const reviewHref = inboxRequestHref(request.id, request.startDate)}
+                          {#if reviewHref}
+                            <a class="btn btn-outline btn-sm" href={reviewHref}>Prüfen</a>
+                          {/if}
                         {:else}
                           <a class="btn btn-outline btn-sm" href={`/team/aufgaben?typ=${task.kind}`}
                             >Öffnen</a
@@ -2465,7 +2453,7 @@
               >
                 {#snippet row(leave)}
                   <ListRow
-                    title={`${leave.employeeName} · ${formatShortDate(leave.startDate)}–${formatShortDate(leave.endDate)}`}
+                    title={`${leave.employeeName} · ${dayRangeLabel(leave.startDate, leave.endDate)}`}
                     avatar={false}
                   >
                     {#snippet leading()}
@@ -2490,7 +2478,7 @@
             <ListWidget
               listId="team.heute.team-woche"
               title="Team-Woche"
-              meta={`KW ${getWeekNumber(teamWeek.weekStart)} · ${formatShortDate(teamWeek.weekStart)} – ${formatShortDate(teamWeek.weekEnd)}`}
+              meta={`KW ${getWeekNumber(teamWeek.weekStart)} · ${dayRangeLabel(teamWeek.weekStart, teamWeek.weekEnd)}`}
               items={teamWeek.team}
               itemKey={(member) => member.id}
               rowHeight={44}
@@ -2499,6 +2487,12 @@
               {#snippet body(members)}
                 <div class="mt-table-wrap">
                   <table class="mt-table ts-week" data-testid="team-week">
+                    <colgroup>
+                      <col class="ts-col-name" />
+                      {#each teamWeekDays as d (d)}
+                        <col />
+                      {/each}
+                    </colgroup>
                     <thead>
                       <tr>
                         <th scope="col">Person</th>
@@ -2513,7 +2507,16 @@
                     <tbody>
                       {#each members as member (member.id)}
                         <tr>
-                          <td class="ts-name">{member.name}</td>
+                          <td class="ts-name">
+                            {#if canOpenTeamDay && teamDayHref(member.id, teamWeekPersonDay) !== null}
+                              <a
+                                class="team-grid__link"
+                                href={teamDayHref(member.id, teamWeekPersonDay)}>{member.name}</a
+                              >
+                            {:else}
+                              {member.name}
+                            {/if}
+                          </td>
                           {#each member.days as day (day.date)}
                             {#if teamWeekDays.includes(day.date)}
                               {@const href = teamDayHref(member.id, day.date)}
@@ -2546,12 +2549,6 @@
           </div>
         {/if}
       </div>
-      <LeaveReviewDialog
-        bind:open={reviewOpen}
-        request={reviewRequest}
-        currentEmployeeId={$authStore.user?.employeeId ?? null}
-        onReviewed={loadTeamTasks}
-      />
     {/if}
   {/if}
 </div>
@@ -2974,6 +2971,14 @@
   }
   .ts-week-sec {
     margin-top: var(--s-6);
+  }
+  /* Issue #992 (N-08): equal day columns; the name column takes a fixed share, the days the rest. */
+  .ts-week {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .ts-week .ts-col-name {
+    width: 28%;
   }
   .ts-week th,
   .ts-week td {

@@ -212,6 +212,8 @@
     rowTestIdPrefix="team-person"
     openHref={mayOpenZeiten ? (row) => zeitenHref(row.id) : undefined}
     openLabel={(row) => `Zeiten von ${row.name} öffnen`}
+    openText="Zeiten"
+    compactCards
     onOpen={mayOpenZeiten ? (row) => goto(zeitenHref(row.id)) : undefined}
   />
 {/if}

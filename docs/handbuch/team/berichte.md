@@ -1,6 +1,6 @@
 # Berichte
 
-Auf **Team › Berichte** wertest du Zeiten, Konten und Urlaub für einen Zeitraum aus, bis zu 12 Monate auf einmal, und exportierst die Ergebnisse. Alle Zahlen sind auf die Personen begrenzt, für die du zuständig bist. Welche Reiter du siehst, hängt von deinen Rechten ab.
+Auf **Team › Berichte** wertest du Zeiten, Konten und Urlaub für einen Zeitraum aus, bis zu 12 Monate auf einmal, und exportierst die Ergebnisse. Alle Zahlen sind auf die Personen begrenzt, für die du zuständig bist. Welche Reiter du siehst, hängt von deinen Rechten ab. Mit der Rolle Salonmanager siehst du die Reiter Heute und Verläufe.
 
 Ohne Berichtsrechte zeigt die Seite stattdessen deine eigenen abgeschlossenen Monate mit einem PDF je Monat, den Stundennachweis. Das gibt es auch unter **Ich › Konto**.
 
@@ -18,7 +18,7 @@ Oben stellst du den Zeitraum ein: mit den Pfeilen blätterst du Monat für Monat
 
 - **Zeiten & Konten**: eine Zeile pro Person mit Soll, Ist und Saldo für den Zeitraum, sortier- und durchsuchbar. Ein Klick auf eine Person öffnet eine Detailansicht mit den Tagen der Person und dem Stundennachweis als PDF. Wer im Zeitraum ausgetreten ist und noch einen offenen Endsaldo hat, steht gesondert darunter.
 - **Urlaub & Abwesenheit**: die Urlaubsübersicht je Person mit Anspruch, Übertrag, genommenen, geplanten und verbleibenden Tagen, dazu die Abwesenheiten je Person. Für Resturlaub, der bald verfällt, kannst du mit **Hinweis senden** eine Erinnerung an die Person schicken. Das ist ein direkter Versand, kein Download.
-- **Heute**: die heutige Anwesenheit mit Zahlen zu den Status und einer Zeile pro Person. Fehlt ein Eintrag oder eine Abwesenheit, tragen dich **Eintrag nachtragen** und **Abwesenheit erfassen** direkt dorthin. Der Reiter zeigt immer den Stand von heute, unabhängig vom Zeitraum.
+- **Heute**: die heutige Anwesenheit mit Zahlen zu den Status und einer Zeile pro Person. Fehlt ein Eintrag oder eine Abwesenheit, tragen dich **Zeit nachtragen** und **Abwesenheit eintragen** direkt dorthin. Die Spalte mit den Aktionen erscheint nur, wenn eine Zeile eine Aktion bietet. Der Reiter zeigt immer den Stand von heute, unabhängig vom Zeitraum.
 - **Verläufe**: Diagramme zum Verlauf der letzten Monate für dein Team. **Bericht →** führt zur passenden Tabelle.
 
 ## Exportieren

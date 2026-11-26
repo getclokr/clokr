@@ -117,7 +117,7 @@ describe("team/leave/+page.svelte — no review dialog of its own (D-11b, #840 E
     // with the positive assertion that the page really links its open rows to the inbox (the same
     // vacuity-hole closure as before, CONTEXT.md D-12).
     expect(TEAM_LEAVE_PAGE).not.toContain("<LeaveReviewDialog");
-    expect(TEAM_LEAVE_PAGE).toContain("/inbox?request=");
+    expect(TEAM_LEAVE_PAGE).toContain("inboxRequestHref(");
     expect(abwesendCount(TEAM_LEAVE_PAGE)).toBe(0);
   });
 });
@@ -126,7 +126,7 @@ describe("LeaveReviewDialog.svelte — the shared review dialog's overlap panel 
   it("Test 0: the component source actually loaded", () => {
     expect(COMPONENT.length).toBeGreaterThan(6_000); // ~18.6 KB as of Phase 255 Plan 03
     expect(COMPONENT).toContain("overlap-title");
-    expect(COMPONENT).toContain("Kolleg:innen im gleichen Zeitraum");
+    expect(COMPONENT).toContain("Im gleichen Zeitraum abwesend");
   });
 
   it("imports NEUTRAL_CHIP_LABEL from the shared module (D-13)", () => {
@@ -148,8 +148,8 @@ describe("LeaveReviewDialog.svelte — the shared review dialog's overlap panel 
     expect(iface).toContain("typeCode: string | null");
   });
 
-  it('"abwesend" survives exactly once: the empty-state sentence', () => {
-    expect(abwesendCount(COMPONENT)).toBe(1);
+  it('"abwesend" survives exactly twice: the panel title and the empty-state sentence (Issue #992 N-09)', () => {
+    expect(abwesendCount(COMPONENT)).toBe(2);
   });
 });
 
@@ -157,7 +157,7 @@ describe("LeaveRequestForm.svelte — the shared create/edit dialog's overlap pa
   it("Test 0: the component source actually loaded", () => {
     expect(REQUEST_FORM.length).toBeGreaterThan(6_000); // 34_743 bytes as of Phase 415
     expect(REQUEST_FORM).toContain("overlap-title");
-    expect(REQUEST_FORM).toContain("Kolleg:innen im gleichen Zeitraum");
+    expect(REQUEST_FORM).toContain("Im gleichen Zeitraum abwesend");
   });
 
   it("imports NEUTRAL_CHIP_LABEL from the shared module (D-13)", () => {
@@ -181,8 +181,8 @@ describe("LeaveRequestForm.svelte — the shared create/edit dialog's overlap pa
     expect(iface).toContain("typeCode: string | null");
   });
 
-  it('"abwesend" survives exactly once: the empty-state sentence', () => {
-    expect(abwesendCount(REQUEST_FORM)).toBe(1);
+  it('"abwesend" survives exactly twice: the panel title and the empty-state sentence (Issue #992 N-09)', () => {
+    expect(abwesendCount(REQUEST_FORM)).toBe(2);
   });
 });
 
