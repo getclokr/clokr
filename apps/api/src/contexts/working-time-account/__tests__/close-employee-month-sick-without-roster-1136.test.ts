@@ -220,6 +220,92 @@ describe("Issue #1136 - SHIFT_BASED sick day without a planned shift (pure core)
   });
 });
 
+/**
+ * Second real case (anonymised): SHIFT_BASED 25 h on a 4-day contract, usual workdays Mon, Tue,
+ * Wed, Fri, so the O-day is 25 * 60 / 4 = 375. Contract Soll of November 2026 = 17 usual days x 375
+ * = 6375 (Mon 2/9/16/23/30, Tue 3/10/17/24, Wed 4/11/18/25, Fri 6/13/20/27).
+ */
+const SB_25_4_MO_DI_MI_FR: Record<string, unknown> = {
+  type: "SHIFT_BASED",
+  weeklyHours: 25,
+  contractWorkDaysPerWeek: 4,
+  workDays: [1, 2, 3, 5],
+  usualWorkDays: [1, 2, 3, 5],
+  mondayHours: 6.25,
+  tuesdayHours: 6.25,
+  wednesdayHours: 6.25,
+  thursdayHours: 0,
+  fridayHours: 6.25,
+  saturdayHours: 0,
+  sundayHours: 0,
+};
+
+describe("Issue #1136 - second real case: 25 h / 4 days, usual workdays Mon Tue Wed Fri", () => {
+  const sh = (day: number, start: string, end: string): Shift => ({
+    date: nov(day),
+    start,
+    end,
+  });
+  // Roster of the month: Mon 08:30-17:00 (510 brutto, 30 min break -> 480), Tue/Wed 08:30-13:00
+  // (270 brutto, no break -> 270), Fri 6. 09:00-17:30 (510 -> 480). No shift on Fri 13., Mon 16.,
+  // Tue 17., Wed 18., Thu 19., Fri 20. and Fri 27.
+  const roster: Shift[] = [
+    ...[2, 9, 23, 30].map((d) => sh(d, "08:30", "17:00")),
+    ...[3, 10, 24, 4, 11, 25].map((d) => sh(d, "08:30", "13:00")),
+    sh(6, "09:00", "17:30"),
+  ];
+  const sickRows: Leave[] = [
+    { s: nov(10), e: nov(11), code: "SICK" },
+    { s: nov(12), e: nov(16), code: "SICK" },
+    { s: nov(17), e: nov(20), code: "SICK" },
+  ];
+  const vacation: Leave = { s: nov(27), e: nov(27), code: "VACATION" };
+
+  it("the contract Soll of the month is 6375", () => {
+    expect(run(SB_25_4_MO_DI_MI_FR, [], roster, []).expectedMinutes).toBe(6375);
+  });
+
+  it("week 16.-20.11., sick all week without a shift: Mon, Tue, Wed, Fri 375 each, Thu 0, exactly 1500", () => {
+    // Pre-fix (#429 rule): 0 for the whole week - an unplanned sick day relieved nothing.
+    const week: Leave[] = [{ s: nov(16), e: nov(20), code: "SICK" }];
+    expect(relief(SB_25_4_MO_DI_MI_FR, week, roster)).toBe(1500);
+    for (const day of [16, 17, 18, 20]) {
+      expect(
+        relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(day), e: nov(day), code: "SICK" }], roster),
+      ).toBe(375);
+    }
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(19), e: nov(19), code: "SICK" }], roster)).toBe(0);
+  });
+
+  it("week 10.-13.11.: Tue 10. and Wed 11. keep their planned netto (270), Thu 12. 0, Fri 13. the O-day 375", () => {
+    // Pre-fix: 540 (the two planned days only), Fri 13. relieved nothing.
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(10), e: nov(10), code: "SICK" }], roster)).toBe(
+      270,
+    );
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(11), e: nov(11), code: "SICK" }], roster)).toBe(
+      270,
+    );
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(12), e: nov(12), code: "SICK" }], roster)).toBe(0);
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(13), e: nov(13), code: "SICK" }], roster)).toBe(
+      375,
+    );
+    expect(relief(SB_25_4_MO_DI_MI_FR, [{ s: nov(10), e: nov(13), code: "SICK" }], roster)).toBe(
+      270 + 270 + 0 + 375,
+    );
+  });
+
+  it("the Friday vacation keeps its CONTRACT credit of 375", () => {
+    expect(relief(SB_25_4_MO_DI_MI_FR, [vacation], roster)).toBe(375);
+  });
+
+  it("month C_net = 6375 - 915 (week 10.-13.) - 1500 (week 16.-20.) - 375 (vacation) = 3585", () => {
+    // Pre-fix: 6375 - 540 - 375 = 5460 (only the planned Tue 10. / Wed 11. relieved).
+    const r = run(SB_25_4_MO_DI_MI_FR, [...sickRows, vacation], roster, []);
+    expect(r.expectedMinutes).toBe(3585);
+    expect(r.rosterLeaveNoShift.sollReliefMinutes).toBe(375 + 1500);
+  });
+});
+
 /** Mon-Fri usual days, 4 contract days: a Mon-Sat sick week is 5 usual days on a 4-day contract. */
 const SB_38_4_MON_FRI: Record<string, unknown> = {
   ...SB_38_4_TUE_FRI,
