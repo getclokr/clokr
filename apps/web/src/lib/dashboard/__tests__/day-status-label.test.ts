@@ -66,7 +66,20 @@ describe("attendanceStatusText", () => {
 
   it("names the expected time and the minutes late of a missing row", () => {
     expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 180 }))).toBe(
-      "Fehlt · erwartet 09:00 · 180 Min. zu spät",
+      "Fehlt · erwartet 09:00 · 3:00 h zu spät",
+    );
+    // Issue #994 (N-07): an hour or more reads H:MM, below an hour minutes.
+    expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 223 }))).toBe(
+      "Fehlt · erwartet 09:00 · 3:43 h zu spät",
+    );
+    expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 60 }))).toBe(
+      "Fehlt · erwartet 09:00 · 1:00 h zu spät",
+    );
+    expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 59 }))).toBe(
+      "Fehlt · erwartet 09:00 · 59 Min. zu spät",
+    );
+    expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 25 }))).toBe(
+      "Fehlt · erwartet 09:00 · 25 Min. zu spät",
     );
     expect(attendanceStatusText(row("missing", { expectedStart: "09:00", lateMinutes: 0 }))).toBe(
       "Fehlt · erwartet 09:00 · 0 Min. zu spät",

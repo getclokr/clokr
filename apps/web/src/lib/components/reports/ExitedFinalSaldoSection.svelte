@@ -41,7 +41,7 @@
   type TableRow = ExitedOverviewRow & Record<string, unknown>;
 
   const columns = $derived<DataTableColumn[]>([
-    { key: "name", label: "Mitarbeiter", primary: true },
+    { key: "name", label: "Person", primary: true },
     { key: "employeeNumber", label: "Nr." },
     { key: "exitDate", label: "Austritt am" },
     { key: "confirmed", label: "Abgeschlossen", align: "end" },

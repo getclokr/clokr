@@ -380,10 +380,8 @@
     {#if anyAtRisk || anyKept}
       <div data-testid="vacation-eugh-callout">
         <Note tone="warn">
-          Hinweispflicht: Mitarbeiter müssen gemäß EuGH C-684/16 ausdrücklich auf verfallenden
-          Urlaub hingewiesen werden. Ohne dokumentierten Hinweis verfällt der Urlaub <strong
-            >nicht</strong
-          >.
+          Hinweispflicht: Du musst jede Person rechtzeitig und ausdrücklich auf verfallenden Urlaub
+          hinweisen. Ohne dokumentierten Hinweis verfällt der Urlaub <strong>nicht</strong> (EuGH C-684/16).
         </Note>
       </div>
     {/if}

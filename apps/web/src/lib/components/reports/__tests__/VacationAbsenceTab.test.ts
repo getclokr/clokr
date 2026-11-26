@@ -385,9 +385,11 @@ describe("VacationAbsenceTab - the Verfall column", () => {
       props({ vacation: vacation([year(2026, [AT_RISK])]) }),
     );
     const callout = screen.queryByTestId("vacation-eugh-callout");
-    expect(callout?.textContent).toContain(
-      "Hinweispflicht: Mitarbeiter müssen gemäß EuGH C-684/16",
+    // Issue #994 (N-04): addresses the reader, names no role.
+    expect(callout?.textContent?.replace(/\s+/g, " ")).toContain(
+      "Hinweispflicht: Du musst jede Person rechtzeitig und ausdrücklich auf verfallenden Urlaub hinweisen. Ohne dokumentierten Hinweis verfällt der Urlaub nicht (EuGH C-684/16).",
     );
+    expect(callout?.textContent).not.toContain("Mitarbeiter");
     expect(callout?.querySelector("strong")?.textContent).toBe("nicht");
     unmount();
     renderWithTheme(VacationAbsenceTab, props());

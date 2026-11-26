@@ -39,7 +39,7 @@ Hier legst du fest, ob der 24. und der 31. Dezember als Arbeitstag, als halber f
 
 ## Sonderurlaub
 
-Auf dem Reiter **Sonderurlaub** pflegst du die **Sonderurlaubs-Regeln**: die Anlässe, die dein Unternehmen gewährt, mit Anzahl Tage, Nachweis, Art (gesetzlich oder betrieblich) und Status. Mitarbeitende wählen einen dieser Anlässe, wenn sie Sonderurlaub beantragen.
+Auf dem Reiter **Sonderurlaub** pflegst du die **Sonderurlaubs-Regeln**: die Anlässe, die dein Unternehmen gewährt, mit Anzahl Tage, Nachweis, Art (Vorschlag von Clokr oder eigener Anlass) und Status. Ein Gesetz mit festen Tagen für bestimmte Anlässe gibt es nicht; ob ein Anlass bezahlt frei ist, regeln Arbeits- oder Tarifvertrag (§ 616 BGB). Mitarbeitende wählen einen dieser Anlässe, wenn sie Sonderurlaub beantragen.
 
 1. Klicke auf **Regel anlegen**. Der Dialog heißt „Sonderurlaubsregel anlegen“.
 2. Trage den **Anlass** und optional eine **Beschreibung** ein, zum Beispiel „Ehrenamtlicher Einsatz“.

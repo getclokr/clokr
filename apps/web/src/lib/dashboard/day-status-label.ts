@@ -1,4 +1,6 @@
-// Issue #587 (P-06) — the ONE place the web names a person's day status.
+// Issue #587 (P-06) — the ONE place the web names a person's day status. Issue #994 (N-07, taken along):
+// a delay of an hour or more reads „3:43 h zu spät“, below an hour „25 Min. zu spät“, for Berichte › Heute
+// and Heute im Salon alike.
 //
 // The API decides the status (`resolveDayStatus`, Zeiterfassung); this module only words it. No
 // status is derived here, no clock is read and no time is computed: the expected start and the
@@ -19,6 +21,11 @@ export const DAY_STATUS_LABEL: Record<DayStatusValue, string> = {
   holiday: "Feiertag",
   none: "—",
 };
+
+/** A delay below an hour in minutes, from an hour on as H:MM (a bare minute count was unreadable, Issue #994). */
+function lateText(minutes: number): string {
+  return minutes < 60 ? `${minutes} Min. zu spät` : `${fmtMin(Math.round(minutes))} h zu spät`;
+}
 
 /** The text of one row of the attendance list. */
 export function attendanceStatusText(row: {
@@ -43,7 +50,7 @@ export function attendanceStatusText(row: {
       // type as its reason (the only "missing" row with a reason): the absence stays visible.
       if (row.reason) return `${DAY_STATUS_LABEL.missing} · halber Tag ${row.reason}`;
       return row.expectedStart != null && row.lateMinutes != null
-        ? `${DAY_STATUS_LABEL.missing} · erwartet ${row.expectedStart} · ${row.lateMinutes} Min. zu spät`
+        ? `${DAY_STATUS_LABEL.missing} · erwartet ${row.expectedStart} · ${lateText(row.lateMinutes)}`
         : DAY_STATUS_LABEL.missing;
     case "scheduled":
       return row.expectedStart != null

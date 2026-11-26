@@ -39,6 +39,9 @@ describe("ExitedFinalSaldoSection (Issue #613)", () => {
       screen.getByText("Der Endsaldo ist bestätigt, sobald der Austrittsmonat abgeschlossen ist."),
     ).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Austritt am" })).toBeInTheDocument();
+    // Issue #994 (N-04): the first column names the record, not the role.
+    expect(screen.getByRole("columnheader", { name: "Person" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Mitarbeiter" })).toBeNull();
     // Issue #588 (D-588-4/D-588-5): one column per value, the forecast label chosen from the data.
     expect(screen.getByRole("columnheader", { name: "Abgeschlossen" })).toBeInTheDocument();
     expect(
