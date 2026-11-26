@@ -65,8 +65,10 @@ export interface LeaveTypeEntry {
   requestable: boolean;
 }
 
-/** Order is load-bearing: `LEAVE_TYPE_OPTIONS` derives from this array and drives three
- *  request-type <select> dropdowns on the team leave page. */
+/** Order is load-bearing: `LEAVE_TYPE_OPTIONS` derives from this array and drives every
+ *  request-type list (the request dialog, the team dropdowns, the filters). Issue #991 (M-34,
+ *  owner comment 25.11.): Urlaub and Krankmeldung on top, the rest in glossary order — the one
+ *  order is written down in `docs/glossar.md`. Never drop a type; reorder here only. */
 export const LEAVE_TYPES: readonly LeaveTypeEntry[] = [
   {
     code: "VACATION",
@@ -74,6 +76,7 @@ export const LEAVE_TYPES: readonly LeaveTypeEntry[] = [
     colorVar: leaveTypeColor("VACATION").fill,
     requestable: true,
   },
+  { code: "SICK", label: "Krankmeldung", colorVar: leaveTypeColor("SICK").fill, requestable: true },
   {
     code: "OVERTIME_COMP",
     label: "Überstundenausgleich",
@@ -92,7 +95,6 @@ export const LEAVE_TYPES: readonly LeaveTypeEntry[] = [
     colorVar: leaveTypeColor("EDUCATION").fill,
     requestable: true,
   },
-  { code: "SICK", label: "Krankmeldung", colorVar: leaveTypeColor("SICK").fill, requestable: true },
   {
     code: "SICK_CHILD",
     label: "Kinderkrank",

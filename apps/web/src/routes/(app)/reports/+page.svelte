@@ -61,7 +61,7 @@
   import type { TodayAttendanceData } from "$lib/reports/today-attendance"; // Issue #612
   import { partitionOvertimeOverview } from "$lib/reports/overtime-overview-sections"; // Issue #613
   import { fmtBalance } from "$lib/utils/format-minutes"; // Issue #588
-  import { MONTH_STATUS_LABEL } from "$lib/saldo/month-status"; // Issue #598: one status wording
+  import { MONTH_STATUS_LABEL, MONTH_STATUS_TONE } from "$lib/saldo/month-status"; // Issue #598: one status wording
   import {
     buildEmployeeMonthRows,
     type EmployeeMonthRow,
@@ -871,9 +871,9 @@
     <b>{row.label}</b>
   {:else if column.key === "status"}
     {#if row.closed}
-      <Chip tone="ok">{MONTH_STATUS_LABEL.CLOSED}</Chip>
+      <Chip tone={MONTH_STATUS_TONE.CLOSED}>{MONTH_STATUS_LABEL.CLOSED}</Chip>
     {:else}
-      <Chip tone="warn">{MONTH_STATUS_LABEL.OPEN}</Chip>
+      <Chip tone={MONTH_STATUS_TONE.OPEN}>{MONTH_STATUS_LABEL.OPEN}</Chip>
     {/if}
   {:else if column.key === "pdf"}
     <button

@@ -5,6 +5,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import postcss from "postcss";
+
 export function webRoot(): string {
   try {
     return resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -61,4 +63,23 @@ export function walkFiles(
 /** The text of every `<style>` block of a Svelte file. */
 export function svelteStyleBlocks(text: string): string[] {
   return [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]);
+}
+
+/**
+ * Every declaration that breaks the sentence-case rule (text-transform uppercase/capitalize or a
+ * non-zero letter-spacing), as `selector { prop: value }`. Shared by the #854 and #991 guards.
+ */
+export function titleStyleViolations(css: string): string[] {
+  const hits: string[] = [];
+  postcss.parse(css).walkDecls((decl) => {
+    const value = decl.value.trim().toLowerCase();
+    const selector = decl.parent && "selector" in decl.parent ? String(decl.parent.selector) : "";
+    if (decl.prop === "text-transform" && (value === "uppercase" || value === "capitalize")) {
+      hits.push(`${selector} { text-transform: ${decl.value} }`);
+    }
+    if (decl.prop === "letter-spacing" && !["0", "normal", "0em", "0px"].includes(value)) {
+      hits.push(`${selector} { letter-spacing: ${decl.value} }`);
+    }
+  });
+  return hits;
 }

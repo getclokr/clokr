@@ -85,15 +85,16 @@ describe("styles", () => {
       `var(${leaveTypeColor(null).fill})`,
     );
     // #840 G-4: the style keys name the look and the status
-    expect(screen.getByTestId("legend-style-gesetzt").textContent).toContain("Genehmigt (voll)");
+    expect(screen.getByTestId("legend-style-gesetzt").textContent).toContain("Genehmigt");
   });
 
   it("names the four style keys with exactly the agreed texts", () => {
     render({ typeCodes: [], styles: ["gesetzt", "beantragt", "wunsch", "abwesend"] });
     const text = (style: string) => screen.getByTestId(`legend-style-${style}`).textContent;
-    expect(text("gesetzt")).toBe("Genehmigt (voll)");
-    expect(text("beantragt")).toBe("Beantragt (gestrichelt)");
-    expect(text("wunsch")).toBe("Wunsch (gestreift)");
+    // Issue #991 (N-17): the key is the status; the swatch beside it shows the look.
+    expect(text("gesetzt")).toBe("Genehmigt");
+    expect(text("beantragt")).toBe("Beantragt");
+    expect(text("wunsch")).toBe("Wunsch");
     expect(text("abwesend")).toBe("Abwesend");
   });
 

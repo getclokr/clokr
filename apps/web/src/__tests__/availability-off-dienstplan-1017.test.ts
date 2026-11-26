@@ -9,8 +9,9 @@ const PAGE = readFileSync(resolve(__dirname, "../routes/(app)/availability/+page
 
 describe("#1017 — availability off: no tab, no read, no hint", () => {
   it("offers the tab only once the flag is read and on", () => {
+    // #991: plus a calm 410 (the API says the system is off) takes the tab away as well.
     expect(PAGE).toMatch(
-      /const availabilityOn = \$derived\(\$tenantFeatures\.loaded && \$tenantFeatures\.availabilityEnabled\)/,
+      /const availabilityOn = \$derived\(\s*\$tenantFeatures\.loaded && \$tenantFeatures\.availabilityEnabled && !availabilityGone,\s*\)/,
     );
     const tabs = PAGE.slice(PAGE.indexOf("const TABS = $derived("));
     expect(tabs.slice(0, 300)).toContain("availabilityOn ?");
@@ -29,5 +30,20 @@ describe("#1017 — availability off: no tab, no read, no hint", () => {
 
   it("falls back to the plan tab when the system is off", () => {
     expect(PAGE).toContain('!availabilityOn && view === "verfuegbarkeit") view = "plan"');
+  });
+
+  it("answers a 410 of the own-availability read calmly: no toast, the tab goes away (#991)", () => {
+    const load = PAGE.slice(
+      PAGE.indexOf("async function load()"),
+      PAGE.indexOf("function buildPayload"),
+    );
+    const at = load.indexOf("err.status === 410");
+    expect(at, "load() handles a 410").toBeGreaterThan(-1);
+    const branch = load.slice(at, load.indexOf("}", at));
+    expect(branch).toContain("availabilityGone = true");
+    expect(branch).toContain("return");
+    expect(branch).not.toContain("toasts.error");
+    // A real error still reaches the person.
+    expect(load.indexOf("toasts.error")).toBeGreaterThan(at);
   });
 });

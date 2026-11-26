@@ -10,7 +10,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { MONTH_STATUS_LABEL, monthStatusLabel } from "$lib/saldo/month-status";
+import { MONTH_STATUS_LABEL, MONTH_STATUS_TONE, monthStatusLabel } from "$lib/saldo/month-status";
 
 const MODULE_FILE = "lib/saldo/month-status.ts";
 const MODULE_IMPORT = "$lib/saldo/month-status";
@@ -121,6 +121,49 @@ describe("month status has one wording (Issue #598)", () => {
     expect(
       spellsLabel('<span class="chip chip-warn"><span class="dot"></span> Offen</span>', "Offen"),
     ).toBe(true);
+  });
+
+  // Issue #991 N-28: one colour per status as well as one word.
+  const TONES = "ok|warn|bad|info|brand|neutral";
+  /** A literal chip tone next to a month-status label, in markup or in an object literal. */
+  function spellsLiteralTone(text: string): boolean {
+    const markup = new RegExp(
+      `tone=["'](${TONES})["'][^>]*>\\s*\\{\\s*(MONTH_STATUS_LABEL|monthStatusLabel)`,
+    );
+    const object = new RegExp(
+      `monthStatusLabel\\([^)]*\\)[\\s\\S]{0,80}?tone:[^\\n]*["'\`](${TONES})["'\`]`,
+    );
+    return markup.test(text) || object.test(text);
+  }
+
+  it("the tone detector sees a literal tone next to the label and not the shared constant", () => {
+    expect(spellsLiteralTone('<Chip tone="warn">{MONTH_STATUS_LABEL.OPEN}</Chip>')).toBe(true);
+    expect(spellsLiteralTone('{ label: monthStatusLabel(false), tone: "info" }')).toBe(true);
+    expect(spellsLiteralTone('label: monthStatusLabel(x),\n tone: x ? "ok" : "neutral",')).toBe(
+      true,
+    );
+    expect(
+      spellsLiteralTone("<Chip tone={MONTH_STATUS_TONE.OPEN}>{MONTH_STATUS_LABEL.OPEN}</Chip>"),
+    ).toBe(false);
+    expect(MONTH_STATUS_TONE).toEqual({ CLOSED: "ok", OPEN: "info" });
+  });
+
+  it("R3: the pages that word a month's status take its colour from MONTH_STATUS_TONE", () => {
+    // Berichte, Konto, Zeiten and the report drilldown (#991 N-28). The Verwalten month table
+    // (MonthStatusTable) keeps its own tones on purpose; it is outside this issue.
+    const READERS = [
+      "lib/me/zeiten-kpis.ts",
+      "routes/(app)/ich/konto/+page.svelte",
+      "lib/components/reports/PersonDrilldown.svelte",
+      "routes/(app)/reports/+page.svelte",
+    ];
+    const offenders: string[] = [];
+    for (const rel of READERS) {
+      const text = file(rel);
+      if (spellsLiteralTone(text)) offenders.push(`${rel}: spells a literal tone`);
+      if (!text.includes("MONTH_STATUS_TONE")) offenders.push(`${rel}: does not read the tone`);
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("R2: no other file spells the closed-month label, except where it names another concept", () => {

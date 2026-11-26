@@ -1,4 +1,4 @@
-// Issue #597 (Phase 851, prototype „Ich › Dienstplan“): the next 14 days as one stream - the own shifts
+// Issue #597 (Phase 851, prototype „Ich › Dienstplan“): the rest of this week plus two full weeks as one stream - the own shifts
 // (GET /shifts/range, with the shift's own salon), effective leave (the EFFECTIVE_LEAVE_STATUSES mirror)
 // and public holidays (GET /holidays of the Stammsalon). Pure: it groups and labels, no rule of its own.
 //
@@ -78,6 +78,27 @@ function weekKey(d: Date): string {
   return isoDay(monday);
 }
 
+/**
+ * Issue #991 (N-22, D-991-21): the days the agenda covers - from the tenant-day anchor `start` to the Sunday of the week two
+ * weeks after today's week, so the list never ends in the middle of a week and the third week is named
+ * (15 days on a Sunday, 21 on a Monday). The calendar arithmetic runs on local day fields; there is no
+ * time-of-day, so a daylight-saving change cannot shift it.
+ */
+export function agendaWindow(start: Date): { start: Date; days: number } {
+  const sinceMonday = (start.getDay() + 6) % 7;
+  const days = 21 - sinceMonday;
+  return { start, days };
+}
+
+/** Whole weeks between the Mondays of two local days (rounded: a DST week is 167 or 169 hours). */
+function weeksBetweenMondays(from: Date, to: Date): number {
+  const monday = (d: Date) =>
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  return Math.round((monday(to) - monday(from)) / (7 * 86400000));
+}
+
+const WEEK_NAMES = ["Diese Woche", "Nächste Woche", "Übernächste Woche"] as const;
+
 /** The own contract as the loaded employee row carries it; `validFrom` is an instant (ISO string). */
 export type AgendaContract = WorkScheduleLike & { validFrom: string };
 
@@ -108,7 +129,6 @@ export function buildAgenda(
   // validFrom is an instant: compare by the browser-local calendar day, never slice(0, 10).
   const contract = input.contract;
   const contractStart = contract ? isoDay(new Date(contract.validFrom)) : null;
-  const thisWeek = isoWeek(start);
   const weeks: AgendaWeek[] = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
@@ -158,13 +178,14 @@ export function buildAgenda(
       title = holiday.name;
       subtitle = "Feiertag";
     }
+    // Issue #991 (N-22): named by the distance of the day's Monday to today's Monday, so the year
+    // end (KW 53 → KW 1) needs no special case.
     const week = isoWeek(d);
+    const distance = weeksBetweenMondays(start, d);
     const label =
-      week === thisWeek
-        ? `Diese Woche · KW ${week}`
-        : week === thisWeek + 1 || (thisWeek >= 52 && week === 1)
-          ? `Nächste Woche · KW ${week}`
-          : `KW ${week}`;
+      distance >= 0 && distance < WEEK_NAMES.length
+        ? `${WEEK_NAMES[distance]} · KW ${week}`
+        : `KW ${week}`;
     let bucket = weeks[weeks.length - 1];
     if (!bucket || bucket.label !== label) {
       bucket = { label, days: [] };

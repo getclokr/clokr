@@ -107,6 +107,11 @@
     nextPlannedDay,
     plannedDaysCount,
     weekStripText,
+    weekStripPhoneText,
+    weekStripCompactText,
+    weekTileHref,
+    freeIdleDay,
+    historyWhenLabel,
     recentDays,
     recentDaySaldoSeries,
     type MyWeekStripDay,
@@ -1636,6 +1641,9 @@
       : (ownShiftByDate.get(todayIso) ?? null),
   );
 
+  // Issue #991 (M-02): on a day without a Soll and without a shift the hero says „Frei“, not a zero.
+  let freeDay = $derived(freeIdleDay({ state: stageState, shiftText: todayShiftText, goalMin }));
+
   let stageMeta = $derived.by((): { label: string; value: string }[] => {
     if (stageState === "arbeitet") {
       // Issue #959: a session across midnight names its day („gestern, 20:00“)
@@ -1671,7 +1679,6 @@
     const out: { label: string; value: string }[] = [];
     if (todayShiftText) out.push({ label: "Schicht", value: todayShiftText });
     if (goalMin !== null) out.push({ label: "Soll", value: fmtClock(goalMin) });
-    if (out.length === 0) out.push({ label: "Heute", value: "kein Arbeitstag" });
     return out;
   });
 
@@ -1843,11 +1850,12 @@
   let history = $derived(
     historySentences(activityItems.filter((i) => i.category === "time" || i.category === "leave")),
   );
+  // Issue #991 (N-05): a time for today, otherwise weekday and date („Mo 23.11.“); the tenant's day.
   function historyWhen(iso: string): string {
-    const d = new Date(iso);
-    return tenantDay(d, $tenantFeatures.timezone) === todayIso
-      ? format(d, "HH:mm")
-      : format(d, "EEEEEE", { locale: de });
+    return historyWhenLabel(iso, todayIso, $tenantFeatures.timezone);
+  }
+  function historyWhenFull(iso: string): string {
+    return format(new Date(iso), "EEEE, d. MMMM yyyy, HH:mm", { locale: de });
   }
   let recentDayRows = $derived(
     recentDays(
@@ -1945,7 +1953,11 @@
           <Stage state={stageState} ariaLabel="Zeiterfassung">
             <div class="clock-stage" data-day-state={day.kind}>
               <div class="clock-big" data-testid="clock-big">
-                {fmtClock(stageWorkedMin)}<small>h</small>
+                {#if freeDay}
+                  Frei
+                {:else}
+                  {fmtClock(stageWorkedMin)}<small>h</small>
+                {/if}
               </div>
               <div class="clock-main">
                 <div class="clock-state">
@@ -2139,11 +2151,21 @@
                   class:mt-day--off={text === "Frei"}
                   aria-current={d.date === todayIso ? "date" : undefined}
                 >
-                  <span class="mt-day-h"
-                    ><span>{format(new Date(d.date + "T12:00:00"), "EEEEEE", { locale: de })}</span
-                    ><b>{format(new Date(d.date + "T12:00:00"), "d")}</b></span
+                  <!-- Issue #991 (N-04): a tile leads to its day, a past one to Zeiten, a coming one to the Dienstplan -->
+                  <a
+                    class="mt-day-link"
+                    href={weekTileHref(d.date, todayIso)}
+                    aria-label="{format(new Date(d.date + 'T12:00:00'), 'EEEE, d. MMMM', {
+                      locale: de,
+                    })}: {text}"
                   >
-                  <span class="mt-day-s">{text}</span>
+                    <span class="mt-day-h"
+                      ><span
+                        >{format(new Date(d.date + "T12:00:00"), "EEEEEE", { locale: de })}</span
+                      ><b>{format(new Date(d.date + "T12:00:00"), "d")}</b></span
+                    >
+                    <span class="mt-day-s">{weekStripPhoneText(weekStripCompactText(text))}</span>
+                  </a>
                 </li>
               {/each}
             </ol>
@@ -2269,7 +2291,11 @@
               {#snippet body(events)}
                 <ul class="mt-history" data-testid="mein-tag-history">
                   {#each events as h (h.id)}
-                    <li><span class="mt-when">{historyWhen(h.when)}</span><span>{h.text}</span></li>
+                    <li>
+                      <time class="mt-when" datetime={h.when} title={historyWhenFull(h.when)}
+                        >{historyWhen(h.when)}</time
+                      ><span>{h.text}</span>
+                    </li>
                   {/each}
                 </ul>
               {/snippet}
@@ -2775,7 +2801,7 @@
   }
   .mt-when {
     flex: none;
-    min-width: 6ch;
+    min-width: 9ch;
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -2818,13 +2844,31 @@
     overflow: hidden;
   }
   .mt-day {
+    min-width: 0;
+    background: var(--card);
+    font-size: var(--fs-sm);
+  }
+  /* Issue #991 (N-04): the whole tile is the link and carries the padding */
+  .mt-day-link {
     display: flex;
     flex-direction: column;
     gap: var(--s-2);
     min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
     padding: var(--s-2) var(--s-3);
-    background: var(--card);
-    font-size: var(--fs-sm);
+    color: inherit;
+    text-decoration: none;
+  }
+  .mt-day-link:hover {
+    background: var(--sunk);
+  }
+  .mt-day--off .mt-day-link:hover {
+    background: color-mix(in srgb, var(--text) 6%, var(--sunk));
+  }
+  .mt-day-link:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: -2px;
   }
   .mt-day--off {
     background: var(--sunk);
@@ -2844,11 +2888,13 @@
     font-size: var(--fs-base);
     font-variant-numeric: tabular-nums;
   }
+  /* #991: the second line is never cut with an ellipsis: a shift reads in its short form, a longer
+     text breaks after a dash or inside the word. The full text is the link's accessible name. */
   .mt-day-s {
     color: var(--text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    hyphens: auto;
     font-variant-numeric: tabular-nums;
   }
   /* Issue #942: the hint of an open entry of an earlier day, below the stage */
@@ -2881,8 +2927,14 @@
     .mt-stage :global(.stage-actions > *) {
       flex: 1 1 0;
     }
+    /* Issue #991 (N-04): the second line stays on the phone and may break after a dash */
+    .mt-day-link {
+      padding: var(--s-2) var(--s-1);
+    }
     .mt-day-s {
-      display: none;
+      font-size: var(--fs-xs);
+      line-height: 1.2;
+      text-align: center;
     }
     .mt-day-h {
       justify-content: center;

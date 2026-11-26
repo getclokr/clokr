@@ -87,13 +87,18 @@
 
   const changes = $derived(dirty ? countChanges(currentSnapshot, lastSnapshot) : 0);
 
-  // Issue #597 (Phase 851, prototype): „Nächste 14 Tage“ first; the own availability is the second
+  // Issue #597 (Phase 851, prototype): „Nächste Wochen“ first; the own availability is the second
   // tab, offered only while the tenant uses the availability system.
   // Issue #1017: the tab appears only once the tenant flag is actually read — the store starts
   // optimistic (fail-open) and would flash the tab for a tenant that switched availability off.
-  const availabilityOn = $derived($tenantFeatures.loaded && $tenantFeatures.availabilityEnabled);
+  // #991: a 410 on the own-availability read means the tenant switched the system off while the
+  // feature store (fail-open) still said on - a calm state, not an error: no toast, no tab.
+  let availabilityGone = $state(false);
+  const availabilityOn = $derived(
+    $tenantFeatures.loaded && $tenantFeatures.availabilityEnabled && !availabilityGone,
+  );
   const TABS = $derived([
-    { value: "plan", label: "Nächste 14 Tage" },
+    { value: "plan", label: "Nächste Wochen" },
     ...(availabilityOn ? [{ value: "verfuegbarkeit", label: "Meine Verfügbarkeit" }] : []),
   ]);
   let availabilityView = $state<"recurring" | "oneoff">("recurring");
@@ -140,6 +145,10 @@
       const res = await api.get<AvailabilityListResponse>("/me/availability");
       applyEntries(res.entries ?? []);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 410) {
+        availabilityGone = true;
+        return;
+      }
       const msg =
         err instanceof ApiError ? err.message : "Verfügbarkeit konnte nicht geladen werden.";
       toasts.error(msg);

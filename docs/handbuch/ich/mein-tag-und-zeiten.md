@@ -28,6 +28,8 @@ Du kannst auch ohne Knopfdruck stempeln:
 - **NFC-Karte am Terminal**, wenn dein Unternehmen ein Terminal einsetzt. Die Karte ordnet dir die Verwaltung einmalig zu.
 - **Handy im Salon-WLAN**, wenn du es gekoppelt hast. Siehe [Stempeln mit dem Handy im WLAN](#stempeln-mit-dem-handy-im-wlan).
 
+An einem freien Tag, ohne Soll und ohne Schicht, steht in der großen Anzeige „Frei“ statt einer Null. Einstempeln kannst du trotzdem.
+
 Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir die Stempel-Buttons gar nicht an. Das ist beabsichtigt.
 
 <!-- SCREENSHOT file=bilder/mein-tag-und-zeiten-01.png role=emp url=/ich/tag show="Mein Tag mit der Stempeluhr (noch nicht eingestempelt) und dem Button Einstempeln, darunter die Kennzahlen zu Stundenkonto, Resturlaub und Diese Woche" -->
@@ -37,10 +39,10 @@ Gilt für dich keine Pflicht zur Zeiterfassung (§ 18 ArbZG), zeigt Clokr dir di
 ### Was sonst auf Mein Tag steht
 
 - **Kennzahlen**: „Stundenkonto“ (mit dem Zusatz „Prognose“, solange der Monat läuft), „Resturlaub“, „Nächste Schicht“ oder „Nächster Arbeitstag“ und „Diese Woche“.
-- **Deine Woche**: ein Streifen mit deinen Tagen der Woche und dem Stand jedes Tages.
+- **Deine Woche**: ein Streifen mit deinen Tagen der Woche und dem Stand jedes Tages. Ein Tag führt zu seinen Zeiten, ein kommender Tag zum Dienstplan.
 - **Letzte Tage**: deine Zeiten der letzten zwei Wochen mit Pause, Arbeitszeit und Saldo des Tages. Fehlt die Pause, steht dort „Pause fehlt“. **Alle Zeiten** führt zu **Ich › Zeiten**.
 - **Für dich**: was gerade offen ist, zum Beispiel eine Pause zum Bestätigen, ein fehlender Eintrag oder ein Antrag, der noch wartet. Steht dort „Nichts offen. Alles erledigt.“, ist alles geklärt.
-- **Verlauf**: deine letzten Ereignisse, etwa Stempelungen und Entscheidungen.
+- **Verlauf**: deine letzten Ereignisse, etwa Stempelungen und Entscheidungen. Heute steht die Uhrzeit, an einem anderen Tag der Wochentag mit Datum.
 - **Krank melden** und **Urlaub beantragen** oben rechts führen direkt in den Antrag, siehe [Abwesenheiten](abwesenheiten.md).
 
 ### „Warum stempeln?“ beim ersten Mal
@@ -86,6 +88,8 @@ Mit **Stundennachweis (PDF)** oben erstellst du deinen Stundennachweis für den 
 3. Füge bei Bedarf eine oder mehrere **Pausen** hinzu.
 4. Wähle den **Salon**, wenn du in mehreren arbeitest. Sonst trägt Clokr ihn laut Plan ein.
 5. Schreibe optional eine **Notiz** und speichere.
+
+Der Dialog ist mit deinem üblichen Tag vorbelegt (oder mit deiner Vertragszeit); prüfe die Zeiten vor dem Speichern. Die Zeile unter dem Datum sagt dir, woher die Werte kommen. Das Kästchen **Arbeitsende erfasst** gibt es nur für heute und für einen Eintrag, der noch läuft. Für einen früheren Tag brauchst du immer ein Ende.
 
 Die Arbeitszeit rechnet Clokr dir beim Eintragen vor. Wirst du zwischen zwei Salons eingesetzt, kannst du die **Fahrzeit zwischen Salons** als eigenen Eintrag erfassen. Der Weg von und nach Hause ist keine Arbeitszeit.
 
@@ -144,7 +148,7 @@ Wenn dein Unternehmen es eingerichtet hat, gleicht Clokr die Termine aus dem Ter
 
 Der Hinweis nennt den Tag, das Ende deines letzten Termins und, falls du ausgestempelt hast, die Zeit. Du hast zwei Möglichkeiten:
 
-- **Nachtragen** öffnet den Tag. Du trägst deine Zeit selbst ein, Clokr füllt nichts vor.
+- **Nachtragen** öffnet den Tag. Clokr übernimmt keine Zeiten aus deinen Terminen: Du trägst deine Zeit selbst ein und prüfst die Vorbelegung des Dialogs.
 - **Stimmt so** blendet den Hinweis für diesen Tag dauerhaft aus, zum Beispiel weil du nach dem letzten Termin wirklich Feierabend hattest. Das wird mit Datum und Uhrzeit festgehalten. Auch deine Führungskraft sieht den Hinweis dann nicht mehr.
 
 Clokr trägt nie selbst Zeit ein und ändert dein Stundenkonto nicht. Hinweise gibt es nur für die Tage, die du noch selbst bearbeiten darfst, nicht für heute, nicht für Tage mit Urlaub oder Krankheit und nicht für abgeschlossene Monate. Unter **Ich › Profil** steht im Abschnitt „Abgleich mit deinen Terminen“, dass abgeglichen wird, solange dein Unternehmen den Abgleich eingeschaltet hat.
@@ -157,7 +161,7 @@ Wenn dein Unternehmen es eingerichtet hat, erkennt Clokr dich über das Salon-WL
 2. Scanne den QR-Code im Salon.
 3. Prüfe auf der Seite **Ich › Profil › Handy koppeln** dein Gerät und klicke auf **Das ist mein Handy – koppeln**.
 
-Alternativ trägst du unter **Ich › Profil** im Abschnitt „Stempeln mit dem Handy“ die Adresse deines Geräts per Hand ein (**MAC-Adresse manuell eintragen**). Im selben Abschnitt schaltest du die **WLAN-Anwesenheitserkennung** ein oder aus und entfernst Geräte. Schaltest du sie aus oder widerrufst du die Einwilligung, entfernt Clokr alle deine Geräte.
+Alternativ trägst du unter **Ich › Profil** im Abschnitt „Stempeln mit dem Handy“ die Adresse deines Geräts per Hand ein (**Handy ohne QR-Code koppeln**). Im selben Abschnitt schaltest du die **WLAN-Anwesenheitserkennung** ein oder aus und entfernst Geräte. Schaltest du sie aus oder widerrufst du die Einwilligung, entfernt Clokr alle deine Geräte.
 
 ::: tip Hinweis zum Datenschutz
 Clokr speichert die Geräteadresse nur für die Anwesenheitserkennung im Salon-WLAN. Verbindungs- und Trennungszeiten werden 90 Tage protokolliert und danach automatisch gelöscht.

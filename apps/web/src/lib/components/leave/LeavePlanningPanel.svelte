@@ -87,6 +87,12 @@
         add: () => void;
       } | null,
     ) => void;
+    /**
+     * Issue #991 (M-40): what the panel found for the year in view — „none“ once a load succeeded
+     * and no plan exists, „present“ with a plan, „loading“ for everything else (loading, no salon,
+     * an error). The host may show the year in its toolbar while there is none. Additive.
+     */
+    onPlanState?: (state: "loading" | "none" | "present") => void;
     /** A click on a week cell of the Jahr zoom (the host may zoom into that week). */
     onWeekSelect?: (monday: string) => void;
   }
@@ -100,6 +106,7 @@
     manageOpen = $bindable(false),
     onViewer,
     onControls,
+    onPlanState,
     onWeekSelect,
   }: Props = $props();
 
@@ -108,6 +115,9 @@
   // ── Plan state ─────────────────────────────────────────────────────────────
   let planData = $state<PlannerReadDto | null>(null);
   let loading = $state(false);
+  // True once a load of the current salon and year has answered (a plan or no plan); the host's
+  // `onPlanState` must not report „none“ before that.
+  let settled = $state(false);
   let loadError = $state("");
   let forbidden = $state(false);
   let rejected = $state(false);
@@ -126,7 +136,10 @@
 
   async function load(salon: string, forYear: number, silent = false) {
     const mine = ++loadSeq;
-    if (!silent) loading = true;
+    if (!silent) {
+      loading = true;
+      settled = false;
+    }
     loadError = "";
     try {
       const plans = await listPlans(salon, forYear);
@@ -143,6 +156,7 @@
       planData = data;
       forbidden = false;
       rejected = false;
+      settled = true;
     } catch (err) {
       if (mine !== loadSeq) return;
       planData = null;
@@ -168,6 +182,7 @@
         loadSeq++;
         planData = null;
         loading = false;
+        settled = false;
         forbidden = false;
         rejected = false;
         loadError = "";
@@ -258,6 +273,24 @@
   $effect(() => {
     const current = controls;
     untrack(() => onControls?.(current));
+  });
+
+  const planState = $derived<"loading" | "none" | "present">(
+    !settled ||
+      loading ||
+      loadError !== "" ||
+      forbidden ||
+      salonId === null ||
+      rejected ||
+      salonRejected
+      ? "loading"
+      : plan === null
+        ? "none"
+        : "present",
+  );
+  $effect(() => {
+    const current = planState;
+    untrack(() => onPlanState?.(current));
   });
 
   // ── The one timeline ───────────────────────────────────────────────────────
@@ -471,7 +504,9 @@
       title="Noch keine Planung"
       description={mode === "team" && canOpenHint
         ? "Für dieses Jahr ist noch keine Planung eröffnet. Öffne sie über „Planung verwalten“."
-        : "Für dieses Jahr ist noch keine Planung eröffnet."}
+        : mode === "own"
+          ? `Sobald deine Salonleitung die Urlaubsplanung für ${year} eröffnet, trägst du hier deine Wünsche ein.`
+          : "Für dieses Jahr ist noch keine Planung eröffnet."}
     />
   {:else}
     <!-- ── One card: lock notice, legend, then the timeline (desktop) or the wish list (mobile).

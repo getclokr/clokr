@@ -17,6 +17,9 @@
 import { fmtBalance } from "$lib/utils/format-minutes";
 import { forecastLabel } from "$lib/saldo/forecast-label";
 import { entryDay } from "$lib/time-entries/open-earlier-entry"; // Issue #1072
+import { dayAnchor, tenantDay, tenantTimeOfDay } from "$lib/utils/tenant-day"; // Issue #991
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 export type ScheduleType = "FIXED_SCHEDULE" | "FLEXTIME" | "MONTHLY_HOURS" | "SHIFT_BASED";
 
@@ -353,4 +356,57 @@ export function recentDays(
         breakMissing: breakDays.has(day),
       };
     });
+}
+
+/**
+ * Issue #991 (M-02, D-991-01): an idle day with neither a Soll nor a shift reads „Frei“ in the
+ * stage hero instead of a zero. Working on a day off stays possible; the clock button is unchanged.
+ */
+export function freeIdleDay(input: {
+  state: "ruhig" | "arbeitet" | "pause" | "fertig";
+  shiftText: string | null;
+  goalMin: number | null;
+}): boolean {
+  return input.state === "ruhig" && input.shiftText === null && input.goalMin === null;
+}
+
+/**
+ * Issue #991 (N-04, D-991-02): where a „Deine Woche“ tile leads. A day up to today opens its times,
+ * a future day the own roster. Days are ISO strings, compared as strings; the paths are constants
+ * and the only variable part is a day the page itself read.
+ */
+export function weekTileHref(day: string, today: string): string {
+  return day <= today ? `/ich/zeiten?date=${day}` : "/ich/dienstplan";
+}
+
+/**
+ * #991: a shift range of a week-strip tile in its short form - hours without a leading zero, full
+ * hours without „:00“: „09:00–17:00“ reads „9–17“, „09:30–17:30“ reads „9:30–17:30“. Anything that is
+ * not such a range (a holiday name, „Frei“, „8:00 h“) comes back unchanged. The full range stays in
+ * the tile's accessible name.
+ */
+export function weekStripCompactText(text: string): string {
+  const match = /^(\d{1,2}):(\d{2})–(\d{1,2}):(\d{2})$/.exec(text);
+  if (!match) return text;
+  const short = (h: string, m: string) => (m === "00" ? `${Number(h)}` : `${Number(h)}:${m}`);
+  return `${short(match[1], match[2])}–${short(match[3], match[4])}`;
+}
+
+/**
+ * Issue #991 (N-04): a zero-width space after every „–“ so a range such as „09:00–17:30“ can break
+ * after the dash in a narrow phone tile. A text without a dash comes back unchanged.
+ */
+export function weekStripPhoneText(text: string): string {
+  return text.replace(/–/g, "–​");
+}
+
+/**
+ * Issue #991 (N-05, D-991-03): the time column of „Verlauf“. An instant on the tenant's today reads
+ * „HH:mm“, any other day „Mo 23.11.“. The day is the tenant's, never the device's (#1066).
+ */
+export function historyWhenLabel(iso: string, today: string, timeZone: string): string {
+  const at = new Date(iso);
+  const day = tenantDay(at, timeZone);
+  if (day === today) return tenantTimeOfDay(at, timeZone);
+  return format(dayAnchor(day), "EEEEEE d.M.", { locale: de });
 }

@@ -23,6 +23,7 @@
  */
 import { test, expect, type TestTenant } from "../fixtures";
 import type { Page } from "@playwright/test";
+import { openEntryFormOfChosenDay } from "../helpers/day-panel";
 
 // Issue #1065: the tenant fixture bootstraps on the test stack (4001), so the API default matches it.
 const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
@@ -121,8 +122,8 @@ test.describe("Zeiterfassung — Complete Flow", () => {
 
     // Click the day cell directly via its date-pinned testid.
     await page.getByTestId(`calendar-cell-${TEST_DATE}`).click();
-    // #599 (Phase 851): a day is read first; the sheet's primary action runs the former click.
-    await page.getByTestId("day-sheet-primary").click();
+    // #599 (Phase 851): a day is read first; #991: a one-entry day is edited through its row menu.
+    await openEntryFormOfChosenDay(page);
 
     const modal = page.getByTestId("time-entry-modal");
     await expect(modal).toBeVisible();
@@ -157,8 +158,8 @@ test.describe("Zeiterfassung — Complete Flow", () => {
   test("edit an existing time entry", async ({ page }) => {
     await navigateToMonth(page, TEST_DATE);
     await page.getByTestId(`calendar-cell-${TEST_DATE}`).click();
-    // #599 (Phase 851): a day is read first; the sheet's primary action runs the former click.
-    await page.getByTestId("day-sheet-primary").click();
+    // #599 (Phase 851): a day is read first; #991: a one-entry day is edited through its row menu.
+    await openEntryFormOfChosenDay(page);
 
     const modal = page.getByTestId("time-entry-modal");
     await expect(modal).toBeVisible();
@@ -274,8 +275,8 @@ test.describe("Zeiterfassung — Complete Flow", () => {
     // testid contract documented in 73-03 plan Task 2.
     await navigateToMonth(page, TEST_DATE);
     await page.getByTestId(`calendar-cell-${TEST_DATE}`).click();
-    // #599 (Phase 851): a day is read first; the sheet's primary action runs the former click.
-    await page.getByTestId("day-sheet-primary").click();
+    // #599 (Phase 851): a day is read first; #991: a one-entry day is edited through its row menu.
+    await openEntryFormOfChosenDay(page);
 
     const modal = page.getByTestId("time-entry-modal");
     await expect(modal).toBeVisible();

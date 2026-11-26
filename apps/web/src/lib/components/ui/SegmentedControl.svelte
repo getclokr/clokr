@@ -16,6 +16,11 @@
     name?: string;
     ariaLabel?: string;
     size?: "sm" | "md";
+    /**
+     * Additive (#991): equal-width segments in one grid row, as wide as the container. A label that
+     * does not fit its segment wraps inside it instead of pushing one option onto a row of its own.
+     */
+    fill?: boolean;
     disabled?: boolean;
     onchange?: (value: string) => void;
   }
@@ -26,6 +31,7 @@
     name = "segmented-control",
     ariaLabel,
     size = "md",
+    fill = false,
     disabled = false,
     onchange,
   }: Props = $props();
@@ -62,6 +68,8 @@
 <div
   class="seg-control seg-control--{size}"
   class:seg-control--disabled={disabled}
+  class:seg-control--fill={fill}
+  style:--seg-count={fill ? options.length : undefined}
   role="radiogroup"
   aria-label={ariaLabel ?? name}
 >
@@ -112,6 +120,31 @@
   .seg-control--sm {
     --seg-radius: calc(var(--h-control-sm) / 2 + 3px);
     min-height: var(--h-control-sm);
+  }
+
+  /* #991: equal-width segments. The track is a grid of one row; a long label wraps inside its
+     segment, so the control is as wide as its container and never grows a second row of segments. */
+  .seg-control--fill {
+    display: grid;
+    grid-template-columns: repeat(var(--seg-count, 1), minmax(0, 1fr));
+    width: 100%;
+    --seg-radius: var(--r-card);
+  }
+
+  .seg-control--fill .seg-btn {
+    white-space: normal;
+    text-align: center;
+    padding-block: 6px;
+    padding-inline: 6px;
+    line-height: 1.2;
+    min-width: 0;
+    /* glyph above the label, so a word is never split to make room for it */
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .seg-control--fill .seg-glyph {
+    margin-right: 0;
   }
 
   .seg-control--disabled {

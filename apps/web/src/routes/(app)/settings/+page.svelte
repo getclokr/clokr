@@ -182,7 +182,7 @@
   </button>
   <div class="profile-person-text">
     <b>{displayName}</b>
-    <span>JPG, PNG oder WebP. Tippe auf das Bild, um es zu ändern.</span>
+    <span>JPG, PNG oder WebP.</span>
   </div>
   <input
     bind:this={avatarFileInput}

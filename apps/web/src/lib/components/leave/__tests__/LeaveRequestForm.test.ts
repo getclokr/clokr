@@ -105,16 +105,17 @@ describe("LeaveRequestForm", () => {
     expect(values).not.toContain("HOLIDAY");
   });
 
-  // ── SICK types: half-day disabled + hint (§ 8 BUrlG / EFZG §3-4) ────────────────────────────
+  // ── SICK types: no half-day option (§ 8 BUrlG / EFZG §3-4; Issue #991 N-16: not shown at all) ──
   it.each(["SICK", "SICK_CHILD"] as const)(
-    "%s: half-day checkbox is disabled and the hint is shown",
+    "%s: the half-day option is not offered, and a ticked box does not survive the switch",
     async (code) => {
       renderForm();
+      await fireEvent.click(screen.getByTestId("leave-form-half-day"));
       const select = screen.getByTestId("leave-form-type") as HTMLSelectElement;
       await fireEvent.change(select, { target: { value: code } });
-      const cb = screen.getByTestId("leave-form-half-day") as HTMLInputElement;
-      expect(cb.disabled).toBe(true);
-      expect(screen.getByText("Halbe Kranktage sind nicht zulässig")).toBeTruthy();
+      expect(screen.queryByTestId("leave-form-half-day")).toBeNull();
+      await fireEvent.change(select, { target: { value: "VACATION" } });
+      expect((screen.getByTestId("leave-form-half-day") as HTMLInputElement).checked).toBe(false);
     },
   );
 

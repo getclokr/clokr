@@ -134,6 +134,149 @@ export function addActionForDay<T extends DayEntryRow>(
   return { kind: "new", start: latestEnd, end: hhmmOf(end) };
 }
 
+/** What `prefillNewEntry` needs of a loaded row; the pages' own row types satisfy it. */
+export interface PrefillEntryRow {
+  date?: string | null;
+  startTime: string;
+  endTime: string | null;
+  breaks?: ReadonlyArray<{ startTime: string; endTime: string }> | null;
+  type?: string | null;
+  isInvalid?: boolean | null;
+  /** `TRAVEL` marks a trip between two salons; never a usual working day. */
+  activityKind?: string | null;
+  /** Set on the row coupled to a pending Zeitnachtrag; it is not a recorded day yet. */
+  retroRequestId?: string | null;
+}
+
+/** Where a prefilled form came from, so the page can say so in one visible line. */
+export type PrefillSource =
+  { kind: "usual"; day: string } | { kind: "contract"; minutes: number } | { kind: "default" };
+
+export interface PrefillNewEntryResult {
+  start: string;
+  end: string;
+  breaks: { start: string; end: string }[];
+  source: PrefillSource;
+}
+
+export interface PrefillNewEntryInput {
+  /** The rows loaded for the month on screen. */
+  entries: readonly PrefillEntryRow[];
+  /** The contract Soll of the weekday of the target day in minutes; 0 when unknown or a day off. */
+  dayContractMinutes: number;
+  /** The tenant's default break start (`HH:mm`), `null` when it has none. */
+  defaultBreakStart: string | null;
+  /**
+   * The break a stay of `grossMinutes` presence needs, from the page's own break suggestion. Injected,
+   * so this module holds no § 4 threshold: the browser has exactly one such convenience default
+   * (`suggestedBreakMinutes()` of the Zeiten page, issue #525) and the server re-derives the break
+   * on save (`arbzg-threshold-guard.test.ts`).
+   */
+  breakMinutesFor: (grossMinutes: number) => number;
+}
+
+function dayKeyOf(entry: PrefillEntryRow): string {
+  return (entry.date ?? entry.startTime).split("T")[0];
+}
+
+function weekdayOf(day: string): number {
+  return new Date(`${day}T12:00:00`).getDay();
+}
+
+/** A break row for `[start, end]` only when it lies inside the work period (never invented). */
+function placedBreak(
+  defaultBreakStart: string | null,
+  breakMinutes: number,
+  start: string,
+  end: string,
+): { start: string; end: string }[] {
+  if (breakMinutes <= 0 || !defaultBreakStart) return [];
+  const breakStart = minutesOf(defaultBreakStart);
+  const breakEnd = breakStart + breakMinutes;
+  if (breakStart <= minutesOf(start) || breakEnd >= minutesOf(end)) return [];
+  return [{ start: defaultBreakStart, end: hhmmOf(breakEnd) }];
+}
+
+/**
+ * Issue #991 N-09 / M-44 (D-991-06) — what a NEW single entry on an empty day starts with, in this
+ * order:
+ *
+ * 1. The person's usual day: the latest day other than `day` in the loaded month that has exactly one
+ *    entry, which is closed, valid, a plain working entry (no trip, no row of a pending Zeitnachtrag),
+ *    preferring the same weekday. Start, end and breaks are copied as recorded - the person's own data.
+ * 2. The contract hours of that weekday: 09:00 plus the Soll plus the break the page's break
+ *    suggestion names for that stay (`breakMinutesFor`). The break ROW is only
+ *    filled when the tenant has a default break start and it lies inside the work period: a break
+ *    start is never invented (Phase 93, BREAK-07).
+ * 3. 09:00-17:00, as before, with the same break rule.
+ *
+ * Pure and presentation only: the server stays the authority for overlap, lock, the retro window and
+ * ArbZG, and the person sees the visible „bitte prüfen“ line before anything is saved.
+ */
+export function prefillNewEntry(day: string, input: PrefillNewEntryInput): PrefillNewEntryResult {
+  const byDay = new Map<string, PrefillEntryRow[]>();
+  for (const entry of input.entries) {
+    const key = dayKeyOf(entry);
+    const list = byDay.get(key);
+    if (list) list.push(entry);
+    else byDay.set(key, [entry]);
+  }
+
+  const candidates: { day: string; entry: PrefillEntryRow }[] = [];
+  for (const [key, rows] of byDay) {
+    if (key === day || rows.length !== 1) continue;
+    const entry = rows[0];
+    if (!entry.endTime || entry.isInvalid) continue;
+    if ((entry.type ?? "WORK") !== "WORK" || entry.activityKind === "TRAVEL") continue;
+    if (entry.retroRequestId) continue;
+    const start = format(new Date(entry.startTime), "HH:mm");
+    const end = format(new Date(entry.endTime), "HH:mm");
+    if (end <= start) continue; // an overnight row is no usual day for a same-day form
+    candidates.push({ day: key, entry });
+  }
+  candidates.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0)); // latest first
+  const wanted = weekdayOf(day);
+  const usual = candidates.find((c) => weekdayOf(c.day) === wanted) ?? candidates[0];
+  if (usual) {
+    const { entry } = usual;
+    return {
+      start: format(new Date(entry.startTime), "HH:mm"),
+      end: format(new Date(entry.endTime as string), "HH:mm"),
+      breaks: (entry.breaks ?? []).map((b) => ({
+        start: format(new Date(b.startTime), "HH:mm"),
+        end: format(new Date(b.endTime), "HH:mm"),
+      })),
+      source: { kind: "usual", day: usual.day },
+    };
+  }
+
+  const { dayContractMinutes: minutes, defaultBreakStart, breakMinutesFor } = input;
+  if (minutes > 0) {
+    const breakMinutes = breakMinutesFor(minutes);
+    const start = DEFAULT_START;
+    const end = hhmmOf(Math.min(minutesOf(start) + minutes + breakMinutes, minutesOf(LATEST_END)));
+    return {
+      start,
+      end,
+      breaks: placedBreak(defaultBreakStart, breakMinutes, start, end),
+      source: { kind: "contract", minutes },
+    };
+  }
+
+  // The plain default, exactly the former prefill: the break for the gross stay of 09:00-17:00.
+  return {
+    start: DEFAULT_START,
+    end: DEFAULT_END,
+    breaks: placedBreak(
+      defaultBreakStart,
+      breakMinutesFor(minutesOf(DEFAULT_END) - minutesOf(DEFAULT_START)),
+      DEFAULT_START,
+      DEFAULT_END,
+    ),
+    source: { kind: "default" },
+  };
+}
+
 /**
  * The salons the entry form offers: the salons the caller reaches (from the salon-context store),
  * sorted by name, plus - when editing - the entry's own salon by its served name if the reach no

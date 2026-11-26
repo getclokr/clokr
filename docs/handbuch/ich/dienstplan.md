@@ -4,7 +4,7 @@ Hier siehst du, wann und wo du arbeitest, sagst deiner Salonleitung, wann du arb
 
 ## Deine Schichten
 
-Auf dem Reiter **Nächste 14 Tage** stehen deine Tage der nächsten zwei Wochen, nach Wochen gruppiert. Zu jedem Tag siehst du:
+Auf dem Reiter **Nächste Wochen** stehen deine Tage bis zum Ende der übernächsten Woche, nach Wochen gruppiert. Zu jedem Tag siehst du:
 
 - deine Schicht mit Uhrzeit und, wenn es einen gibt, dem Namen der Vorlage
 - eine Markierung **anderer Salon**, wenn du an dem Tag woanders eingeteilt bist
@@ -13,9 +13,9 @@ Auf dem Reiter **Nächste 14 Tage** stehen deine Tage der nächsten zwei Wochen,
 
 Ein heutiger Tag ist hervorgehoben. Hast du noch keine Schichten, steht dort „Noch keine Schichten geplant“. Sobald deine Salonleitung dich einplant, siehst du hier, wann und wo du arbeitest.
 
-<!-- SCREENSHOT file=bilder/dienstplan-01.png role=emp url=/ich/dienstplan show="Der Reiter Nächste 14 Tage mit den Schichten der kommenden Wochen" -->
+<!-- SCREENSHOT file=bilder/dienstplan-01.png role=emp url=/ich/dienstplan show="Der Reiter Nächste Wochen mit den Schichten der kommenden Wochen" -->
 
-![Der Reiter Nächste 14 Tage mit den Schichten der kommenden Wochen](../bilder/dienstplan-01.png)
+![Der Reiter Nächste Wochen mit den Schichten der kommenden Wochen](../bilder/dienstplan-01.png)
 
 ## Verfügbarkeit angeben
 
@@ -26,7 +26,7 @@ Du schaltest zwischen zwei Ansichten um:
 - **Jede Woche**: ein wiederkehrendes Muster pro Wochentag, Montag bis Sonntag. Pro Tag wählst du **Verfügbar**, **Nicht verfügbar** oder **Bevorzugt**.
 - **Einzelne Tage**: Ausnahmen vom Wochenmuster, zum Beispiel ein freier Nachmittag. Mit **+ Einmaltermin hinzufügen** legst du einen Tag mit demselben Status an. Ohne Einträge steht dort „Keine Einmaltermine vorhanden.“
 
-Beim Bearbeiten kannst du zusätzlich festlegen, ab und bis wann ein Eintrag gilt, und eine Notiz ergänzen. Mit **Verfügbarkeit speichern** übernimmst du deine Änderungen, über die Leiste verwirfst du sie wieder. Beim Entfernen eines Eintrags bleiben bereits geplante Schichten bestehen.
+Beim Bearbeiten kannst du zusätzlich festlegen, ab und bis wann ein Eintrag gilt, und eine Notiz ergänzen. Mit **Verfügbarkeit speichern** übernimmst du deine Änderungen, über die Leiste verwirfst du sie wieder. Mit dem Papierkorb entfernst du einen Eintrag, den es für den Tag gibt; vorher fragt Clokr nach. Beim Entfernen eines Eintrags bleiben bereits geplante Schichten bestehen.
 
 ## Kalender abonnieren
 

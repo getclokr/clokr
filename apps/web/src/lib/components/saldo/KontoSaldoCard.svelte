@@ -195,8 +195,6 @@
   .ksc-kicker {
     font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--text-3);
     margin-bottom: var(--s-3);
   }

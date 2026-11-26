@@ -9,11 +9,12 @@
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
   import { tenantFeatures } from "$stores/tenant-features";
-  import { tenantYear } from "$lib/utils/tenant-day";
+  import { tenantDay, tenantYear } from "$lib/utils/tenant-day";
   import Section from "$lib/components/admin/Section.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import { contractHistoryRows, MODEL_LABELS } from "$lib/employees/contract-history";
   import { mapVacationBalance, type VacationEntitlementRow } from "$lib/leave/vacation-balance";
+  import { formatDays } from "$lib/leave/review-facts";
 
   interface OwnSchedule {
     id: string;
@@ -27,6 +28,7 @@
 
   interface OwnEmployee {
     hireDate?: string;
+    exitDate?: string | null;
     /** The contract valid today (GET /employees/:id answers the newest row as `workSchedule`). */
     workSchedule?: OwnSchedule | null;
   }
@@ -36,7 +38,10 @@
   let loading = $state(true);
   let schedule = $state<OwnSchedule | null>(null);
   let annualDays = $state<number | null>(null);
-  let hireDate = $state<string | null>(null);
+  let year = $state<number | null>(null);
+  /** Issue #991 (N-25): the calendar day of a join / exit that falls inside the shown year. */
+  let joinDay = $state<string | null>(null);
+  let exitDay = $state<string | null>(null);
 
   const homeSalon = $derived.by(() => {
     const id = $salonContext.homeSalonId;
@@ -45,6 +50,31 @@
   });
 
   const contract = $derived(schedule ? contractHistoryRows([schedule])[0] : null);
+
+  /** „1.10.“ from a `YYYY-MM-DD` day (Ich area: no leading zeros, Issue #991). */
+  function shortDay(iso: string): string {
+    const [, m, d] = iso.split("-");
+    return `${Number(d)}.${Number(m)}.`;
+  }
+
+  /** „1.10.2026“ from a `YYYY-MM-DD` day. */
+  function longDay(iso: string): string {
+    return `${shortDay(iso)}${iso.slice(0, 4)}`;
+  }
+
+  /**
+   * Issue #991 (N-25): the figure is the pro-rated entitlement of the year, so it is labelled with the
+   * year and says when it is pro rata: „6 Tage (anteilig ab 1.10.)“, „20 Tage (anteilig bis 30.9.)“.
+   */
+  const annualLabel = $derived.by(() => {
+    if (annualDays === null) return "–";
+    const count = `${formatDays(annualDays)} ${annualDays === 1 ? "Tag" : "Tage"}`;
+    if (joinDay && exitDay)
+      return `${count} (anteilig ab ${shortDay(joinDay)} bis ${shortDay(exitDay)})`;
+    if (joinDay) return `${count} (anteilig ab ${shortDay(joinDay)})`;
+    if (exitDay) return `${count} (anteilig bis ${shortDay(exitDay)})`;
+    return count;
+  });
 
   /** „Di – Fr“ for a contiguous set, else „Mo, Mi, Fr“; for a shift contract the roster decides. */
   const workDaysLabel = $derived.by(() => {
@@ -67,15 +97,21 @@
     }
     try {
       // The entitlement year is the tenant's (Issue #1072): wait for the zone first.
-      const year = tenantYear(new Date(), await tenantFeatures.loadTimezone());
+      const zone = await tenantFeatures.loadTimezone();
+      const thisYear = tenantYear(new Date(), zone);
       const [me, ent] = await Promise.all([
         api.get<OwnEmployee>(`/employees/${id}`).catch(() => null),
         api
-          .get<VacationEntitlementRow[]>(`/leave/entitlements/${id}?year=${year}`)
+          .get<VacationEntitlementRow[]>(`/leave/entitlements/${id}?year=${thisYear}`)
           .catch(() => [] as VacationEntitlementRow[]),
       ]);
       schedule = me?.workSchedule ?? null;
-      hireDate = me?.hireDate ? new Date(me.hireDate).toLocaleDateString("de-DE") : null;
+      year = thisYear;
+      const hired = me?.hireDate ? tenantDay(new Date(me.hireDate), zone) : null;
+      const left = me?.exitDate ? tenantDay(new Date(me.exitDate), zone) : null;
+      joinDay =
+        hired && hired.startsWith(`${thisYear}-`) && hired > `${thisYear}-01-01` ? hired : null;
+      exitDay = left && left.startsWith(`${thisYear}-`) && left < `${thisYear}-12-31` ? left : null;
       annualDays = mapVacationBalance(ent.find((e) => e.typeCode === "VACATION"))?.total ?? null;
     } finally {
       loading = false;
@@ -105,12 +141,12 @@
         <dd>{workDaysLabel}</dd>
       </div>
       <div>
-        <dt>Urlaub pro Jahr</dt>
-        <dd>{annualDays === null ? "–" : `${annualDays} Tage`}</dd>
+        <dt>Urlaubsanspruch{year ? ` ${year}` : ""}</dt>
+        <dd>{annualLabel}</dd>
       </div>
       <div>
         <dt>Gilt</dt>
-        <dd>{contract?.period ?? "–"}</dd>
+        <dd>{contract ? `seit ${longDay(contract.startDay)}` : "–"}</dd>
       </div>
     </dl>
   {/if}

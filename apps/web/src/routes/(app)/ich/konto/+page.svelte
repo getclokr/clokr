@@ -39,7 +39,7 @@
   import { freeDaysLabel, showFreeDays, OVERTIME_COMP_REQUEST_HREF } from "$lib/me/free-days";
   import { downloadStundennachweis } from "$lib/me/stundennachweis";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
-  import { MONTH_STATUS_LABEL } from "$lib/saldo/month-status"; // Issue #598: one status wording
+  import { MONTH_STATUS_LABEL, MONTH_STATUS_TONE } from "$lib/saldo/month-status"; // Issue #598: one status wording
 
   interface OvertimeAnswer {
     balanceHours: number;
@@ -227,7 +227,9 @@
     }
   }
 
-  const statusTone = (s: KontoMonthRow["status"]) => (s === "CLOSED" ? "ok" : "info");
+  const statusTone = (s: KontoMonthRow["status"]) => MONTH_STATUS_TONE[s];
+  // Issue #991 (D-991-23): a day in the Ich area has no leading zeros („1.10.2026“).
+  const hireDayLabel = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 
   onMount(load);
 </script>
@@ -253,8 +255,8 @@
 
     {#if hireDate && rows.length === 0}
       <Note tone="info"
-        >Dein Konto beginnt am {hireDate.toLocaleDateString("de-DE")}. Sobald du Zeiten erfasst,
-        siehst du hier, wie es sich zusammensetzt.</Note
+        >Dein Konto beginnt am {hireDayLabel(hireDate)}. Sobald du Zeiten erfasst, siehst du hier,
+        wie es sich zusammensetzt.</Note
       >
     {/if}
 
@@ -264,8 +266,8 @@
         <h2 id="konto-herleitung" class="konto-h2">So setzt sich dein Stundenkonto zusammen</h2>
         <InfoHint
           text={[
-            ...(hireDate ? [`Eintritt am ${hireDate.toLocaleDateString("de-DE")}.`] : []),
-            "Tippe auf einen Monat, um seine Tage mit Soll, Ist und Differenz zu sehen. Das Stundenkonto zählt bis gestern; der heutige Tag kommt morgen dazu.",
+            ...(hireDate ? [`Eintritt am ${hireDayLabel(hireDate)}.`] : []),
+            "Tippe auf einen Monat, um seine Tage mit Soll, Ist und Differenz zu sehen. Bei einem abgeschlossenen Monat führt dich der Link zu Zeiten. Das Stundenkonto zählt bis gestern; der heutige Tag kommt morgen dazu.",
           ]}
           label={hintLabel("So setzt sich dein Stundenkonto zusammen")}
         />
@@ -308,8 +310,8 @@
             <h3 class="konto-h3">Tage im {month.label}</h3>
             {#if month.status === "CLOSED"}
               <p class="konto-hint">
-                Der Monat ist abgeschlossen; gespeichert sind seine Monatswerte. Die einzelnen Tage
-                siehst du unter <a class="konto-link" href={monthHref(month)}>Zeiten</a> und im Stundennachweis.
+                Dieser Monat ist abgeschlossen. Seine Tage findest du unter
+                <a class="konto-link" href={monthHref(month)}>Zeiten</a> und im Stundennachweis.
               </p>
             {:else if openDayRows.length === 0}
               <p class="konto-hint">

@@ -186,7 +186,8 @@
     padding: 20px 18px 8px;
     display: flex;
     align-items: flex-start;
-    justify-content: center;
+    /* Issue #991 N-07: the mark shares the 18 px edge of the area headings and the item icons. */
+    justify-content: flex-start;
     text-decoration: none;
     border: 0;
     /* the mark takes the brand colour inside BrandLogo; the wordmark is text-coloured (#852) */
@@ -384,7 +385,6 @@
     font-size: 0.75rem;
     color: var(--text-3);
     font-feature-settings: "tnum";
-    letter-spacing: 0.02em;
   }
 
   /* Mirrors Topbar.svelte's .notif-dot.unread-dot idiom. */

@@ -217,7 +217,6 @@
     max-width: 100%;
     font-size: 10.5px;
     font-weight: 500;
-    letter-spacing: 0.01em;
     line-height: 1.15;
     text-align: center;
     hyphens: manual;

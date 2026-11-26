@@ -7,7 +7,8 @@
  *
  *   /dashboard     clock in -> „Eingestempelt HH:MM[ · <Salon>]“, break start -> „Pause gestartet HH:MM“,
  *                  break end -> „Pause beendet HH:MM“, clock out -> „Ausgestempelt HH:MM“
- *   /leave         a one-day request through the form -> „Antrag gestellt · <Art> <Zeitraum>“
+ *   /leave         a one-day sick report through the form -> „Krankmeldung gesendet · <Zeitraum>“ (#991: a
+ *                  Krankmeldung is no Antrag; a request says „Antrag gestellt · <Art> <Zeitraum>“)
  *   /time-entries  the day's entry, end one minute later -> „Korrektur gespeichert“
  *
  * The salon part of the clock-in text depends on the tenant (a single-salon fixture may name none),
@@ -22,6 +23,7 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect } from "../fixtures";
 import type { TestTenant } from "../fixtures";
+import { leaveFormSubmit } from "../helpers/leave-form"; // #991: the submit sits in the dialog footer
 
 const API_BASE = process.env.E2E_API_BASE ?? "http://localhost:4001";
 const PASSWORD = "test1234";
@@ -125,8 +127,8 @@ test("every start-page write acknowledges its result in the toast status region"
   await form.getByTestId("leave-form-type").selectOption("SICK");
   await form.getByTestId("leave-form-from").fill(day);
   await form.getByTestId("leave-form-to").fill(day);
-  await form.getByTestId("leave-form-submit").click();
-  await expect(region).toContainText("Antrag gestellt · ");
+  await leaveFormSubmit(page).click();
+  await expect(region).toContainText("Krankmeldung gesendet · ");
 
   // ── /time-entries: the day's entry, end one minute later ─────────────────────────────────
   await page.goto("/time-entries?view=list");

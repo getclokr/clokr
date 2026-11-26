@@ -435,8 +435,8 @@ function futureDateISO(daysAhead: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-describe("#442 — AvailabilityOneOffList action cell (real mount, measured)", () => {
-  it("th.av-col-action and td.av-col-action stay table-cell, wrapper carries flex", () => {
+describe("#442 / #991 — AvailabilityOneOffList actions sit in the DataTable block's cell", () => {
+  it("the action group is the cell's only child, carries flex, and holds both actions", () => {
     const { container } = renderWithTheme(AvailabilityOneOffList, {
       entries: [
         {
@@ -449,22 +449,23 @@ describe("#442 — AvailabilityOneOffList action cell (real mount, measured)", (
     });
     probeAt(DESKTOP_WIDTH, cssForViewport(availabilityStyleBlock(), DESKTOP_WIDTH));
 
-    const th = container.querySelector("th.av-col-action");
-    const td = container.querySelector("td.av-col-action");
-    expect(th).not.toBeNull();
+    // The td belongs to the DataTable block (table-cell on a wide container, a card line below
+    // 760 px); the component owns the wrapper and keeps the flex layout there (#442).
+    const td = container.querySelector('td[data-label="Aktion"]');
     expect(td).not.toBeNull();
-    expect(getComputedStyle(th!).display).toBe("table-cell");
     expect(getComputedStyle(td!).display).toBe("table-cell");
-
-    // Positive control: the page rule really hits the td.
-    expect(getComputedStyle(td!).whiteSpace).toBe("nowrap");
 
     const group = td!.firstElementChild;
     expect(group).not.toBeNull();
-    // Svelte appends its own scoped hash class (e.g. "svelte-xxxxx") to every element matched by
-    // the component's scoped <style> block — classList.contains() ignores that, a bare
-    // className equality check would not.
+    // Svelte appends its own scoped hash class to every element matched by the component's scoped
+    // <style> block - classList.contains() ignores that.
     expect(group!.classList.contains("av-col-action__group")).toBe(true);
     expect(getComputedStyle(group as Element).display).toBe("flex");
+    expect(group!.querySelectorAll("button")).toHaveLength(2);
+  });
+
+  it("renders no table markup of its own (the block lays it out as cards on a phone)", () => {
+    expect(AVAILABILITY_COMPONENT).not.toMatch(/<table[\s>]/);
+    expect(AVAILABILITY_COMPONENT).toContain("<DataTable");
   });
 });

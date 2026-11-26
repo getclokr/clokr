@@ -6,7 +6,8 @@
 // loads, only worded here (Stichtag gestern, forecast label from the one helper) - still no sum.
 import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
 import { forecastLabel } from "$lib/saldo/forecast-label"; // Issue #588: one forecast wording
-import { monthStatusLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
+import { MONTH_STATUS_TONE, monthStatusLabel } from "$lib/saldo/month-status"; // Issue #598: one status wording
+import type { ChipTone } from "$lib/components/ui/chip-tone";
 
 /** The fields of KpiStrip's item this module fills (a structural subset; a plain .ts module cannot
  *  import a type from a .svelte file under `tsc`). */
@@ -250,14 +251,18 @@ export function ownZeitenKpis(input: ZeitenKpiInput): KpiItem[] {
 /** The status cell: closed or open, and who closes it (a person never closes their own month). */
 export function zeitenStatus(locked: boolean): {
   label: string;
-  tone: "ok" | "info";
+  tone: ChipTone;
   explanation: string;
 } {
   return locked
-    ? { label: monthStatusLabel(true), tone: "ok", explanation: "Werte sind final" }
+    ? {
+        label: monthStatusLabel(true),
+        tone: MONTH_STATUS_TONE.CLOSED,
+        explanation: "Werte sind final",
+      }
     : {
         label: monthStatusLabel(false),
-        tone: "info",
+        tone: MONTH_STATUS_TONE.OPEN,
         explanation: "Abschluss durch die Salonleitung",
       };
 }

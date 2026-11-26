@@ -160,6 +160,20 @@ describe("PeriodPicker", () => {
     expect(onToday).toHaveBeenCalledTimes(1);
   });
 
+  it("todayLabel (additive, #991 M-20) renames the jump button and keeps its test id", async () => {
+    const onToday = vi.fn();
+    renderWithTheme(PeriodPicker, props({ onToday, todayLabel: "Dieses Jahr" }));
+    const today = screen.getByTestId("month-bar-today");
+    expect(today).toHaveTextContent("Dieses Jahr");
+    await fireEvent.click(today);
+    expect(onToday).toHaveBeenCalledTimes(1);
+  });
+
+  it("the jump button reads „Heute“ without a todayLabel", () => {
+    renderWithTheme(PeriodPicker, props({ onToday: vi.fn() }));
+    expect(screen.getByTestId("month-bar-today")).toHaveTextContent(/^Heute$/);
+  });
+
   it("prev and next call their callbacks once; nextDisabled blocks next with the future title", async () => {
     const p = props();
     const { unmount } = renderWithTheme(PeriodPicker, p);

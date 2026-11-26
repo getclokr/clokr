@@ -1,8 +1,11 @@
 // Issue #597 (Phase 851) - the next days as one stream of shifts, leave and holidays.
 // Issue #589 (D-589-09, D-589-10; AC-589-5, AC-589-6) - the shift's salon is named from the salon
 // context, "anderer Salon" only for a salon outside it; "Frei" only on days without contract work.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildAgenda, isoWeek, type AgendaShift } from "../agenda";
+import availabilityPage from "../../../routes/(app)/availability/+page.svelte?raw";
+import { agendaWindow, buildAgenda, isoWeek, type AgendaShift } from "../agenda";
 
 const names = new Map<string, string>([
   ["nord", "Clokr Demo Nord"],
@@ -236,5 +239,96 @@ describe("buildAgenda — Frei versus Noch nicht geplant (Issue #589, D-589-10, 
     });
     expect(d[2]).toMatchObject({ kind: "unplanned", subtitle: "Arbeitstag laut Vertrag" });
     expect(d[5]).toMatchObject({ kind: "free" });
+  });
+});
+
+// Issue #991 (N-22, D-991-21) - the agenda ends on a Sunday: the rest of this week plus two full weeks.
+describe("agendaWindow", () => {
+  const dayOf = (w: { start: Date; days: number }) => {
+    const end = new Date(w.start.getFullYear(), w.start.getMonth(), w.start.getDate() + w.days - 1);
+    return end;
+  };
+
+  it("on a Monday it spans three full weeks (21 days) and ends on a Sunday", () => {
+    const w = agendaWindow(new Date(2026, 10, 9)); // Mo 9.11.2026
+    expect(w.days).toBe(21);
+    expect(dayOf(w).getDay()).toBe(0);
+    expect(dayOf(w).getDate()).toBe(29);
+  });
+
+  it("on a Wednesday it is 19 days", () => {
+    const w = agendaWindow(new Date(2026, 10, 11)); // Mi 11.11.2026
+    expect(w.days).toBe(19);
+    expect(dayOf(w)).toEqual(new Date(2026, 10, 29));
+  });
+
+  it("on a Sunday it is 15 days: today plus two full weeks", () => {
+    const w = agendaWindow(new Date(2026, 10, 15)); // So 15.11.2026
+    expect(w.days).toBe(15);
+    expect(dayOf(w)).toEqual(new Date(2026, 10, 29));
+  });
+
+  it("crosses the year end", () => {
+    const w = agendaWindow(new Date(2026, 11, 28)); // Mo 28.12.2026
+    expect(dayOf(w)).toEqual(new Date(2027, 0, 17));
+  });
+
+  it("returns the start day unchanged", () => {
+    const start = new Date(2026, 10, 11);
+    expect(agendaWindow(start).start).toEqual(start);
+  });
+});
+
+describe("buildAgenda week labels by Monday distance (#991 N-22)", () => {
+  it("names this, next and the week after next, each with its KW", () => {
+    const start = new Date(2026, 10, 11); // Mi 11.11.2026
+    const { days } = agendaWindow(start);
+    const weeks = buildAgenda(start, days, input());
+    expect(weeks.map((w) => w.label)).toEqual([
+      "Diese Woche · KW 46",
+      "Nächste Woche · KW 47",
+      "Übernächste Woche · KW 48",
+    ]);
+    expect(weeks[0].days).toHaveLength(5);
+    expect(weeks[1].days).toHaveLength(7);
+    expect(weeks[2].days).toHaveLength(7);
+  });
+
+  it("is year-safe: Mon 28.12.2026 is KW 53, then KW 1 and KW 2", () => {
+    const start = new Date(2026, 11, 28);
+    const { days } = agendaWindow(start);
+    const weeks = buildAgenda(start, days, input());
+    expect(weeks.map((w) => w.label)).toEqual([
+      "Diese Woche · KW 53",
+      "Nächste Woche · KW 1",
+      "Übernächste Woche · KW 2",
+    ]);
+  });
+
+  it("a Sunday start has a one-day first week", () => {
+    const start = new Date(2026, 10, 15);
+    const { days } = agendaWindow(start);
+    const weeks = buildAgenda(start, days, input());
+    expect(weeks[0]).toMatchObject({ label: "Diese Woche · KW 46" });
+    expect(weeks[0].days).toHaveLength(1);
+    expect(weeks).toHaveLength(3);
+  });
+
+  it("a window longer than three weeks falls back to the plain KW label", () => {
+    const weeks = buildAgenda(new Date(2026, 10, 9), 28, input());
+    expect(weeks[3].label).toBe("KW 49");
+  });
+
+  it("the agenda no longer does KW arithmetic on a number", () => {
+    const source = readFileSync(resolve(__dirname, "../agenda.ts"), "utf8");
+    expect(source).not.toContain("thisWeek + 1");
+    expect(source).not.toContain("thisWeek >= 52");
+  });
+});
+
+describe("the tab (#991 N-22)", () => {
+  it("is called „Nächste Wochen“, no longer „Nächste 14 Tage“", () => {
+    expect(availabilityPage).toContain('{ value: "plan", label: "Nächste Wochen" }');
+    expect(availabilityPage).not.toContain("Nächste 14 Tage");
   });
 });

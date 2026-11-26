@@ -167,7 +167,7 @@ export function kontoDayRows(days: readonly MonthSaldoDay[]): KontoDayRow[] {
     const weekday = WEEKDAYS[new Date(y, m - 1, day).getDay()];
     rows.push({
       date: d.date,
-      label: `${weekday} ${String(day).padStart(2, "0")}.${String(m).padStart(2, "0")}.`,
+      label: `${weekday} ${day}.${m}.`,
       sollMinutes: d.expectedMinutes,
       istMinutes: d.workedMinutes,
       diffMinutes: d.balanceMinutes,

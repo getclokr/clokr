@@ -55,6 +55,7 @@
     deriveVacationSummary,
     vacationCardDelta,
     vacationCardLabel,
+    vacationTakenHint,
   } from "$lib/leave/vacation-summary";
   import { resolveChipVisual, isDrawnInCalendar } from "$lib/leave/team-calendar-visibility"; // Phase 262 / 303, Issue #446 (D-04)
   import { leaveDaysLabel, calendarDaysUnit } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
@@ -550,9 +551,19 @@
     canAdd: boolean;
     add: () => void;
   }>(null);
+  // Issue #991 (M-40): what the panel found for the year in view. While the own Planung has no plan
+  // the toolbar shows the YEAR (a quarter of nothing says nothing); the panel keeps `activePeriod`,
+  // so the reported state cannot start a reload loop.
+  let planState = $state<"loading" | "none" | "present">("loading");
   $effect(() => {
-    if (activeTab !== "planung") planControls = null;
+    if (activeTab !== "planung") {
+      planControls = null;
+      planState = "loading";
+    }
   });
+  const planUnopened = $derived(activeTab === "planung" && planState === "none");
+  const toolbarZoom: Zoom = $derived(planUnopened ? "jahr" : activeZoom);
+  const toolbarPeriod = $derived(planUnopened ? periodOf("jahr", urlState.datum) : activePeriod);
 
   // Deep link (WR-07): the LEAVE_PLAN_OPENED notice links with `?salonId=…`. Once the salon context
   // is loaded, a salon the caller reaches is preselected in the header selection, then the
@@ -818,7 +829,7 @@
     return s === "APPROVED"
       ? "Genehmigt"
       : s === "PENDING"
-        ? "Ausstehend"
+        ? "Offen"
         : s === "REJECTED"
           ? "Abgelehnt"
           : s === "CANCELLATION_REQUESTED"
@@ -941,17 +952,6 @@
 
   // Issue #851 (D-851-04): the figures of the Kennzahlenleiste - the same values and wording the former
   // three cards showed (vacationCardLabel / vacationCardDelta, calendarDaysUnit for sick days, #595).
-  // Phase 851 (prototype): the next own approved vacation, for the „Genommen“ cell.
-  let nextVacation = $derived(
-    myRequests
-      .filter(
-        (r) =>
-          r.typeCode === "VACATION" &&
-          isEffectiveLeaveStatus(r.status) &&
-          r.startDate.slice(0, 10) >= today,
-      )
-      .sort((x, y) => x.startDate.localeCompare(y.startDate))[0] ?? null,
-  );
   // A carry-over deadline is only news while it lies ahead.
   let carryDeadlineAhead = $derived(
     vacationBalance?.carryOverDeadline && vacationBalance.carryOverDeadline.slice(0, 10) >= today
@@ -974,9 +974,8 @@
       value: vacationBalance ? vacSummaryUsed : "–",
       format: formatDays,
       unit: vacSummaryUsed === 1 ? "Tag" : "Tage",
-      explanation: nextVacation
-        ? `nächster: ${shortDate(nextVacation.startDate)}–${shortDate(nextVacation.endDate)}`
-        : "kein Urlaub geplant",
+      // Issue #991 (N-18): a waiting request is named, never „kein Urlaub geplant“ beside it.
+      explanation: vacationTakenHint(myRequests, today),
     },
     ...(vacationBalance && carryDeadlineAhead && vacSummaryCarryOverRemaining > 0
       ? [
@@ -1165,7 +1164,7 @@
   );
 
   const MY_REQ_STATUS_OPTIONS: { value: Status; label: string }[] = [
-    { value: "PENDING", label: "Ausstehend" },
+    { value: "PENDING", label: "Offen" },
     { value: "APPROVED", label: "Genehmigt" },
     { value: "REJECTED", label: "Abgelehnt" },
     { value: "CANCELLED", label: "Storniert" },
@@ -1295,8 +1294,10 @@
           <!-- An open request can be changed or withdrawn, an approved one cancelled (the server
                decides; the menu offers exactly what the status allows). -->
           <details class="lv-menu" ontoggle={placeMenu}>
+            <!-- svelte-ignore a11y_no_redundant_roles: an explicit role makes browsers expose the summary as a named button (#991) -->
             <summary
               class="lv-menu-btn"
+              role="button"
               aria-label="Aktionen für {typeName(req.typeCode)} {compactRange(
                 req.startDate,
                 req.endDate,
@@ -1478,14 +1479,14 @@
     tabs={toolbarTabs}
     {activeTab}
     onTabChange={selectTab}
-    period={activePeriod}
+    period={toolbarPeriod}
     zooms={activeTab === "team" || (activeTab === "planung" && planControls !== null)
       ? TIMELINE_ZOOMS
       : []}
-    zoom={activeZoom}
+    zoom={toolbarZoom}
     onZoomChange={(zoom) => void navigate({ zoom }, true)}
     onShift={(step) =>
-      void navigate({ datum: shiftPeriod(activeZoom, urlState.datum, step) }, true)}
+      void navigate({ datum: shiftPeriod(toolbarZoom, urlState.datum, step) }, true)}
     onToday={() => void navigate({ datum: today }, true)}
     filters={activeTab === "planung" ? plannerControls : undefined}
     testIdPrefix="leave-view"
@@ -1621,7 +1622,7 @@
                           style:color={_vis.textColor}
                           title="{e.firstName} {e.lastName}{_vis.typeLabel
                             ? ' · ' + _vis.typeLabel
-                            : ''}{e.status === 'PENDING' ? ' (ausstehend)' : ''}"
+                            : ''}{e.status === 'PENDING' ? ' (offen)' : ''}"
                         >
                           {#if _showLabel}
                             <span class="cal-chip-type">{_vis.chipLabel}</span>
@@ -1834,6 +1835,7 @@
           period={activePeriod}
           {today}
           onControls={(controls) => (planControls = controls)}
+          onPlanState={(state) => (planState = state)}
           onWeekSelect={(monday) => void navigate({ zoom: "quartal", datum: monday }, true)}
         />
       {/if}
@@ -1900,14 +1902,6 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 0.875rem 1rem;
-  }
-  .overlap-title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-2);
-    margin: 0 0 0.5rem;
   }
   .overlap-empty {
     font-size: 0.9375rem;

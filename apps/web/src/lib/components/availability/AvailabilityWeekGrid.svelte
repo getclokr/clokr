@@ -7,10 +7,15 @@
   // Per CLAUDE.md UI Consistency Rules: per-page scoped overrides of the global
   // calendar recipe are forbidden — this component uses a local av-recurring-row
   // class instead. See app.css for the canonical calendar styles.
+  //
+  // Issue #991 (N-27, M-27): light rows (one container border with dividers), the status edge comes
+  // from `data-status` (no inline colour), the trash is an Icon shown only on an existing entry and
+  // removing asks through ConfirmDialog, and a phone row is two short lines.
 
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
-  import Modal from "$components/ui/Modal.svelte";
+  import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
+  import Icon from "$components/Icon.svelte";
   import SegmentedControl from "$lib/components/ui/SegmentedControl.svelte";
   import AvailabilityEditModal, {
     type AvailabilityEntryDraft,
@@ -135,17 +140,10 @@
     confirmTargetDow = null;
   }
 
-  function borderColor(status: Status | undefined): string {
-    if (status === "AVAILABLE") return "var(--ok)";
-    if (status === "UNAVAILABLE") return "var(--bad)";
-    if (status === "PREFERRED") return "var(--brand)";
-    return "transparent";
-  }
-
   const STATUS_OPTIONS = [
-    { value: "AVAILABLE", label: "Verfügbar", glyph: "✓" },
-    { value: "UNAVAILABLE", label: "Nicht verfügbar", glyph: "✕" },
-    { value: "PREFERRED", label: "Bevorzugt", glyph: "★" },
+    { value: "AVAILABLE", label: "Verfügbar" },
+    { value: "UNAVAILABLE", label: "Nicht verfügbar" },
+    { value: "PREFERRED", label: "Bevorzugt" },
   ];
 </script>
 
@@ -156,7 +154,7 @@
 <div class="av-recurring-rows">
   {#each WEEK as day (day.dow)}
     {@const entry = entryFor(day.dow)}
-    <div class="av-recurring-row" style="border-left-color: {borderColor(entry?.status)};">
+    <div class="av-recurring-row" data-status={entry?.status ?? "none"}>
       <span class="av-dow" aria-label={day.long}>{day.short}</span>
 
       <SegmentedControl
@@ -178,15 +176,17 @@
         >
           Notiz
         </button>
-        <button
-          type="button"
-          class="btn btn-icon btn-ghost"
-          aria-label="Eintrag für {day.long} entfernen"
-          disabled={disabled || !entry}
-          onclick={() => askRemove(day.dow)}
-        >
-          🗑
-        </button>
+        {#if entry}
+          <button
+            type="button"
+            class="btn btn-icon btn-ghost"
+            aria-label="Eintrag für {day.long} entfernen"
+            {disabled}
+            onclick={() => askRemove(day.dow)}
+          >
+            <Icon name="trash" size={16} />
+          </button>
+        {/if}
       </div>
     </div>
   {/each}
@@ -200,20 +200,17 @@
   oncancel={handleEditCancel}
 />
 
-{#if confirmOpen}
-  <div role="alertdialog" aria-modal="true" aria-label="Eintrag entfernen?">
-    <Modal bind:open={confirmOpen} title="Eintrag entfernen?">
-      <p>
-        Dieser Verfügbarkeits-Eintrag wird dauerhaft gelöscht. Vorhandene Schichten bleiben
-        unverändert.
-      </p>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" onclick={cancelRemove}>Abbrechen</button>
-        <button type="button" class="btn btn-danger" onclick={doRemove}>Entfernen</button>
-      </div>
-    </Modal>
-  </div>
-{/if}
+<!-- The change itself is saved only through the page's SaveBar, so the text says „entfernt“, not
+     „gelöscht“. -->
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Eintrag entfernen?"
+  description="Dieser Verfügbarkeits-Eintrag wird entfernt. Bereits geplante Schichten bleiben unverändert."
+  confirmLabel="Entfernen"
+  danger
+  onConfirm={doRemove}
+  onCancel={cancelRemove}
+/>
 
 <style>
   .av-empty {
@@ -222,10 +219,13 @@
     margin: 0 0 var(--s-3);
   }
 
+  /* One container border with row dividers; the rows carry no card of their own. */
   .av-recurring-rows {
     display: flex;
     flex-direction: column;
-    gap: var(--s-1);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    overflow: hidden;
   }
 
   .av-recurring-row {
@@ -235,18 +235,27 @@
     gap: var(--s-3);
     min-height: var(--h-row);
     padding: var(--s-2) var(--s-3);
-    background: var(--card);
-    border: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
     border-left: 3px solid transparent;
-    border-radius: var(--r-control);
+  }
+  .av-recurring-row:last-child {
+    border-bottom: none;
+  }
+  /* The status edge: a data attribute, never an inline colour. */
+  .av-recurring-row[data-status="AVAILABLE"] {
+    border-left-color: var(--ok);
+  }
+  .av-recurring-row[data-status="UNAVAILABLE"] {
+    border-left-color: var(--bad);
+  }
+  .av-recurring-row[data-status="PREFERRED"] {
+    border-left-color: var(--brand);
   }
 
   .av-dow {
     font-family: var(--font-ui);
     font-size: 11px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--text);
   }
 
@@ -256,27 +265,22 @@
     align-items: center;
   }
 
-  .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--s-2);
-    margin-top: var(--s-4);
-  }
-
-  /* Mobile: stack control vertically (UI-SPEC §Mobile Behavior) */
+  /* Phone (Issue #991 N-27): the day and its actions on one line, the three options in one line under
+     it over the full width. */
   @media (max-width: 480px) {
     .av-recurring-row {
-      grid-template-columns: 40px 1fr;
+      grid-template-columns: 1fr auto;
       grid-template-areas:
-        "dow control"
-        "dow actions";
+        "dow actions"
+        "control control";
+      row-gap: var(--s-2);
     }
     .av-dow {
       grid-area: dow;
-      align-self: start;
     }
     :global(.av-recurring-row .seg-control) {
       grid-area: control;
+      width: 100%;
     }
     .av-actions {
       grid-area: actions;

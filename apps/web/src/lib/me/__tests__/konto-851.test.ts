@@ -135,7 +135,7 @@ describe("kontoDayRows (#594)", () => {
     expect(rows).toEqual([
       {
         date: "2026-06-01",
-        label: "Mo 01.06.",
+        label: "Mo 1.6.",
         sollMinutes: 480,
         istMinutes: 540,
         diffMinutes: 60,
@@ -143,7 +143,7 @@ describe("kontoDayRows (#594)", () => {
       },
       {
         date: "2026-06-08",
-        label: "Mo 08.06.",
+        label: "Mo 8.6.",
         sollMinutes: 480,
         istMinutes: 0,
         diffMinutes: -480,

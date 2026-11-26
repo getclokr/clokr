@@ -136,6 +136,13 @@
   {:else if name === "leaf"}
     <path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 11-9h5a14 14 0 0 1-9 16z" />
     <path d="M2 22c3-3 6-6 9-9" />
+  {:else if name === "trash"}
+    <!-- Issue #991 (M-27): the same glyph as the inline svg of WifiPresenceSettings. -->
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14H6L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4h6v2" />
   {:else if name === "graduation-cap"}
     <!-- v1.7.3: SVG replacement for legacy 🎓 emoji (Berufsschule). Lucide-style. -->
     <path d="M22 10v6" />

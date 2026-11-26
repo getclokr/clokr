@@ -24,6 +24,7 @@
   import Section from "$lib/components/admin/Section.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #991 (N-26)
 
   let enabled = $state(false);
   let devices = $state<MyWifiDevice[]>([]);
@@ -228,10 +229,16 @@
 
   <!-- Manual entry for phones that cannot scan -->
   <details class="mac-manual">
-    <summary>MAC-Adresse manuell eintragen</summary>
+    <summary>Handy ohne QR-Code koppeln</summary>
     <div class="mac-add-form">
       <div class="mac-field">
-        <label class="form-label" for="wifi-mac-input">MAC-Adresse</label>
+        <div class="hint-row">
+          <label class="form-label" for="wifi-mac-input">WLAN-Adresse deines Handys</label>
+          <InfoHint
+            text="Du findest sie in den WLAN-Einstellungen deines Handys beim Netz des Salons, oft als „WLAN-Adresse“ oder „MAC-Adresse“. Schalte dort für dieses Netz die private Adresse aus."
+            label={hintLabel("WLAN-Adresse deines Handys")}
+          />
+        </div>
         <input
           id="wifi-mac-input"
           class="form-input mac-input"

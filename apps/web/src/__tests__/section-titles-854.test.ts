@@ -6,7 +6,12 @@
 import { describe, expect, it } from "vitest";
 import postcss from "postcss";
 
-import { SRC_ROOT, svelteStyleBlocks, walkFiles } from "./design-source-files";
+import {
+  SRC_ROOT,
+  svelteStyleBlocks,
+  titleStyleViolations,
+  walkFiles,
+} from "./design-source-files";
 import { verwaltenComponentFiles, verwaltenRouteFiles } from "./verwalten-854-files";
 
 interface Source {
@@ -28,22 +33,6 @@ function rulesMatching(css: string, pick: (selector: string) => boolean): string
     if (rule.selectors.some(pick)) out.push(rule.toString());
   });
   return out.join("\n");
-}
-
-/** Every declaration that breaks the sentence-case rule, as `selector { prop: value }`. */
-export function titleStyleViolations(css: string): string[] {
-  const hits: string[] = [];
-  postcss.parse(css).walkDecls((decl) => {
-    const value = decl.value.trim().toLowerCase();
-    const selector = decl.parent && "selector" in decl.parent ? String(decl.parent.selector) : "";
-    if (decl.prop === "text-transform" && (value === "uppercase" || value === "capitalize")) {
-      hits.push(`${selector} { text-transform: ${decl.value} }`);
-    }
-    if (decl.prop === "letter-spacing" && !["0", "normal", "0em", "0px"].includes(value)) {
-      hits.push(`${selector} { letter-spacing: ${decl.value} }`);
-    }
-  });
-  return hits;
 }
 
 const appCss = byRel("app.css").text;

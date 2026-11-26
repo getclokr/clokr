@@ -40,7 +40,7 @@
   }: Props = $props();
 
   const STATUS: Record<string, { label: string; tone: ChipTone }> = {
-    PENDING: { label: "Ausstehend", tone: "warn" },
+    PENDING: { label: "Offen", tone: "warn" },
     CANCELLATION_REQUESTED: { label: "Stornierung beantragt", tone: "warn" },
     APPROVED: { label: "Genehmigt", tone: "ok" },
     REJECTED: { label: "Abgelehnt", tone: "bad" },

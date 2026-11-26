@@ -26,6 +26,8 @@
     onNext: () => void;
     /** "Heute" jump - the button renders only when provided. */
     onToday?: () => void;
+    /** Text of the jump button (additive, Issue #991 M-20): a year control reads „Dieses Jahr“. */
+    todayLabel?: string;
     /** aria-label AND title of the previous arrow. */
     prevLabel?: string;
     /** aria-label AND title of the next arrow. */
@@ -59,6 +61,7 @@
     onPrev,
     onNext,
     onToday,
+    todayLabel = "Heute",
     prevLabel = "Vorheriger Zeitraum",
     nextLabel = "Nächster Zeitraum",
     nextDisabled = false,
@@ -157,7 +160,7 @@
       <button
         class="btn btn-ghost btn-sm month-bar-today"
         onclick={onToday}
-        data-testid={`${testIdPrefix}-today`}>Heute</button
+        data-testid={`${testIdPrefix}-today`}>{todayLabel}</button
       >
     {/if}
     {#if extra}
@@ -337,17 +340,22 @@
      (423-514 px) or clipped "Heute" at x = 414-428 through
      `.card { overflow: hidden }`. Layout here: arrows and label share one grid
      row, the centre loses its 200 px floor and may shrink, "Heute" and the extra
-     slot get their own full-width row. Nothing is hidden or abbreviated.
+     slot share ONE row under the arrows (Issue #991 N-29/M-51; they used to get a full row each,
+     which made the bar three rows tall on Zeiten). Nothing is hidden or abbreviated.
      Why a grid and not flex-wrap: a measured flex-wrap variant only kept the
      label clear by forcing a 100% basis onto "Heute" (a full-width ghost button),
      and with an auto basis line breaking would push the next arrow, not "Heute",
      onto a new line at narrow widths. The grid always gives the intended outcome.
-     Mirrored by .cal-monthbar in app.css (keep both in lockstep).
+     `.cal-monthbar` in app.css is the older mirror of this block; no markup uses it any more (the
+     only places that name it are comments and the class-name guards of the two leave-area tests),
+     so it is left as it is. Below 361 px the extra slot gets a row of its own again (see the 360 px
+     block), which keeps the #564 clearance at 320 px as it was proven.
      These rules come after every base rule they override (same specificity,
      source order decides). The zoom Segment takes a row of its own. */
   @media (max-width: 640px) {
     .month-bar {
       flex-wrap: wrap;
+      padding: 12px 16px;
     }
 
     .month-bar > .month-bar-nav {
@@ -386,16 +394,28 @@
       font-size: 17px;
     }
 
-    .month-bar-today,
+    /* Issue #991: both span every track and only differ in alignment, so the auto arrow tracks are
+       not widened by them (a span over one track would be). Heute sits at the start of row 2, the
+       extra slot at its end; with no extra Heute is alone on the row, with no Heute the extra sits
+       at the end. */
+    .month-bar-today {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: start;
+      margin-left: 0;
+    }
+
     .month-bar-extra {
       grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: end;
       margin-left: 0;
+      padding-left: 0;
     }
 
     /* 44px = the min-height of the neighbouring .nav-btn arrows (app.css), WCAG 2.5.5.
        Scoped (0,2,0) beats the global v1.5 `.btn { min-height: 0 }` (0,1,0). */
     .month-bar-today {
-      justify-self: center;
       min-height: 44px;
     }
   }
@@ -408,6 +428,16 @@
     .month-bar {
       padding-left: 12px;
       padding-right: 12px;
+    }
+
+    /* Issue #991: the previous stacking returns - Heute centred, the extra slot on a row of its own. */
+    .month-bar-today {
+      justify-self: center;
+    }
+
+    .month-bar-extra {
+      grid-row: 3;
+      justify-self: stretch;
     }
   }
 </style>

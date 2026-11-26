@@ -54,7 +54,7 @@ export const DAY_LOAD_HINT =
 // the leave-limit kernel (counted codes only, wishes included); Jahr shows the week load of the
 // rows in view (any visible or masked absent Werktag, wishes not counted).
 export const PLAN_DAY_LOAD_ROW_LABEL = "Urlaub (Personen)";
-export const PLAN_WEEK_LOAD_ROW_LABEL = "Abwesend (Personen)";
+export const PLAN_WEEK_LOAD_ROW_LABEL = "Abwesend pro Woche"; // Issue #991 N-19
 export const PLAN_WEEK_LOAD_HINT =
   "Personen mit mindestens einem abwesenden Werktag in der Woche – Wünsche zählen nicht";
 

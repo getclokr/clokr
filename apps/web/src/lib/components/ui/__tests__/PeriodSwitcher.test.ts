@@ -83,6 +83,15 @@ describe("PeriodSwitcher", () => {
     expect(foreign).toEqual([]);
   });
 
+  it.each([
+    ["jahr", "2026-11-08", "Dieses Jahr"],
+    ["quartal", "2026-11-08", "Heute"],
+    ["monat", "2026-11-08", "Heute"],
+  ] as const)("zoom %s jumps with the text „%s“ (#991 M-20)", (zoom, datum, text) => {
+    renderWithTheme(PeriodSwitcher, props(zoom, datum));
+    expect(screen.getByTestId("month-bar-today")).toHaveTextContent(new RegExp(`^${text}$`));
+  });
+
   it("moves the cursor with the period (the label never comes from the clock)", () => {
     renderWithTheme(PeriodSwitcher, props("monat", "2027-02-10"));
     expect(screen.getByTestId("month-bar-label")).toHaveTextContent("Februar 2027");

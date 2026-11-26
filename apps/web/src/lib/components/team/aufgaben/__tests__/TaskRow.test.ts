@@ -42,8 +42,8 @@ describe("TaskRow - leave row", () => {
     expect(screen.getByText("Mia Muster")).toBeTruthy();
     expect(screen.getByText("14.12.2026 – 18.12.2026 · 4 Arbeitstage")).toBeTruthy();
     const chips = Array.from(container.querySelectorAll(".chip"));
-    expect(chips.map((c) => c.textContent?.trim())).toEqual(["Urlaub", "Ausstehend"]);
-    expect(screen.getByText("Ausstehend")).toBeTruthy();
+    expect(chips.map((c) => c.textContent?.trim())).toEqual(["Urlaub", "Offen"]);
+    expect(screen.getByText("Offen")).toBeTruthy();
   });
 
   it("draws NO dashed type chip (#853-19): a waiting and a cancelled request both get the plain chip", () => {
@@ -70,7 +70,7 @@ describe("TaskRow - leave row", () => {
       typeLabel: "Urlaub",
     });
     expect(screen.getByText("Genehmigt")).toBeTruthy();
-    expect(screen.queryByText("Ausstehend")).toBeNull();
+    expect(screen.queryByText("Offen")).toBeNull();
   });
 });
 

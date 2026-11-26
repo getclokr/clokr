@@ -234,8 +234,6 @@
   .mstat-label {
     font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--text-3);
     white-space: nowrap;
   }
@@ -297,8 +295,6 @@
   .mstat :global(.saldo__label) {
     font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--text-3);
     white-space: nowrap;
   }

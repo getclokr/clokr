@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
-  import { onDestroy, onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import {
     RUNNING_SALDO_LABEL,
     dayDiffText,
@@ -10,6 +10,7 @@
     type DaySaldo,
   } from "$lib/time-entries/day-saldo"; // Issue #1029: the one reader of the server's day series
   import { page } from "$app/state";
+  import { replaceState } from "$app/navigation"; // Issue #991 N-13: the view in the URL
   import { entryToEndFromParam, END_ENTRY_PARAM } from "$lib/time-entries/open-earlier-entry"; // Issue #942
   import {
     monthAnchorFromDay,
@@ -53,8 +54,10 @@
     cellClickAction,
     entryCountTitle,
     openEntryOfDay,
+    prefillNewEntry,
     salonFieldOptions,
     salonIdToSend,
+    type PrefillSource,
   } from "$lib/time-entries/day-entry-actions"; // Issue #70, D-07
   import {
     OPEN_ENTRY_TEXTS,
@@ -397,6 +400,9 @@
   let formStart = $state("09:00");
   let formEnd = $state("17:00");
   let formHasEnd = $state(true);
+  // Issue #991 N-09: where the form of a NEW entry was prefilled from; `null` for an edit and for a
+  // further entry on a day that already has some. Drives the one visible „bitte prüfen“ line.
+  let prefillSource = $state<PrefillSource | null>(null);
   let formBreaks = $state<{ start: string; end: string }[]>([]);
   let formBreakTotal = $derived(
     formBreaks.reduce((sum, b) => sum + slotMinutes(b.start, b.end), 0),
@@ -441,6 +447,14 @@
   let formTravelFrom = $state("");
   let formTravelTo = $state("");
   let travelActive = $derived(travelMode === "travel" || (travelMode === "offer" && formTravel));
+  // Issue #991 M-45 (D-991-07): an open end is possible only for today or for an entry that is open
+  // already. A past day without an end is a stale entry, so there the end is required.
+  let showEndToggle = $derived(
+    !travelActive && (formDate === todayStr || (editEntry !== null && editEntry.endTime === null)),
+  );
+  $effect(() => {
+    if (modalOpen && !showEndToggle && !formHasEnd) formHasEnd = true;
+  });
   let travelToOptions = $derived(travelArrivalOptions(formSalonOptions, editEntry));
   let defaultBreakStart: string | null = $state(null);
   // Phase 93 (BREAK-07) — tenant-configured break durations for the new-entry
@@ -516,6 +530,9 @@
     // The BREAK_UNCONFIRMED notification links with `highlight` and no `view`; the calendar
     // cannot point at a single entry, so an entry-targeted arrival opens the list.
     if (highlightParam) teView = "list";
+    // Issue #991 N-13: from here on a change of the view is the person's own and goes into the URL.
+    lastViewSeen = teView;
+    viewUrlReady = true;
 
     // Issue #1072 (R-A): the first request carries a month derived from now, so the tenant's zone is
     // awaited first (a child's onMount runs before the layout's read settles).
@@ -557,6 +574,30 @@
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
+  });
+
+  // Issue #991 N-13: the Kalender/Liste switch is written into the URL, so a reload keeps the view.
+  // Nothing is written for the view the page started in (the read from `view` above, or the list an
+  // entry-targeted arrival opens): `lastViewSeen` is set to it before the first await. Only „list“ is
+  // ever read back (T-991-05), so the value is written as `view=list` or not at all.
+  let viewUrlReady = $state(false);
+  let lastViewSeen: "calendar" | "list" | null = null;
+  $effect(() => {
+    const view = teView;
+    if (!viewUrlReady || view === lastViewSeen) return;
+    lastViewSeen = view;
+    untrack(() => {
+      const url = new URL(page.url.href);
+      if ((url.searchParams.get("view") === "list" ? "list" : "calendar") === view) return;
+      if (view === "list") url.searchParams.set("view", "list");
+      else url.searchParams.delete("view");
+      // The href is built from the current `page.url`, which already carries any base path (same
+      // reasoning as `lib/nav/tab-hash.ts`); a refused or unstarted router must not break the page.
+
+      Promise.resolve(
+        replaceState(`${url.pathname}${url.search}${url.hash}`, page.state ?? {}),
+      ).catch(() => {});
+    });
   });
 
   async function loadAll() {
@@ -1169,11 +1210,38 @@
       openEdit(action.entry);
       return;
     }
+    // Issue #991 N-09 (D-991-06): a day WITHOUT entries starts from the person's usual day, else
+    // from the contract hours of that weekday (no daily target: none), else from 09:00-17:00. A
+    // further entry on a day that has some keeps its continuation preset.
+    if (rowsOfDay(targetDate).length === 0) {
+      const prefill = prefillNewEntry(targetDate, {
+        entries,
+        dayContractMinutes:
+          schedule && !isNoDailyTarget
+            ? getDayExpectedMinutes(schedule, new Date(`${targetDate}T12:00:00`))
+            : 0,
+        defaultBreakStart,
+        // The page's one break suggestion (a convenience default; the server re-derives the break).
+        breakMinutesFor: (gross) =>
+          suggestedBreakMinutes(
+            "00:00",
+            `${Math.floor(gross / 60)}:${String(gross % 60).padStart(2, "0")}`,
+          ),
+      });
+      openNew(targetDate, prefill.start, prefill.end, prefill);
+      return;
+    }
     openNew(targetDate, action.start, action.end);
   }
 
-  function openNew(targetDate: string, start: string, end: string) {
+  function openNew(
+    targetDate: string,
+    start: string,
+    end: string,
+    prefill?: { breaks: { start: string; end: string }[]; source: PrefillSource },
+  ) {
     editEntry = null;
+    prefillSource = prefill?.source ?? null;
     formDate = targetDate;
     formStart = start;
     formEnd = end;
@@ -1186,7 +1254,10 @@
     // no break row (no auto-break, no AUTO, no nudge). When defaultBreakStart is
     // null, fall back to no prefilled row — do not invent a start time.
     const suggested = suggestedBreakMinutes(formStart, formEnd);
-    if (suggested > 0 && defaultBreakStart) {
+    if (prefill) {
+      // Issue #991: the breaks were decided together with the times (usual day: copied as recorded).
+      formBreaks = prefill.breaks.map((b) => ({ ...b }));
+    } else if (suggested > 0 && defaultBreakStart) {
       formBreaks = [
         { start: defaultBreakStart, end: addMinutesToTime(defaultBreakStart, suggested) },
       ];
@@ -1356,7 +1427,9 @@
       return { label: "Zeit nachtragen", run: () => openAdd(day.dateStr) };
     if (multiEntryUi)
       return { label: "+ Weitere Zeit an diesem Tag", run: () => openAdd(day.dateStr) };
-    return { label: "Bearbeiten", run: () => void runCellAction(day.dateStr) };
+    // Issue #991 N-13: a day with one closed entry has its row menu „…“ (Bearbeiten); a second
+    // „Bearbeiten“ in the footer was a second way to do the same thing.
+    return null;
   });
   // The day's own difference, exactly the figure its calendar cell shows. SHIFT_BASED: the server's
   // day step (Issue #1029); the other models keep their existing contract-based difference.
@@ -1388,6 +1461,7 @@
 
   function openEdit(entry: TimeEntry) {
     editEntry = entry;
+    prefillSource = null;
     formDate = (entry.date ?? entry.startTime).split("T")[0];
     formStart = format(new Date(entry.startTime), "HH:mm");
     formHasEnd = !!entry.endTime;
@@ -1412,6 +1486,7 @@
   function closeModal() {
     modalOpen = false;
     editEntry = null;
+    prefillSource = null;
     deleteConfirmId = "";
     retroWindowExceeded = false;
     retroWindowDays = 0;
@@ -1826,6 +1901,10 @@
 
   // D-06: Derive lock state from entry data already loaded — no extra API request
   let monthIsLocked = $derived(entries.some((e) => e.isLocked === true));
+  // Issue #991 N-12: the month on screen is closed. The server refuses a write into it (MONTH_LOCKED),
+  // so the head and the phone dock offer no „Zeit nachtragen“; the day panel keeps „Korrektur anfragen“.
+  // `entries` hold only the displayed month, so a locked row is a row of this month.
+  let monthClosed = $derived(monthSaldo?.closed === true || monthIsLocked);
 
   // ── Reaktive Ableitungen ───────────────────────────────────────────────────
   let isMonthlyHours = $derived(schedule?.type === "MONTHLY_HOURS");
@@ -1835,6 +1914,21 @@
       schedule?.type === "FLEXTIME" ||
       schedule?.type === "SHIFT_BASED",
   );
+  // Issue #991 N-11: a contract day off. Only the weekend was tinted before, so a Monday without Soll
+  // looked like a day that had been missed. Holidays, absences and days before the hire date have
+  // their own look; the models without a daily target (flex, monthly, shift) have no „day off“ per day.
+  function isNoSollDay(d: CalDay): boolean {
+    return (
+      d.isCurrentMonth &&
+      !d.isWeekend &&
+      !d.isHoliday &&
+      !d.absenceType &&
+      !d.isBeforeHire &&
+      !isNoDailyTarget &&
+      !isExempt &&
+      d.expectedMin === 0
+    );
+  }
   let monthlyTarget = $derived(
     isMonthlyHours && schedule?.monthlyHours ? Number(schedule.monthlyHours) * 60 : 0,
   );
@@ -2113,7 +2207,7 @@
     if (days.some((d) => d.status === "partial" || d.status === "today-partial"))
       soll.push({ cls: "leg-partial", label: "Teilweise" });
     if (days.some((d) => d.status === "missing")) soll.push({ cls: "leg-missing", label: "Fehlt" });
-    if (days.some((d) => d.status === "noExpect" || d.status === "today-empty"))
+    if (days.some((d) => d.status === "noExpect" || d.status === "today-empty" || isNoSollDay(d)))
       soll.push({ cls: "leg-noexpect", label: "Kein Soll" });
 
     const codes = new Set(days.map((d) => d.absenceType).filter(Boolean) as string[]);
@@ -2243,7 +2337,7 @@
         Stundennachweis (PDF)
       </button>
     {/if}
-    {#if !isExempt && !isPhone}
+    {#if !isExempt && !isPhone && !monthClosed}
       <button
         class="btn btn-primary btn-sm"
         onclick={() => openAdd()}
@@ -2329,7 +2423,7 @@
 
   <!-- Issue #604: hints on probably unrecorded time (appointments the person did not record). The
        server decides each one; „Nachtragen“ opens the day's own dialog and never prefills it with
-       appointment times. Renders nothing while the tenant switch is off or nothing is open. -->
+       appointment times (the usual-day prefill of #991 is the person's own recorded or contract data). Renders nothing while the tenant switch is off or nothing is open. -->
   {#if hasEmployeeLink && !isExempt}
     <AppointmentHintsCallout onRecord={(date) => openAdd(date)} />
   {/if}
@@ -2411,6 +2505,7 @@
                 class:cal-current={day.isCurrentMonth}
                 class:cal-today={day.isToday}
                 class:cal-weekend={day.isWeekend}
+                class:te-nosoll={isNoSollDay(day)}
                 class:cal-holiday={day.isHoliday && day.isCurrentMonth}
                 class:cal-selected={day.dateStr === selectedDate && day.isCurrentMonth}
                 class:cal-cell--disabled={day.isBeforeHire && day.isCurrentMonth}
@@ -3049,7 +3144,7 @@
        data-testid following [surface]-[element]-[action]? (D-05). The modal
        primitive owns role=dialog already; this wrapper exposes the modal
        root + body fields by stable id for spec consumers. -->
-    <div data-testid="time-entry-modal">
+    <div class="te-entry-form" data-testid="time-entry-modal">
       {#if saveError}
         <div class="alert alert-error" role="alert" data-testid="time-entry-modal-error">
           <span>⚠</span><span>{saveError}</span>
@@ -3066,6 +3161,23 @@
         />
         {#if retroHint}
           <p class="form-hint" data-testid="time-entry-modal-retro-hint">{retroHint}</p>
+        {/if}
+        <!-- Issue #991 N-09: a state to act on, so visible text and no InfoHint (#1058). Only a NEW
+             entry carries it; nothing is saved before the person has looked. -->
+        {#if editEntry === null && prefillSource?.kind === "usual"}
+          <p class="form-hint" data-testid="time-entry-modal-prefill-hint">
+            Vorbelegt wie dein Tag am {format(
+              new Date(`${prefillSource.day}T12:00:00`),
+              "EEEEEE d.M.",
+              {
+                locale: de,
+              },
+            )} – bitte prüfen.
+          </p>
+        {:else if editEntry === null && prefillSource?.kind === "contract"}
+          <p class="form-hint" data-testid="time-entry-modal-prefill-hint">
+            Vorbelegt mit deiner Vertragszeit ({fmtMin(prefillSource.minutes)} h) – bitte prüfen.
+          </p>
         {/if}
       </div>
       {#if multiEntryUi}
@@ -3152,20 +3264,7 @@
           />
         </div>
         <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label" for="f-end">Arbeitsende</label>
-            {#if !travelActive}
-              <label class="end-toggle">
-                <input
-                  type="checkbox"
-                  bind:checked={formHasEnd}
-                  aria-label="Arbeitsende erfasst"
-                  data-testid="time-entry-modal-end-toggle"
-                />
-                <span class="text-muted end-toggle-hint">erfasst</span>
-              </label>
-            {/if}
-          </div>
+          <label class="form-label" for="f-end">Arbeitsende</label>
           <input
             id="f-end"
             type="time"
@@ -3174,6 +3273,17 @@
             disabled={!formHasEnd}
             data-testid="time-entry-modal-end"
           />
+          {#if showEndToggle}
+            <!-- Issue #991 M-45: under the field with the full label, not squeezed into the label row. -->
+            <label class="end-toggle">
+              <input
+                type="checkbox"
+                bind:checked={formHasEnd}
+                data-testid="time-entry-modal-end-toggle"
+              />
+              <span>Arbeitsende erfasst</span>
+            </label>
+          {/if}
           {#if editEntry && editEntry.endTime === null && !formHasEnd}
             <p class="form-hint" data-testid="time-entry-modal-open-hint">
               {OPEN_ENTRY_TEXTS.openHint}
@@ -3545,7 +3655,7 @@
      is a page-level sibling, never inside a .card-animate ancestor (its transform would become the
      containing block of the fixed bar, app.css #570). Same condition and same action as the head
      button above (§ 18 ArbZG-exempt users get no add action at all). -->
-{#if isPhone && !isExempt}
+{#if isPhone && !isExempt && !monthClosed}
   <div class="te-add-dock" data-testid="time-entries-add-dock">
     <button
       type="button"
@@ -3578,7 +3688,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
   }
@@ -3805,6 +3914,10 @@
   :global(.cal-cell.cal-weekend:not(.cal-today)) {
     background: var(--sunk);
   }
+  /* Issue #991 N-11: a contract day off reads like the weekend; the legend „Kein Soll“ names it. */
+  .cal-cell.te-nosoll:not(.cal-other):not(.cal-selected) {
+    background: var(--sunk);
+  }
   /* Tage vor dem Eintrittsdatum */
   :global(.cal-cell.cal-cell--disabled) {
     opacity: 0.4;
@@ -3870,8 +3983,6 @@
     display: block;
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     opacity: 0.65;
     line-height: 1.2;
     overflow: hidden;
@@ -4023,12 +4134,6 @@
     gap: 0.25rem;
   }
 
-  .day-detail-label {
-    font-weight: 600;
-    font-size: 0.9375rem;
-    text-transform: capitalize;
-  }
-
   .day-detail-stats {
     display: flex;
     gap: 0.875rem;
@@ -4071,8 +4176,6 @@
     padding: 0.45rem 0.75rem;
     font-weight: 600;
     font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-2);
     text-align: left;
     white-space: nowrap;
@@ -4200,7 +4303,6 @@
     padding: 12px 16px;
     background: var(--sunk);
     border-radius: var(--r-control);
-    margin-top: 4px;
   }
   /* Issue #927: normal case, like every other v2 label. */
   .net-label {
@@ -4229,20 +4331,20 @@
     font-weight: 500;
     color: var(--text-2);
   }
-  .form-label-row {
+  /* Issue #991 N-14: the form's groups sit in one column with one gap; before, the wrapper was a plain
+     block and the groups touched each other (the retro hint ran into the next label). */
+  .te-entry-form {
     display: flex;
-    align-items: center;
-    margin-bottom: 0.25rem;
-  }
-  .form-label-row .form-label {
-    margin-bottom: 0;
+    flex-direction: column;
+    gap: var(--s-4);
   }
   .end-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.375rem;
     cursor: pointer;
-    margin-left: 0.5rem;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
   .btn-sm {
     padding: 0.35rem 0.75rem;
@@ -4254,9 +4356,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-  .breaks-section {
-    margin-bottom: 12px;
   }
   .te-breaks-head {
     display: flex;
@@ -4307,7 +4406,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: 4px;
   }
   .day-warnings {
     display: flex;
@@ -4597,6 +4695,9 @@
   .te-split--desk .cal-cell.cal-weekend:not(.cal-other):not(.cal-selected) {
     background: color-mix(in srgb, var(--sunk) 45%, var(--card)) !important;
   }
+  .te-split--desk .cal-cell.te-nosoll:not(.cal-other):not(.cal-selected) {
+    background: color-mix(in srgb, var(--sunk) 45%, var(--card)) !important;
+  }
   /* Today is the filled circle on its number; no ring (the ring means "chosen"). */
   .te-split--desk .te-cal .cal-cell.cal-today {
     outline: none;
@@ -4616,6 +4717,12 @@
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-worked,
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .cal-arbzg-mark {
     color: var(--text) !important;
+  }
+  /* Issue #991 N-10: a zero balance has neither the pos nor the neg class, so it inherited the shared
+     recipe's `--brand-ink` (meant for a brand-filled cell) on this page's `--card` surface and was
+     invisible. The pos/neg rules below are more specific and still win; the order keeps it readable. */
+  .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-bal {
+    color: var(--text-2) !important;
   }
   .te-split--desk .cal-grid--compact .cal-cell.cal-selected:not(.cal-other) .day-bal.pos {
     color: var(--ok) !important;
