@@ -12,13 +12,12 @@
   import { tenantFeatures } from "$stores/tenant-features";
   import { toasts } from "$stores/toast";
   import { rosterTabs } from "$lib/nav/routes";
-  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import RosterHead from "$lib/components/team/RosterHead.svelte";
   import DataTable, {
     type DataTableColumn,
     type DataTableSort,
   } from "$components/ui/DataTable.svelte";
   import { avatarIndex, initialsOf } from "$components/ui/ListRow.svelte";
-  import PageTabs from "$components/ui/PageTabs.svelte";
   import TableToolbar from "$components/ui/TableToolbar.svelte";
   import {
     availabilityRows,
@@ -77,11 +76,12 @@
   <title>{pageLabel("/admin/availability")} – Clokr</title>
 </svelte:head>
 
-<PageHead
+<RosterHead
   title={pageLabel("/admin/availability")}
   hint="Wer kann wann arbeiten? Wähle eine Person, um ihre Verfügbarkeit zu bearbeiten."
+  tabs={rosterTabsList}
+  tab="/team/verfuegbarkeit"
 />
-<PageTabs tabs={rosterTabsList} tab="/team/verfuegbarkeit" tabsLabel="Dienstplan" />
 
 <div class="page" data-testid="availability-page">
   <DataTable

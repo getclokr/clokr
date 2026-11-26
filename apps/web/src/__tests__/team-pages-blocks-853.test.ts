@@ -82,8 +82,11 @@ export function componentOpeningTag(markup: string, names: string[]): string | n
   return null;
 }
 
-/** The tags that carry a page head on a Team page (D-853-19: no eyebrow, no accent). */
-const HEAD_TAGS = ["PageHead", "PageHeader", "ListDetail"];
+/**
+ * The tags that carry a page head on a Team page (D-853-19: no eyebrow, no accent). `RosterHead`
+ * (Issue #992) is the head + tab strip of the four Dienstplan pages; it renders a `PageHead`.
+ */
+const HEAD_TAGS = ["PageHead", "PageHeader", "ListDetail", "RosterHead"];
 
 export function headTagOf(source: string): string | null {
   return componentOpeningTag(markupOf(source), HEAD_TAGS);

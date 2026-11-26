@@ -21,8 +21,8 @@ Unter der Wochenansicht erklärt eine Legende die Markierungen: Schicht, Unterbe
 
 ### Schicht zuweisen
 
-- **Per Klick**: Klicke in einer freien Zelle auf **+ Schicht**. Im Dialog „Schicht zuweisen“ wählst du optional eine **Vorlage**, trägst **Startzeit** und **Endzeit** ein und ergänzt optional eine **Bezeichnung** und eine **Notiz**. Speichere.
-- **Per Ziehen**: Ziehe eine Kachel aus **Vorlagen** über dem Raster auf eine freie Zelle. Die Schicht entsteht sofort mit den Zeiten der Vorlage.
+- **Per Klick**: Klicke in einer freien Zelle auf **+ Schicht**. Im Dialog „Schicht zuweisen“ wählst du optional eine **Vorlage** (ohne Auswahl steht dort **Ohne Vorlage**), trägst **Startzeit** und **Endzeit** ein und ergänzt optional eine **Bezeichnung** und eine **Notiz**. Speichere.
+- **Per Ziehen**: Ziehe eine Kachel aus **Vorlagen** über dem Raster auf eine freie Zelle. Die Schicht entsteht sofort mit den Zeiten der Vorlage. Am Handy planst du über die Tagesansicht; die Vorlagen zum Ziehen gibt es am Rechner.
 
 Eine neue Schicht ist sofort aktiv und für die Person sichtbar. Einen Entwurfsstatus gibt es nicht.
 

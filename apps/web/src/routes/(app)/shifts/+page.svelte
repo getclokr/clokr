@@ -6,8 +6,18 @@
     STAFFING_EXPLANATION,
     staffingFigure,
     staffingStatusText,
+    staffingTone,
     staffingTooltip,
-  } from "$lib/shifts/staffing"; // Issue #850
+  } from "$lib/shifts/staffing"; // Issues #850, #992
+  import {
+    PREVIEW_FAILED_TEXT,
+    copyButtonText,
+    generateButtonText,
+    rosterRequestError,
+    shiftsLabel,
+    skippedLine,
+  } from "$lib/shifts/roster-request-error"; // Issue #992 (N-11)
+  import { dayLabel } from "$lib/utils/day-label"; // Issue #992 (D-992-16)
   import { shortGermanDay } from "$lib/shifts/planning-week"; // Issue #850
   import {
     contractFreeDayHint,
@@ -28,7 +38,7 @@
   import { leaveTypeColor, ABSENT, type LeaveColor } from "$lib/leave/leave-colors"; // Issue #923
   import { hasPermission } from "$lib/permissions"; // Phase 378 (#378)
   import { toasts } from "$stores/toast";
-  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import RosterHead from "$lib/components/team/RosterHead.svelte";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte";
   import TeamSection from "$lib/components/team/TeamSection.svelte";
   import {
@@ -38,9 +48,9 @@
     SALON_SOLL_NOT_ATTRIBUTABLE_NOTE,
     withSalonId,
   } from "$lib/salons/page-scope"; // Issue #558 (D-02/D-03/D-04/D-13)
-  import PageTabs from "$components/ui/PageTabs.svelte";
   import PeriodPicker from "$components/ui/PeriodPicker.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
+  import Spinner from "$components/ui/Spinner.svelte";
   import Modal from "$components/ui/Modal.svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import {
@@ -399,7 +409,7 @@
       });
       generateDiff = diff;
     } catch (e) {
-      generateError = e instanceof Error ? e.message : "Vorschau fehlgeschlagen.";
+      generateError = rosterRequestError(e, PREVIEW_FAILED_TEXT);
     } finally {
       generating = false;
     }
@@ -415,13 +425,12 @@
         weekStart,
         commit: true,
       });
-      toasts.success(`${result.create.length} Schicht(en) erstellt.`);
+      toasts.success(`${shiftsLabel(result.create.length)} erstellt.`);
       generateOpen = false;
       generateDiff = null;
       await load();
     } catch (e) {
-      generateError =
-        e instanceof Error ? e.message : "Die Muster konnten nicht angewendet werden.";
+      generateError = rosterRequestError(e, "Die Muster konnten nicht angewendet werden.");
     } finally {
       generating = false;
     }
@@ -473,7 +482,7 @@
       });
       copyDiff = diff;
     } catch (e) {
-      copyError = e instanceof Error ? e.message : "Vorschau fehlgeschlagen.";
+      copyError = rosterRequestError(e, PREVIEW_FAILED_TEXT);
     } finally {
       copying = false;
     }
@@ -491,12 +500,12 @@
         targetWeekStart,
         commit: true,
       });
-      toasts.success(`${result.create.length} Schicht(en) kopiert.`);
+      toasts.success(`${shiftsLabel(result.create.length)} kopiert.`);
       copyOpen = false;
       copyDiff = null;
       await load();
     } catch (e) {
-      copyError = e instanceof Error ? e.message : "Kopieren fehlgeschlagen.";
+      copyError = rosterRequestError(e, "Kopieren fehlgeschlagen.");
     } finally {
       copying = false;
     }
@@ -585,7 +594,7 @@
         weekRejected = true;
         return;
       }
-      error = e instanceof Error ? e.message : "Fehler beim Laden";
+      error = rosterRequestError(e, "Der Dienstplan konnte nicht geladen werden.");
     } finally {
       if (generation === weekGeneration) loading = false;
     }
@@ -924,7 +933,7 @@
                 "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
             );
           } else {
-            toasts.error(err instanceof Error ? err.message : "Schicht-Zuweisung fehlgeschlagen.");
+            toasts.error(rosterRequestError(err, "Schicht-Zuweisung fehlgeschlagen."));
           }
         } else if (err instanceof ApiError && err.status === 409) {
           // Existing 409 conflict path (SHIFT_CONFLICT_LEAVE / SHIFT_CONFLICT_ABSENCE /
@@ -954,7 +963,7 @@
             );
           }
         } else {
-          toasts.error(err instanceof Error ? err.message : "Schicht-Zuweisung fehlgeschlagen.");
+          toasts.error(rosterRequestError(err, "Schicht-Zuweisung fehlgeschlagen."));
         }
       } finally {
         dropPending = null;
@@ -1010,7 +1019,7 @@
               "Schicht überschreitet die zulässige Tageshöchstarbeitszeit (§ 3 ArbZG: 10 Stunden).",
           );
         } else {
-          toasts.error(err instanceof Error ? err.message : "Verschieben fehlgeschlagen.");
+          toasts.error(rosterRequestError(err, "Verschieben fehlgeschlagen."));
         }
       } else if (err instanceof ApiError && err.status === 409) {
         const data = err.data as { message?: string; code?: string } | undefined;
@@ -1033,7 +1042,7 @@
           toasts.error(data?.message ?? "Schicht-Konflikt — Mitarbeiter hat Urlaub am Zieltag.");
         }
       } else {
-        toasts.error(err instanceof Error ? err.message : "Verschieben fehlgeschlagen.");
+        toasts.error(rosterRequestError(err, "Verschieben fehlgeschlagen."));
       }
       await load(); // revert visual position
     } finally {
@@ -1293,7 +1302,7 @@
         employeeName: emp ? `${emp.firstName} ${emp.lastName}` : "",
       };
     } catch (e) {
-      toasts.error(e instanceof Error ? e.message : "Berufsschultag konnte nicht entfernt werden.");
+      toasts.error(rosterRequestError(e, "Berufsschultag konnte nicht entfernt werden."));
     }
   }
 
@@ -1416,7 +1425,7 @@
           return;
         }
       }
-      modalError = e instanceof Error ? e.message : "Speichern fehlgeschlagen.";
+      modalError = rosterRequestError(e, "Speichern fehlgeschlagen.");
     } finally {
       saving = false;
     }
@@ -1454,7 +1463,7 @@
       shiftDeleteCollisions = null;
       await load();
     } catch (e) {
-      toasts.error(e instanceof Error ? e.message : "Löschen fehlgeschlagen.");
+      toasts.error(rosterRequestError(e, "Löschen fehlgeschlagen."));
     }
   }
 
@@ -1476,12 +1485,10 @@
         } else if (e.status === 404) {
           toasts.error("Berufsschultag konnte nicht entfernt werden.");
         } else {
-          toasts.error(e.message || "Berufsschultag konnte nicht entfernt werden.");
+          toasts.error(rosterRequestError(e, "Berufsschultag konnte nicht entfernt werden."));
         }
       } else {
-        toasts.error(
-          e instanceof Error ? e.message : "Berufsschultag konnte nicht entfernt werden.",
-        );
+        toasts.error(rosterRequestError(e, "Berufsschultag konnte nicht entfernt werden."));
       }
     } finally {
       vsRemovePending = false;
@@ -1511,14 +1518,15 @@
   {@const c = coverageByDate.get(iso)}
   {@const closed = isClosedDay(iso)}
   {#if c}
+    {@const tone = staffingTone(c.coverageStatus, closed)}
     <!-- Issue #923: the staffing of a day sits under its header (bar + "x / y"). Red only for a
          real shortfall on an open day; a closed day is never understaffed (#853 owner review). -->
     <div
       class="sp-staff"
-      class:sp-staff--ok={!closed && c.coverageStatus === "ok"}
-      class:sp-staff--under={!closed && c.coverageStatus === "under"}
-      class:sp-staff--warn={!closed && c.coverageStatus === "supervision-missing"}
-      class:sp-staff--closed={closed}
+      class:sp-staff--ok={tone === "ok"}
+      class:sp-staff--under={tone === "bad"}
+      class:sp-staff--warn={tone === "warn"}
+      class:sp-staff--closed={tone === "closed"}
       title={staffingTooltip(c)}
     >
       <!-- Issue #589 (owner 16.11.2026): a closed day shows no staffing figure at all, so no
@@ -1602,28 +1610,28 @@
   >
 {/snippet}
 
+<RosterHead
+  title={pageLabel("/shifts")}
+  hint="Schichten der Woche planen und Muster anwenden. Vorlagen und Mindestbesetzung pflegt die Verwaltung."
+  tabs={rosterTabsList}
+  tab="/team/dienstplan"
+>
+  {#snippet actions()}
+    <!-- Issue #853 (D-853-13): the two plan actions live in the head; the sibling links to the
+         conflict overview and to Planungsbedarf (Phase 430) are the tabs below now. -->
+    <button type="button" class="btn btn-secondary sm" onclick={openCopy}>
+      Letzte Woche kopieren
+    </button>
+    <button type="button" class="btn btn-primary sm" onclick={openGenerate}>
+      Muster anwenden
+    </button>
+  {/snippet}
+</RosterHead>
+
+<!-- Issue #992: the head sits above the surface, so the four tabs share one head position. -->
 <!-- Phase 75-02 (D-01): data-testid surface for the Schichtplanung visual baseline.
      Matches the Phase 73-04/-05 convention (`<surface>-page`). -->
 <div class="page" data-testid="shifts-page">
-  <div class="roster-head">
-    <PageHead
-      title={pageLabel("/shifts")}
-      hint="Schichten der Woche planen und Muster anwenden. Vorlagen und Mindestbesetzung pflegt die Verwaltung."
-    >
-      {#snippet actions()}
-        <!-- Issue #853 (D-853-13): the two plan actions live in the head; the sibling links to the
-             conflict overview and to Planungsbedarf (Phase 430) are the tabs below now. -->
-        <button type="button" class="btn btn-secondary sm" onclick={openCopy}>
-          Letzte Woche kopieren
-        </button>
-        <button type="button" class="btn btn-primary sm" onclick={openGenerate}>
-          Muster anwenden
-        </button>
-      {/snippet}
-    </PageHead>
-    <PageTabs tabs={rosterTabsList} tab="/team/dienstplan" tabsLabel="Dienstplan" />
-  </div>
-
   <!-- Prototype .toolbar2; the scope label is placed on the right by CSS. -->
   <div class="roster-period-row">
     <div class="roster-scope">
@@ -1651,42 +1659,48 @@
        v1.7.4: Berufsschule chip removed — BS is now managed via the canonical
        EmployeeVocationalSchoolPattern + auto-generator path. -->
   {#if dndTemplates.length > 0}
-    <TeamSection title="Vorlagen">
-      <div
-        class="sp-template-strip"
-        use:dndzone={{
-          items: dndTemplates,
-          flipDurationMs: FLIP_MS,
-          dropFromOthersDisabled: true,
-          type: "shift-template",
-        }}
-        onconsider={onTemplateConsider}
-        onfinalize={onTemplateFinalize}
-      >
-        {#each dndTemplates as item (item.id)}
-          {@const tpl =
-            item.kind === "template" ? templates.find((t) => t.id === item.templateId) : undefined}
-          <!--
+    <!-- Issue #992 (D-992-21): drag and drop exists only from 760 px (#923), so the strip is hidden
+         on a phone. -->
+    <div class="sp-templates">
+      <TeamSection title="Vorlagen">
+        <div
+          class="sp-template-strip"
+          use:dndzone={{
+            items: dndTemplates,
+            flipDurationMs: FLIP_MS,
+            dropFromOthersDisabled: true,
+            type: "shift-template",
+          }}
+          onconsider={onTemplateConsider}
+          onfinalize={onTemplateFinalize}
+        >
+          {#each dndTemplates as item (item.id)}
+            {@const tpl =
+              item.kind === "template"
+                ? templates.find((t) => t.id === item.templateId)
+                : undefined}
+            <!--
             ALWAYS render a chip div for every item so children.length stays
             equal to items.length — svelte-dnd-action requires a 1:1 mapping
             between items[] and direct children. Shadow placeholders (mid-drag)
             may not resolve to a Template; render an invisible spacer for them.
           -->
-          <div
-            class="sp-tpl-chip"
-            class:sp-tpl-chip--shadow={!tpl}
-            data-template-id={tpl?.id ?? ""}
-          >
-            {#if tpl}
-              <span class="sp-tpl-name">{tpl.name}</span>
-              <span class="sp-tpl-time">
-                {tpl.startTime.slice(0, 5)}–{tpl.endTime.slice(0, 5)}
-              </span>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    </TeamSection>
+            <div
+              class="sp-tpl-chip"
+              class:sp-tpl-chip--shadow={!tpl}
+              data-template-id={tpl?.id ?? ""}
+            >
+              {#if tpl}
+                <span class="sp-tpl-name">{tpl.name}</span>
+                <span class="sp-tpl-time">
+                  {tpl.startTime.slice(0, 5)}–{tpl.endTime.slice(0, 5)}
+                </span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </TeamSection>
+    </div>
   {/if}
 
   <!-- The week grid is the page's one surface (D-853-18): no card around it. It scrolls
@@ -1906,7 +1920,11 @@
               >
                 <small>{DOW[i]}</small>
                 <b>{new Date(d).getDate()}</b>
-                <span class="sp-daydot" class:sp-daydot--short={short} aria-hidden="true"></span>
+                <span
+                  class="sp-daydot"
+                  data-tone={staffingTone(c?.coverageStatus, isClosedDay(iso))}
+                  aria-hidden="true"
+                ></span>
               </button>
             {/each}
           </div>
@@ -1997,11 +2015,11 @@
   <!-- Modal: assign / edit shift -->
   <Modal
     bind:open={modalOpen}
-    eyebrow="Schichtplanung"
+    eyebrow="Dienstplan"
     title={editingShiftId ? "Schicht bearbeiten" : "Schicht zuweisen"}
   >
     <p class="sp-modal-context">
-      <strong>{modalEmployeeName}</strong> am {modalDate}
+      <strong>{modalEmployeeName}</strong> am {dayLabel(modalDate, { weekday: true, year: true })}
     </p>
     {#if modalError}
       <div class="callout error" role="alert">{modalError}</div>
@@ -2014,7 +2032,7 @@
         bind:value={modalTemplateId}
         onchange={onTemplateSelect}
       >
-        <option value="">– Benutzerdefiniert –</option>
+        <option value="">Ohne Vorlage</option>
         {#each templates as tpl (tpl.id)}
           <option value={tpl.id}>{tpl.name} ({tpl.startTime}–{tpl.endTime})</option>
         {/each}
@@ -2116,7 +2134,7 @@
   />
 
   <!-- Phase 43-02: generate-week diff-preview modal -->
-  <Modal bind:open={generateOpen} eyebrow="Schichtplanung" title="Muster auf die Woche anwenden">
+  <Modal bind:open={generateOpen} eyebrow="Dienstplan" title="Muster auf die Woche anwenden">
     {#if pageSalonId !== null}
       <!-- Issue #558 D-10 — the bulk action keeps acting on the caller's whole reach. -->
       <p class="form-hint sp-bulk-scope" role="note">
@@ -2124,15 +2142,15 @@
       </p>
     {/if}
     {#if generating && !generateDiff}
-      <div class="state-msg">Vorschau wird erstellt …</div>
+      <Skeleton shape="line" count={3} />
     {:else if generateError}
       <div class="callout error" role="alert">{generateError}</div>
     {:else if generateDiff}
       <p class="sp-gen-intro">
         Vorschau für die Woche ab <strong>{shortGermanDay(generateDiff.weekStart)}</strong>. Es
         werden
-        <strong>{generateDiff.create.length}</strong>
-        Schicht(en) erstellt; <strong>{generateDiff.skip.length}</strong> Eintrag/Einträge werden übersprungen.
+        <strong>{shiftsLabel(generateDiff.create.length)}</strong>
+        erstellt; <strong>{skippedLine(generateDiff.skip.length)}</strong>.
       </p>
 
       {#if generateDiff.create.length > 0}
@@ -2175,13 +2193,14 @@
         disabled={!generateDiff || generating || generateDiff.create.length === 0}
         onclick={commitGenerate}
       >
-        {generating ? "Erstelle …" : `${generateDiff?.create.length ?? 0} Schicht(en) erstellen`}
+        {#if generating}<Spinner size={14} label="Schichten werden erstellt" />{/if}
+        {generateButtonText(generateDiff?.create.length ?? 0)}
       </button>
     {/snippet}
   </Modal>
 
   <!-- Phase 43-05: copy-week diff-preview modal (primary "Letzte Woche kopieren") -->
-  <Modal bind:open={copyOpen} eyebrow="Schichtplanung" title="Woche kopieren">
+  <Modal bind:open={copyOpen} eyebrow="Dienstplan" title="Woche kopieren">
     <p class="sp-gen-intro">
       Schichten von der ausgewählten Quellwoche werden in die aktuell angezeigte Woche kopiert.
       Personen mit Urlaub, Krankheit oder bestehenden Schichten werden übersprungen, ebenso
@@ -2208,20 +2227,26 @@
       </div>
       <div class="form-group">
         <label class="form-label" for="copy-target">Zielwoche</label>
-        <input id="copy-target" class="form-input" type="text" value={ymd(cursorMonday)} readonly />
+        <input
+          id="copy-target"
+          class="form-input"
+          type="text"
+          value={dayLabel(ymd(cursorMonday), { year: true })}
+          readonly
+        />
       </div>
     </div>
 
     {#if copying && !copyDiff}
-      <div class="state-msg">Vorschau wird erstellt …</div>
+      <Skeleton shape="line" count={3} />
     {:else if copyError}
       <div class="callout error" role="alert">{copyError}</div>
     {:else if copyDiff}
       <p class="sp-gen-intro">
-        Quelle: <strong>{copyDiff.sourceWeekStart}</strong> → Ziel:
-        <strong>{copyDiff.targetWeekStart}</strong>.
-        <strong>{copyDiff.create.length}</strong> Schicht(en) werden erstellt;
-        <strong>{copyDiff.skip.length}</strong> Eintrag/Einträge werden übersprungen.
+        Quelle: <strong>{dayLabel(copyDiff.sourceWeekStart, { year: true })}</strong> → Ziel:
+        <strong>{dayLabel(copyDiff.targetWeekStart, { year: true })}</strong>.
+        <strong>{shiftsLabel(copyDiff.create.length)}</strong> werden erstellt;
+        <strong>{skippedLine(copyDiff.skip.length)}</strong>.
       </p>
 
       {#if copyDiff.create.length > 0}
@@ -2267,19 +2292,14 @@
         disabled={!copyDiff || copying || copyDiff.create.length === 0}
         onclick={commitCopy}
       >
-        {copying ? "Übernehme …" : `Übernehmen (${copyDiff?.create.length ?? 0})`}
+        {#if copying}<Spinner size={14} label="Schichten werden übernommen" />{/if}
+        {copyButtonText(copyDiff?.create.length ?? 0)}
       </button>
     {/snippet}
   </Modal>
 </div>
 
 <style>
-  /* Issue #853 (D-853-18): head and tab strip sit together, like the prototype's .head + .tabsbar;
-     the page gap applies between this block and the rows below. */
-  .roster-head {
-    display: flex;
-    flex-direction: column;
-  }
   /* One row (prototype .toolbar2): the period on the left, the salon scope on the right. */
   .roster-period-row {
     display: flex;
@@ -2422,8 +2442,6 @@
   .sp-gen-h {
     font-size: 13px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--text-2);
     margin: 16px 0 8px;
   }
@@ -2962,7 +2980,10 @@
     height: 6px;
     border-radius: 50%;
   }
-  .sp-daydot--short {
+  .sp-daydot[data-tone="bad"] {
+    background: var(--bad);
+  }
+  .sp-daydot[data-tone="warn"] {
     background: var(--warn);
   }
   .sp-daylist {
@@ -2994,6 +3015,9 @@
     justify-content: flex-end;
   }
   @media (max-width: 760px) {
+    .sp-templates {
+      display: none;
+    }
     .week-body .shift-grid {
       display: none;
     }

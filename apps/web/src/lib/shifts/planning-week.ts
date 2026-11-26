@@ -5,6 +5,8 @@
 // ISO pair "Woche 2026-11-08 – 2026-11-08". Both helpers work on calendar-day strings only.
 // Issue #850 — the label is "KW 46 · 9.–15. Nov." (week number, short German days).
 
+import { formatDayCount } from "../leave/leave-days-label";
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -72,4 +74,19 @@ export function planningWeekLabel(weekStart: string, weekEnd: string): string {
     return `${kw} · ${shortGermanDay(weekStart, true)}–${shortGermanDay(weekEnd, true)}`;
   if (a.m !== b.m) return `${kw} · ${shortGermanDay(weekStart)}–${shortGermanDay(weekEnd)}`;
   return `${kw} · ${a.d}.–${shortGermanDay(weekEnd)}`;
+}
+
+// ── Issue #992 (D-992-20) — the day figures of Planungsbedarf in one form ──────────────────────
+
+/** A day figure of the Bedarf table: "5 Tage", "1 Tag"; "–" when the row has no figure. */
+export function plannedLabel(days: number | undefined): string {
+  return days === undefined ? "–" : formatDayCount(days);
+}
+
+/** The difference of plan and need, signed: "+1 Tag", "−2 Tage", "0 Tage"; "–" without a figure. */
+export function differenceLabel(days: number | undefined): string {
+  if (days === undefined) return "–";
+  if (days > 0) return `+${formatDayCount(days)}`;
+  if (days < 0) return `−${formatDayCount(-days)}`;
+  return formatDayCount(0);
 }

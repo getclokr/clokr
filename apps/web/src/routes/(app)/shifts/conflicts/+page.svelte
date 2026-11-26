@@ -19,11 +19,10 @@
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDayAnchor } from "$lib/utils/tenant-day";
   import { toasts } from "$stores/toast";
-  import PageHead from "$lib/components/layout/PageHead.svelte";
+  import RosterHead from "$lib/components/team/RosterHead.svelte";
   import TeamSection from "$lib/components/team/TeamSection.svelte";
   import { pageLabel } from "$lib/nav/page-labels";
   import { rosterTabs } from "$lib/nav/routes";
-  import PageTabs from "$components/ui/PageTabs.svelte";
   import FormField from "$components/ui/FormField.svelte";
   import List from "$components/ui/List.svelte";
   import ListRow from "$components/ui/ListRow.svelte";
@@ -148,11 +147,12 @@
   <title>{pageLabel("/shifts/conflicts")} – Clokr</title>
 </svelte:head>
 
-<PageHead
+<RosterHead
   title={pageLabel("/shifts/conflicts")}
   hint="Schichten, die automatisch entfernt wurden oder noch einmal geprüft werden sollten."
+  tabs={rosterTabsList}
+  tab="/team/dienstplan/konflikte"
 />
-<PageTabs tabs={rosterTabsList} tab="/team/dienstplan/konflikte" tabsLabel="Dienstplan" />
 
 <div class="page">
   <!-- The window of the list: two dates and the reload, one row. -->
