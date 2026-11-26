@@ -18,7 +18,13 @@ import {
   cleanupTestData,
   grantSystemRole,
 } from "../../../../__tests__/setup";
-import { dbDateStr, dowOf, futureDateStr, utcMidnight } from "../../../../__tests__/test-dates";
+import {
+  dbDateStr,
+  dowOf,
+  futureDateStr,
+  holdsStatutoryHolidayInAnyState,
+  utcMidnight,
+} from "../../../../__tests__/test-dates";
 import {
   findMinorShiftLimitViolation,
   minorShiftLimitReplyBody,
@@ -240,7 +246,8 @@ describe("findMinorShiftLimitViolation — pure rule (Issue #1057)", () => {
 
 const PASSWORD = "test1234";
 
-/** First Monday at least 14 days ahead whose week holds no 29 February (a birthday on it is awkward). */
+/** First Monday at least 14 days ahead whose week holds no 29 February (a birthday on it is awkward) and no statutory holiday of any Bundesland
+ * (a holiday counts into a minor's weekly sum, Issue #1077). */
 function anchorMonday(): string {
   const add = (iso: string, n: number) =>
     dbDateStr(new Date(utcMidnight(iso).getTime() + n * 86_400_000));
@@ -248,7 +255,7 @@ function anchorMonday(): string {
   while (dowOf(d) !== 1) d = add(d, 1);
   const holdsFeb29 = (mon: string) =>
     Array.from({ length: 7 }, (_, i) => add(mon, i)).some((x) => x.endsWith("-02-29"));
-  while (holdsFeb29(d)) d = add(d, 7);
+  while (holdsFeb29(d) || holdsStatutoryHolidayInAnyState(d, 7)) d = add(d, 7);
   return d;
 }
 const WEEK_MONDAY = anchorMonday();
