@@ -251,7 +251,10 @@ export function ownZeitenKpis(input: ZeitenKpiInput): KpiItem[] {
   return [ist, soll, diff];
 }
 
-/** The status cell: closed or open, and who closes it (a person never closes their own month). */
+/**
+ * The status cell: closed or open. The open note names no role: who closes the month differs per company
+ * (HR, the owner or the automatic close), Issue #994 (D-994-14).
+ */
 export function zeitenStatus(locked: boolean): {
   label: string;
   tone: ChipTone;
@@ -266,6 +269,6 @@ export function zeitenStatus(locked: boolean): {
     : {
         label: monthStatusLabel(false),
         tone: MONTH_STATUS_TONE.OPEN,
-        explanation: "Abschluss durch die Salonleitung",
+        explanation: "wird nach Monatsende abgeschlossen",
       };
 }

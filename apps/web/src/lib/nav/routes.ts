@@ -490,7 +490,8 @@ export const APP_ROUTES: readonly AppRoute[] = [
     ],
     inNav: false,
     parent: "/verwalten/regeln",
-    description: "E-Mail-Server, Benachrichtigungen und Erinnerungen",
+    // Issue #994 (N-18): the mail server moved to System › Integrationen › E-Mail-Versand in #951.
+    description: "E-Mail-Benachrichtigungen und Erinnerungen",
   },
   // GET /overtime/close-month/status
   {

@@ -33,6 +33,13 @@ const P = personas as Record<string, string[]>;
 const user = (persona: string) => ({ permissions: P[persona] });
 
 describe("route table (D-844-01..08)", () => {
+  it("describes Benachrichtigungen & E-Mail without the mail server (Issue #994, N-18)", () => {
+    const entry = APP_ROUTES.find((r) => r.href === "/verwalten/regeln/benachrichtigungen");
+    expect(entry?.description).toBe("E-Mail-Benachrichtigungen und Erinnerungen");
+    // The server moved to System › Integrationen (#951): no description may promise it elsewhere.
+    expect(APP_ROUTES.filter((r) => /E-Mail-Server/.test(r.description ?? ""))).toEqual([]);
+  });
+
   it("has at least 35 entries in three areas (non-vacuity)", () => {
     expect(APP_ROUTES.length).toBeGreaterThanOrEqual(35);
     expect(new Set(APP_ROUTES.map((r) => r.area))).toEqual(new Set(["ich", "team", "verwalten"]));

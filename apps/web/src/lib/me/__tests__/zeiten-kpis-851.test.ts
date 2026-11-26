@@ -50,7 +50,7 @@ describe("zeitenKpis", () => {
     expect(saldo.explanation).toBe("Bestätigt · Monat abgeschlossen");
     expect(pauses.explanation).toBe("2 Tage mit ArbZG-Hinweis");
     expect(zeitenStatus(true).label).toBe("Abgeschlossen");
-    expect(zeitenStatus(false).explanation).toBe("Abschluss durch die Salonleitung");
+    expect(zeitenStatus(false).explanation).toBe("wird nach Monatsende abgeschlossen");
   });
 
   it("withholds the saldo of a person the caller may not read (#853, #85)", () => {
