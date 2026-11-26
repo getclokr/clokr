@@ -92,7 +92,7 @@ describe("ApiKeysPanel", () => {
     renderWithTheme(ApiKeysPanel, { active: true });
     const table = await screen.findByRole("table", { name: /API-Schlüssel/ });
     expect(table.textContent).toContain("clk_ab12…");
-    expect(table.textContent).toContain("Mitarbeiter lesen, Voller Zugriff");
+    expect(table.textContent).toContain("Personen lesen, Voller Zugriff");
     const active = screen.getByText("DATEV-Export").closest("tr") as HTMLElement;
     expect(within(active).getByRole("button", { name: "Widerrufen" })).toBeTruthy();
     const revoked = screen.getByText("Alt").closest("tr") as HTMLElement;
@@ -119,7 +119,7 @@ describe("ApiKeysPanel", () => {
     await screen.findByRole("table", { name: /API-Schlüssel/ });
     await fireEvent.click(screen.getByRole("button", { name: "Schlüssel anlegen" }));
     const dialog = await screen.findByRole("dialog");
-    expect((within(dialog).getByLabelText("Mitarbeiter lesen") as HTMLInputElement).checked).toBe(
+    expect((within(dialog).getByLabelText("Personen lesen") as HTMLInputElement).checked).toBe(
       true,
     );
     expect((within(dialog).getByLabelText("Voller Zugriff") as HTMLInputElement).checked).toBe(
@@ -151,7 +151,7 @@ describe("ApiKeysPanel", () => {
     expect(await within(dialog).findByText("Gib dem Schlüssel einen Namen.")).toBeTruthy();
 
     await fireEvent.input(within(dialog).getByLabelText(/^Name/), { target: { value: "Export" } });
-    await fireEvent.click(within(dialog).getByLabelText("Mitarbeiter lesen"));
+    await fireEvent.click(within(dialog).getByLabelText("Personen lesen"));
     await fireEvent.click(within(dialog).getByLabelText("Zeiteinträge lesen"));
     await fireEvent.click(within(dialog).getByRole("button", { name: "Schlüssel erstellen" }));
     expect(await within(dialog).findByText("Wähl mindestens eine Berechtigung aus.")).toBeTruthy();

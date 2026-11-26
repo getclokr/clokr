@@ -49,7 +49,7 @@ Plant Phorest eine Person unter 18 länger, als das Jugendarbeitsschutzgesetz er
 
 ## Termine
 
-Termine aus Phorest hält Clokr nur als schreibgeschützten Zwischenspeicher ohne Personendaten vor. Es werden keine Kundennamen, Leistungen, Preise oder Kontaktdaten gespeichert, nur Mitarbeiter, Datum und Uhrzeit. Auf dieser Grundlage zeigt Clokr Warnungen, wenn sich Urlaub oder eine Schichtänderung mit gebuchten Kundenterminen überschneidet, zum Beispiel „Kundentermine im Zeitraum gebucht“. Clokr verändert dabei nichts in Phorest.
+Termine aus Phorest hält Clokr nur als schreibgeschützten Zwischenspeicher ohne Personendaten vor. Es werden keine Kundennamen, Leistungen, Preise oder Kontaktdaten gespeichert, nur die Person in Phorest, Datum und Uhrzeit. Auf dieser Grundlage zeigt Clokr Warnungen, wenn sich Urlaub oder eine Schichtänderung mit gebuchten Kundenterminen überschneidet, zum Beispiel „Kundentermine im Zeitraum gebucht“. Clokr verändert dabei nichts in Phorest.
 
 ## Was die Schichten in Clokr bedeuten
 

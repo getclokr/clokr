@@ -19,7 +19,7 @@ export const PARENTAL_REDUCTION_PERMISSION = "leave-entitlement:update:ZUGEWIESE
 
 /** D-12: shown only when the server's declaration would actually be legally effective. */
 export const PARENTAL_REDUCTION_HINT =
-  "Die Kürzung wirkt nur, wenn sie dem Mitarbeiter gegenüber erklärt wurde (§ 17 Abs. 1 BEEG).";
+  "Die Kürzung wirkt nur, wenn sie der Person gegenüber erklärt wurde (§ 17 Abs. 1 BEEG).";
 
 export interface ParentalReductionYearExisting {
   id: string;
