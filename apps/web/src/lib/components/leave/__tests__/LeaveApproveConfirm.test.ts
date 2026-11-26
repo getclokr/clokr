@@ -82,7 +82,7 @@ describe("LeaveApproveConfirm (#941)", () => {
     expect(screen.getByText(TEXTS.APPROVE_CONFIRM_TEXT)).toBeTruthy();
     const facts = screen.getByTestId("leave-approve-confirm-facts");
     expect(facts.textContent).toContain("Alex Muster");
-    expect(facts.textContent).toContain("01.09.2026 – 05.09.2026");
+    expect(facts.textContent).toContain("1.9.–5.9.2026");
     // 28 + 4 - 10 = 22 remaining; the request costs 5 days.
     expect((await screen.findByTestId("review-fact-vacation")).textContent).toContain(
       "22 → 17 Tage",

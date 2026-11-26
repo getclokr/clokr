@@ -7,6 +7,7 @@
 // Issue #604 adds „Zeit prüfen“: the hints on probably unrecorded time of the persons in the caller's
 // time-entry reach, a further kind of the same row shape. Display only - the server decides every hint.
 import { safeAppNext } from "$lib/nav/login-next";
+import { dayLabel, dayRangeLabel } from "$lib/utils/day-label";
 import { legacyRedirectTarget } from "$lib/nav/routes";
 import type {
   TeamAppointmentHint,
@@ -182,10 +183,9 @@ export interface TaskRowModel {
 
 // ── Mapping ──────────────────────────────────────────────────────────────────
 
-/** „2026-11-12“ -> „12.11.2026“; anything else is returned as it came. */
+/** „2026-11-05“ -> „5.11.2026“ (Issue #992, D-992-16); anything else is returned as it came. */
 export function fmtTaskDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return y && m && d ? `${d}.${m}.${y}` : iso;
+  return dayLabel(iso, { year: true });
 }
 
 const OPEN_LEAVE_STATUSES: readonly string[] = ["PENDING", "CANCELLATION_REQUESTED"];
@@ -206,7 +206,7 @@ function leaveRow(r: LeaveTaskSource, options: TaskOptions): TaskRowModel | null
     sourceId: r.id,
     personName: name,
     title: name,
-    subtitle: `${fmtTaskDate(r.startDate)} – ${fmtTaskDate(r.endDate)} · ${options.leaveDays(r)}`,
+    subtitle: `${dayRangeLabel(r.startDate, r.endDate, { year: true })} · ${options.leaveDays(r)}`,
     createdAt: r.createdAt,
     status: r.status,
     decided: !open,
@@ -267,8 +267,8 @@ function section9Row(c: Section9TaskSource): TaskRowModel | null {
     personName: c.employeeName,
     title: c.employeeName,
     subtitle:
-      `Urlaub ${fmtTaskDate(c.vacationRequest.startDate)}–${fmtTaskDate(c.vacationRequest.endDate)}` +
-      ` · Krank ${fmtTaskDate(c.sickRequest.startDate)}–${fmtTaskDate(c.sickRequest.endDate)}${reason}`,
+      `Urlaub ${dayRangeLabel(c.vacationRequest.startDate, c.vacationRequest.endDate, { year: true })}` +
+      ` · Krank ${dayRangeLabel(c.sickRequest.startDate, c.sickRequest.endDate, { year: true })}${reason}`,
     // The case has no creation time; the start of the overlap is what makes it wait (the sort key).
     createdAt: c.overlapStart,
     status: c.status === "REJECTED" ? "AU_REJECTED" : "AU_PENDING",

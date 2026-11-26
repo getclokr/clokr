@@ -7,7 +7,7 @@
  *   0. (slice 1, plan 840-02) the Übersicht draws an approved request solid and a pending one
  *      dashed, read from the computed border style, so the style is the one the browser really draws;
  *   1. manager path (AC-2, AC-9, AC-13): Übersicht, Anträge (PENDING row „Offen“ with a dashed
- *      chip), „Im Posteingang prüfen“ opens the inbox review mask, Planung, „Planung verwalten“,
+ *      chip), „In Aufgaben prüfen“ opens the inbox review mask, Planung, „Planung verwalten“,
  *      open the plan, enter a wish, take it over;
  *   2. employee path (AC-3, AC-13): a colleague's sick leave reads only „abwesend“ in Mein Bereich
  *      (no type text anywhere), Kalender holds only own entries, Planung takes an own wish and
@@ -399,7 +399,7 @@ test.describe("Abwesenheiten area (Issue #840)", () => {
     await expect(chip).toHaveAttribute("data-row-status", "PENDING");
     expect(await borderStyleOf(chip)).toBe("dashed");
 
-    // ── „Im Posteingang prüfen“ lands on the inbox with the review mask open ────────────────
+    // ── „In Aufgaben prüfen“ lands on the inbox with the review mask open ────────────────
     await row.getByTestId(`leave-team-row-${pendingId}-review`).click();
     await page.waitForURL(/\/team\/aufgaben/);
     await expect(page.getByTestId("leave-approval-modal")).toBeVisible();

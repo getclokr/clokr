@@ -161,7 +161,7 @@
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
   import type { TodayEmployee } from "$lib/reports/today-attendance";
   import type { TodayAttendanceData } from "$lib/reports/today-attendance";
-  import LeaveReviewDialog from "$lib/components/leave/LeaveReviewDialog.svelte"; // #846 D-03: the dialog of Aufgaben
+  import { inboxRequestHref } from "$lib/leave/inbox-deep-link"; // #992 N-07: one decision path
   import {
     loadOpenTaskSources,
     openTaskBreakdown,
@@ -909,8 +909,6 @@
   // open rows of ONE `loadOpenTaskSources()` answer, through the model of Team › Aufgaben. So a counted
   // task is always listable and chip, cell and list are one figure. `null` = not loaded yet.
   let taskSources = $state<TaskSources | null>(null);
-  let reviewOpen = $state(false);
-  let reviewRequest = $state<TeamTaskLeave | null>(null);
   // Issue #948: the cell and the section are offered exactly to whom the page is (its gate).
   const taskSourceGates = $derived(taskGates($authStore.user));
   // Issue #948: how many tasks wait, by the rule of Team › Aufgaben (its open view, every kind).
@@ -1005,8 +1003,9 @@
     }
   }
 
-  // D-03: the open leave requests decided here go through the SAME dialog as Aufgaben
-  // (LeaveReviewDialog) - this page never writes a decision of its own. Issue #1028 (P-04, replaces
+  // Issue #992 (N-07, owner decision 25.11.2026): one decision path - this page decides nothing. An
+  // open request row links to Team › Aufgaben, which opens the review dialog with the facts of the
+  // decision (Resturlaub, Schichten). Issue #1028 (P-04, replaces
   // #84 D-07 for this one list): the widget and the count of the „Aufgaben“ cell are one set - the same
   // sources, gates and rule as Team › Aufgaben, which is a work queue and not narrowed by the salon
   // selection (#558, #948). The old „N weitere Aufgaben warten“ row covered other kinds, other salons
@@ -1150,11 +1149,6 @@
     }
     return items;
   });
-
-  function openReview(request: TeamTaskLeave) {
-    reviewRequest = request;
-    reviewOpen = true;
-  }
 
   // Own next leave (personal, for all users) — unrelated to the salon filter.
   async function loadMyNextLeave(today: string) {
@@ -2394,16 +2388,10 @@
                     >
                       {#snippet actions()}
                         {#if request}
-                          <button
-                            type="button"
-                            class="btn btn-outline btn-sm"
-                            onclick={() => openReview(request)}>Ablehnen</button
-                          >
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm"
-                            onclick={() => openReview(request)}>Genehmigen</button
-                          >
+                          {@const reviewHref = inboxRequestHref(request.id, request.startDate)}
+                          {#if reviewHref}
+                            <a class="btn btn-outline btn-sm" href={reviewHref}>Prüfen</a>
+                          {/if}
                         {:else}
                           <a class="btn btn-outline btn-sm" href={`/team/aufgaben?typ=${task.kind}`}
                             >Öffnen</a
@@ -2546,12 +2534,6 @@
           </div>
         {/if}
       </div>
-      <LeaveReviewDialog
-        bind:open={reviewOpen}
-        request={reviewRequest}
-        currentEmployeeId={$authStore.user?.employeeId ?? null}
-        onReviewed={loadTeamTasks}
-      />
     {/if}
   {/if}
 </div>

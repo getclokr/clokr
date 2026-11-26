@@ -40,3 +40,17 @@ export function parseInboxDeepLink(
     return { requestId: null, year: null, section9Id: null };
   }
 }
+
+/**
+ * The sender side of the deep link: `/team/aufgaben?request=<id>&year=<YYYY of the start day>`.
+ * Issue #992 (N-07, owner decision 25.11.2026): a request is decided in Aufgaben only, every other
+ * place links there. The year selects the list that holds the request (a request can start next
+ * year). Returns `null` for an id that is not a uuid or a start day that is not an ISO date, so a
+ * caller renders no link instead of a broken one. Writes only a lowercase uuid and 4 digits.
+ */
+export function inboxRequestHref(id: string, startDate: string): string | null {
+  const requestId = normalizeEmployeeIdParam(id);
+  const year = /^(\d{4})-\d{2}-\d{2}/.exec(startDate)?.[1];
+  if (requestId === null || year === undefined) return null;
+  return `/team/aufgaben?request=${requestId}&year=${year}`;
+}

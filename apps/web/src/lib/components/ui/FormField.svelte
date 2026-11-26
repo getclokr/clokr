@@ -18,6 +18,11 @@
     label: string;
     help?: string;
     /**
+     * Additive (#992): the id of the help line, for a control OUTSIDE this field that is described by
+     * it (the reject button of the review dialog). Default: a generated id.
+     */
+    helpId?: string;
+    /**
      * Issue #1058: an explanation as an info symbol next to the label. `help` stays the visible
      * line for text that must stay visible (a deadline, a lock, a warning, a consequence).
      */
@@ -27,11 +32,11 @@
     field: Snippet<[FieldContext]>;
   }
 
-  let { label, help, hint, error, required = false, field }: Props = $props();
+  let { label, help, helpId: helpIdProp, hint, error, required = false, field }: Props = $props();
 
   const uid = $props.id();
   const fieldId = `${uid}-field`;
-  const helpId = `${uid}-help`;
+  const helpId = $derived(helpIdProp ?? `${uid}-help`);
   const hintId = `${uid}-hint`;
   const errorId = `${uid}-error`;
 

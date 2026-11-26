@@ -15,7 +15,9 @@
    * flags come in as props.
    */
   import { api } from "$api/client";
-  import { salonContext, showSalonOptions } from "$stores/salon-context"; // salon names, one module (#82)
+  import { homeSalonMarksApply, salonContext } from "$stores/salon-context"; // salon names, one module (#82)
+  import { homeSalonMark } from "$lib/salons/home-salon-mark"; // Issue #949, #992 S-27
+  import { dayRangeLabel } from "$lib/utils/day-label"; // Issue #992 D-992-16
   import { LEAVE_TYPE_OPTIONS, type CalendarTypeCode } from "$lib/leave/team-calendar-visibility";
   import { leaveDaysLabel } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
   import type { LeaveReviewRequest } from "$lib/leave/leave-review";
@@ -52,14 +54,22 @@
 
   // `null` = not shown (flag off, not loaded yet, or the read was refused).
   let homeSalonId = $state<string | null>(null);
-  // The name comes from the salon context store (the only module that reads /me/context, #82),
-  // gated by its one rule `showSalonOptions` (#64): a salon outside the caller's reach is not in
-  // its list, so the line is omitted for it.
-  let homeSalonName = $derived(
-    showSalonOptions($salonContext)
-      ? ($salonContext.salons.find((x) => x.id === homeSalonId)?.name ?? null)
-      : null,
-  );
+  // The name comes from the salon context store (the only module that reads /me/context, #82).
+  // The line shows in every company with more than one salon (Issue #992 S-27, D-992-15): a
+  // Salonleitung of one salon in a chain is the reader the Stammsalon matters to. A Stammsalon
+  // outside the reader's own salons is never named - it reads with the #949 mark instead.
+  let homeSalonName = $derived.by(() => {
+    if (!homeSalonId || !homeSalonMarksApply($salonContext)) return null;
+    const own = $salonContext.salons.find((x) => x.id === homeSalonId)?.name;
+    if (own) return own;
+    return (
+      homeSalonMark(
+        homeSalonId,
+        new Set($salonContext.salons.map((x) => x.id)),
+        homeSalonMarksApply($salonContext),
+      )?.label ?? null
+    );
+  });
   let vacationFact = $state<{ label: string; value: string } | null>(null);
   let shiftFactLines = $state<string[] | null>(null);
   // The request the facts belong to; a late answer for another request is discarded (T-853-15).
@@ -128,12 +138,6 @@
     return LEAVE_TYPE_OPTIONS.find((t) => t.code === code)?.label ?? code;
   }
 
-  function fmtDate(iso: string): string {
-    if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
-  }
-
   let personName = $derived(`${request.employee.firstName} ${request.employee.lastName}`);
 </script>
 
@@ -148,7 +152,7 @@
   </div>
   <div class="fact">
     <dt>Zeitraum</dt>
-    <dd>{fmtDate(request.startDate)} – {fmtDate(request.endDate)}</dd>
+    <dd>{dayRangeLabel(request.startDate, request.endDate, { year: true })}</dd>
   </div>
   <div class="fact">
     <dt>Umfang</dt>
@@ -184,7 +188,7 @@
   {/if}
   {#if request.note}
     <div class="fact fact--full">
-      <dt>Anmerkung Mitarbeiter</dt>
+      <dt>Anmerkung im Antrag</dt>
       <dd>„{request.note}"</dd>
     </div>
   {/if}

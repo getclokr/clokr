@@ -269,7 +269,7 @@ test.describe("Leave (Urlaub) UI flow", () => {
     await page.goto("/team/leave");
 
     // Open the review modal via the row's testid action. The Anträge tab shows the open row; its
-    // action „Im Posteingang prüfen“ is a link into the inbox, where the review dialog opens.
+    // action „In Aufgaben prüfen“ is a link into the inbox, where the review dialog opens.
     const reviewBtn =
       leave.status === "CANCELLATION_REQUESTED"
         ? page.getByTestId(`leave-team-row-${leave.id}-review-cancel`)

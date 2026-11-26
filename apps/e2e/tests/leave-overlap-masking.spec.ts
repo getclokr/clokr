@@ -244,7 +244,7 @@ test.describe("Phase 262 — /leave/overlap masks the absence type over the wire
   });
 
   // Issue #840 (plan 840-13): the team page no longer decides requests. Its Anträge tab offers
-  // „Im Posteingang prüfen“, which opens the same shared review dialog in the inbox; the overlap
+  // „In Aufgaben prüfen“, which opens the same shared review dialog in the inbox; the overlap
   // answer and the type chip are the ones the former team review modal showed.
   test("MANAGER: the Anträge tab's inbox action opens the review dialog with the real type", async ({
     page,

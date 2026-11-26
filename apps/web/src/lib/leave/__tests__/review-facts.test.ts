@@ -125,6 +125,6 @@ describe("shiftLines", () => {
 
   it("is empty for no shifts and the neutral text never says the person has none", () => {
     expect(shiftLines([])).toEqual([]);
-    expect(NO_SHIFTS_TEXT).toBe("Keine geplanten Schichten sichtbar");
+    expect(NO_SHIFTS_TEXT).toBe("Keine Schichten im Dienstplan");
   });
 });

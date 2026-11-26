@@ -74,7 +74,7 @@ describe("taskRowsFrom - leave", () => {
       sourceId: "a",
       personName: "Mia Muster",
       title: "Mia Muster",
-      subtitle: "14.12.2026 – 18.12.2026 · 4 Tage",
+      subtitle: "14.12.–18.12.2026 · 4 Tage",
       createdAt: "2026-11-02T08:00:00.000Z",
       status: "PENDING",
       decided: false,
@@ -241,7 +241,7 @@ describe("taskCounts, rowsForView, filterByKind", () => {
 
 describe("fmtTaskDate", () => {
   it("formats an ISO day and leaves anything else alone", () => {
-    expect(fmtTaskDate("2026-01-05")).toBe("05.01.2026");
+    expect(fmtTaskDate("2026-01-05")).toBe("5.1.2026");
     expect(fmtTaskDate("")).toBe("");
     expect(fmtTaskDate("heute")).toBe("heute");
   });
@@ -294,7 +294,7 @@ describe("taskRowsFrom - § 9", () => {
       kind: "paragraf9",
       sourceId: "s1",
       title: "Ina Beispiel",
-      subtitle: "Urlaub 02.11.2026–13.11.2026 · Krank 03.11.2026–06.11.2026",
+      subtitle: "Urlaub 2.11.–13.11.2026 · Krank 3.11.–6.11.2026",
       status: "AU_PENDING",
       decided: false,
       typeCode: null,

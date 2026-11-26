@@ -20,7 +20,7 @@ Der Bereich **Team** ist für Teamleitungen und alle, die Verantwortung für and
 
 - **Jetzt im Salon**: wer heute da ist, wer fehlt oder abwesend ist. Jede Zeile zeigt den Status der Person als Hinweis, zum Beispiel eingestempelt, fehlt, Feiertag oder abwesend. Ein Klick öffnet die Zeiten der Person, wenn du diese Seite nutzen darfst. Mit dem Filter schränkst du die Liste auf einen Status ein, **Alle zeigen** hebt ihn wieder auf.
 - **Fehlende Zeiten**: Personen mit Tagen ohne Eintrag in diesem Monat. Ein Klick führt zum ersten betroffenen Tag.
-- **Aufgaben**: die ersten offenen Anträge, direkt zu entscheiden. **Alle Aufgaben** öffnet [Team › Aufgaben](aufgaben.md).
+- **Aufgaben**: die ersten offenen Anträge. **Prüfen** öffnet den Antrag in [Team › Aufgaben](aufgaben.md), wo du entscheidest. **Alle Aufgaben** öffnet die ganze Liste.
 - **Demnächst abwesend**: wer in den nächsten Wochen fehlt. **Kalender** öffnet **Team › Abwesenheiten**.
 
 Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit eintragen**, wenn du die Rechte dafür hast.

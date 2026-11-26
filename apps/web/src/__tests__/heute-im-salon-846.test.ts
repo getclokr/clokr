@@ -6,7 +6,8 @@
 // Proves: the Kennzahlen-Band counts the server's statuses and every figure links to its filtered
 // list (D-01); no chart and no saldo figure is requested or drawn (D-04); the team week pages only
 // from 25 persons on and its count text is right (D-02, regression of „1 – 18 von 14“); deciding a
-// request opens the shared review dialog of Aufgaben and the page itself writes nothing (D-03).
+// request links to Aufgaben, where the review dialog opens, and the page itself writes nothing (D-03;
+// Issue #992 N-07, owner decision 25.11.2026: one decision path).
 //
 // Issue #1028: the Aufgaben widget lists the rows the KPI cell counts (P-04), so the old expectation
 // „2 weitere Aufgaben warten“ is replaced - the section has no summary row any more; every counted task
@@ -119,9 +120,13 @@ const ATTENDANCE = {
   summary: { present: 1, absent: 1, clockedIn: 2, missing: 1, holiday: 0 },
 };
 
+// A request id is a uuid: the „Prüfen“ link (inboxRequestHref) writes only a real uuid (Issue #992).
+const LR1 = "11111111-1111-4111-8111-111111111111";
+const LR2 = "22222222-2222-4222-8222-222222222222";
+
 const PENDING = [
   {
-    id: "lr1",
+    id: LR1,
     employeeId: "e9",
     typeCode: "VACATION",
     employee: { firstName: "Hanna", lastName: "Personal" },
@@ -360,24 +365,27 @@ describe("Heute im Salon — the team week (D-02)", () => {
   });
 });
 
-describe("Heute im Salon — tasks decided through the dialog of Aufgaben (D-03)", () => {
-  it("„Genehmigen“ opens the shared review dialog; the page itself writes nothing", async () => {
+describe("Heute im Salon — tasks are decided in Aufgaben only (D-03, Issue #992 N-07, owner decision 25.11.2026)", () => {
+  it("an open request has one link „Prüfen“ to Aufgaben; the page itself writes nothing", async () => {
     asManager();
     renderWithTheme(DashboardPage, {});
-    const approve = await screen.findByRole("button", { name: "Genehmigen" });
-    await fireEvent.click(approve);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    const link = await screen.findByRole("link", { name: "Prüfen" });
+    expect(link.getAttribute("href")).toBe(`/team/aufgaben?request=${LR1}&year=2026`);
+    expect(screen.queryByRole("button", { name: "Genehmigen" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(apiPatch).not.toHaveBeenCalled();
     expect(apiPost).not.toHaveBeenCalled();
   });
 
-  it("parity: both pages decide through LeaveReviewDialog, and only the dialog patches /review", () => {
+  it("parity: only Aufgaben mounts LeaveReviewDialog, and only the dialog patches /review", () => {
     const read = (rel: string) => readFileSync(resolve(__dirname, rel), "utf8");
     const page = read("../routes/(app)/dashboard/+page.svelte");
     const inbox = read("../routes/(app)/inbox/+page.svelte");
     const dialog = read("../lib/components/leave/LeaveReviewDialog.svelte");
+    expect(inbox).toContain("<LeaveReviewDialog");
+    expect(page).not.toContain("LeaveReviewDialog");
+    expect(page).toContain("inboxRequestHref(");
     for (const src of [page, inbox]) {
-      expect(src).toContain("<LeaveReviewDialog");
       expect(src).not.toMatch(/\/leave\/requests\/\$\{[^}]+\}\/review/);
     }
     expect(dialog).toMatch(/\/leave\/requests\/\$\{ctx\.id\}\/review/);
@@ -389,7 +397,7 @@ const ALL_KINDS_LEAVE = [
   ...PENDING,
   {
     ...PENDING[0],
-    id: "lr2",
+    id: LR2,
     employeeId: "e10",
     employee: { firstName: "Jonas", lastName: "Storno" },
     status: "CANCELLATION_REQUESTED",
@@ -518,7 +526,7 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     expect(screen.queryByTestId("team-tasks-pager")).toBeNull();
   });
 
-  it("a PENDING request of another person has „Ablehnen“ and „Genehmigen“ at the row end, both open the review dialog", async () => {
+  it("a PENDING request of another person has one link „Prüfen“ at the row end, no decision button", async () => {
     everyKindPresent();
     asManagerWithSection9();
     renderWithTheme(DashboardPage, {});
@@ -526,12 +534,13 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     await fireEvent.click(
       within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Urlaub/ }),
     );
-    const row = await screen.findByTestId("task-row-urlaub-lr1");
+    const row = await screen.findByTestId(`task-row-urlaub-${LR1}`);
     expect(row.classList.contains("list-row--actions-end")).toBe(true);
     const actions = row.querySelector(".list-actions") as HTMLElement;
-    expect(within(actions).getByRole("button", { name: "Ablehnen" })).toBeTruthy();
-    await fireEvent.click(within(actions).getByRole("button", { name: "Ablehnen" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    const link = within(actions).getByRole("link", { name: "Prüfen" });
+    expect(link.getAttribute("href")).toBe(`/team/aufgaben?request=${LR1}&year=2026`);
+    expect(within(actions).queryByRole("button", { name: "Ablehnen" })).toBeNull();
+    expect(within(actions).queryByRole("button", { name: "Genehmigen" })).toBeNull();
     expect(apiPatch).not.toHaveBeenCalled();
   });
 
@@ -543,7 +552,7 @@ describe("Heute im Salon — Aufgaben on the shared list block (Issue #1028)", (
     await fireEvent.click(
       within(screen.getByTestId("team-tasks-filter")).getByRole("radio", { name: /^Urlaub/ }),
     );
-    const cancel = await screen.findByTestId("task-row-urlaub-lr2");
+    const cancel = await screen.findByTestId(`task-row-urlaub-${LR2}`);
     const link = within(cancel).getByRole("link", { name: "Öffnen" });
     expect(link.getAttribute("href")).toBe("/team/aufgaben?typ=urlaub");
     expect(within(cancel).queryByRole("button", { name: "Genehmigen" })).toBeNull();
@@ -763,6 +772,6 @@ describe("heute-im-salon helpers", () => {
   it("never offers the caller's own request for a decision", () => {
     const own = { ...PENDING[0], id: "own", employeeId: "e1" };
     const tasks = openTeamLeaveTasks([own, PENDING[0]] as never, "e1");
-    expect(tasks.map((t) => t.id)).toEqual(["lr1"]);
+    expect(tasks.map((t) => t.id)).toEqual([LR1]);
   });
 });
