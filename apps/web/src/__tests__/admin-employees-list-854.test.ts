@@ -120,14 +120,14 @@ beforeEach(() => {
 
 async function mountList() {
   renderWithTheme(Page, {});
-  await screen.findByRole("checkbox", { name: "Eins, Test auswählen" });
+  await screen.findByRole("checkbox", { name: "Test Eins auswählen" });
 }
 
 describe("Personen list - selection and bulk invitation", () => {
   it("shows the bulk bar only once a row is selected and offers the invitation action to the holder", async () => {
     await mountList();
     expect(screen.queryByTestId("admin-employees-bulk-bar")).toBeNull();
-    await fireEvent.click(screen.getByRole("checkbox", { name: "Eins, Test auswählen" }));
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Test Eins auswählen" }));
     const bar = await screen.findByTestId("admin-employees-bulk-bar");
     expect(within(bar).getByText("1 ausgewählt")).toBeInTheDocument();
     expect(within(bar).getByRole("button", { name: "Als CSV exportieren" })).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe("Personen list - selection and bulk invitation", () => {
   it("offers no bulk invitation without employee:manage-access", async () => {
     permissions.list = ["employee:read:ZUGEWIESEN"];
     await mountList();
-    await fireEvent.click(screen.getByRole("checkbox", { name: "Eins, Test auswählen" }));
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Test Eins auswählen" }));
     const bar = await screen.findByTestId("admin-employees-bulk-bar");
     expect(within(bar).queryByRole("button", { name: "Einladung erneut senden" })).toBeNull();
   });
@@ -155,17 +155,17 @@ describe("Personen list - selection and bulk invitation", () => {
     await mountList();
     // e1 (open invitation), e2 (open invitation) and e3 (already active -> skipped)
     for (const name of ["Eins", "Zwei", "Drei"]) {
-      await fireEvent.click(screen.getByRole("checkbox", { name: `${name}, Test auswählen` }));
+      await fireEvent.click(screen.getByRole("checkbox", { name: `Test ${name} auswählen` }));
     }
     await fireEvent.click(await screen.findByRole("button", { name: "Einladung erneut senden" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Betrifft 2 Personen")).toBeInTheDocument();
     const list = within(dialog).getByTestId("admin-employees-bulk-preview-list");
-    expect(within(list).getByText("Eins, Test")).toBeInTheDocument();
-    expect(within(list).getByText("Zwei, Test")).toBeInTheDocument();
-    expect(within(list).queryByText("Drei, Test")).toBeNull();
-    expect(within(dialog).getByText(/ohne offene Einladung\): Drei, Test/)).toBeInTheDocument();
+    expect(within(list).getByText("Test Eins")).toBeInTheDocument();
+    expect(within(list).getByText("Test Zwei")).toBeInTheDocument();
+    expect(within(list).queryByText("Test Drei")).toBeNull();
+    expect(within(dialog).getByText(/ohne offene Einladung\): Test Drei/)).toBeInTheDocument();
     // AC-2: nothing was written while the preview is open.
     expect(post).not.toHaveBeenCalled();
 
@@ -177,12 +177,12 @@ describe("Personen list - selection and bulk invitation", () => {
     ]);
     expect(success).not.toHaveBeenCalled();
     expect(error.mock.calls[0][0]).toBe(
-      "1 Einladung gesendet, 1 nicht: Zwei, Test (Die E-Mail konnte nicht gesendet werden.).",
+      "1 Einladung gesendet, 1 nicht: Test Zwei (Die E-Mail konnte nicht gesendet werden.).",
     );
     // The failed row stays selected, the rest is released.
     await waitFor(() => expect(screen.getByText("1 ausgewählt")).toBeInTheDocument());
-    expect(screen.getByRole("checkbox", { name: "Zwei, Test auswählen" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Eins, Test auswählen" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Test Zwei auswählen" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Test Eins auswählen" })).not.toBeChecked();
   });
 
   it("filters through the toolbar search and keeps the count in step", async () => {
@@ -192,7 +192,7 @@ describe("Personen list - selection and bulk invitation", () => {
       target: { value: "drei" },
     });
     await waitFor(() => expect(screen.getByText("1 von 3")).toBeInTheDocument());
-    expect(screen.queryByRole("checkbox", { name: "Eins, Test auswählen" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Test Eins auswählen" })).toBeNull();
   });
 });
 
