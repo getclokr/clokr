@@ -119,3 +119,76 @@ export function shiftBasedLeaveCreditByDate(
 
   return result;
 }
+
+/**
+ * Issue #1136 (D-05) - caps a credit map (the no-shift fallback of a ROSTER-basis leave row,
+ * `close-employee-month.ts`) so that a week never relieves more than that week's contract Soll,
+ * also when the week mixes sick days with vacation rows or planned-shift relief.
+ *
+ * Per ISO week-part (Mon..Sun intersected with `[effectiveStart, monthEnd]`, derived with the same
+ * date-string comparison as {@link shiftBasedLeaveCreditByDate}) the cap is the part's OWN
+ * contract Soll (`calcExpectedMinutesTz`); the room is `max(0, cap - sum of relievedByDate in the
+ * part)`, and every credit date of the part is scaled by `min(1, room / sum of the part's credit)`.
+ * `relievedByDate` is what the OTHER relief of those dates already takes (CONTRACT-basis credit,
+ * planned-shift netto) - the credit map's own dates must not be in it.
+ *
+ * Pure like the rest of this module; no rounding (the caller rounds once per leave row); no import
+ * of `contexts/absence`.
+ */
+export function capToWeekContractRoom(
+  credit: ReadonlyMap<string, number>,
+  relievedByDate: ReadonlyMap<string, number>,
+  schedule: Record<string, unknown>,
+  effectiveStart: Date,
+  monthEnd: Date,
+  tz: string,
+): Map<string, number> {
+  const result = new Map<string, number>();
+  if (credit.size === 0) return result;
+
+  const effectiveStartStr = dateStrInTz(effectiveStart, tz);
+  const monthEndStr = dateStrInTz(monthEnd, tz);
+
+  const mondayOf = (dateStr: string): string => {
+    const d = new Date(dateStr + "T00:00:00Z");
+    const back = (d.getUTCDay() + 6) % 7; // Monday = 0
+    return new Date(d.getTime() - back * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  };
+
+  const creditByWeek = new Map<string, Array<[string, number]>>();
+  for (const [dateStr, minutes] of credit) {
+    if (dateStr < effectiveStartStr || dateStr > monthEndStr) continue;
+    const monday = mondayOf(dateStr);
+    const list = creditByWeek.get(monday) ?? [];
+    list.push([dateStr, minutes]);
+    creditByWeek.set(monday, list);
+  }
+
+  for (const [monday, dates] of creditByWeek) {
+    const sunday = dateStrInTz(
+      new Date(new Date(monday + "T00:00:00Z").getTime() + 6 * 24 * 60 * 60 * 1000),
+      tz,
+    );
+    const partStartStr = monday > effectiveStartStr ? monday : effectiveStartStr;
+    const partEndStr = sunday < monthEndStr ? sunday : monthEndStr;
+    if (partStartStr > partEndStr) continue;
+
+    let relieved = 0;
+    for (const [dateStr, minutes] of relievedByDate) {
+      if (dateStr >= partStartStr && dateStr <= partEndStr) relieved += minutes;
+    }
+    let uncapped = 0;
+    for (const [, minutes] of dates) uncapped += minutes;
+
+    const cap = calcExpectedMinutesTz(
+      schedule,
+      new Date(partStartStr + "T00:00:00Z"),
+      new Date(partEndStr + "T00:00:00Z"),
+      tz,
+    );
+    const room = Math.max(0, cap - relieved);
+    const scale = uncapped > room ? (uncapped > 0 ? room / uncapped : 0) : 1;
+    for (const [dateStr, minutes] of dates) result.set(dateStr, minutes * scale);
+  }
+  return result;
+}

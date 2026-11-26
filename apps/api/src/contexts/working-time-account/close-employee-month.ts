@@ -107,7 +107,7 @@ import {
   computeDailySollMinutes,
   normalizeUnterrichtsMinutenByDow,
 } from "./vocational-school-saldo";
-import { shiftBasedLeaveCreditByDate } from "./shift-based-leave-credit"; // Issue #429 (D-06)
+import { capToWeekContractRoom, shiftBasedLeaveCreditByDate } from "./shift-based-leave-credit"; // Issue #429 (D-06), #1136 (D-05)
 import type { ScheduleType } from "@clokr/db";
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -302,6 +302,19 @@ export type CloseMonthResult = {
    */
   accountCorrectionMinutes: number;
 
+  /**
+   * Issue #1136 - what the SHIFT_BASED no-shift fallback (a ROSTER-basis leave row on a day
+   * without a planned shift relieves the contractual O-day on a usual workday) changed against
+   * the SAME input without it: `sollReliefMinutes` = C_net without the fallback minus C_net with
+   * it, `balanceDeltaMinutes` = balance with it minus balance without it (both before the
+   * Überstundenausgleich withdrawal and account corrections, which the fallback does not touch).
+   * In the close path "without the fallback" is exactly the pre-#1136 rule, so this is the figure
+   * a closed month would change by if it were recomputed. Read by
+   * `scripts/audit-1136-shift-sick-without-roster.ts`; no production writer consumes it.
+   * `{0, 0}` for every other schedule type, for a no-contract month and for an early return.
+   */
+  rosterLeaveNoShift: { sollReliefMinutes: number; balanceDeltaMinutes: number };
+
   // Gap detection results (for warning UX in 76.28)
   gaps: WorkdayGap[];
   coveredDates: Set<string>;
@@ -340,6 +353,8 @@ export type LeaveCreditBasis = "CONTRACT" | "ROSTER";
  *     for absences, so the approved request is the source - an approved sick day must not have to
  *     be worked in (§§ 3, 4 EFZG). The no-shift value comes from the same two kernels as the
  *     CONTRACT credit (`leaveDaysPerWeek` + `shiftBasedLeaveCreditByDate`), never re-derived.
+ *     A sick week never relieves more than that week's contract Soll, also when mixed with
+ *     vacation rows (`capToWeekContractRoom`, D-05); the planned shift netto itself stays as #429.
  *   CONTRACT (replaces a contractual workday):
  *     - VACATION — BUrlG; the only entitlement-consuming type (deductVacationDays).
  *     - OVERTIME_COMP — owner decision on issue #293: "the day IS the average contract day";
@@ -725,6 +740,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
         snapshotExpectedMinutes: 0,
         overtimeCompensationMinutes: 0,
         accountCorrectionMinutes: 0,
+        rosterLeaveNoShift: { sollReliefMinutes: 0, balanceDeltaMinutes: 0 },
         gaps: [],
         coveredDates: new Set<string>(),
       };
@@ -1036,6 +1052,7 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
   let leaveMinutes = 0;
   let absenceMinutes = 0;
   let shiftBalanceOverride: number | null = null;
+  let rosterLeaveNoShift = { sollReliefMinutes: 0, balanceDeltaMinutes: 0 }; // Issue #1136
 
   if (scheduleType === "SHIFT_BASED") {
     // ── SHIFT_BASED branch ────────────────────────────────────────────────
@@ -1160,17 +1177,29 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     // week straddling a month is counted once across both months; a date outside the Soll range
     // (planned status unknown there) only shapes the week count and is never credited here.
     const fallbackCandidates: Array<{ startDate: Date; endDate: Date; halfDay: boolean }> = [];
+    const fallbackCandidateDates = new Set<string>();
+    // Per date: true when EVERY ROSTER row covering a PLANNED day is a half day (its planned
+    // relief is then halved) - feeds the week-room accounting below.
+    const plannedRosterAllHalf = new Map<string, boolean>();
     for (const lr of approvedLeave) {
       if (lr.creditBasis !== "ROSTER") continue;
       iterateDaysInTz(lr.startDate, lr.endDate, tz, (dow, dateStr) => {
         const inSollRange = dateStr >= effectiveStartStr && dateStr <= sollRangeEndStr;
-        if (inSollRange && plannedNettoByDate.has(dateStr)) return; // a planned shift always wins
+        if (inSollRange && plannedNettoByDate.has(dateStr)) {
+          // a planned shift always wins
+          plannedRosterAllHalf.set(
+            dateStr,
+            (plannedRosterAllHalf.get(dateStr) ?? true) && lr.halfDay,
+          );
+          return;
+        }
         if (usualWorkDays.length > 0 && !usualWorkDays.includes(dow)) return; // D-01 / GA-3
         const day = new Date(dateStr + "T00:00:00Z");
         fallbackCandidates.push({ startDate: day, endDate: day, halfDay: lr.halfDay });
+        if (inSollRange) fallbackCandidateDates.add(dateStr);
       });
     }
-    const rosterNoShiftCreditByDate = shiftBasedLeaveCreditByDate(
+    const rosterNoShiftRaw = shiftBasedLeaveCreditByDate(
       leaveDaysPerWeek(
         fallbackCandidates,
         contractWorkDaysPerWeek,
@@ -1183,8 +1212,36 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       sollRangeEnd,
       tz,
     );
+    // Issue #1136 (D-05, GA-2): a week never relieves more than its contract Soll, also when the
+    // sick days mix with vacation rows or planned-shift relief. The cap binds the FALLBACK only -
+    // the CONTRACT credits and the planned netto (D-03) stay exactly as they are; a date that is
+    // both a fallback candidate and covered by a CONTRACT row counts on the fallback side.
+    const relievedByDate = new Map<string, number>();
+    iterateDaysInTz(effectiveStart, sollRangeEnd, tz, (_dow, dateStr) => {
+      if (fallbackCandidateDates.has(dateStr) || bsPriority.dates.has(dateStr)) return;
+      const contractCredit = sbLeaveCreditByDate.get(dateStr);
+      if (contractCredit !== undefined) {
+        relievedByDate.set(dateStr, contractCredit);
+        return;
+      }
+      const half = plannedRosterAllHalf.get(dateStr);
+      if (half !== undefined) {
+        relievedByDate.set(dateStr, (plannedNettoByDate.get(dateStr) ?? 0) * (half ? 0.5 : 1));
+      }
+    });
+    const rosterNoShiftCreditByDate = capToWeekContractRoom(
+      rosterNoShiftRaw,
+      relievedByDate,
+      schedule,
+      effectiveStart,
+      sollRangeEnd,
+      tz,
+    );
 
     let sbLeaveCredit = 0;
+    // Issue #1136 (GA-5): the same loop without the no-shift fallback = the pre-#1136 rule, kept
+    // only for the diagnostic `rosterLeaveNoShift` (read by the audit script).
+    let sbLeaveCreditPre = 0;
     for (const lr of sortForDedup(approvedLeave)) {
       const leaveStart = lr.startDate < effectiveStart ? effectiveStart : lr.startDate;
       const leaveEnd = lr.endDate > sollRangeEnd ? sollRangeEnd : lr.endDate;
@@ -1201,22 +1258,22 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // agnostic, so this skip covers BOTH credit bases (the CONTRACT lookup above already
       // excludes it via bsDayPriority in leaveDaysPerWeek; the ROSTER planned-netto lookup
       // does not exclude it on its own, so this explicit check is load-bearing for ROSTER rows).
-      let rowCredit = 0;
+      let plannedPart = 0; // the part of the row's credit that existed before Issue #1136
+      let fallbackPart = 0; // the no-shift fallback part (Issue #1136)
       iterateDaysInTz(leaveStart, leaveEnd, tz, (_dow, dateStr) => {
         if (bsPriority.blocks(dateStr, sbClaimed)) return;
         if (lr.creditBasis === "ROSTER") {
           const planned = plannedNettoByDate.get(dateStr);
           // The fallback map is already halved for a half day by the kernel - never halve twice.
-          rowCredit +=
-            planned !== undefined
-              ? planned * (lr.halfDay ? 0.5 : 1)
-              : (rosterNoShiftCreditByDate.get(dateStr) ?? 0);
+          if (planned !== undefined) plannedPart += planned * (lr.halfDay ? 0.5 : 1);
+          else fallbackPart += rosterNoShiftCreditByDate.get(dateStr) ?? 0;
         } else {
-          rowCredit += sbLeaveCreditByDate.get(dateStr) ?? 0;
+          plannedPart += sbLeaveCreditByDate.get(dateStr) ?? 0;
         }
       });
-      rowCredit = Math.round(rowCredit); // D-09: round once, per row
+      const rowCredit = Math.round(plannedPart + fallbackPart); // D-09: round once, per row
       sbLeaveCredit += rowCredit;
+      sbLeaveCreditPre += Math.round(plannedPart);
       // Issue #220: the withdrawal is THIS row's credit, not a second computation of it.
       if (lr.isOvertimeCompensation) overtimeCompensationMinutes += rowCredit;
       // Issue #448 (D-03): do NOT claim a Berufsschultag into sbClaimed — a MANUAL-source BS
@@ -1291,6 +1348,23 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // behaviour, byte-identical to before. See CloseMonthInput.rosterProration doc.
       rosterProration: input.rosterProration,
     });
+
+    // Issue #1136 (GA-5): the same saldo WITHOUT the no-shift fallback (the pre-#1136 rule), for the
+    // audit's diagnostic figure only - nothing below reads anything but the difference.
+    const cNetPre =
+      Math.max(0, contractSoll - sbLeaveCreditPre - sbAbsenceCredit) + bsExpectedMinutes;
+    const sbSaldoPre = calcShiftBasedSaldo({
+      contractSollMinutes: cNetPre,
+      rosterMinutes: shiftMinutes,
+      workedMinutes: workedMinutes,
+      bsWorkedMinutes: bsWorkedMinutes,
+      rosterProration: input.rosterProration,
+    });
+    rosterLeaveNoShift = {
+      sollReliefMinutes:
+        Math.round(sbSaldoPre.expectedMinutes) - Math.round(sbSaldo.expectedMinutes),
+      balanceDeltaMinutes: Math.round(sbSaldo.balanceDelta) - Math.round(sbSaldoPre.balanceDelta),
+    };
 
     expectedMinutes = sbSaldo.expectedMinutes; // = C_net (stored in SaldoSnapshot — not R, D-07)
     // balanceDelta already reflects BS neutrality via the pooled overtime clause (bsWorked in the
@@ -1538,6 +1612,9 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     snapshotExpectedMinutes,
     overtimeCompensationMinutes: withdrawalMinutes,
     accountCorrectionMinutes: isNoContractSchedule(schedule) ? 0 : accountCorrectionMinutes,
+    rosterLeaveNoShift: isNoContractSchedule(schedule)
+      ? { sollReliefMinutes: 0, balanceDeltaMinutes: 0 }
+      : rosterLeaveNoShift,
     gaps,
     coveredDates,
   };

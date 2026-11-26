@@ -220,6 +220,123 @@ describe("Issue #1136 - SHIFT_BASED sick day without a planned shift (pure core)
   });
 });
 
+/** Mon-Fri usual days, 4 contract days: a Mon-Sat sick week is 5 usual days on a 4-day contract. */
+const SB_38_4_MON_FRI: Record<string, unknown> = {
+  ...SB_38_4_TUE_FRI,
+  workDays: [1, 2, 3, 4, 5],
+  usualWorkDays: [1, 2, 3, 4, 5],
+  mondayHours: 7.6,
+};
+/** Empty Angabe: no usualWorkDays, the vacation contract-week distribution applies. */
+const SB_38_4_NO_ANGABE: Record<string, unknown> = {
+  ...SB_38_4_TUE_FRI,
+  workDays: [1, 2, 3, 4, 5, 6],
+  usualWorkDays: [],
+  mondayHours: 7.6,
+};
+
+describe("Issue #1136 - week cap, half days, exactly once, Berufsschule, diagnostic", () => {
+  it("C1 a sick week never relieves more than the week's contract: Mon-Sat = 2280", () => {
+    expect(relief(SB_38_4_MON_FRI, [{ s: nov(9), e: nov(14) }], [])).toBe(2280);
+  });
+
+  it("C2 vacation Mon-Tue + unplanned sick Wed-Fri = 2280, the vacation row's own credit stays 1140", () => {
+    const vacation: Leave = { s: nov(9), e: nov(10), code: "VACATION" };
+    const sick: Leave = { s: nov(11), e: nov(13), code: "SICK" };
+    expect(relief(SB_38_4_MON_FRI, [vacation, sick], [])).toBe(2280);
+    expect(relief(SB_38_4_MON_FRI, [vacation], [])).toBe(1140);
+  });
+
+  it("C3 a planned Monday shift + unplanned sick Tue-Fri = 2280", () => {
+    expect(relief(SB_38_4_MON_FRI, [{ s: nov(9), e: nov(13) }], [S(9)])).toBe(2280);
+  });
+
+  it("H1-H3 a half day halves either value: 285 unplanned usual day, 315 on the 630 shift, 0 on a non-usual day", () => {
+    expect(relief(SB_38_4_TUE_FRI, [{ s: nov(10), e: nov(10), half: true }], [S(13)])).toBe(285);
+    expect(relief(SB_38_4_TUE_FRI, [{ s: nov(12), e: nov(12), half: true }], [LONG(12)])).toBe(315);
+    expect(relief(SB_38_4_TUE_FRI, [{ s: nov(9), e: nov(9), half: true }], [S(13)])).toBe(0);
+  });
+
+  it("E1-E2 an empty Angabe takes the vacation distribution: single Monday 570, whole week 2280", () => {
+    expect(relief(SB_38_4_NO_ANGABE, [{ s: nov(9), e: nov(9) }], [])).toBe(570);
+    expect(relief(SB_38_4_NO_ANGABE, [{ s: nov(9), e: nov(14) }], [])).toBe(2280);
+  });
+
+  it("I1 SICK and VACATION on the same unplanned usual day reduce the Soll once, in both input orders", () => {
+    const sick: Leave = { s: nov(10), e: nov(10), code: "SICK" };
+    const vacation: Leave = { s: nov(10), e: nov(10), code: "VACATION" };
+    expect(relief(SB_38_4_TUE_FRI, [sick, vacation], [S(13)])).toBe(570);
+    expect(relief(SB_38_4_TUE_FRI, [vacation, sick], [S(13)])).toBe(570);
+  });
+
+  it("B1 SICK on a Berufsschultag gives way to the Berufsschule credit alone (D-06)", () => {
+    const bs = [
+      {
+        startDate: D(nov(10)),
+        endDate: D(nov(10)),
+        type: "VOCATIONAL_SCHOOL",
+        source: "PATTERN",
+        halfDay: false,
+      },
+    ];
+    const shifts = [S(11), S(12), S(13)];
+    const bsOnly = run(SB_38_4_TUE_FRI, [], shifts, [], { absences: bs });
+    const bsAndSick = run(SB_38_4_TUE_FRI, [{ s: nov(10), e: nov(10) }], shifts, [], {
+      absences: bs,
+    });
+    expect(bsAndSick.expectedMinutes).toBe(bsOnly.expectedMinutes);
+    expect(bsAndSick.balanceMinutes).toBe(bsOnly.balanceMinutes);
+    expect(bsAndSick.workedMinutes).toBe(bsOnly.workedMinutes);
+  });
+
+  describe("D1 rosterLeaveNoShift reports what the fallback added against the same input without it", () => {
+    const sick: Leave[] = [{ s: nov(3), e: nov(6) }];
+
+    it("measured case with W = R: Soll relief 1140, balance delta 0", () => {
+      const r = run(SB_38_4_TUE_FRI, sick, MEASURED_SHIFTS, MEASURED_UNCOVERED_SHIFTS.map(asWork));
+      expect(r.rosterLeaveNoShift).toEqual({ sollReliefMinutes: 1140, balanceDeltaMinutes: 0 });
+    });
+
+    it("measured case with every rostered day worked 30 minutes longer: delta +360", () => {
+      const longer = MEASURED_UNCOVERED_SHIFTS.map(asWork).map((w) => ({ ...w, end: "18:30" }));
+      const r = run(SB_38_4_TUE_FRI, sick, MEASURED_SHIFTS, longer);
+      expect(r.rosterLeaveNoShift).toEqual({ sollReliefMinutes: 1140, balanceDeltaMinutes: 360 });
+      expect(r.balanceMinutes).toBe(360);
+    });
+
+    it("a SHIFT_BASED month without ROSTER rows and any FIXED_SCHEDULE month report 0 / 0", () => {
+      const vacationOnly = run(
+        SB_38_4_TUE_FRI,
+        [{ s: nov(3), e: nov(6), code: "VACATION" }],
+        MEASURED_SHIFTS,
+        [],
+      );
+      expect(vacationOnly.rosterLeaveNoShift).toEqual({
+        sollReliefMinutes: 0,
+        balanceDeltaMinutes: 0,
+      });
+      const fixed = run(
+        {
+          type: "FIXED_SCHEDULE",
+          weeklyHours: 40,
+          mondayHours: 8,
+          tuesdayHours: 8,
+          wednesdayHours: 8,
+          thursdayHours: 8,
+          fridayHours: 8,
+          saturdayHours: 0,
+          sundayHours: 0,
+          workDays: [1, 2, 3, 4, 5],
+        },
+        sick,
+        [],
+        [],
+      );
+      expect(fixed.rosterLeaveNoShift).toEqual({ sollReliefMinutes: 0, balanceDeltaMinutes: 0 });
+    });
+  });
+});
+
 // ── Part 2: the live open-month paths on a seeded database ─────────────────────────────────────
 
 describe("Issue #1136 - open month through the live paths (database)", () => {
