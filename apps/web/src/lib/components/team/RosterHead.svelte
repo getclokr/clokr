@@ -25,5 +25,16 @@
   let { title, hint, tab, tabs, actions }: Props = $props();
 </script>
 
-<PageHead {title} {hint} {actions} />
-<PageTabs {tabs} {tab} tabsLabel="Dienstplan" />
+<div class="roster-head">
+  <PageHead {title} {hint} {actions} />
+  <PageTabs {tabs} {tab} tabsLabel="Dienstplan" />
+</div>
+
+<style>
+  /* The head row is as high as its tallest child: the Woche page carries two small buttons, the
+     other tabs none, so without a floor the heading sits 2 px lower on Woche. The floor is the
+     height of a small button, so the heading is at the same place on all four tabs. */
+  .roster-head :global(.page-head) {
+    min-height: 30px;
+  }
+</style>

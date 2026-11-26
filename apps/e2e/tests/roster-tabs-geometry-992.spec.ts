@@ -26,6 +26,11 @@ async function headGeometry(page: Page): Promise<{ h1: number; tabs: number }> {
   const tabs = page.getByRole("navigation", { name: "Dienstplan", exact: true }).first();
   await expect(h1).toHaveCount(1);
   await expect(tabs).toBeVisible();
+  // The staggered entrance animation moves blocks by a few pixels while it runs; the head is
+  // compared at rest, so wait until every running animation of the page has finished.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => null))),
+  );
   const h1Box = await h1.boundingBox();
   const tabsBox = await tabs.boundingBox();
   expect(h1Box, "h1 has a box").not.toBeNull();

@@ -107,3 +107,29 @@ describe("the Woche page speaks plain German (D-992-19, D-992-21)", () => {
     expect(text).toContain('.sp-daydot[data-tone="warn"]');
   });
 });
+
+describe("the head row has a floor so the heading does not move between tabs (D-992-20)", () => {
+  it("RosterHead gives the head row a min-height that a row with two small buttons does not exceed", () => {
+    const text = read("lib/components/team/RosterHead.svelte");
+    expect(text).toMatch(/\.roster-head :global\(\.page-head\)\s*\{[^}]*min-height:\s*30px/);
+  });
+});
+
+describe("the phone crumb shows the qualified name (D-992-23)", () => {
+  it("the base rule hiding the qualified name precedes the phone media block that shows it", () => {
+    const text = read("lib/components/layout/Topbar.svelte");
+    const hide = text.search(/\.topbar-crumb-qualified\s*\{\s*display:\s*none/);
+    const media = text.indexOf("@media (max-width: 759.98px)", hide);
+    const show = text.search(/\.topbar-crumb-qualified\s*\{\s*display:\s*inline/);
+    expect(hide).toBeGreaterThan(-1);
+    expect(show).toBeGreaterThan(media);
+  });
+});
+
+describe("the availability tab starts flush like the other three (D-992-20)", () => {
+  it("the admin layout drops its top padding for the availability list route", () => {
+    const text = read("routes/(app)/admin/+layout.svelte");
+    expect(text).toContain('page.route.id === "/(app)/admin/availability"');
+    expect(text).toMatch(/\.admin-content--flush\s*\{\s*padding-top:\s*0/);
+  });
+});

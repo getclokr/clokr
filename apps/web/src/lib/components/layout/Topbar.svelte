@@ -471,6 +471,11 @@
     font-weight: 600;
     font-size: var(--fs-base);
   }
+  /* The qualified name (Issue #992) is phone-only; this rule precedes the phone media block so that
+     block, of equal specificity, wins. */
+  .topbar-crumb-qualified {
+    display: none;
+  }
   /* On a phone the bar names only the current page (the sidebar sheet and the back gesture lead up).
      #945: a name that does not fit one line wraps onto a second one inside the 48 px bar; only a name
      longer than two lines is cut, as a last resort. */
@@ -497,9 +502,6 @@
     .topbar-crumb-qualified {
       display: inline;
     }
-  }
-  .topbar-crumb-qualified {
-    display: none;
   }
   .topbar-crumb-link {
     color: var(--text-2);

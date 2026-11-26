@@ -404,6 +404,13 @@ test.describe("Abwesenheiten area (Issue #840)", () => {
     await page.waitForURL(/\/team\/aufgaben/);
     await expect(page.getByTestId("leave-approval-modal")).toBeVisible();
     await expect(page.getByTestId("leave-approval-modal-approve")).toBeVisible();
+    // The dialog's first focus target is the info symbol of the BUrlG note and its popover is open, so the
+    // first Escape closes that popover (the topmost layer); the second one closes the dialog.
+    const openHint = page.locator("[data-popover-trigger][aria-expanded='true']");
+    await expect(openHint).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(openHint).toHaveCount(0);
+    await expect(page.getByTestId("leave-approval-modal")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("leave-approval-modal")).toBeHidden();
 
