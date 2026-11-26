@@ -462,21 +462,28 @@ describe("Issue #429 — invariant suite (D-07..D-10): 'a day reduces Soll exact
 
 // ── Audit follow-up (PR #437): SICK and other pay-for-planned-hours types are roster-based ──
 //
-// § 4 EFZG (Lohnausfallprinzip): a sick day relieves only the hours that would actually have been
-// worked, i.e. the rostered shift of that day. An unplanned sick day relieves nothing. Only the
-// contract-replacing leave types (see `leaveCreditBasisForCode`) use the contract-week formula.
-// The example is the audit's: 38 h / 4-day contract.
+// § 4 EFZG (Lohnausfallprinzip): a sick day relieves the hours that would actually have been
+// worked, i.e. the rostered shift of that day. Only the contract-replacing leave types (see
+// `leaveCreditBasisForCode`) use the contract-week formula.
+// Issue #1136 (owner decision 26.11.2026): a sick day WITHOUT a planned shift no longer relieves
+// nothing - Phorest is not reliably maintained for absences, so the approved request is the
+// source. These schedules have an EMPTY Angabe (no `usualWorkDays`), so an unplanned day takes the
+// same contract-week distribution as vacation (the Ø-day 570 here), exactly like example A above;
+// a planned shift still wins and keeps its netto (630). The example is the audit's: 38 h / 4-day
+// contract.
 describe("Issue #429 audit — SHIFT_BASED sick leave is credited roster-based (§ 4 EFZG)", () => {
   const schedule = shiftBasedSchedule([1, 2, 3, 4, 5, 6]);
   // Week of 08.06: no shift Monday, Tue-Thu planned 10.5 h each; every other week = contract.
   const plan = (d: string) => (inWeek(d) ? (dow(d) >= 2 && dow(d) <= 4 ? 630 : 0) : base(d));
   const contractSoll = run(schedule, plan, [], plan).expectedMinutes;
 
-  it("SICK on an UNPLANNED Monday credits 0 (no shift that day)", () => {
+  it("SICK on an UNPLANNED Monday credits the O-day 570 (Issue #1136, was 0) and moves the balance +180", () => {
     const withoutLeave = run(schedule, plan, [], plan);
     const r = run(schedule, plan, [{ s: "2026-06-08", e: "2026-06-08", code: "SICK" }], plan);
-    expect(withoutLeave.expectedMinutes - r.expectedMinutes).toBe(0);
-    expect(r.balanceMinutes).toBe(withoutLeave.balanceMinutes);
+    // Issue #1136: was 0 / 0 - an unplanned sick day relieved nothing. Empty Angabe -> the
+    // vacation distribution (570), the same +180 week effect as VACATION example A.
+    expect(withoutLeave.expectedMinutes - r.expectedMinutes).toBe(570);
+    expect(r.balanceMinutes - withoutLeave.balanceMinutes).toBe(180);
   });
 
   it("SICK on a PLANNED Tuesday credits exactly that shift's netto minutes (630)", () => {
@@ -488,7 +495,8 @@ describe("Issue #429 audit — SHIFT_BASED sick leave is credited roster-based (
   it("SICK_CHILD and SPECIAL follow the same roster rule", () => {
     for (const code of ["SICK_CHILD", "SPECIAL"]) {
       const unplanned = run(schedule, plan, [{ s: "2026-06-08", e: "2026-06-08", code }], plan);
-      expect(contractSoll - unplanned.expectedMinutes).toBe(0);
+      // Issue #1136: was 0 - an unplanned day now takes the O-day (empty Angabe, 570).
+      expect(contractSoll - unplanned.expectedMinutes).toBe(570);
       const planned = run(schedule, plan, [{ s: "2026-06-09", e: "2026-06-09", code }], plan);
       expect(contractSoll - planned.expectedMinutes).toBe(630);
     }

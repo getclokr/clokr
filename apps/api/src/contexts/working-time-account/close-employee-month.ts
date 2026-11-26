@@ -177,7 +177,8 @@ export type CloseMonthInput = {
      *   - `"CONTRACT"`: the type replaces a contractual workday — contract-week formula
      *     (`leaveDaysPerWeek` × weeklyHours ÷ contract days), roster-independent.
      *   - `"ROSTER"`: the type only pays hours that were actually planned (Lohnausfallprinzip,
-     *     § 4 EFZG / § 616 BGB) — the day's rostered shift netto minutes, 0 without a shift.
+     *     § 4 EFZG / § 616 BGB) — the day's rostered shift netto minutes. Issue #1136: on a day
+     *     WITHOUT a planned shift the contractual O-day on a usual workday of the Angabe, else 0.
      * Read only by the SHIFT_BASED branch; every other schedule type ignores it.
      */
     creditBasis: LeaveCreditBasis;
@@ -326,10 +327,19 @@ export type LeaveCreditBasis = "CONTRACT" | "ROSTER";
  * day is gone, whatever the roster says), or does it only pay the hours that were actually
  * planned (Lohnausfallprinzip)?
  *
- *   ROSTER (pays planned hours only):
- *     - SICK, SICK_CHILD — § 4 Abs. 1 EFZG: continued pay for the working time that is lost; an
- *       unplanned day loses nothing. Kinderkrank (§ 45 SGB V) frees from planned work the same way.
+ *   ROSTER (planned shift netto first):
+ *     - SICK, SICK_CHILD — § 4 Abs. 1 EFZG: continued pay for the working time that is lost.
+ *       Kinderkrank (§ 45 SGB V) frees from planned work the same way.
  *     - SPECIAL (Sonderurlaub) — § 616 BGB: pay for a short hindrance during planned work time.
+ *     A day WITH a planned shift relieves that shift's netto (a planned shift always wins; a half
+ *     day halves it). Issue #1136 (owner decision 26.11.2026): a day WITHOUT a planned shift
+ *     relieves the contractual O-day (weeklyHours / contract days) when the day is a usual workday
+ *     of the schedule's Angabe (`usualWorkDays`), and 0 on any other day; with an empty Angabe the
+ *     vacation contract-week distribution applies (`leaveDaysPerWeek`, never more than the week's
+ *     contract days), a half day halves either value. Reason: Phorest is not reliably maintained
+ *     for absences, so the approved request is the source - an approved sick day must not have to
+ *     be worked in (§§ 3, 4 EFZG). The no-shift value comes from the same two kernels as the
+ *     CONTRACT credit (`leaveDaysPerWeek` + `shiftBasedLeaveCreditByDate`), never re-derived.
  *   CONTRACT (replaces a contractual workday):
  *     - VACATION — BUrlG; the only entitlement-consuming type (deductVacationDays).
  *     - OVERTIME_COMP — owner decision on issue #293: "the day IS the average contract day";
@@ -1049,11 +1059,17 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
     let shiftMinutes = 0; // R = Σ netto active shifts
     // Issue #429 audit: planned netto minutes per day INCLUDING covered days — the relief a
     // ROSTER-basis leave row (sick, Sonderurlaub) gets on that day. Same netto rule as R.
+    // Issue #1136 (GA-1): "is this day planned?" is decided over the WHOLE Soll range
+    // [effectiveStart, sollRangeEnd], not only up to effectiveEnd - a sick day on a future planned
+    // shift must relieve its netto (not take the no-shift O-day) in the open month, exactly as the
+    // close will. The live callers therefore pass the month's shifts; R (below), `rosterDates`
+    // and the roster proration stay bounded to effectiveEnd.
+    const sollRangeEndStr = dateStrInTz(sollRangeEnd, tz);
     const plannedNettoByDate = new Map<string, number>();
     for (const sh of shifts) {
       const shDs = dateStrInTz(sh.date, tz);
-      // Only count shifts within effective span
-      if (shDs < effectiveStartStr || shDs > effectiveEndStr) continue;
+      // Only count shifts within the Soll range
+      if (shDs < effectiveStartStr || shDs > sollRangeEndStr) continue;
       let brutto = hmToMin(sh.endTime) - hmToMin(sh.startTime);
       if (brutto < 0) brutto += 24 * 60; // cross-midnight (e.g. 22:00–06:00)
       if (brutto <= 0) continue;
@@ -1065,6 +1081,8 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       );
       const netto = Math.max(0, brutto - breakMin);
       plannedNettoByDate.set(shDs, (plannedNettoByDate.get(shDs) ?? 0) + netto);
+      // R is a to-date figure: shifts after the window end never count (the map above does).
+      if (shDs > effectiveEndStr) continue;
       // Exclude shifts on covered dates from R (leave/absence/holiday — Ausfallprinzip)
       if (coveredDates.has(shDs)) continue;
       shiftMinutes += netto;
@@ -1102,6 +1120,9 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       schedule as { contractWorkDaysPerWeek?: number | null; workDays?: number[] | null },
       tenantConfig?.defaultWorkDays ?? null,
     );
+    const usualWorkDays = usualWorkDaysFrom(
+      schedule as { type?: string | null; usualWorkDays?: number[] | null },
+    );
     const sbLeaveCreditByDate = shiftBasedLeaveCreditByDate(
       // Full, unclipped startDate/endDate (D-07) — clipping happens inside. D-05: EMPTY
       // holiday set on the saldo side (see shift-based-leave-credit.ts's docblock).
@@ -1119,7 +1140,42 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
         // separate rows priced around the BS date (the D-03 equivalence oracle). D-05's "no
         // statutory holidays on this side" is unaffected — this Set carries ONLY Berufsschultage.
         bsPriority.dates,
-        usualWorkDaysFrom(schedule as { type?: string | null; usualWorkDays?: number[] | null }),
+        usualWorkDays,
+      ),
+      contractWorkDaysPerWeek,
+      schedule,
+      effectiveStart,
+      sollRangeEnd,
+      tz,
+    );
+
+    // Issue #1136 (owner decision 26.11.2026) - a ROSTER-basis row (sick, Sonderurlaub) on a day
+    // WITHOUT a planned shift relieves the contractual O-day when the day is a usual workday of
+    // the Angabe (a non-usual day stays 0, even if the person occasionally works on it); with an
+    // empty Angabe the vacation contract-week distribution applies. Phorest is not reliably
+    // maintained for absences, so the approved request is the source. The candidates are priced by
+    // the SAME two kernels the CONTRACT credit uses, with the same arguments, so the O-day, the
+    // Angabe, the Berufsschule exclusion and the per-week-part cap are not re-derived here.
+    // Candidate rows keep the ROSTER rows' full, unclipped dates (like #429 D-07 for vacation) so a
+    // week straddling a month is counted once across both months; a date outside the Soll range
+    // (planned status unknown there) only shapes the week count and is never credited here.
+    const fallbackCandidates: Array<{ startDate: Date; endDate: Date; halfDay: boolean }> = [];
+    for (const lr of approvedLeave) {
+      if (lr.creditBasis !== "ROSTER") continue;
+      iterateDaysInTz(lr.startDate, lr.endDate, tz, (dow, dateStr) => {
+        const inSollRange = dateStr >= effectiveStartStr && dateStr <= sollRangeEndStr;
+        if (inSollRange && plannedNettoByDate.has(dateStr)) return; // a planned shift always wins
+        if (usualWorkDays.length > 0 && !usualWorkDays.includes(dow)) return; // D-01 / GA-3
+        const day = new Date(dateStr + "T00:00:00Z");
+        fallbackCandidates.push({ startDate: day, endDate: day, halfDay: lr.halfDay });
+      });
+    }
+    const rosterNoShiftCreditByDate = shiftBasedLeaveCreditByDate(
+      leaveDaysPerWeek(
+        fallbackCandidates,
+        contractWorkDaysPerWeek,
+        bsPriority.dates,
+        usualWorkDays,
       ),
       contractWorkDaysPerWeek,
       schedule,
@@ -1137,8 +1193,10 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       // nothing to THIS row ("first to claim" — mirrors the old excludeHolidays: sbClaimed
       // mechanism, now applied to the per-date credit map instead of to avgWorkMinutesCore).
       // Issue #429 audit: a ROSTER-basis row (sick, Sonderurlaub) relieves the day's planned
-      // shift netto (half of it for a half day), 0 on an unplanned day — § 4 EFZG. The same
-      // first-claim rule applies to both bases, so a mixed sick + vacation day is reduced once.
+      // shift netto (half of it for a half day) — § 4 EFZG. Issue #1136: on a day WITHOUT a
+      // planned shift it takes the contractual O-day fallback instead of 0 (see
+      // rosterNoShiftCreditByDate above; a planned shift always wins). The same first-claim
+      // rule applies to both bases, so a mixed sick + vacation day is reduced once.
       // Issue #448 (D-03): a Berufsschultag contributes NO leave credit either — it is type-
       // agnostic, so this skip covers BOTH credit bases (the CONTRACT lookup above already
       // excludes it via bsDayPriority in leaveDaysPerWeek; the ROSTER planned-netto lookup
@@ -1146,10 +1204,16 @@ export function closeEmployeeMonth(input: CloseMonthInput): CloseMonthResult {
       let rowCredit = 0;
       iterateDaysInTz(leaveStart, leaveEnd, tz, (_dow, dateStr) => {
         if (bsPriority.blocks(dateStr, sbClaimed)) return;
-        rowCredit +=
-          lr.creditBasis === "ROSTER"
-            ? (plannedNettoByDate.get(dateStr) ?? 0) * (lr.halfDay ? 0.5 : 1)
-            : (sbLeaveCreditByDate.get(dateStr) ?? 0);
+        if (lr.creditBasis === "ROSTER") {
+          const planned = plannedNettoByDate.get(dateStr);
+          // The fallback map is already halved for a half day by the kernel - never halve twice.
+          rowCredit +=
+            planned !== undefined
+              ? planned * (lr.halfDay ? 0.5 : 1)
+              : (rosterNoShiftCreditByDate.get(dateStr) ?? 0);
+        } else {
+          rowCredit += sbLeaveCreditByDate.get(dateStr) ?? 0;
+        }
       });
       rowCredit = Math.round(rowCredit); // D-09: round once, per row
       sbLeaveCredit += rowCredit;

@@ -809,7 +809,9 @@ async function computeAccountChain(
           endTime: e.endTime!,
           breakMinutes: e.breakMinutes ?? 0,
         })),
-      shifts: allShifts.filter((s) => s.date >= curMonthFirstDay && s.date <= effectiveEnd),
+      // Issue #1136: the whole month's shifts - the core decides a sick day's relief over the whole
+      // month ("planned or not") and bounds R, gap detection and the proration to the window end itself.
+      shifts: allShifts.filter((s) => s.date >= curMonthFirstDay && s.date <= curMonthLastDay),
       // Issue #220: the shared mapper also derives isOvertimeCompensation from
       // LeaveType.code — never inline it, see toCloseMonthApprovedLeave's doc block.
       approvedLeave: toCloseMonthApprovedLeave(curLeave),
