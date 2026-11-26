@@ -227,6 +227,21 @@ const FW_30_MWF: ScheduleSpec = {
 // avgWorkMinutesCore (Ø-Methode) like SHIFT_BASED, unlike FIXED_SCHEDULE's per-day sum.
 const FX_30_4: ScheduleSpec = { ...FW_30_4, type: "FLEXTIME" };
 
+// Issue #1133 — FLEXTIME 40h on Tue-Fri with the legacy 1/0 placeholder flag on Mon-Fri: the
+// shape of the one active FLEXTIME contract on prod. {day}Hours carry no hours for this type.
+const FX_40_TUE_FRI_FLAGGED: ScheduleSpec = {
+  type: "FLEXTIME",
+  weeklyHours: 40,
+  mondayHours: 1,
+  tuesdayHours: 1,
+  wednesdayHours: 1,
+  thursdayHours: 1,
+  fridayHours: 1,
+  saturdayHours: 0,
+  sundayHours: 0,
+  workDays: [2, 3, 4, 5],
+};
+
 // fw-38-5-halfsick (Wave 2 RED anchor — 76.32.1-02)
 const FW_38_5: ScheduleSpec = {
   type: "FIXED_SCHEDULE",
@@ -380,6 +395,9 @@ const JUL_01_10_MO_FR = [
 const JUL_01_10_MO_DO = JUL_01_10_MO_FR.filter((d) => new Date(d + "T00:00:00Z").getUTCDay() !== 5);
 
 const NEUJAHR = { date: "2026-01-01", name: "Neujahr" };
+
+// Issue #1133 — Jan 2026 Tue-Fri (18 days; Thu 01. is Neujahr).
+const JAN_DI_FR = JAN_MO_FR.filter((d) => new Date(d + "T00:00:00Z").getUTCDay() !== 1);
 
 // ── CELLS — spec-verbatim (id, descriptor, expected) ─────────────────────────
 // All numbers copied from GOLDEN-MATRIX-SPEC.md. NEVER edit an expected value to
@@ -1607,6 +1625,33 @@ const CELLS: Cell[] = [
     expectedRed: false,
   },
   {
+    id: "fx-40-4-feiertag",
+    scheduleType: "FLEXTIME",
+    classification: "REGULAR",
+    situation:
+      "Issue #1133 — FLEXTIME 40h Di-Fr (placeholder flag 1 on Mo-Fr), Neujahr on a contract day reduces the Ø-day",
+    schedule: FX_40_TUE_FRI_FLAGGED,
+    year: 2026,
+    month: 1,
+    hireDate: "2024-01-01",
+    // 17 Tue-Fri days (18 minus Neujahr) x 600 min (Ø-day 40h / 4) = 10200.
+    entries: rows(
+      JAN_DI_FR.filter((d) => d !== "2026-01-01"),
+      600,
+    ),
+    holidays: [NEUJAHR],
+    // Spec derivation: Ø-Methode Soll = 40 x 60 x 18 / 4 = 10800, minus Neujahr = one Ø-day 600
+    // -> 10200 (170h). Pre-fix: the holiday took its 1.00 flag (60 min) -> 10740, balance -540.
+    expected: {
+      workedMinutes: 10200,
+      expectedMinutes: 10200,
+      balanceMinutes: 0,
+      carryOver: 0,
+      overtimeHours: 0,
+    },
+    expectedRed: false,
+  },
+  {
     id: "mj-80-exit",
     scheduleType: "MONTHLY_HOURS",
     classification: "MINIJOB",
@@ -1747,6 +1792,7 @@ const PARITY_IDS = new Set<string>([
   "az-shift-38-5-bs_absence", // Issue #1080 — BS day inside an imposed absence (SHIFT_BASED)
   "fw-40-5-exit", // Issue #447 — FIXED exit month
   "fx-30-4-exit", // Issue #447 — FLEXTIME exit month
+  "fx-40-4-feiertag", // Issue #1133 — FLEXTIME holiday = Ø-day
   "mj-80-exit", // Issue #447 — MONTHLY_HOURS exit month
   "sb-40-5-exit", // Issue #447 — SHIFT_BASED exit month
 ]);
