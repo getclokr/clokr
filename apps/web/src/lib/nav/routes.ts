@@ -314,7 +314,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
   },
   // #853 (D-853-14, D-853-15 revised): the read-only team directory for leaders. A page created by #853 (no
   // `file`). GET /employees (reach narrowing #547). Hidden from the navigation of whoever sees Verwalten ›
-  // Personen instead; the URL stays openable for everyone with employee:read.
+  // Personen instead; the URL sends whoever sees Verwalten › Personen there (#993, N-13).
   {
     href: "/team/personen",
     salonFilter: true,

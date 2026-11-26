@@ -7,13 +7,18 @@
   // e-mail column, no edit actions (Verwalten › Personen does that). The header salon narrows the list
   // through `salonPageFilter` (#558), never the store's raw selection. Search, filters and sort live in the
   // URL (`urlState`); status, filter, sort and the count sentence come from `personen-model.ts`.
+  // Issue #993 (N-13, owner decision 25.11.2026, the same as #992 N-14): whoever has Verwalten › Personen in
+  // the menu is taken there. Both pages read `personenUrlSchema`, so the query carries over unchanged, and
+  // no request is sent from here on the way. Everyone else keeps this read list.
   import { untrack } from "svelte";
   import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { homeSalonMarksApply, salonContext, showSalonOptions } from "$stores/salon-context";
   import { pageLabel } from "$lib/nav/page-labels";
   import { mayOpenTeamPage } from "$lib/nav/team-nav";
+  import { personListHref } from "$lib/nav/routes";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import SalonScopeLabel from "$lib/components/team/SalonScopeLabel.svelte";
   import ErrorState from "$components/ui/ErrorState.svelte";
@@ -83,8 +88,25 @@
     }
   }
 
+  // The reader's person list, decided by the route table (#992): „/verwalten/personen“ sends her away.
+  const redirectTo = $derived(
+    personListHref($authStore.user, {
+      availabilityEnabled: $tenantFeatures.availabilityEnabled,
+    }) === "/verwalten/personen"
+      ? "/verwalten/personen"
+      : null,
+  );
+  $effect(() => {
+    if (redirectTo === null) return;
+    const target = redirectTo;
+    untrack(() => {
+      void goto(target + page.url.search, { replace: true });
+    });
+  });
+
   $effect(() => {
     if (!contextLoaded) return;
+    if (redirectTo !== null) return;
     void pageSalonId;
     untrack(() => {
       void load();

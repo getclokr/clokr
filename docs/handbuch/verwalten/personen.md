@@ -4,7 +4,7 @@ Unter **Verwalten › Personen** legst du Personen an, pflegst ihre Stammdaten, 
 
 ## Die Liste
 
-Die Liste zeigt alle Personen mit Name und Personalnummer, **Stammsalon**, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Wenn du Personen anonymisieren darfst, blendest du mit **Anonymisierte anzeigen** auch bereits anonymisierte Personen ein. Fehlt bei Auszubildenden das Geburtsdatum, steht dort der Hinweis „Geburtsdatum fehlt“. Er erinnert dich daran, dass der gesetzliche Mindesturlaub dann nicht geprüft werden kann.
+Die Liste zeigt alle Personen mit Name und Personalnummer, **Stammsalon**, Vertrag, Wochenstunden (bei Monatsstunden die Stunden im Monat oder „ohne Soll“), Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Wenn du Personen anonymisieren darfst, blendest du mit **Anonymisierte anzeigen** auch bereits anonymisierte Personen ein. Fehlt bei Auszubildenden das Geburtsdatum, steht dort der Hinweis „Geburtsdatum fehlt“. Er erinnert dich daran, dass der gesetzliche Mindesturlaub dann nicht geprüft werden kann.
 
 Wählst du mehrere Personen aus, stehen oben Sammelaktionen bereit:
 

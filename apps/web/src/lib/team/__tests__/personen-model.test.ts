@@ -214,10 +214,24 @@ describe("hoursLabel (Issue #1011)", () => {
     ).toMatchObject({ hoursLabel: "40 Std./Monat", weeklyHours: null });
   });
 
-  it("a monthly-hours contract without monthly hours shows a dash", () => {
+  // Issue #993 N-07 (D-993-14): a track-only contract is a fact, not a missing value; the dash stays for
+  // „no contract“.
+  it("a monthly-hours contract without monthly hours reads ohne Soll, never a dash", () => {
     expect(label({ type: "MONTHLY_HOURS", weeklyHours: "0.00", monthlyHours: null })).toMatchObject(
-      { hoursLabel: "–", weeklyHours: null },
+      { hoursLabel: "ohne Soll", weeklyHours: null },
     );
+    expect(label({ type: "MONTHLY_HOURS", weeklyHours: "0.00", monthlyHours: 0 })).toMatchObject({
+      hoursLabel: "ohne Soll",
+      weeklyHours: null,
+    });
+    expect(
+      label({ type: "MONTHLY_HOURS", weeklyHours: "0.00", monthlyHours: "0.00" }),
+    ).toMatchObject({ hoursLabel: "ohne Soll" });
+  });
+
+  it("only a missing contract keeps the dash", () => {
+    expect(label(null).hoursLabel).toBe("–");
+    expect(label(undefined).hoursLabel).toBe("–");
   });
 
   it("the type decides: a stale weekly figure on a monthly-hours contract is never shown", () => {
