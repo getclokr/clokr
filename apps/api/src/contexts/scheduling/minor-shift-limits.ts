@@ -237,6 +237,11 @@ function spanBad(figures: MinorDayFigures[], index: number): boolean {
   return figures[index].isMinor && figures[index].spanMinutes > MINOR_SHIFT_TIME_LIMIT_MINUTES;
 }
 
+// The holiday time inside `weekSum` (Issue #1077), named in the weekly message.
+function weekHolidayMinutes(figures: MinorDayFigures[]): number {
+  return figures.reduce((sum, f) => sum + (f.isMinor ? f.holidayMinutes : 0), 0);
+}
+
 function weekSum(figures: MinorDayFigures[]): number {
   return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes + f.holidayMinutes : 0), 0);
 }
@@ -326,10 +331,25 @@ function freeTimeMessage(dateIso: string, gapMinutes: number): string {
   return `Zwischen dem Schichtende am ${formatDateDe(addDaysIso(dateIso, -1))} und dem Schichtbeginn am ${formatDateDe(dateIso)} liegen ${formatHm(Math.max(0, gapMinutes))} Stunden. Jugendliche brauchen nach dem Ende der täglichen Arbeitszeit mindestens 12 Stunden ununterbrochene Freizeit (§ 13 JArbSchG).`;
 }
 
-/** With a trigger day the text names the shift that tipped the week; without, it names the week. */
-function weeklyMessage(weekDays: string[], sumMinutes: number, triggerIso: string | null): string {
+/**
+ * With a trigger day the text names the shift that tipped the week; without, it names the week.
+ * The sum includes the holiday time (§ 4 Abs. 4 Satz 2, Issue #1077); a week with some names it in
+ * one extra sentence, a week without one keeps the text byte-identical (open Phorest notifications
+ * are not re-sent).
+ */
+function weeklyMessage(
+  weekDays: string[],
+  sumMinutes: number,
+  triggerIso: string | null,
+  holidayMinutes: number,
+): string {
+  const holiday =
+    holidayMinutes > 0
+      ? ` Darin sind ${formatHm(holidayMinutes)} Stunden eingerechnet, die an einem Feiertag ausfallen (§ 4 Abs. 4 Satz 2 JArbSchG).`
+      : "";
   const limit =
-    "Für Jugendliche sind höchstens 40 Stunden in der Woche erlaubt, Berufsschulzeit eingerechnet (§ 8 Abs. 1 und § 9 Abs. 2 JArbSchG).";
+    "Für Jugendliche sind höchstens 40 Stunden in der Woche erlaubt, Berufsschulzeit eingerechnet (§ 8 Abs. 1 und § 9 Abs. 2 JArbSchG)." +
+    holiday;
   const range = `${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])}`;
   if (triggerIso === null) {
     return `In der Woche vom ${range} beträgt die geplante Arbeitszeit ${formatHm(sumMinutes)} Stunden. ${limit}`;
@@ -357,7 +377,8 @@ function horizonList(f: MinorWeekFigures): MinorDayFigures[] {
  * Compares the week before and after a change. `before` and `after` hold the seven figures of
  * Monday to Sunday plus the two edge days. Per day the trigger day is checked first, the rest in
  * calendar order (DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME of the pair ending that
- * day); then the pair Sunday -> next Monday; the weekly sum last.
+ * day); then the pair Sunday -> next Monday; the weekly sum last (Arbeitszeit plus the holiday time
+ * that falls out, § 4 Abs. 4 Satz 2, Issue #1077).
  */
 export function evaluateMinorWeekFigures(input: {
   weekDays: string[];
@@ -442,7 +463,7 @@ export function evaluateMinorWeekFigures(input: {
     return {
       code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
       dateIso: weeklyDateIso,
-      message: weeklyMessage(weekDays, afterSum, weeklyDateIso),
+      message: weeklyMessage(weekDays, afterSum, weeklyDateIso, weekHolidayMinutes(after)),
     };
   }
 
@@ -519,7 +540,7 @@ export function listMinorWeekViolations(input: {
     out.push({
       code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
       dateIso: weekDays[0],
-      message: weeklyMessage(weekDays, sum, null),
+      message: weeklyMessage(weekDays, sum, null, weekHolidayMinutes(figures)),
     });
   }
   if (fiveDayBad(figures, weekDays)) {
@@ -598,7 +619,10 @@ function dayFigures(
   const hasShift = latest > Number.NEGATIVE_INFINITY;
   // § 4 Abs. 4 Satz 2: only what is not worked falls out, so the day counts the larger of its
   // contract Soll and its planned Arbeitszeit, never both (Issue #1077).
-  const holidayMinutes = Math.max(0, (week.holidaySollMinutesByDate?.[iso] ?? 0) - work);
+  // § 4 Abs. 4 Satz 2 speaks of a Werktag, so a Sunday holiday adds nothing (GA-3).
+  const holidayMinutes = isSundayIso(iso)
+    ? 0
+    : Math.max(0, (week.holidaySollMinutesByDate?.[iso] ?? 0) - work);
   return {
     isMinor: isMinorAtDate(week.birthDate, utcMidnightOf(iso)),
     workMinutes: work,
