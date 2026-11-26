@@ -9,7 +9,7 @@
   import { tenantFeatures } from "$stores/tenant-features";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import Icon from "$lib/components/Icon.svelte";
-  import { AREA_LABELS, visibleChildren } from "$lib/nav/routes";
+  import { AREA_LABELS, hubRowDescription, visibleChildren, type AppRoute } from "$lib/nav/routes";
   import type { Snippet } from "svelte";
 
   interface Props {
@@ -26,11 +26,10 @@
 
   let { title, hub, sub, intro, listTitle }: Props = $props();
 
-  const children = $derived(
-    visibleChildren($authStore.user, hub, {
-      availabilityEnabled: $tenantFeatures.availabilityEnabled,
-    }),
-  );
+  const routeOptions = $derived({ availabilityEnabled: $tenantFeatures.availabilityEnabled });
+  const children = $derived(visibleChildren($authStore.user, hub, routeOptions));
+  // Issue #992 (N-13): a hub row names only the children the reader sees (`hubRowDescription`).
+  const describe = (child: AppRoute) => hubRowDescription($authStore.user, child, routeOptions);
 </script>
 
 <PageHead eyebrow={AREA_LABELS.verwalten} {title} {sub} />
@@ -48,7 +47,7 @@
           <span class="hub-icon"><Icon name={child.icon} /></span>
           <span class="hub-text">
             <span class="hub-name">{child.label}</span>
-            {#if child.description}<span class="hub-desc">{child.description}</span>{/if}
+            {#if describe(child)}<span class="hub-desc">{describe(child)}</span>{/if}
           </span>
         </a>
       </li>

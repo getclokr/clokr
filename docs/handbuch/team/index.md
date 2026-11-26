@@ -41,6 +41,6 @@ Oben rechts findest du die Abkürzungen **Zeit eintragen** und **Abwesenheit ein
 
 ## Personen
 
-**Team › Personen** ist die Nachschlageliste der Personen in deinem Bereich: Name mit Personalnummer, Stammsalon, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Über die Zeile gelangst du zu den Zeiten der Person, wenn du diese Seite nutzen darfst.
+**Team › Personen** ist die Nachschlageliste der Personen in deinem Bereich: Name mit Personalnummer (Nr.), Stammsalon, Vertrag, Wochenstunden, Rollen und Status. Du suchst, sortierst und filterst nach Salon, Status und Vertrag. Mit **Zeiten** in der Zeile gelangst du zu den Zeiten der Person, wenn du diese Seite nutzen darfst. Auf dem Telefon zeigen die Karten nur Name, Stammsalon, Vertrag und Status; Wochenstunden und Rollen siehst du in der Tabelle am Rechner.
 
 Hier bearbeitest du nichts. Daten einer Person ändert die Verwaltung unter **Verwalten › Personen**.

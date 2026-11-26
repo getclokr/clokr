@@ -21,7 +21,7 @@
   import { salonContext, moduleBooked } from "$stores/salon-context";
   import { hasPermission } from "$lib/permissions";
   import { pageLabel } from "$lib/nav/page-labels";
-  import { mayOpenPath } from "$lib/nav/routes";
+  import { mayOpenPath, personListHref } from "$lib/nav/routes";
   import {
     adminTaskCounts,
     mailWithoutDelivery,
@@ -129,6 +129,12 @@
   // A link may name a tab of its page as the hash (#847); the route table knows only the path.
   const mayOpen = (href: string) => mayOpenPath($authStore.user, href.split("#")[0]);
   const linkIf = (href: string) => (mayOpen(href) ? href : undefined);
+  // Issue #992 (N-14, D-992-05): the person KPIs lead to the person list the reader has in her menu
+  // (Verwalten › Personen, else the read list Team › Personen), never to a list without a menu entry.
+  const personenHref = $derived(
+    personListHref($authStore.user, { availabilityEnabled: $tenantFeatures.availabilityEnabled }) ??
+      undefined,
+  );
 
   const tasks = $derived.by((): KpiItem[] => {
     const items: KpiItem[] = [];
@@ -147,7 +153,7 @@
         label: "Einladungen offen",
         value: counts.pendingInvitations,
         explanation: "noch nicht angenommen",
-        derivationHref: linkIf("/verwalten/personen"),
+        derivationHref: personenHref,
         derivationLabel: "Personen →",
         testId: "admin-invitations",
       });
@@ -155,7 +161,7 @@
         label: "Ohne Vertrag",
         value: counts.withoutContract,
         explanation: "Personen ohne Arbeitszeit",
-        derivationHref: linkIf("/verwalten/personen"),
+        derivationHref: personenHref,
         derivationLabel: "Personen →",
         testId: "admin-no-contract",
       });
@@ -166,7 +172,7 @@
         value: noEntitlement.count,
         explanation: missingEntitlementExplanation(noEntitlement),
         deltaTone: noEntitlement.count > 0 ? "warn" : "neutral",
-        derivationHref: linkIf("/verwalten/personen"),
+        derivationHref: personenHref,
         derivationLabel: "Personen →",
         testId: "admin-no-entitlement",
       });

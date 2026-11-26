@@ -18,6 +18,7 @@
  */
 import { hasPermission, type PermissionHolder } from "$lib/permissions";
 import { activeNavHref, matchesRoute } from "$lib/nav/active-route";
+import { joinGerman } from "$lib/utils/german-list";
 
 export type Area = "ich" | "team" | "verwalten";
 export type PermissionAlternatives = readonly (readonly string[])[];
@@ -918,6 +919,36 @@ export function visibleChildren(
   options: RouteOptions,
 ): AppRoute[] {
   return childrenOf(hubHref).filter((route) => visibleRoute(user, route, options));
+}
+
+/**
+ * Issue #992 (N-13 of 14.11., D-992-08): what a hub row says it contains. A page entry keeps its own
+ * description; a hub entry (`requires: "children"`) names exactly the children `user` sees, so a row never
+ * promises pages the reader cannot open. Empty for a hub with no visible child.
+ */
+export function hubRowDescription(
+  user: PermissionHolder | null | undefined,
+  route: AppRoute,
+  options: RouteOptions,
+): string {
+  if (route.requires !== "children") return route.description ?? "";
+  return joinGerman(visibleChildren(user, route.href, options).map((child) => child.label));
+}
+
+/**
+ * Issue #992 (N-14, D-992-05): the person list `user` has in her menu - Verwalten › Personen for whoever
+ * creates or edits persons, else the read list Team › Personen, else null (no link at all). A link must
+ * never lead to a list without a menu entry for the reader.
+ */
+export function personListHref(
+  user: PermissionHolder | null | undefined,
+  options: RouteOptions,
+): string | null {
+  for (const href of ["/verwalten/personen", "/team/personen"]) {
+    const route = routeByKey(href);
+    if (route !== null && visibleRoute(user, route, options)) return href;
+  }
+  return null;
 }
 
 /** The start page of `user` (Z-02), from permissions only — never a role comparison:

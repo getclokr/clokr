@@ -14,6 +14,11 @@
     width?: string;
     /** Issue #851 (additive): an explanation of the column on its head cell (title attribute). */
     title?: string;
+    /**
+     * Issue #992 (D-992-06, additive): hidden in the card layout only; the wide table keeps the column.
+     * For a figure that is a desk task, not something to read on four stacked phone cards.
+     */
+    cardHidden?: boolean;
   }
 
   /** Row tint of the `rowTone` prop (Issue #853, D-853-10). */
@@ -420,6 +425,7 @@
                 {#each columns as column (column.key)}
                   <td
                     data-label={column.label}
+                    data-card-hidden={column.cardHidden ? "" : undefined}
                     class:dt-primary-cell={column.primary}
                     class:dt-end={column.align === "end"}
                   >
@@ -462,6 +468,7 @@
                 {#each columns as column (column.key)}
                   <td
                     data-label={column.label}
+                    data-card-hidden={column.cardHidden ? "" : undefined}
                     class:dt-primary-cell={column.primary}
                     class:dt-end={column.align === "end"}
                   >
@@ -488,6 +495,7 @@
               {#each columns as column (column.key)}
                 <td
                   data-label={column.label}
+                  data-card-hidden={column.cardHidden ? "" : undefined}
                   class:dt-primary-cell={column.primary}
                   class:dt-end={column.align === "end"}
                 >
@@ -776,6 +784,11 @@
 
     /* A cell without content prints no label line in a card (e.g. a row with no allowed action). */
     .dt-table td:empty {
+      display: none;
+    }
+
+    /* Issue #992 (D-992-06): a column marked cardHidden is a wide-table figure, not a card line. */
+    .dt-table td[data-card-hidden] {
       display: none;
     }
 

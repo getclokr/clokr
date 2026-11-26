@@ -6,7 +6,11 @@
   import { authStore } from "$stores/auth";
   import { markUnsaved } from "$stores/unsaved";
   import { tabFromHash, writeTabHash } from "$lib/nav/tab-hash";
-  import { visibleAbwesenheitenTabs, type AbwesenheitenConfig } from "$lib/settings/abwesenheiten";
+  import {
+    abwesenheitenRulesHint,
+    visibleAbwesenheitenTabs,
+    type AbwesenheitenConfig,
+  } from "$lib/settings/abwesenheiten";
   import PageHead from "$lib/components/layout/PageHead.svelte";
   import BetriebsurlaubPanel from "$lib/components/admin/abwesenheiten/BetriebsurlaubPanel.svelte";
   import SonderurlaubPanel from "$lib/components/admin/abwesenheiten/SonderurlaubPanel.svelte";
@@ -84,10 +88,7 @@
   <title>{pageLabel("/admin/vacation")} – Clokr</title>
 </svelte:head>
 
-<PageHead
-  title={pageLabel("/admin/vacation")}
-  hint="Urlaub, Sonderurlaub, Übertrag, Betriebsurlaub und Urlaubsgrenzen für das ganze Unternehmen."
-/>
+<PageHead title={pageLabel("/admin/vacation")} hint={abwesenheitenRulesHint(visibleTabs)} />
 
 {#if visibleTabs.length === 0}
   <div role="alert">

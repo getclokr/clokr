@@ -47,6 +47,16 @@ export interface PersonStatus {
   tone: ChipTone;
 }
 
+/**
+ * Issue #992 (S-22, N-13, D-992-07): the number under a person's name reads „Nr. 5“, never a bare digit.
+ * Empty for a number that is blank. The row's `number` field stays the raw value (the CSV and bulk code
+ * of `admin/employees` read it).
+ */
+export function personNumberLabel(number: string): string {
+  const trimmed = number.trim();
+  return trimmed === "" ? "" : `Nr. ${trimmed}`;
+}
+
 /** A type alias, not an interface: DataTable's row generic wants an index-signature-compatible type. */
 export type PersonenRow = {
   id: string;

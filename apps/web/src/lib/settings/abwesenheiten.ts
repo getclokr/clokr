@@ -9,6 +9,7 @@
 import type { PermissionHolder } from "$lib/permissions";
 import { messageCount, type FieldMessages } from "$lib/settings/arbeitszeit";
 import { mayOpenSection, settingsSection } from "$lib/settings/settings-pages";
+import { joinGerman } from "$lib/utils/german-list";
 
 export { messageCount, type FieldMessages };
 
@@ -73,6 +74,15 @@ export function visibleAbwesenheitenTabs(
   return ABWESENHEITEN_TABS.filter((tab) =>
     tab.sections.some((id) => mayOpenSection(user, settingsSection(id))),
   );
+}
+
+/**
+ * Issue #992 (N-20, D-992-09): the hint of Regeln › Abwesenheiten names only the tabs the reader sees, so it
+ * never lists settings she cannot open. Empty without a tab.
+ */
+export function abwesenheitenRulesHint(tabs: readonly AbwesenheitenTab[]): string {
+  if (tabs.length === 0) return "";
+  return `Einstellungen zu ${joinGerman(tabs.map((tab) => tab.label))}.`;
 }
 
 export type HolidayRule = "NORMAL" | "HALF_DAY" | "FULL_DAY_OFF";
