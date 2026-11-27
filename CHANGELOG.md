@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/getclokr/clokr/compare/v2.1.0...v2.1.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **1136:** a SHIFT_BASED sick day without a planned shift relieves the Ø-day ([#1137](https://github.com/getclokr/clokr/issues/1137)) ([cec3898](https://github.com/getclokr/clokr/commit/cec38983d91be6df3b4d055ffcb0ea374f6b3b28))
+
 ## [2.1.0](https://github.com/getclokr/clokr/compare/v2.0.3...v2.1.0) (2026-11-26)
 
 
