@@ -823,6 +823,11 @@ export async function computeMonthSaldo(
   let lastRosterProration: { rosterToDateMinutes: number; rosterPeriodMinutes: number } | undefined;
   let lastDayStr: string | undefined;
 
+  // Issue #1136: every per-day core run gets the whole month's shifts - the core decides a sick
+  // day's relief over the whole month ("planned or not") and bounds R, gap detection and the
+  // roster proration to the day itself.
+  const monthShifts = closeShifts.filter((s) => s.date >= monthFirstDay && s.date <= monthLastDay);
+
   for (const dayStr of dayStrings) {
     const dayEnd = new Date(dayStr + "T00:00:00Z");
 
@@ -895,7 +900,6 @@ export async function computeMonthSaldo(
 
     // Filter entries/shifts to [effectiveStart, dayEnd]
     const dayEntries = closeEntries.filter((e) => e.date >= effectiveStart && e.date <= dayEnd);
-    const dayShifts = closeShifts.filter((s) => s.date >= monthFirstDay && s.date <= dayEnd);
 
     // Window-filtered holiday set (partial window only)
     const partialHolidaySet = new Set(
@@ -915,7 +919,7 @@ export async function computeMonthSaldo(
         endTime: e.endTime!,
         breakMinutes: e.breakMinutes,
       })),
-      shifts: dayShifts.map((sh) => ({
+      shifts: monthShifts.map((sh) => ({
         date: sh.date,
         startTime: sh.startTime,
         endTime: sh.endTime,

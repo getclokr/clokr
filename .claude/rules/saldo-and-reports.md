@@ -198,6 +198,14 @@ Current: recalculated from hire date on every request (does not scale). Target a
   figures; `scripts/audit-1080-bs-day-absence-double-soll.ts` lists the affected months read-only
   (ids and minutes), and a correction runs only through the month correction of #599. The roster
   Planungs-Soll in `scheduling/api/shifts.ts` is not this core (follow-up).
+- **SHIFT_BASED sick without a roster (Issue #1136).** A ROSTER-basis leave row (SICK, SICK_CHILD,
+  SPECIAL) on a day WITHOUT a planned shift relieves the contractual Ø-day on a usual workday of the
+  `usualWorkDays` Angabe and 0 on any other day; with an empty Angabe the vacation contract-week
+  distribution applies (`leaveDaysPerWeek`). A planned shift keeps its netto, a half day halves either
+  value, and a week never relieves more than its contract Soll (`capToWeekContractRoom`). Decided only
+  in `closeEmployeeMonth` (the live callers pass the month's shifts); `sbClaimed` and the Berufsschule
+  priority are unchanged. Closed months keep their figures;
+  `scripts/audit-1136-shift-sick-without-roster.ts` lists them read-only, corrections only via #599.
 
 ## Overtime Saldo Calculation (current)
 

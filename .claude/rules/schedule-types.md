@@ -85,6 +85,14 @@ FULL calendar month)` (Ø-Methode; a half day reduces by half; one `Math.round()
   same value as a leave day, in the one holiday loop of `closeEmployeeMonth`. `{day}Hours` is
   never read as hours for `FLEXTIME`. Months closed before the fix keep their figures;
   `scripts/audit-1133-flextime-holiday-soll.ts` lists them read-only, corrections only via #599.
+- **SHIFT_BASED sick without a roster (Issue #1136).** A ROSTER-basis leave row (SICK, SICK_CHILD,
+  SPECIAL) on a day WITHOUT a planned shift relieves the contractual Ø-day on a usual workday of the
+  `usualWorkDays` Angabe and 0 on any other day; with an empty Angabe the vacation contract-week
+  distribution applies (`leaveDaysPerWeek`). A planned shift keeps its netto, a half day halves either
+  value, and a week never relieves more than its contract Soll (`capToWeekContractRoom`). Decided only
+  in `closeEmployeeMonth` (the live callers pass the month's shifts); `sbClaimed` and the Berufsschule
+  priority are unchanged. Closed months keep their figures;
+  `scripts/audit-1136-shift-sick-without-roster.ts` lists them read-only, corrections only via #599.
 - **Divergent legacy rows MUST NOT be "corrected" (Phase 95b, D-01).** Surface them with
   `pnpm --filter @clokr/api exec tsx scripts/audit-workdays-vs-day-hours.ts` — then leave them
   alone. `workDays` is the source of truth for leave consumption (`calculateWorkDays`) and pro-rata

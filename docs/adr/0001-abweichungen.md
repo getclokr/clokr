@@ -4615,6 +4615,54 @@ elf Codes. Restgrenze: der Live-Pfad übergibt Schichten nur bis heute — eine 
 künftigen geplanten Tag entlastet live erst, wenn der Tag erreicht ist; der Abschluss rechnet mit
 dem vollen Monat.
 
+### Nachtrag Issue #1136: Krankheit ohne geplante Schicht
+
+Owner-Entscheidung 26.11.2026: genehmigte Krankheit entlastet das Soll einer SHIFT_BASED-Person auch
+an einem Tag OHNE geplante Schicht, denn Phorest wird für Abwesenheiten nicht verlässlich gepflegt —
+der genehmigte Antrag ist die Quelle. Vorher entlastete eine Schichtplan-Basis-Zeile (`SICK`,
+`SICK_CHILD`, `SPECIAL`) an einem ungeplanten Tag nichts (siehe Nachtrag Audit oben); das
+Vertrags-Soll zählte den Tag weiter, im offenen Monat verteilte die Roster-Proration (D-09) das
+nicht entlastete Soll auf die verbleibenden Schichten (Messfall: 665 statt 570 je verplantem Tag,
+1140 Minuten im Monat) und echte Mehrarbeit wurde verschluckt — die Person arbeitete die Krankentage
+faktisch nach (§§ 3, 4 EFZG).
+
+Regel (eine Stelle, `closeEmployeeMonth` in `close-employee-month.ts`, damit Abschluss, Cron,
+Neuberechnung und Live-Pfad gleich rechnen):
+
+- **D-01** Ein Tag ohne geplante Schicht entlastet das vertragliche Ø-Tagessoll
+  (`weeklyHours` ÷ Vertragstage), wenn er ein üblicher Arbeitstag der Angabe (`usualWorkDays`) des
+  an dem Tag gültigen Vertrags ist; ein anderer Tag bleibt 0, auch wenn die Person dort gelegentlich
+  arbeitet.
+- **D-02** Bei leerer Angabe gilt dieselbe Vertragswochen-Verteilung wie beim Urlaub
+  (`leaveDaysPerWeek` / `shiftBasedLeaveCreditByDate`), nie mehr als die Vertragstage der Woche.
+- **D-03** Ein Tag MIT geplanter Schicht behält deren Netto (unverändert, Nachtrag Audit); die
+  geplante Schicht gewinnt immer.
+- **D-04** Ein halber Tag halbiert beide Werte.
+- **D-05** Eine Krankheitswoche entlastet nie mehr als das Vertrags-Soll der Woche, auch gemischt
+  mit Urlaubszeilen (`capToWeekContractRoom`); die Vertrags-Basis-Gutschriften bleiben
+  byte-identisch.
+- **D-06** Die Invariante „ein Tag senkt das Soll genau einmal" (`sbClaimed`) und der
+  Berufsschul-Vorrang (`bsDayPriority`) bleiben; Krankheit verbraucht nie Urlaubsanspruch.
+
+Nur Schichtplan-Basis-Zeilen ohne Schicht laufen durch `leaveDaysPerWeek()`; die Vertrags-Basis-Anteile
+sind unverändert. Die Restgrenze des Nachtrags zu PR #437 ist geschlossen: Die beiden Live-Aufrufer
+(`overtime-balance.ts`, `month-saldo.ts`) übergeben dem Kern die Schichten des ganzen Monats, und der
+Kern entscheidet „geplant oder nicht" über den ganzen Soll-Zeitraum — eine Krankmeldung für einen
+künftigen geplanten Tag entlastet damit schon im offenen Monat das Netto der Schicht (statt zunächst
+das Ø-Tagessoll und beim Abschluss das Netto). R, Lückenerkennung und Roster-Proration bleiben
+auf das Fensterende begrenzt.
+
+Tests: `close-employee-month-sick-without-roster-1136.test.ts` (Messfall 6840 / 570, Beispiel
+Mo–Mi, Schicht gewinnt, halber Tag, leere Angabe, Wochengrenze, genau einmal, Berufsschule,
+Diagnosefeld, offener Monat über `computeMonthSaldo` und `computeOvertimeBalanceBreakdown`) und die
+Golden-Zelle `sb-38-4-krank_ohne_schicht` (in allen Pfaden). Zwei Zusicherungen aus
+`shift-based-leave-week-soll-429.test.ts` (ungeplanter Krankheitstag entlastete 0) wurden auf die
+neue Regel umgestellt. Abgeschlossene Monate bleiben wie gespeichert (Revisionssicherheit); das
+Skript `apps/api/scripts/audit-1136-shift-sick-without-roster.ts` listet nur lesend je Mandant,
+Person und Monat die Soll-Entlastung und das Saldo-Delta, Korrektur eines geschlossenen Monats nur
+über die Monatskorrektur (#599, Vier-Augen-Prinzip) im laufenden Monat; offene Monate folgen der
+neuen Regel bei der nächsten Berechnung nach dem Release.
+
 ### Was bewusst NICHT geschah
 
 - **D-12 (MONTHLY_HOURS):** keine Codeänderung. Die rechtliche Richtung ist klar (§§ 1, 11, 13
