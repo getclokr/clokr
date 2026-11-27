@@ -1,0 +1,18 @@
+# Machine-readable twin of "Betrieb & Migration" in v2.1.1.md (Issue #709). The release notes and
+# scripts/release-rehearsal.sh walk THIS list, in this order; a change to the steps in the notes
+# changes this file in the same commit.
+#
+# Format:  phase | expected exit | id | kind | argument
+#   expected exit: one code or a comma list; audits exit 2 when they list findings, which is information, not a failure
+#   phase   pre = before the deploy (read-only), migrate = prisma migrate deploy, post = after it
+#   kind    sql = psql -c on the throwaway DB, script = `pnpm tsx scripts/<arg>` in the new api image,
+#           migrate = `prisma migrate deploy` as the image entrypoint runs it
+# Operational steps with no exit code to prove (pg_dump, the deploy window, a sample sign-in per role)
+# stay in the notes only.
+#
+# No schema migration: migrate deploy must apply nothing.
+migrate|0|migrate-deploy|migrate|
+# After the deploy (read-only audit). Ids, months and minutes only; exit 2 lists findings, which is
+# information, not a failure.
+# #1136/#1132: SHIFT_BASED sick days without a planned shift on usual workdays (closed and open months).
+post|0,2|audit-1136-shift-sick-without-roster|script|audit-1136-shift-sick-without-roster.ts --all-tenants
