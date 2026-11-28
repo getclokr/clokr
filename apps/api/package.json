@@ -1,6 +1,6 @@
 {
   "name": "@clokr/api",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
     "dev": "tsx --env-file=.env watch src/index.ts",

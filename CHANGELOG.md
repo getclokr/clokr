@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.2.0](https://github.com/getclokr/clokr/compare/v2.1.1...v2.2.0) (2026-11-28)
+
+
+### Features
+
+* **1095:** show Betriebsurlaub on shutdown leave in lists, calendars and legend ([#1163](https://github.com/getclokr/clokr/issues/1163)) ([2a11a51](https://github.com/getclokr/clokr/commit/2a11a51bdead85fb4813f110737d53e4e33b9729))
+* **1106:** § 18 JArbSchG — no roster shift for minors on public holidays or after 14:00 on 24/31 December ([#1164](https://github.com/getclokr/clokr/issues/1164)) ([75cdda3](https://github.com/getclokr/clokr/commit/75cdda32284efb73cf04bdf3134df74491d2ec4c))
+* **524,655:** § 8 JArbSchG on every recording path; JArbSchG notice after every clock-out ([#1171](https://github.com/getclokr/clokr/issues/1171)) ([8c7f2a7](https://github.com/getclokr/clokr/commit/8c7f2a7fa599a9b3fb295f81c9e52107d738081e))
+
+
+### Bug Fixes
+
+* **1089:** Berufsschule priority and tenant-local week clip in the roster Planungs-Soll ([#1143](https://github.com/getclokr/clokr/issues/1143)) ([78e710a](https://github.com/getclokr/clokr/commit/78e710a09cbfdba57d61da906189cead47827bb0))
+* **1100:** no restore offer for a removed shift on a past day ([#1147](https://github.com/getclokr/clokr/issues/1147)) ([139b6d9](https://github.com/getclokr/clokr/commit/139b6d9503ffbdba14693f6ab572f151d169e25a))
+* **1101:** refuse roster shifts after the exit day ([#1141](https://github.com/getclokr/clokr/issues/1141)) ([a82cc89](https://github.com/getclokr/clokr/commit/a82cc8918a8ff723b9e155a5c34db5b085406f91))
+* **1109:** one Resturlaub number — the days still free after pending requests ([#1169](https://github.com/getclokr/clokr/issues/1169)) ([c546f00](https://github.com/getclokr/clokr/commit/c546f009e967020438951cdeb20ce234b4b50817))
+* **1114:** send a person without the Team area from Berichte to Ich &gt; Konto ([#1160](https://github.com/getclokr/clokr/issues/1160)) ([c23ddd7](https://github.com/getclokr/clokr/commit/c23ddd712d3cbe87ff885c190700b34564274ae3))
+* **1117:** German day labels in notification texts ([#1148](https://github.com/getclokr/clokr/issues/1148)) ([abbd7a5](https://github.com/getclokr/clokr/commit/abbd7a5d3d50688435e03971e14209aadd1e63d6))
+* **1124:** say Personalnummer in the Stundennachweis, the Resturlaub notification and the import error ([#1152](https://github.com/getclokr/clokr/issues/1152)) ([15fccc8](https://github.com/getclokr/clokr/commit/15fccc84fa21dd9f7f87b9719edf1d383f609bb1))
+* **1126:** suggested special-leave occasions no longer claim a statutory entitlement ([#1146](https://github.com/getclokr/clokr/issues/1146)) ([1abba89](https://github.com/getclokr/clokr/commit/1abba8965d3b0c4574df3a761615a8ac8e823e1f))
+* **1142:** the roster Planungs-Soll takes the saldo core's SHIFT_BASED leave relief ([#1158](https://github.com/getclokr/clokr/issues/1158)) ([f6edd79](https://github.com/getclokr/clokr/commit/f6edd79e3d7eb9143b331d82c0f997f185dfe70f))
+* **1145:** offer no Schicht behalten for a shift in a closed month ([#1165](https://github.com/getclokr/clokr/issues/1165)) ([7cc8a52](https://github.com/getclokr/clokr/commit/7cc8a52133bcc63d4aff2dc464e1b72e47a39e0b))
+* **1149:** one German date formatter for every API text ([#1157](https://github.com/getclokr/clokr/issues/1157)) ([02b24e3](https://github.com/getclokr/clokr/commit/02b24e39823fa8586daa8cbe841ddb433a8d4336))
+* **1156:** build the carry-over deadline in UTC, not the host time zone ([#1161](https://github.com/getclokr/clokr/issues/1161)) ([68034e5](https://github.com/getclokr/clokr/commit/68034e5d9a2a87a143ebe0dcd5d299edbcc062a5))
+* **1162:** a carry-over deadline typed by hand means the end of the Stichtag ([#1166](https://github.com/getclokr/clokr/issues/1166)) ([92a6ec7](https://github.com/getclokr/clokr/commit/92a6ec7b4b1322b78af5fa595a62131fc746faf6))
+* **156:** month windows built from (year, month) so day 29–31 cannot overflow ([#1153](https://github.com/getclokr/clokr/issues/1153)) ([160bdfa](https://github.com/getclokr/clokr/commit/160bdfac90243a07061eea50d5dfade069310b92))
+* **522:** month-close refusal visible in the dialog; a known break block is named and disables closing ([#1159](https://github.com/getclokr/clokr/issues/1159)) ([fe1a0a6](https://github.com/getclokr/clokr/commit/fe1a0a64f91fac965e9354eabaa142aef3cb3f58))
+* **525:** break suggestion of the entry form comes from the server ([#1167](https://github.com/getclokr/clokr/issues/1167)) ([a6b4dfc](https://github.com/getclokr/clokr/commit/a6b4dfc97955b32136d9543b04c6ca34e5e7fe3d))
+* **528:** calendar cells name every absence in German from the one leave-type mapping ([#1151](https://github.com/getclokr/clokr/issues/1151)) ([56b4b8b](https://github.com/getclokr/clokr/commit/56b4b8bb79eb87c5f5327bb0f7c60be5ba908c23))
+
 ## [2.1.1](https://github.com/getclokr/clokr/compare/v2.1.0...v2.1.1) (2026-11-27)
 
 
