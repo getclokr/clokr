@@ -62,9 +62,14 @@ function mockPhorestBody(body: unknown): void {
   }) as unknown as typeof fetch;
 }
 
-async function runSync(app: FastifyInstance, seed: PhorestSeed, slots: Slot[]) {
+async function runSync(
+  app: FastifyInstance,
+  seed: PhorestSeed,
+  slots: Slot[],
+  window: { startDate: string; endDate: string } = WEEK_WINDOW,
+) {
   mockPhorestBody(worktimetables(slots));
-  return syncPhorestShifts(app, seed.tenantId, seed.target, WEEK_WINDOW);
+  return syncPhorestShifts(app, seed.tenantId, seed.target, window);
 }
 
 /** A custom role holding only shift:plan:ZUGEWIESEN, assigned with SALONS scope. */
@@ -348,6 +353,64 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
       expect(n.message.indexOf("Die geplante Arbeitszeit am 30.07.2026")).toBe(0);
       expect(n.message).toContain("Weitere Verstöße in dieser Woche: 30.07.2026 (Schichtzeit)");
+    } finally {
+      await cleanupPhorestTenant(app, seed.tenantId);
+    }
+  });
+
+  it("Issue #1106 — § 18: a 16-year-old's Phorest shift on a holiday and on 24 December after 14:00 is reported, an adult's is not", async () => {
+    const seed = await seedPhorestTenant(app, "jas-1106");
+    try {
+      const plannerId = await createPlanner(app, seed, "mgr");
+      await setBirthDate(app, seed.mappedEmployeeId, "2010-03-01");
+
+      // Tag der Deutschen Einheit (Saturday 03.10.2026), a holiday in every Bundesland.
+      const holidayWindow = { startDate: "2026-09-28", endDate: "2026-10-04" };
+      const holidayRun = await runSync(
+        app,
+        seed,
+        [{ date: "2026-10-03", start: "10:00", end: "14:00" }],
+        holidayWindow,
+      );
+      expect(holidayRun.status).toBe("SUCCESS");
+      const stored = await app.prisma.shift.findMany({
+        where: { employeeId: seed.mappedEmployeeId },
+      });
+      expect(stored).toHaveLength(1);
+      expect(stored[0].startTime).toBe("10:00");
+      expect(stored[0].endTime).toBe("14:00");
+      expect(stored[0].origin).toBe("PHOREST");
+      expect(stored[0].deletedAt).toBeNull();
+      const holiday = await soleNotification(app.prisma, {
+        where: { userId: plannerId, type: TYPE },
+      });
+      expect(holiday.message).toContain("03.10.2026");
+      expect(holiday.message).toContain("(Tag der Deutschen Einheit)");
+      expect(holiday.message).toContain("§ 18 Abs. 1 JArbSchG");
+
+      // 24 December after 14:00 in another week.
+      await app.prisma.notification.deleteMany({ where: { userId: plannerId } });
+      const eveRun = await runSync(
+        app,
+        seed,
+        [{ date: "2026-12-24", start: "08:00", end: "16:00" }],
+        { startDate: "2026-12-21", endDate: "2026-12-27" },
+      );
+      expect(eveRun.status).toBe("SUCCESS");
+      const eve = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
+      expect(eve.message).toContain("24.12.2026");
+      expect(eve.message).toContain("nach 14 Uhr");
+
+      // Control: the same holiday shift of an adult reports nothing.
+      await app.prisma.notification.deleteMany({ where: { userId: plannerId } });
+      await setBirthDate(app, seed.mappedEmployeeId, "2000-01-01");
+      await runSync(
+        app,
+        seed,
+        [{ date: "2026-10-03", start: "10:00", end: "14:00" }],
+        holidayWindow,
+      );
+      expect(await findingsOf(app, plannerId)).toHaveLength(0);
     } finally {
       await cleanupPhorestTenant(app, seed.tenantId);
     }
