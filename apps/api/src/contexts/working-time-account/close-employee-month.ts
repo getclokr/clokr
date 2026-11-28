@@ -617,8 +617,11 @@ function isBsAbsence(ab: { type?: string | null; source?: string | null }): bool
  *
  * `bsDatesInMonth` is read only through this object (plus its own build and the Berufsschule
  * credit loop); `close-employee-month-bs-absence-1080.test.ts` fails on a second reader.
+ *
+ * The roster Planungs-Soll (`scheduling/api/shifts.ts`, Issue #1089) passes its own week's
+ * Berufsschultage through this same function, reached through the facade.
  */
-function bsDayPriority(bsDates: Set<string>, tz: string) {
+export function bsDayPriority(bsDates: Set<string>, tz: string) {
   return {
     /** The Berufsschultage themselves, for the contract-week distribution of `leaveDaysPerWeek`. */
     dates: bsDates,

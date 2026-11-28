@@ -196,8 +196,12 @@ Current: recalculated from hire date on every request (does not scale). Target a
   `close-employee-month-bs-absence-1080.test.ts` (equivalence oracle per code and schedule type,
   AST one-place guard) and the golden cells `az-*-38-5-bs_absence`. Closed months keep their stored
   figures; `scripts/audit-1080-bs-day-absence-double-soll.ts` lists the affected months read-only
-  (ids and minutes), and a correction runs only through the month correction of #599. The roster
-  Planungs-Soll in `scheduling/api/shifts.ts` is not this core (follow-up).
+  (ids and minutes), and a correction runs only through the month correction of #599. Since #1089
+  the roster Planungs-Soll (`GET /shifts/week`, `scheduling/api/shifts.ts`) applies the same rule
+  through the facade export `bsDayPriority`: a day of a VOCATIONAL_SCHOOL absence row (any source)
+  is never relieved by a leave or absence row, and its credit goes to
+  `vocationalSchoolMinutesByEmp` whatever the cell's display rank is. Pinned by
+  `shift-week-bs-priority-1089.test.ts`; display only, never stored.
 - **SHIFT_BASED sick without a roster (Issue #1136).** A ROSTER-basis leave row (SICK, SICK_CHILD,
   SPECIAL) on a day WITHOUT a planned shift relieves the contractual Ø-day on a usual workday of the
   `usualWorkDays` Angabe and 0 on any other day; with an empty Angabe the vacation contract-week
