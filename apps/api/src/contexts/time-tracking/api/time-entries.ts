@@ -25,7 +25,7 @@ import { warningsVisibleToCaller } from "../warning-visibility"; // Issue #85 (D
 import { planAutoBreak, autoBreakAppliesOnCreate, type AutoBreakPlan } from "../auto-break-plan";
 import {
   autoInsertBreak,
-  applyAutoBreakAfterClockStop,
+  runClockStopSteps, // Issue #655
   type StoredBreak,
 } from "../auto-break-write"; // Issue #799 // Issue #511 (AK-4, D-17/D-20) — the one automatic-break decision, also used by the preview
 import { invalidReasonFields, CLEARED_INVALID_REASON } from "../invalid-reason";
@@ -593,7 +593,7 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       }
 
       // CLOCKED_OUT or CONSOLIDATED — the shared post-STOP auto-break step (Issue #799).
-      await applyAutoBreakAfterClockStop(app, {
+      await runClockStopSteps(app, {
         entryId: resolution.entry.id,
         employeeId: employee.id,
         tz,
@@ -934,9 +934,9 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         });
       }
 
-      // Auto-break (Phase 64 contract; Issue #799: the same shared step NFC and WIFI run).
-      const { breaks: clockOutAutoBreaks, minutes: clockOutAutoMinutes } =
-        await applyAutoBreakAfterClockStop(app, {
+      // Post-STOP step (#799 auto-break, #655 JArbSchG notice): the same one NFC and WIFI run.
+      const { breaks: clockOutAutoBreaks, minutes: clockOutAutoBreakMinutes } =
+        await runClockStopSteps(app, {
           entryId: closedEntryId,
           employeeId: entry.employeeId,
           tz,
@@ -993,7 +993,7 @@ export async function timeEntryRoutes(app: FastifyInstance) {
             ...resolution.entry,
             ...(body.note !== undefined ? { note: body.note } : {}),
             ...(clockOutAutoBreaks.length > 0
-              ? { breakMinutes: clockOutAutoMinutes, breakStatus: "AUTO" as const }
+              ? { breakMinutes: clockOutAutoBreakMinutes, breakStatus: "AUTO" as const }
               : {}),
             breaks,
           } as never;

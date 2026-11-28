@@ -158,8 +158,9 @@ describe("NOTIFICATION_PUSH_POLICY text rules (AC-4)", () => {
 
   // Issue #599: + MONTH_CORRECTION_REQUESTED, MONTH_CORRECTION_DECIDED (32 -> 34).
   // Issue #1074: + SHIFT_JARBSCHG_VIOLATION (34 -> 35).
-  it("35 types are sent", () => {
-    expect(sends.length).toBe(35);
+  // Issue #655: + JARBSCHG_DAY_VIOLATION (35 -> 36).
+  it("36 types are sent", () => {
+    expect(sends.length).toBe(36);
   });
 
   it.each(sends.map((s) => [s.type, s.policy.body, s.policy.ttlSeconds] as const))(

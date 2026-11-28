@@ -38,7 +38,7 @@ Eine Pause ist die Summe aus:
 
 ### Auto-Break (opt-in pro Tenant)
 
-Wenn `TenantConfig.autoBreakEnabled = true` und beim Clock-out (oder beim manuellen Anlegen) **keine Pause eingetragen** wurde, setzt Clokr automatisch. Das gilt für jeden Stempel-Auslöser gleich (Web, NFC-Terminal, WLAN-Präsenz; seit Issue #799 über einen gemeinsamen Schritt nach dem Ausstempeln, `applyAutoBreakAfterClockStop`); ein wiedereröffneter Eintrag mit Lücken-Pause bekommt keine zusätzliche:
+Wenn `TenantConfig.autoBreakEnabled = true` und beim Clock-out (oder beim manuellen Anlegen) **keine Pause eingetragen** wurde, setzt Clokr automatisch. Das gilt für jeden Stempel-Auslöser gleich (Web, NFC-Terminal, WLAN-Präsenz; seit Issue #799 über einen gemeinsamen Schritt nach dem Ausstempeln, `runClockStopSteps` — erst die automatische Pause, seit Issue #655 danach der Hinweis zum Jugendarbeitsschutz); ein wiedereröffneter Eintrag mit Lücken-Pause bekommt keine zusätzliche:
 
 - `30min` bei >6h Arbeit
 - `45min` bei >9h Arbeit
@@ -163,6 +163,16 @@ Die Tagesprüfung (`POST /api/v1/day-breaks/preview`, `GET /api/v1/day-breaks/ch
 ### Sichtbarkeit
 
 Beide Befunde ruhen auf der ISO-Woche (`warningWindow`). Wer nicht jeden Eintrag der Woche lesen darf, bekommt statt des Befunds den neutralen Hinweis `FINDING_WITHHELD` (Issue #85).
+
+### Stempeln und Jugendarbeitsschutz (Issue #655)
+
+Stempeln (Web, NFC-Terminal, WLAN) wird für einen Jugendlichen **nie verhindert oder verzögert**: Die Arbeitszeit muss so erfasst werden, wie sie anfällt, und ein abgelehntes Ausstempeln ließe den Eintrag offen oder falsch. Verantwortlich für die Einhaltung ist der Arbeitgeber (§ 58 Abs. 1 Nr. 5 und 6 JArbSchG: Beschäftigung über § 8 hinaus und entgegen § 9 Abs. 1 ist eine Ordnungswidrigkeit, auch fahrlässig). Der Befund geht deshalb sofort an die Verantwortlichen, als Hinweis, nicht als Sperre.
+
+- **Prüfung:** Nach jedem Ausstempeln (`CLOCKED_OUT` und `CONSOLIDATED`) prüft der gemeinsame Schritt `runClockStopSteps` bei einer Person unter 18 den ganzen Tag, nach der automatischen Pause: § 8 über Tag und Woche mit `checkArbZG` (die `JARBSCHG_*`-Befunde oben), § 9 Abs. 1 Satz 2 Nr. 2 mit `checkJArbSchG` über die Summe aller Einträge des Tages (wie seit Issue #70). Ein Erwachsener oder eine Person ohne Geburtsdatum löst nichts aus.
+- **Empfänger:** wer `time-entry:update` mit Reichweite `ZUGEWIESEN` hält und mindestens einen Eintrag des Tages in der Reichweite hat; nie die Person selbst. Den vollständigen Text bekommt nur, wer alle Einträge der Woche (bei einem reinen § 9-Befund: des Tages) sehen darf, alle anderen den neutralen Prüfhinweis ohne Zahl und Rechtsgrund.
+- **Meldung:** Benachrichtigungstyp `JARBSCHG_DAY_VIOLATION`, Titel „Hinweis Jugendarbeitsschutz“, höchstens eine je Empfänger, Person und Tag (auch eine verworfene zählt); E-Mail über denselben Schalter wie die Pausenbefunde (`emailOnMissingEntries`), Push mit neutralem Text. Der Text fordert nie dazu auf, den Eintrag zu kürzen: Die erfasste Zeit ist die richtige.
+- **Ausfall:** Schlägt die Benachrichtigung fehl, wird das protokolliert; das Ausstempeln gelingt trotzdem (nachgelagert, ADR 0002 Entscheidung 10).
+- **Antwort im Web:** Beim Ausstempeln im Web enthält die Antwort für Jugendliche zusätzlich den § 8-Befund (wie für Erwachsene § 3); § 9 kommt auf den Stempelwegen als Benachrichtigung.
 
 ## §§ 13–17 JArbSchG — Schichtplanung (Issue #1076)
 

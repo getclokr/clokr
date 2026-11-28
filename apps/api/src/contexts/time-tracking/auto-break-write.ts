@@ -1,14 +1,16 @@
 /**
  * auto-break-write.ts
  *
- * Issue #511 (AK-4, D-17) + Issue #799 — the ONE write of an automatic break and the ONE
- * post-STOP step every clock trigger (web, NFC, WIFI, future sources) runs after the resolver has
- * closed or consolidated an entry. WHICH break (regime, amount, placement) is decided by
- * `planAutoBreak`; this module only decides WHEN a stopped entry gets one and writes it.
+ * Issue #511 (AK-4, D-17) + Issue #799 — the ONE write of an automatic break. Issue #655 — and
+ * `runClockStopSteps`, the ONE post-STOP step every clock trigger (web, NFC, WIFI, future sources)
+ * runs after the resolver has closed or consolidated an entry: first the automatic break, then the
+ * reactive JArbSchG notice. WHICH break (regime, amount, placement) is decided by `planAutoBreak`;
+ * this module only decides WHEN a stopped entry gets one and writes it.
  */
 import type { FastifyInstance } from "fastify";
 import type { Prisma } from "@clokr/db";
 import { planAutoBreak, type AutoBreakPlan } from "./auto-break-plan";
+import { notifyMinorDayFindingsAfterClockStop } from "./minor-day-notice"; // Issue #655
 
 export type StoredBreak = {
   id: string;
@@ -57,8 +59,8 @@ export async function autoInsertBreak(
 
 /**
  * Issue #799: the automatic break of an entry a clock STOP just closed (CLOCKED_OUT or
- * CONSOLIDATED). Called by every clock adapter after `resolveClockEvent` — one rule, no per-source
- * copy. Month locks are already refused by the resolver before a STOP is written, so a locked
+ * CONSOLIDATED) — the automatic-break half of `runClockStopSteps`, which is what the clock adapters
+ * call. One rule, no per-source copy. Month locks are already refused by the resolver before a STOP is written, so a locked
  * month never reaches this step.
  *
  * Skipped when Break rows already exist on the entry (D-01 Pitfall 1): a reopened entry carries a
@@ -90,4 +92,31 @@ export async function applyAutoBreakAfterClockStop(
   });
   if (!plan) return none;
   return autoInsertBreak(app, { entryId, plan });
+}
+
+/**
+ * Issue #655 (builds on #799): the ONE post-STOP step. Every clock adapter (web clock-out, NFC
+ * punch, WLAN disconnect) calls it after `resolveClockEvent` closed or consolidated an entry:
+ *
+ *   1. the automatic break (`applyAutoBreakAfterClockStop`), so the day total below includes it;
+ *   2. the JArbSchG notice for a person under 18 (§ 8 over day and week, § 9 over the day total).
+ *
+ * The notice is reactive (ADR 0002, Entscheidung 10): the STOP is already committed, so a failure
+ * is logged and never rethrown — clocking is never refused or failed for a JArbSchG finding.
+ * Returns the automatic-break result, which the web clock-out response shows.
+ */
+export async function runClockStopSteps(
+  app: FastifyInstance,
+  params: { entryId: string; employeeId: string; tz: string },
+): Promise<{ minutes: number; breaks: StoredBreak[] }> {
+  const autoBreak = await applyAutoBreakAfterClockStop(app, params);
+  try {
+    await notifyMinorDayFindingsAfterClockStop(app, params);
+  } catch (err) {
+    app.log.error(
+      { err, entryId: params.entryId, employeeId: params.employeeId },
+      "JArbSchG clock-stop notice failed",
+    );
+  }
+  return autoBreak;
 }

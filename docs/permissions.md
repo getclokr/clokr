@@ -1040,6 +1040,7 @@ Befundtext über das bestehende `Notification`-Modell.
 | `contexts/time-tracking/plugins/attendance-checker.ts:418`                   | `PENDING_LEAVE_REMINDER`                                                           | A, M  | `leave-request:approve`    | ZUGEWIESEN |
 | `contexts/time-tracking/plugins/attendance-checker.ts:825`                   | `GAP_WARNING_MANAGER`                                                              | A, M  | `team-overview:read`       | ZUGEWIESEN |
 | `contexts/time-tracking/plugins/attendance-checker.ts:1214`                  | `BREAK_CROSS_SALON_VIOLATION`, `BREAK_PLACEMENT_VIOLATION`                         | A, M  | `time-entry:update`        | ZUGEWIESEN |
+| `contexts/time-tracking/minor-day-notice.ts:145`                             | `JARBSCHG_DAY_VIOLATION`                                                           | A, M  | `time-entry:update`        | ZUGEWIESEN |
 | `contexts/time-tracking/api/time-entries.ts:1451`                            | `RETRO_ENTRY_REQUESTED`                                                            | A, M  | `retro-request:approve`    | ZUGEWIESEN |
 | `contexts/time-tracking/api/time-entries.ts:1934`                            | `RETRO_ENTRY_UPDATED`                                                              | A, M  | `retro-request:approve`    | ZUGEWIESEN |
 | `contexts/time-tracking/api/time-entries.ts:2289`                            | `BREAK_COMPLIANCE_ALERT`                                                           | A, M  | `team-overview:read`       | ZUGEWIESEN |
@@ -1050,6 +1051,8 @@ Befundtext über das bestehende `Notification`-Modell.
 | `contexts/platform/support-access.ts:490`                                    | `SUPPORT_ACCESS_STARTED` (Empfänger: die Administratoren des Mandanten, Issue #93) | A     | `tenant-settings:update`   | ZUGEWIESEN |
 | `contexts/platform/support-access.ts:502`                                    | `SUPPORT_ACCESS_STARTED` (nur die Entscheidung über den Link, Issue #93)           | A     | `audit-log:read`           | ZUGEWIESEN |
 | `contexts/platform/facade/time-entry-readers.ts:80`                          | keine Benachrichtigung: Leserliste `GET /me/time-entry-readers` (Issue #606)       | A, M  | `time-entry:read`          | ZUGEWIESEN |
+
+**Issue #655 (2026-11-28):** Neuer Benachrichtigungstyp `JARBSCHG_DAY_VIOLATION` (Hinweis Jugendarbeitsschutz nach dem Ausstempeln einer Person unter 18, `contexts/time-tracking/minor-day-notice.ts`). Gleicher Holder-Lookup und gleiche Reichweitenkette wie bei den Pausenbefunden des Attendance-Checkers (`time-entry:update:ZUGEWIESEN`, aktive Benutzer, mindestens ein Eintrag des Tages in der Reichweite, nie die Person selbst); keine neue Berechtigung. Den vollständigen Text bekommt nur, wer alle Einträge der Woche (bei einem reinen § 9-Befund: des Tages) sehen darf, alle anderen den neutralen Prüfhinweis. Höchstens eine Meldung je Empfänger, Person und Tag.
 
 Für `SUPPORT_ACCESS_STARTED` (Issue #93, beide neuen Stellen: keine Vorgänger-Empfänger) wird benachrichtigt, wer `tenant-settings:update` für den ganzen Mandanten hält; den Link zur Seite „Support-Zugriffe“ erhält nur, wer zusätzlich `audit-log:read` für den ganzen Mandanten hält (sonst ein toter Link).
 

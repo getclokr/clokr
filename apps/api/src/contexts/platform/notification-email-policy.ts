@@ -51,6 +51,7 @@ const TOGGLE_ENTRIES: Record<string, EmailPolicy> = {
   BREAK_COMPLIANCE_ALERT:  { email: "toggle", field: "emailOnMissingEntries" }, // Phase 92 (BREAK-06)
   BREAK_CROSS_SALON_VIOLATION: { email: "toggle", field: "emailOnMissingEntries" }, // Issue #80 (D-10)
   BREAK_PLACEMENT_VIOLATION: { email: "toggle", field: "emailOnMissingEntries" }, // Issue #511 (D-13)
+  JARBSCHG_DAY_VIOLATION:  { email: "toggle", field: "emailOnMissingEntries" }, // Issue #655 (D-10)
   CLOCK_OUT_REMINDER:      { email: "toggle", field: "emailOnClockOutReminder" },
   MONTH_CLOSE_BLOCKED:     { email: "toggle", field: "emailOnMonthClose" }, // auto-close-month.ts
   // Phase 292 (#292): the weekly escalation for a Monatsabschluss that STAYS deferred. Same

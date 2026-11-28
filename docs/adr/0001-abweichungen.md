@@ -6699,7 +6699,7 @@ INDEX`. Das `DROP INDEX` des alten Index steht daher von Hand als erste Anweisun
 - **Nur vorwärts:** Sobald ein Tag mit mehreren Einträgen existiert, kann der alte Unique-Index nie wieder angelegt
   werden (Rollback-Hinweis in `docs/migrations.md`).
 - **Ein START zwischen zwei Einträgen eines Tages ist abgelehnt**, bis die Lücke erfasst ist (oben).
-- **Die JArbSchG-Prüfung** läuft weiter nur in den drei manuellen Schreibwegen, nicht beim Stempeln (unverändert, #655).
+- **Die JArbSchG-Prüfung beim Stempeln** (Issue #655, as built): Stempeln wird nie verhindert. Nach jedem Ausstempeln (Web, NFC, WLAN) prüft der gemeinsame Schritt `runClockStopSteps` den Tag einer Person unter 18 (§ 8 über `checkArbZG`, § 9 über `checkJArbSchG` mit der Tagessumme) und benachrichtigt die Verantwortlichen (`JARBSCHG_DAY_VIOLATION`, nachgelagert, ein Fehler wird protokolliert und lässt das Stempeln nicht scheitern). Die drei manuellen Schreibwege bleiben, wie sie sind.
 
 ### Auswirkung auf die Kontexte
 

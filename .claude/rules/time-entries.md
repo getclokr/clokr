@@ -220,6 +220,18 @@ Moved verbatim from CLAUDE.md (§ Time Entry Rules).
   "is the day over its maximum?" with `isDailyMaxCode(code)`, never a code literal (web: `isDailyLimitWarning`).
   Both codes rest on the ISO week in `warningWindow()` (see the "Save responses" bullet). The day-only views
   (`/day-breaks/preview`, `/day-breaks/checks`) have no week and judge the 8:30 ceiling.
+- **The clock STOP is never refused for a JArbSchG finding; the responsible persons get a notice (Issue #655).**
+  `runClockStopSteps()` (`contexts/time-tracking/auto-break-write.ts`) is the ONE post-STOP step every clock
+  adapter calls after the resolver closed or consolidated an entry (web clock-out and NFC in `time-entries.ts`,
+  WLAN disconnect in `presence.ts`): first the automatic break (`applyAutoBreakAfterClockStop`), then
+  `notifyMinorDayFindingsAfterClockStop()` (`minor-day-notice.ts`). For a person under 18 it evaluates the whole
+  day with the manual paths' kernels (§ 8 = the `JARBSCHG_*` findings of `checkArbZG`, § 9 = `checkJArbSchG` over
+  `otherWorkingMinutesOfDay` without `excludeEntryId`) and writes ONE `JARBSCHG_DAY_VIOLATION` per recipient,
+  person and day ever (dismissed rows count). Recipients and redaction mirror Feature 10 (holders of
+  `time-entry:update:ZUGEWIESEN` with day coverage, never the person; full text only with week coverage `all`,
+  else `buildWithheldNotice`). It is reactive (ADR 0002, Entscheidung 10): a failure is logged, never rethrown,
+  so the punch always answers 200. The § 9 sentence never asks to shorten the entry. Never call the
+  automatic-break half from an adapter again (`jarbschg-clock-notice-655.test.ts` C10 reads both adapter files).
 - **Save responses show ArbZG warnings only within the reader's reach (Issue #85, D-12).**
   `warningsVisibleToCaller()` (`contexts/time-tracking/warning-visibility.ts`) is the ONE place: `PUT`
   and `POST /time-entries`, the on-behalf clock-out and the retro approval pass their warnings
