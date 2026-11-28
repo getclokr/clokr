@@ -10,10 +10,10 @@
  * EXACTLY, so an exception that is removed (the follow-up lands) turns the guard red too, until
  * its entry is deleted - a register that tolerates dead entries stops being readable.
  *
- * How to clear an exception: move the value to the server (follow-up issue #525), delete the
- * entry below, and lower nothing else. How NOT to: widening a regex, adding an exception without
- * an issue number, or adding a file to the register to get a new threshold through - a new
- * occurrence is a finding to report, not an exception to add.
+ * The register of exceptions is empty (Issue #525 moved the last two to the server). How to clear
+ * an exception: move the value to the server, delete the entry, and lower nothing else. How NOT to:
+ * widening a regex, adding an exception without an issue number, or adding a file to the register to
+ * get a new threshold through - a new occurrence is a finding to report, not an exception to add.
  *
  * Named blind spots: a threshold written without a numeric literal (a named constant, or minutes
  * computed elsewhere) is not seen; the three patterns catch the shapes that actually existed in
@@ -60,17 +60,14 @@ interface ThresholdException {
   issue: number;
 }
 
-/** Repo-relative from the `apps/web/src` root, forward slashes. */
-const EXCEPTIONS: Record<string, ThresholdException> = {
-  "routes/(app)/time-entries/+page.svelte": {
-    hits: 2,
-    reason:
-      "suggestedBreakMinutes() prefills the break slot of a NEW entry (gross <= 6 h / <= 9 h). " +
-      "It is a convenience default that the server re-derives authoritatively on save, not a " +
-      "finding; moving it needs a server endpoint for the suggestion.",
-    issue: 525,
-  },
-};
+/**
+ * Repo-relative from the `apps/web/src` root, forward slashes.
+ *
+ * Empty since Issue #525: the last two client-side places (the Mein-Tag callout, removed by #845, and
+ * the Zeiten page's break suggestion) now get their result from the server (`POST /day-breaks/preview`
+ * answers `suggestedBreakMinutes`), so no file may carry a threshold line at all.
+ */
+const EXCEPTIONS: Record<string, ThresholdException> = {};
 
 function walkSources(absDir: string, out: string[] = []): string[] {
   for (const name of readdirSync(absDir)) {

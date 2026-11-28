@@ -617,4 +617,94 @@ describe("Issue #511 — POST /api/v1/day-breaks/preview", () => {
       expect(await writeCounts()).toEqual(before);
     });
   });
+
+  // ── Issue #525: the break the entry form prefills comes from the server ───────────────────────
+  // The browser used to hold its own 6 h / 9 h thresholds for this suggestion, which cannot know a
+  // minor's § 11 JArbSchG amount. The preview now answers `suggestedBreakMinutes` from the one
+  // amount rule (`breakAmountFor`), independent of the automatic-break switch.
+  describe("suggested break of the entry form (Issue #525)", () => {
+    async function suggestionOf(start: string, end: string): Promise<number> {
+      const res = await preview(data.empToken, proposal(data.employee.id, start, end));
+      expect(res.statusCode, res.body).toBe(200);
+      return (JSON.parse(res.body) as { suggestedBreakMinutes: number }).suggestedBreakMinutes;
+    }
+
+    async function configure(over6h: number, over9h: number) {
+      await app.prisma.tenantConfig.update({
+        where: { tenantId: data.tenant.id },
+        data: { autoBreakEnabled: false, defaultBreakOver6h: over6h, defaultBreakOver9h: over9h },
+      });
+    }
+
+    afterEach(async () => {
+      await app.prisma.tenantConfig.update({
+        where: { tenantId: data.tenant.id },
+        data: { defaultBreakOver6h: 30, defaultBreakOver9h: 45 },
+      });
+      await app.prisma.employee.update({
+        where: { id: data.employee.id },
+        data: { birthDate: null, breakOver6hOverride: null, breakOver9hOverride: null },
+      });
+    });
+
+    it("an adult gets 0 up to six hours, the tenant's over-6h amount up to nine and the over-9h amount above (strict boundaries)", async () => {
+      await configure(35, 50);
+      expect(await suggestionOf("08:00", "14:00")).toBe(0);
+      expect(await suggestionOf("08:00", "14:01")).toBe(35);
+      expect(await suggestionOf("08:00", "17:00")).toBe(35);
+      expect(await suggestionOf("08:00", "17:01")).toBe(50);
+    });
+
+    it("the employee override wins over the tenant default, per threshold", async () => {
+      await configure(30, 45);
+      await app.prisma.employee.update({
+        where: { id: data.employee.id },
+        data: { breakOver6hOverride: 40, breakOver9hOverride: null },
+      });
+      expect(await suggestionOf("08:00", "16:00")).toBe(40);
+      expect(await suggestionOf("08:00", "18:00")).toBe(45);
+    });
+
+    it("a person under 18 on the day gets the § 11 JArbSchG amount: 30 min above 4.5 h, 60 min above 6 h", async () => {
+      await configure(30, 45);
+      await app.prisma.employee.update({
+        where: { id: data.employee.id },
+        data: { birthDate: new Date("2010-03-01T00:00:00.000Z") },
+      });
+      expect(await suggestionOf("08:00", "12:30")).toBe(0);
+      expect(await suggestionOf("08:00", "13:00"), "5 h").toBe(30);
+      expect(await suggestionOf("08:00", "15:00"), "7 h").toBe(60);
+
+      // Control: the same 7 h for an adult stays at the tenant amount, so the 60 above is the regime.
+      await app.prisma.employee.update({
+        where: { id: data.employee.id },
+        data: { birthDate: null },
+      });
+      expect(await suggestionOf("08:00", "15:00")).toBe(30);
+    });
+
+    it("is answered although the tenant places no automatic break, and an employee exempt from time tracking gets 0", async () => {
+      await configure(30, 45);
+      const res = await preview(data.empToken, proposal(data.employee.id, "08:00", "17:00"));
+      const answer = JSON.parse(res.body) as {
+        autoBreakApplied: unknown;
+        suggestedBreakMinutes: number;
+      };
+      expect(answer.autoBreakApplied).toBeNull();
+      expect(answer.suggestedBreakMinutes).toBe(30);
+
+      await app.prisma.employee.update({
+        where: { id: data.employee.id },
+        data: { isTimeTrackingExempt: true },
+      });
+      try {
+        expect(await suggestionOf("08:00", "17:00")).toBe(0);
+      } finally {
+        await app.prisma.employee.update({
+          where: { id: data.employee.id },
+          data: { isTimeTrackingExempt: false },
+        });
+      }
+    });
+  });
 });

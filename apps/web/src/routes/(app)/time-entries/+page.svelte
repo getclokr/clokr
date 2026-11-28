@@ -42,8 +42,10 @@
     type DayPreviewAutoBreak,
     type DayPreviewRequest,
     type DayPreviewResponse,
+    buildBreakSuggestionRequest,
     buildDayPreviewRequest,
     createDayPreviewRunner,
+    fetchSuggestedBreakMinutes,
   } from "$lib/breaks/day-break-preview";
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
@@ -458,13 +460,6 @@
   });
   let travelToOptions = $derived(travelArrivalOptions(formSalonOptions, editEntry));
   let defaultBreakStart: string | null = $state(null);
-  // Phase 93 (BREAK-07) — tenant-configured break durations for the new-entry
-  // prefill. Sourced from GET /settings/work (defaultBreakOver6h/9h). These are
-  // the tenant DEFAULTS only; per-employee overrides (breakOver6hOverride /
-  // breakOver9hOverride) are backend-only and not exposed on this endpoint, so
-  // the prefill is a close approximation, not an exact mirror of the server.
-  let breakOver6h = $state(30);
-  let breakOver9h = $state(45);
 
   // ── Phase 93 (BREAK-07) break-confirmation UI state ─────────────────────────
   // Feature gate (fail-safe dormant). When false the badge + all action buttons
@@ -700,10 +695,6 @@
       isExempt = rawEmployee?.isTimeTrackingExempt === true;
       arbzgEnabled = rawConfig?.arbzgEnabled !== false;
       defaultBreakStart = rawConfig?.defaultBreakStart ?? null;
-      // Phase 93 (BREAK-07) — tenant break-duration defaults for the prefill;
-      // fall back to the schema defaults (30/45) when absent/null.
-      breakOver6h = rawConfig?.defaultBreakOver6h ?? 30;
-      breakOver9h = rawConfig?.defaultBreakOver9h ?? 45;
       defaultWorkDays = rawConfig?.defaultWorkDays ?? null;
       // Phase 93 (BREAK-07) — fail-safe dormant: only ON when the field is
       // explicitly true (absent config row / missing field → break-confirm UI hidden).
@@ -1161,32 +1152,49 @@
     return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
   }
 
-  // Phase 93 (BREAK-07, locked #7 / decision #8) — suggested break in minutes by
-  // gross Start→Ende, mirroring the backend getEffectiveBreakDuration thresholds
-  // (<=6h -> 0, >6h..<=9h, >9h). The threshold boundaries (6h/9h, strict >) match
-  // the server exactly; the durations use the tenant defaults (defaultBreakOver6h/
-  // defaultBreakOver9h) so non-default tenants agree with the backend for the
-  // tenant-default case. Per-employee overrides are backend-only (not exposed on
-  // /settings/work), so this is a close approximation, not an exact mirror — the
-  // backend re-derives the authoritative AUTO break on save. Invalid / end-not-set
-  // returns 0.
-  function suggestedBreakMinutes(startHHmm: string, endHHmm: string): number {
+  // Issue #525 (Phase 93 BREAK-07, locked #7 / decision #8) — the break the new-entry form prefills
+  // for a stay of `grossMinutes` from `startHHmm`. The page states NO threshold: the server's preview
+  // route answers `suggestedBreakMinutes` from its one amount rule (employee override, tenant
+  // default, § 11 JArbSchG for a person under 18 on the day). A failed or refused request yields 0
+  // (no break row prefilled); the server re-derives the authoritative break on save.
+  async function suggestedBreakMinutes(
+    day: string,
+    startHHmm: string,
+    grossMinutes: number,
+  ): Promise<number> {
+    if (!ownEmployeeId) return 0;
+    return fetchSuggestedBreakMinutes(
+      (path, body) => api.post<DayPreviewResponse>(path, body),
+      buildBreakSuggestionRequest({
+        employeeId: ownEmployeeId,
+        date: day,
+        startHHmm,
+        grossMinutes,
+      }),
+    );
+  }
+
+  // Gross minutes between two HH:mm wall-clock times of one day; 0 when either is missing/invalid
+  // or the end is not after the start.
+  function grossMinutesBetween(startHHmm: string, endHHmm: string): number {
     if (!startHHmm || !endHHmm) return 0;
     const [sh, sm] = startHHmm.split(":").map(Number);
     const [eh, em] = endHHmm.split(":").map(Number);
     if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
-    const gross = eh * 60 + em - (sh * 60 + sm);
-    if (gross <= 360) return 0; // <= 6h — no Pflichtpause
-    if (gross <= 540) return breakOver6h; // > 6h and <= 9h — tenant default
-    return breakOver9h; // > 9h — tenant default
+    return Math.max(0, eh * 60 + em - (sh * 60 + sm));
   }
+
+  // Latest open-the-form request wins: the break suggestion is a server answer, so a slower earlier
+  // click must not open its form over a later one.
+  let openFormSeq = 0;
 
   // The loaded rows of one calendar day, in the order the API served them.
   function rowsOfDay(day: string): TimeEntry[] {
     return entries.filter((e) => (e.date ?? e.startTime).split("T")[0] === day);
   }
 
-  function openAdd(forDate?: string) {
+  async function openAdd(forDate?: string) {
+    const seq = ++openFormSeq;
     const targetDate = forDate ?? selectedDate;
     // Without salon options a day that already has an entry opens that entry for editing; with
     // them it opens a new form (D-12, see addActionForDay).
@@ -1204,24 +1212,27 @@
     // from the contract hours of that weekday (no daily target: none), else from 09:00-17:00. A
     // further entry on a day that has some keeps its continuation preset.
     if (rowsOfDay(targetDate).length === 0) {
-      const prefill = prefillNewEntry(targetDate, {
+      const prefill = await prefillNewEntry(targetDate, {
         entries,
         dayContractMinutes:
           schedule && !isNoDailyTarget
             ? getDayExpectedMinutes(schedule, new Date(`${targetDate}T12:00:00`))
             : 0,
         defaultBreakStart,
-        // The page's one break suggestion (a convenience default; the server re-derives the break).
-        breakMinutesFor: (gross) =>
-          suggestedBreakMinutes(
-            "00:00",
-            `${Math.floor(gross / 60)}:${String(gross % 60).padStart(2, "0")}`,
-          ),
+        // The page's one break suggestion: the server's answer (Issue #525).
+        breakMinutesFor: (gross, start) => suggestedBreakMinutes(targetDate, start, gross),
       });
+      if (seq !== openFormSeq) return;
       openNew(targetDate, prefill.start, prefill.end, prefill);
       return;
     }
-    openNew(targetDate, action.start, action.end);
+    const suggested = await suggestedBreakMinutes(
+      targetDate,
+      action.start,
+      grossMinutesBetween(action.start, action.end),
+    );
+    if (seq !== openFormSeq) return;
+    openNew(targetDate, action.start, action.end, undefined, suggested);
   }
 
   function openNew(
@@ -1229,6 +1240,7 @@
     start: string,
     end: string,
     prefill?: { breaks: { start: string; end: string }[]; source: PrefillSource },
+    suggestedBreak = 0,
   ) {
     editEntry = null;
     prefillSource = prefill?.source ?? null;
@@ -1240,10 +1252,10 @@
     formTravel = false;
     formTravelFrom = "";
     formTravelTo = "";
-    // Phase 93 (BREAK-07) — dynamic 0/30/45 prefill for NEW entries. <=6h yields
-    // no break row (no auto-break, no AUTO, no nudge). When defaultBreakStart is
-    // null, fall back to no prefilled row — do not invent a start time.
-    const suggested = suggestedBreakMinutes(formStart, formEnd);
+    // Phase 93 (BREAK-07) — break prefill for NEW entries from the server's suggestion
+    // (`suggestedBreak`, Issue #525; 0 yields no break row: no auto-break, no AUTO, no nudge). When
+    // defaultBreakStart is null, fall back to no prefilled row — do not invent a start time.
+    const suggested = suggestedBreak;
     if (prefill) {
       // Issue #991: the breaks were decided together with the times (usual day: copied as recorded).
       formBreaks = prefill.breaks.map((b) => ({ ...b }));
@@ -1262,11 +1274,21 @@
   // Issue #70: a further entry on the day of the entry being edited. The unsaved edit of the open
   // dialog is dropped, exactly like Abbrechen.
   // Issue #1085: on a day with an open entry the open entry opens instead (no second entry).
-  function openAdditionalEntry(day: string) {
+  async function openAdditionalEntry(day: string) {
+    const seq = ++openFormSeq;
     const action = addActionForDay(rowsOfDay(day), true, { endOpenEntryFirst: true });
     closeModal();
-    if (action.kind === "edit") openEdit(action.entry);
-    else openNew(day, action.start, action.end);
+    if (action.kind === "edit") {
+      openEdit(action.entry);
+      return;
+    }
+    const suggested = await suggestedBreakMinutes(
+      day,
+      action.start,
+      grossMinutesBetween(action.start, action.end),
+    );
+    if (seq !== openFormSeq) return;
+    openNew(day, action.start, action.end, undefined, suggested);
   }
 
   // Issue #70: a calendar cell with one entry still opens it for editing, a cell with several

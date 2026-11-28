@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildBreakSuggestionRequest,
   buildDayPreviewRequest,
   createDayPreviewRunner,
+  fetchSuggestedBreakMinutes,
   type DayPreviewRequest,
   type DayPreviewResponse,
 } from "../day-break-preview";
@@ -273,5 +275,72 @@ describe("createDayPreviewRunner", () => {
     resolveFirst({ warnings: [warning("LATE")], autoBreakApplied: null });
     await vi.advanceTimersByTimeAsync(0);
     expect(onResult).not.toHaveBeenCalled();
+  });
+});
+
+// Issue #525: the entry form's break prefill comes from the server's `suggestedBreakMinutes`; the
+// browser states no § 4 / § 11 threshold of its own.
+describe("buildBreakSuggestionRequest", () => {
+  it("asks for a stay of the given gross length from the given local start, without break rows", () => {
+    const body = buildBreakSuggestionRequest({
+      employeeId: EMPLOYEE,
+      date: "2026-03-10",
+      startHHmm: "09:00",
+      grossMinutes: 480,
+    });
+    expect(body).not.toBeNull();
+    expect(body!.breaks).toEqual([]);
+    expect("entryId" in body!).toBe(false);
+    expect(Date.parse(body!.endTime) - Date.parse(body!.startTime)).toBe(480 * 60_000);
+    expect(new Date(body!.startTime).getHours()).toBe(9);
+  });
+
+  it("is null without a start or for a stay that is not positive (nothing to ask)", () => {
+    const base = { employeeId: EMPLOYEE, date: "2026-03-10" };
+    expect(buildBreakSuggestionRequest({ ...base, startHHmm: "", grossMinutes: 480 })).toBeNull();
+    expect(
+      buildBreakSuggestionRequest({ ...base, startHHmm: "09:00", grossMinutes: 0 }),
+    ).toBeNull();
+    expect(
+      buildBreakSuggestionRequest({ ...base, startHHmm: "09:00", grossMinutes: -30 }),
+    ).toBeNull();
+    expect(
+      buildBreakSuggestionRequest({ ...base, startHHmm: "xx:yy", grossMinutes: 480 }),
+    ).toBeNull();
+  });
+});
+
+describe("fetchSuggestedBreakMinutes", () => {
+  const body = request();
+
+  it("posts the body to the preview route and returns the server's number untouched", async () => {
+    const post = vi.fn(async () => ({
+      warnings: [],
+      autoBreakApplied: null,
+      suggestedBreakMinutes: 60,
+    }));
+    await expect(fetchSuggestedBreakMinutes(post, body)).resolves.toBe(60);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith("/day-breaks/preview", body);
+  });
+
+  it("yields 0 without a body, for a refusal and for an answer without a usable number", async () => {
+    const post = vi.fn(async () => ({ warnings: [], autoBreakApplied: null }));
+    await expect(fetchSuggestedBreakMinutes(post, null)).resolves.toBe(0);
+    expect(post).not.toHaveBeenCalled();
+
+    await expect(fetchSuggestedBreakMinutes(post, body)).resolves.toBe(0);
+    const refused = vi.fn(async () => {
+      throw new Error("403");
+    });
+    await expect(fetchSuggestedBreakMinutes(refused, body)).resolves.toBe(0);
+    for (const bad of [-5, Number.NaN, "30"]) {
+      const odd = vi.fn(async () => ({
+        warnings: [],
+        autoBreakApplied: null,
+        suggestedBreakMinutes: bad as unknown as number,
+      }));
+      await expect(fetchSuggestedBreakMinutes(odd, body)).resolves.toBe(0);
+    }
   });
 });
