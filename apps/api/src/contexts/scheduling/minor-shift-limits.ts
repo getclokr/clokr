@@ -41,17 +41,20 @@
  *    the Friseurhandwerk may work it (§ 16 Abs. 2 Satz 1 Nr. 2) when another Monday-Friday day without
  *    Berufsschule ends by 13:00 and carries at most 8:00 minus the Saturday's Arbeitszeit (§ 16 Abs. 4).
  *  - § 17 Abs. 1: no shift on a Sunday (decided from the ISO date). Abs. 2 lists no salon case.
- *  - § 18 Abs. 1 (Issue #1106): no shift on a statutory holiday. The holiday is the one of the SHIFT'S
- *    salon (the planned work location, per shift), read only through the Unterbau's per-salon holiday
- *    resolution; a holiday added to that salon counts like a statutory one. Abs. 2 allows holiday work
- *    only in the cases of § 17 Abs. 2, none of which is a salon (docs/compliance.md), and Abs. 3
- *    (Freistellung) only follows such work, so it is not modelled. A holiday on a Sunday is also § 17.
+ *  - § 18 Abs. 1 (Issue #1106): no shift after 14:00 on 24 and 31 December (fixed calendar days, any
+ *    planned minute after 14:00 is a violation, a shift ending at 14:00 is lawful) and no shift on a
+ *    statutory holiday. The holiday is the one of the SHIFT'S salon (the planned work location, per
+ *    shift), read only through the Unterbau's per-salon holiday resolution; a holiday added to that
+ *    salon counts like a statutory one. Abs. 2 allows holiday work only in the cases of § 17 Abs. 2,
+ *    none of which is a salon (docs/compliance.md), and Abs. 3 (Freistellung) only follows such work,
+ *    so it is not modelled. A holiday on a Sunday is also § 17.
  *  - NOT refused on purpose: § 16 Abs. 2 Satz 2 (at least two Saturdays a month SHOULD stay free: a
  *    Sollvorschrift, not bußgeldbewehrt in § 58, tariff-dispositive in § 21a Abs. 1 Nr. 4) and
  *    § 15 Satz 2 (the two rest days should follow each other where possible).
  *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span, week
- *    sum, night minutes, Sunday minutes, holiday minutes grow or a Freizeit gap shrinks), so an already illegal plan
- *    (legacy, Phorest import) never freezes the roster.
+ *    sum, night minutes, Sunday minutes, holiday minutes, minutes after 14:00 on 24/31 December grow
+ *    or a Freizeit gap shrinks), so an already illegal plan (legacy, Phorest import) never freezes
+ *    the roster.
  *
  * The day/week arithmetic lives in `evaluateMinorWeekFigures` over per-day minute figures, not over
  * Shift rows, so the recording side (#524) can reuse it without a rewrite.
@@ -90,6 +93,8 @@ export const MINOR_SHIFT_TIME_LIMIT_MINUTES = 600;
 export const MINOR_NIGHT_REST_UNTIL_MINUTE = 360;
 /** ... until 20:00. */
 export const MINOR_NIGHT_REST_FROM_MINUTE = 1200;
+/** § 18 Abs. 1 JArbSchG: on 24 and 31 December no employment after 14:00. */
+export const MINOR_DECEMBER_EVE_UNTIL_MINUTE = 840;
 /** § 13 JArbSchG: at least 12 h uninterrupted Freizeit after the daily working time. */
 export const MINOR_FREE_TIME_MINUTES = 720;
 
@@ -187,6 +192,8 @@ export interface MinorDayFigures {
   holidayShiftMinutes: number;
   /** The holiday of the earliest-starting such shift; null without one. */
   holidayName: string | null;
+  /** Shift minutes after 14:00 on 24 and 31 December (§ 18 Abs. 1); 0 on every other day. */
+  decemberEveLateMinutes: number;
 }
 
 /** The figures of a week and of the two edge days that border it (the horizon). */
@@ -242,6 +249,12 @@ function isSundayIso(iso: string): boolean {
   return utcMidnightOf(iso).getUTCDay() === 0;
 }
 
+// 24 and 31 December: fixed calendar days, no holiday lookup (they are no statutory holidays).
+function isDecemberEveIso(iso: string): boolean {
+  const monthDay = iso.slice(5);
+  return monthDay === "12-24" || monthDay === "12-31";
+}
+
 /**
  * The ONE definition of the horizon of a minor week: the Sunday before, Monday .. Sunday, the Monday
  * after. § 13 compares neighbouring days, so the edge days are part of what the check reads.
@@ -290,6 +303,11 @@ function sundayBad(f: MinorDayFigures, iso: string): boolean {
 // § 18 Abs. 1: any shift on a statutory holiday of the shift's salon (Issue #1106).
 function holidayRestBad(f: MinorDayFigures): boolean {
   return f.isMinor && f.holidayShiftMinutes > 0;
+}
+
+// § 18 Abs. 1: any shift minute after 14:00 on 24 or 31 December (Issue #1106).
+function decemberEveBad(f: MinorDayFigures): boolean {
+  return f.isMinor && f.decemberEveLateMinutes > 0;
 }
 
 // § 15: a day counts when the person is a minor on it and it carries a shift or a Berufsschule.
@@ -365,6 +383,10 @@ function sundayRestMessage(dateIso: string): string {
 
 function holidayRestMessage(dateIso: string, holidayName: string): string {
   return `Am ${formatDateDe(dateIso)} (${holidayName}) ist eine Schicht geplant. Jugendliche dürfen an gesetzlichen Feiertagen nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
+}
+
+function decemberEveMessage(dateIso: string, f: MinorDayFigures): string {
+  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} reicht bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Am 24. und 31. Dezember dürfen Jugendliche nach 14 Uhr nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
 }
 
 function freeTimeMessage(dateIso: string, gapMinutes: number): string {
@@ -497,6 +519,16 @@ export function evaluateMinorWeekFigures(input: {
         message: holidayRestMessage(dateIso, after[i].holidayName ?? ""),
       };
     }
+    if (
+      decemberEveBad(after[i]) &&
+      after[i].decemberEveLateMinutes > before[i].decemberEveLateMinutes
+    ) {
+      return {
+        code: "JARBSCHG_VIOLATION_HOLIDAY_REST",
+        dateIso,
+        message: decemberEveMessage(dateIso, after[i]),
+      };
+    }
     const freeTime = freeTimeFinding(i + 1, dateIso);
     if (freeTime) return freeTime;
   }
@@ -532,7 +564,8 @@ export function evaluateMinorWeekFigures(input: {
 /**
  * Every violation the given figures hold (Issue #1074) — the stored week of a plan nobody can
  * refuse. Same predicates and message builders as `evaluateMinorWeekFigures`: per day in calendar
- * order DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME (several may occur on one day),
+ * order DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, HOLIDAY_REST, FREE_TIME (several may occur on
+ * one day),
  * then WEEKLY_MAX and FIVE_DAY_WEEK (dated Monday). The pair Sunday -> next Monday belongs to the next week and is
  * never listed here, so nothing is reported twice.
  */
@@ -572,6 +605,20 @@ export function listMinorWeekViolations(input: {
         code: "JARBSCHG_VIOLATION_SUNDAY_REST",
         dateIso,
         message: sundayRestMessage(dateIso),
+      });
+    }
+    // One § 18 finding per day; a holiday names the holiday, else the 24/31 December rule (GA-1106-05).
+    if (holidayRestBad(figures[i])) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_HOLIDAY_REST",
+        dateIso,
+        message: holidayRestMessage(dateIso, figures[i].holidayName ?? ""),
+      });
+    } else if (decemberEveBad(figures[i])) {
+      out.push({
+        code: "JARBSCHG_VIOLATION_HOLIDAY_REST",
+        dateIso,
+        message: decemberEveMessage(dateIso, figures[i]),
       });
     }
     if (freeTimeBad(all[i], all[i + 1])) {
@@ -646,6 +693,8 @@ function dayFigures(
   let holidayShiftMinutes = 0;
   let holidayName: string | null = null;
   let holidayStart = Number.POSITIVE_INFINITY;
+  let decemberEveLateMinutes = 0;
+  const decemberEve = isDecemberEveIso(iso);
   for (const s of day) {
     work += shiftNettoMinutes(s, week.breakEmployee, week.breakTenantConfig);
     let gross = hmToMin(s.endTime) - hmToMin(s.startTime);
@@ -656,6 +705,16 @@ function dayFigures(
     earliest = Math.min(earliest, start);
     latest = Math.max(latest, end);
     shiftMinutes += gross;
+    // § 18 Abs. 1: any minute after 14:00 on 24 and 31 December (gross, a minor has no break in the
+    // last hour, so the shift end is the end of the employment).
+    if (decemberEve) {
+      decemberEveLateMinutes += overlapMinutes(
+        start,
+        end,
+        MINOR_DECEMBER_EVE_UNTIL_MINUTE,
+        Number.POSITIVE_INFINITY,
+      );
+    }
     // § 18 Abs. 1: the shift's own salon decides (Issue #1106); a salon missing from a loaded map is
     // a defect of the caller, never "no holiday" (fail-closed).
     if (week.publicHolidaysBySalon && s.salonId) {
@@ -703,6 +762,7 @@ function dayFigures(
     holidayMinutes,
     holidayShiftMinutes,
     holidayName,
+    decemberEveLateMinutes,
   };
 }
 

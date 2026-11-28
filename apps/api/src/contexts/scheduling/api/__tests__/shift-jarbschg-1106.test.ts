@@ -15,6 +15,7 @@ import {
   cleanupTestData,
   grantSystemRole,
   createTestSalon,
+  auditRowsFor,
 } from "../../../../__tests__/setup";
 import {
   dbDateStr,
@@ -23,6 +24,8 @@ import {
   holdsStatutoryHolidayInAnyState,
   utcMidnight,
 } from "../../../../__tests__/test-dates";
+
+import { loadMinorShiftWeeks } from "../../minor-shift-limits";
 
 const PASSWORD = "test1234";
 
@@ -66,6 +69,7 @@ describe("POST /shifts — § 18 JArbSchG Feiertagsruhe (Issue #1106)", () => {
   let data: Awaited<ReturnType<typeof seedTestData>>;
   let otherSalonId: string;
   let bySalonId: string;
+  let templateId: string;
 
   async function mkPerson(label: string, birth: string | null): Promise<string> {
     const s = `${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -157,6 +161,44 @@ describe("POST /shifts — § 18 JArbSchG Feiertagsruhe (Issue #1106)", () => {
     });
   }
 
+  async function fixtureShift(
+    employeeId: string,
+    iso: string,
+    start: string,
+    end: string,
+    extra: { salonId?: string; deletedAt?: Date; deletedReason?: string } = {},
+  ) {
+    return app.prisma.shift.create({
+      data: {
+        employeeId,
+        salonId: extra.salonId ?? data.salonId,
+        date: new Date(`${iso}T00:00:00Z`),
+        startTime: start,
+        endTime: end,
+        ...(extra.deletedAt ? { deletedAt: extra.deletedAt } : {}),
+        ...(extra.deletedReason ? { deletedReason: extra.deletedReason } : {}),
+      },
+    });
+  }
+
+  const auth = () => ({ authorization: `Bearer ${data.adminToken}` });
+
+  async function put(shiftId: string, payload: Record<string, unknown>, q = "") {
+    return app.inject({
+      method: "PUT",
+      url: `/api/v1/shifts/${shiftId}${q}`,
+      headers: auth(),
+      payload,
+    });
+  }
+
+  async function activeShifts(employeeId: string) {
+    return app.prisma.shift.findMany({
+      where: { employeeId, deletedAt: null },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }, { id: "asc" }],
+    });
+  }
+
   async function createAuditRows(employeeId: string) {
     return app.prisma.auditLog.findMany({
       where: {
@@ -202,6 +244,11 @@ describe("POST /shifts — § 18 JArbSchG Feiertagsruhe (Issue #1106)", () => {
     });
     await addSalonHoliday(data.salonId, day(2), "Testfeiertag 1106");
     await addSalonHoliday(data.salonId, day(9), "Testfeiertag 1106 B");
+    templateId = (
+      await app.prisma.shiftTemplate.create({
+        data: { tenantId: data.tenant.id, name: "Kurz1106", startTime: "08:00", endTime: "14:00" },
+      })
+    ).id;
     otherSalonId = (await createTestSalon(app.prisma, data.tenant.id, { name: "Zweitsalon 1106" }))
       .id;
     bySalonId = (
@@ -267,5 +314,248 @@ describe("POST /shifts — § 18 JArbSchG Feiertagsruhe (Issue #1106)", () => {
     const bavarian = await mkPerson("Reformation16By", birthFor(reformation, 16));
     const res = await post(bavarian, reformation, "08:00", "12:00", "", bySalonId);
     expect(res.statusCode, res.body).toBe(201);
+  });
+
+  // ── 24 and 31 December ─────────────────────────────────────────────────────────────────────────
+
+  it("T5: 24 December — a shift ending at 14:00 is accepted, one minute-range after 14:00 is refused, an adult is free", async () => {
+    const eve = nextNonSundayOn("12-24");
+    const ok = await mkPerson("Eve16Ok", birthFor(eve, 16));
+    expect((await post(ok, eve, "08:00", "14:00")).statusCode).toBe(201);
+
+    const late = await mkPerson("Eve16Late", birthFor(eve, 16));
+    const body = await expectRefused(
+      late,
+      eve,
+      "08:00",
+      "15:00",
+      "JARBSCHG_VIOLATION_HOLIDAY_REST",
+    );
+    expect(body.message).toContain("nach 14 Uhr");
+    expect(body.message).toContain(de(eve));
+
+    const adult = await mkPerson("EveAdult", birthFor(eve, 30));
+    expect((await post(adult, eve, "08:00", "15:00")).statusCode).toBe(201);
+  });
+
+  // ── PUT: Altbestand and moving onto the holiday ───────────────────────────────────────────────
+
+  it("T6: PUT — a stored holiday shift stays editable, only growth is refused, the roster is not locked", async () => {
+    const emp = await mkPerson("PutLegacy", birthFor(WEEK_MONDAY, 16));
+    const stored = await fixtureShift(emp, day(2), "10:00", "14:00");
+
+    expect((await put(stored.id, { label: "Neu" })).statusCode).toBe(200);
+    expect((await put(stored.id, { endTime: "13:00" })).statusCode).toBe(200);
+    const updatesBefore = (await auditRowsFor(app, "Shift", stored.id, "UPDATE")).length;
+
+    for (const q of ["", "?force=true"]) {
+      const refused = await put(stored.id, { endTime: "15:00" }, q);
+      expect(refused.statusCode, refused.body).toBe(422);
+      expect(JSON.parse(refused.body).code).toBe("JARBSCHG_VIOLATION_HOLIDAY_REST");
+      expect(JSON.parse(refused.body).canForce).toBe(false);
+    }
+    const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: stored.id } });
+    expect(row.endTime).toBe("13:00");
+    expect(await auditRowsFor(app, "Shift", stored.id, "UPDATE")).toHaveLength(updatesBefore);
+
+    // Moving it to a salon without that holiday is a way out, not a lock.
+    expect((await put(stored.id, { salonId: otherSalonId })).statusCode).toBe(200);
+    // And a new shift on another day of that week is accepted.
+    expect((await post(emp, day(3), "10:00", "14:00")).statusCode).toBe(201);
+  });
+
+  it("T7: PUT — moving a shift onto the holiday is refused, the row keeps its date", async () => {
+    const emp = await mkPerson("PutOnto", birthFor(WEEK_MONDAY, 16));
+    const stored = await fixtureShift(emp, day(1), "10:00", "14:00");
+    const res = await put(stored.id, { date: day(2) });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(JSON.parse(res.body).code).toBe("JARBSCHG_VIOLATION_HOLIDAY_REST");
+    const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: stored.id } });
+    expect(dbDateStr(row.date)).toBe(day(1));
+  });
+
+  // ── restore ────────────────────────────────────────────────────────────────────────────────────
+
+  it("T8: restore — bringing a removed shift back onto the holiday is refused for a minor, allowed for an adult", async () => {
+    const restoreOf = async (label: string, years: number) => {
+      const emp = await mkPerson(label, birthFor(WEEK_MONDAY, years));
+      const shift = await fixtureShift(emp, day(2), "10:00", "14:00", {
+        deletedAt: new Date(),
+        deletedReason: "AUTO_BS_DAY_CLEANUP",
+      });
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/v1/shifts/${shift.id}/restore`,
+        headers: auth(),
+      });
+      return { shift, res };
+    };
+    const minor = await restoreOf("RestoreMinor", 16);
+    expect(minor.res.statusCode, minor.res.body).toBe(422);
+    expect(JSON.parse(minor.res.body).code).toBe("JARBSCHG_VIOLATION_HOLIDAY_REST");
+    const stillDeleted = await app.prisma.shift.findUniqueOrThrow({
+      where: { id: minor.shift.id },
+    });
+    expect(stillDeleted.deletedAt).not.toBeNull();
+
+    const adult = await restoreOf("RestoreAdult", 30);
+    expect(adult.res.statusCode, adult.res.body).toBe(200);
+  });
+
+  // ── bulk ───────────────────────────────────────────────────────────────────────────────────────
+
+  it("T9: bulk — one holiday item refuses the whole batch; adults alone are created", async () => {
+    const minor = await mkPerson("BulkMinor", birthFor(WEEK_MONDAY, 16));
+    const adult = await mkPerson("BulkAdult", birthFor(WEEK_MONDAY, 30));
+    const item = (employeeId: string, d: number) => ({
+      employeeId,
+      date: day(d),
+      startTime: "10:00",
+      endTime: "14:00",
+    });
+    const refused = await app.inject({
+      method: "POST",
+      url: "/api/v1/shifts/bulk",
+      headers: auth(),
+      payload: { shifts: [item(minor, 1), item(minor, 2), item(adult, 1)] },
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(JSON.parse(refused.body).code).toBe("JARBSCHG_VIOLATION_HOLIDAY_REST");
+    expect(await activeShifts(minor)).toHaveLength(0);
+    expect(await activeShifts(adult)).toHaveLength(0);
+
+    const ok = await app.inject({
+      method: "POST",
+      url: "/api/v1/shifts/bulk",
+      headers: auth(),
+      payload: { shifts: [item(adult, 1), item(adult, 2)] },
+    });
+    expect(ok.statusCode, ok.body).toBe(201);
+    expect(await activeShifts(adult)).toHaveLength(2);
+  });
+
+  // ── generate-week ──────────────────────────────────────────────────────────────────────────────
+
+  type PlanResult = {
+    create: Array<{ employeeId: string; date: string }>;
+    skip: Array<{ employeeId: string; date: string; reason: string; message?: string }>;
+  };
+
+  it("T10: generate-week — exactly the holiday cell is skipped with reason jarbschg, preview == commit", async () => {
+    const minor = await mkPerson("GenMinor", birthFor(WEEK_MONDAY, 16));
+    const adult = await mkPerson("GenAdult", birthFor(WEEK_MONDAY, 30));
+    for (const employeeId of [minor, adult]) {
+      for (let dow = 0; dow <= 4; dow++) {
+        await app.prisma.employeeShiftPattern.create({
+          data: {
+            employeeId,
+            dayOfWeek: dow,
+            templateId,
+            validFrom: new Date("2024-09-01T00:00:00Z"),
+          },
+        });
+      }
+    }
+    const run = async (commit: boolean): Promise<PlanResult> => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/v1/shifts/generate-week",
+        headers: auth(),
+        payload: { weekStart: WEEK_MONDAY, commit },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.body).not.toContain("birthDate");
+      return JSON.parse(res.body) as PlanResult;
+    };
+
+    const preview = await run(false);
+    expect(preview.create.filter((c) => c.employeeId === minor).map((c) => c.date)).toEqual([
+      day(0),
+      day(1),
+      day(3),
+      day(4),
+    ]);
+    const skipped = preview.skip.filter((s) => s.employeeId === minor && s.reason === "jarbschg");
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]).toMatchObject({ date: day(2), reason: "jarbschg" });
+    expect(skipped[0].message).toContain("§ 18 Abs. 1 JArbSchG");
+    expect(preview.create.filter((c) => c.employeeId === adult)).toHaveLength(5);
+    expect(await activeShifts(minor)).toHaveLength(0); // a preview writes nothing
+
+    await run(true);
+    expect((await activeShifts(minor)).map((s) => dbDateStr(s.date))).toEqual([
+      day(0),
+      day(1),
+      day(3),
+      day(4),
+    ]);
+    expect(await activeShifts(adult)).toHaveLength(5);
+  });
+
+  // ── copy-week ──────────────────────────────────────────────────────────────────────────────────
+
+  it("T11: copy-week — the holiday cell of the target week is skipped with reason jarbschg, preview == commit", async () => {
+    const minor = await mkPerson("CopyMinor", birthFor(WEEK_MONDAY, 16));
+    // Source week: day(2) is stored Altbestand on a holiday, written straight to the table.
+    for (const d of [0, 1, 2, 3]) await fixtureShift(minor, day(d), "08:00", "14:00");
+
+    const run = async (commit: boolean): Promise<PlanResult> => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/v1/shifts/copy-week",
+        headers: auth(),
+        payload: { sourceWeekStart: day(0), targetWeekStart: day(7), commit },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.body).not.toContain("birthDate");
+      return JSON.parse(res.body) as PlanResult;
+    };
+
+    const preview = await run(false);
+    expect(preview.create.filter((c) => c.employeeId === minor).map((c) => c.date)).toEqual([
+      day(7),
+      day(8),
+      day(10),
+    ]);
+    const skipped = preview.skip.filter((s) => s.employeeId === minor && s.reason === "jarbschg");
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]).toMatchObject({ date: day(9), reason: "jarbschg" });
+    expect(skipped[0].message).toContain("§ 18 Abs. 1 JArbSchG");
+
+    await run(true);
+    const targetDates = (await activeShifts(minor))
+      .map((s) => dbDateStr(s.date))
+      .filter((d) => d >= day(7));
+    expect(targetDates).toEqual([day(7), day(8), day(10)]);
+  });
+
+  // ── loader ─────────────────────────────────────────────────────────────────────────────────────
+
+  it("T12: loadMinorShiftWeeks — the holiday map holds the salons of the shifts, all tenant salons on request", async () => {
+    const minor = await mkPerson("Loader", birthFor(WEEK_MONDAY, 16));
+    await fixtureShift(minor, day(1), "10:00", "14:00");
+
+    const own = await loadMinorShiftWeeks(
+      app.prisma,
+      data.tenant.id,
+      [minor],
+      utcMidnight(WEEK_MONDAY),
+    );
+    const ownMap = own.get(minor)?.publicHolidaysBySalon;
+    expect(Object.keys(ownMap ?? {})).toEqual([data.salonId]);
+    expect(ownMap?.[data.salonId]).toEqual({ [day(2)]: "Testfeiertag 1106" });
+
+    const all = await loadMinorShiftWeeks(
+      app.prisma,
+      data.tenant.id,
+      [minor],
+      utcMidnight(WEEK_MONDAY),
+      { allTenantSalons: true },
+    );
+    const allMap = all.get(minor)?.publicHolidaysBySalon ?? {};
+    expect(Object.keys(allMap).sort()).toEqual([data.salonId, otherSalonId, bySalonId].sort());
+    expect(allMap[data.salonId]).toEqual({ [day(2)]: "Testfeiertag 1106" });
+    expect(allMap[otherSalonId]).toEqual({});
+    expect(allMap[bySalonId]).toEqual({});
   });
 });
