@@ -53,7 +53,11 @@ const birthFor = (dayIso_: string, years: number): string => {
   return `${Number(y) - years}-${m}-${d}`;
 };
 /** DD.MM.YYYY, as the messages print a date. */
-const de = (iso: string): string => iso.split("-").reverse().join(".");
+// German day label without a leading zero (Issue #1149), built independently of dayLabelDe.
+const de = (iso: string): string => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d}.${m}.${y}`;
+};
 
 /** First `${year}-${monthDay}` on or after two days ahead that is not a Sunday. */
 function nextNonSundayOn(monthDay: string): string {
