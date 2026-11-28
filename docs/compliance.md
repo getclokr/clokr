@@ -190,15 +190,16 @@ Jeder Weg, der Arbeitszeit in den Dienstplan **hinzufügt**, läuft durch diesel
 
 Die erste Regel, die anschlägt, antwortet.
 
-| Nr. | Regel                      | Antwort                                 | Übersteuerbar             |
-| --- | -------------------------- | --------------------------------------- | ------------------------- |
-| 1   | Vertrag am Tag             | 422 `SHIFT_NO_CONTRACT`                 | nein                      |
-| 2   | Vergangenheit              | 422 `SHIFT_PAST_IMMUTABLE`              | nein                      |
-| 3   | Öffnungszeiten des Salons  | 409 `SHIFT_OUTSIDE_STORE_HOURS`         | ja, nur bei einer Schicht |
-| 4   | JArbSchG (§§ 8, 12–17)     | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
-| 5   | § 3 ArbZG, Tageshöchstzeit | 422 `ARBZG_VIOLATION_DAILY_MAX`         | nein                      |
-| 6   | § 5 ArbZG, Ruhezeit        | 409 `ARBZG_VIOLATION_REST_PERIOD`       | ja, nur bei einer Schicht |
+| Nr. | Regel                                   | Antwort                                 | Übersteuerbar             |
+| --- | --------------------------------------- | --------------------------------------- | ------------------------- |
+| 1   | Vertrag am Tag, nicht nach dem Austritt | 422 `SHIFT_NO_CONTRACT`                 | nein                      |
+| 2   | Vergangenheit                           | 422 `SHIFT_PAST_IMMUTABLE`              | nein                      |
+| 3   | Öffnungszeiten des Salons               | 409 `SHIFT_OUTSIDE_STORE_HOURS`         | ja, nur bei einer Schicht |
+| 4   | JArbSchG (§§ 8, 12–17)                  | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
+| 5   | § 3 ArbZG, Tageshöchstzeit              | 422 `ARBZG_VIOLATION_DAILY_MAX`         | nein                      |
+| 6   | § 5 ArbZG, Ruhezeit                     | 409 `ARBZG_VIOLATION_REST_PERIOD`       | ja, nur bei einer Schicht |
 
+- **Vertrag** heißt: eine Vertragszeile (`WorkSchedule`) gilt an dem Tag **und** der Tag liegt nicht nach dem Austrittstag (`Employee.exitDate`, Kalendertag in der Zeitzone des Unternehmens). Der Austrittstag selbst bleibt planbar (Issue #1101); ein Tag danach wird wie ein Tag vor Vertragsbeginn mit 422 `SHIFT_NO_CONTRACT` abgelehnt bzw. mit dem Grund `no-contract` übersprungen. „Muster anwenden“ überspringt Tage nach dem Austritt schon vor der Prüfung (Grund `no-pattern`).
 - **Vergangenheit** heißt: vor dem heutigen Kalendertag **des Unternehmens** (Zeitzone des Unternehmens, nicht die Serveruhr). Heute bleibt planbar. Die Sperre gilt für Anlegen, Ändern (alter und neuer Tag), Wiederherstellen, Sammelzuweisung, „Muster anwenden“, „Woche kopieren“ und Löschen (Revisionssicherheit).
 - **§ 3 ArbZG ist eine Tagesregel** (§ 3 Satz 1 „werktägliche Arbeitszeit“, § 2 Abs. 1): Es zählt die **Summe** aller Schichten der Person an dem Tag, jede mit der einen Pausenregel (`breakAmountFor`) abgezogen. Mehr als 10 Stunden netto sind nicht zulässig; eine Schicht von 08:00 bis 13:00 plus eine von 13:30 bis 19:30 (11 Stunden) wird abgelehnt. Die Meldung nennt den Tag und die Stunden. Die 8-Stunden-Regel ist ein Durchschnitt über 24 Wochen und wird im Dienstplan nicht als Tagesgrenze behandelt.
 - **§ 5 ArbZG gilt in beide Richtungen** (§ 5 Abs. 1 „nach Beendigung der täglichen Arbeitszeit“): Eine neue Schicht verkürzt die Ruhezeit zur letzten Schicht des Vortags **und** zur ersten Schicht des Folgetags. Wie die Erfassung prüft der Dienstplan Vortag und Folgetag. Bei einer übersteuerten Schicht schreibt Clokr je verletzter Richtung einen Eintrag `SHIFT_FORCED_OVER_ARBZG` (`prevShiftId` für den Vortag, `nextShiftId` für den Folgetag).
@@ -227,7 +228,6 @@ Wie bei JArbSchG (Issue #1057) wird nur abgelehnt oder gewarnt, was einen Versto
 
 - **Wochenhöchstarbeitszeit (48 Stunden) und 24-Wochen-Schnitt** (§ 3 ArbZG) werden im Dienstplan nicht geprüft; die Erfassung meldet die 48 Stunden. Ob der Plan eine harte Wochengrenze bekommt, ist eine offene Owner-Entscheidung (das Gesetz kennt einen Durchschnitt).
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074).
-- **Vertragsprüfung:** Sie kennt den Beginn des Vertrags, nicht das Austrittsdatum.
 - **Hinweise-Seite:** Sie zeigt auch entfernte Schichten vergangener Tage; deren Wiederherstellung antwortet mit der Vergangenheitssperre.
 - Alle Schreibwege samt Antwort und Übersteuerung sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` erfasst; ein neuer Weg fällt dort auf.
 
