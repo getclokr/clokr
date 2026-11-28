@@ -2,6 +2,7 @@
   import { homeHref } from "$lib/nav/routes";
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
+  import { calendarAbsenceLabel, OTHER_ABSENCE_LABEL } from "$lib/time-entries/absence-label"; // Issue #528
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto, replaceState } from "$app/navigation";
@@ -1357,17 +1358,6 @@
     return "";
   }
 
-  function absenceLabel(type: string): string {
-    const labels: Record<string, string> = {
-      VACATION: "Urlaub",
-      SICK: "Krank",
-      SICK_CHILD: "Kinderkrank",
-      SPECIAL: "Sonderurlaub",
-      OVERTIME_COMP: "Freizeitausgl.",
-    };
-    return labels[type] ?? type;
-  }
-
   function sourceLabel(s: TimeEntry["source"]): string {
     return s === "NFC"
       ? "NFC"
@@ -2035,7 +2025,7 @@
     // Absence codes outside the catalogue (e.g. EDUCATION, UNPAID) DO get a cell
     // background from app.css's .cal-abs-* recipes, so they must not stay unexplained.
     if ([...codes].some((c) => !LEGEND_ABSENCE.some((e) => e.code === c)))
-      abwesenheit.push({ cls: "leg-abs", label: "Sonstige Abwesenheit", fill: FALLBACK.fill });
+      abwesenheit.push({ cls: "leg-abs", label: OTHER_ABSENCE_LABEL, fill: FALLBACK.fill });
     if (days.some((d) => d.isVocationalSchool))
       abwesenheit.push({ cls: "leg-abs-vocational_school", label: "Berufsschule" });
 
@@ -2337,7 +2327,8 @@
                 : day.isHoliday
                   ? day.holidayName
                   : day.absenceType
-                    ? absenceLabel(day.absenceType) + (day.absenceHalf ? " (halber Tag)" : "")
+                    ? calendarAbsenceLabel(day.absenceType) +
+                      (day.absenceHalf ? " (halber Tag)" : "")
                     : day.isVocationalSchoolNoLeave
                       ? "Berufsschule – kein Urlaub"
                       : day.isVocationalSchool
@@ -2385,7 +2376,7 @@
                   <span class="cal-holiday-label">{day.holidayName}</span>
                 {:else if day.absenceType}
                   <span class="cal-abs-type"
-                    >{absenceLabel(day.absenceType)}{day.absenceHalf ? " ½" : ""}</span
+                    >{calendarAbsenceLabel(day.absenceType)}{day.absenceHalf ? " ½" : ""}</span
                   >
                 {:else if (day.isVocationalSchool || day.isVocationalSchoolNoLeave) && day.isCurrentMonth}
                   <span class="cal-abs-type">Berufsschule</span>
