@@ -88,6 +88,7 @@ import {
   filterLeaveRowsToHomeSalon, // Issue #558 (D-02/D-08) — the one Stammsalon-per-day attribution of absences
 } from "../contexts/absence";
 import { SALON_VIEW_NOT_FOUND, salonViewMemberIds } from "./salon-view"; // Issue #542 (P-01) — the one 404 body of the composition's salon views
+import { monthWindowFloorUtc } from "../utils/month-window"; // Issue #156 — overflow-free trend window bounds
 
 // Issue #84 (D-07): 1..12 months, default 6 — the bound keeps the per-person saldo fan-out finite.
 const teamTrendQuerySchema = z.object({
@@ -1563,13 +1564,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
       );
 
       // Query 2: last 6 months of MONTHLY SaldoSnapshots for these employees
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setUTCMonth(sixMonthsAgo.getUTCMonth() - 6);
-      // Issue #595 (D-03): day 0 = the last day of the month BEFORE the window's first month. A
+      // Issue #595 (D-03): the bound is the last day of the month BEFORE the window's first month. A
       // TZ-converted row of that first month is stored on exactly that day, so a bound on the 1st
-      // would list only the legacy row of the month.
-      sixMonthsAgo.setUTCDate(0);
-      sixMonthsAgo.setUTCHours(0, 0, 0, 0);
+      // would list only the legacy row of the month. Issue #156: built overflow-free (31 Aug - 6).
+      const sixMonthsAgo = monthWindowFloorUtc(new Date(), 6);
 
       const snapshots = await getMonthlySnapshotsInRange(
         app.prisma,
@@ -2157,12 +2155,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const tenantId = req.user.tenantId;
 
       // 6-month window (inclusive of current month)
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setUTCMonth(sixMonthsAgo.getUTCMonth() - 5);
-      // Issue #595 (D-03): day 0 = the last day of the month before the window's first month,
-      // where the TZ-converted row of that first month is stored.
-      sixMonthsAgo.setUTCDate(0);
-      sixMonthsAgo.setUTCHours(0, 0, 0, 0);
+      // Issue #595 (D-03): the bound is the last day of the month before the window's first month,
+      // where the TZ-converted row of that first month is stored. Issue #156: built overflow-free,
+      // so 29-31 July still yield February .. July instead of March .. July.
+      const sixMonthsAgo = monthWindowFloorUtc(new Date(), 5);
 
       // First fetch the employee IDs of the trend window's population.
       // Prisma groupBy does not support relation filters in `where`, so we resolve

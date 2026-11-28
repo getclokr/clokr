@@ -54,6 +54,7 @@ import {
 import { writeEntitlementAudit } from "./entitlement-audit";
 import { LEAVE_TYPE_DEFS, LEAVE_REQUEST_EMAIL_SUBJECT, type RequestableCode } from "./leave-type";
 import { dayRangeLabelDe } from "../../utils/day-label-de";
+import { addUtcMonthsClamped } from "../../utils/month-window";
 import {
   getOvertimeAccount,
   getTenantTimezone,
@@ -285,8 +286,9 @@ export async function createLeaveRequestCore(
     // ── Max advance months check ──
     const maxAdvanceMonths = tenantConfig?.vacationMaxAdvanceMonths ?? 0;
     if (maxAdvanceMonths > 0) {
-      const maxDate = new Date();
-      maxDate.setMonth(maxDate.getMonth() + maxAdvanceMonths);
+      // Issue #156: clamped to the target month's last day (31 Aug + 6 months = end of February,
+      // not 3 March, which let a request through up to three days too far ahead).
+      const maxDate = addUtcMonthsClamped(new Date(), maxAdvanceMonths);
       if (end > maxDate) {
         return refusal(
           400,
