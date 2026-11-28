@@ -37,7 +37,8 @@ function shiftDays(day: Date, days: number): Date {
  *
  *   - BREAK_* and MAX_DAILY_EXCEEDED: the entry's day
  *   - MIN_REST_VIOLATED: the previous day to the next day
- *   - MAX_WEEKLY_EXCEEDED: the ISO week of the day
+ *   - MAX_WEEKLY_EXCEEDED, JARBSCHG_DAILY_MAX_EXCEEDED, JARBSCHG_WEEKLY_MAX_EXCEEDED: the ISO week
+ *     of the day (the § 8 day limit depends on the other Werktage of the week, Issue #524)
  *   - MAX_DAILY_AVG_EXCEEDED: the 168 days up to the day
  *   - any other code: the widest window, so a code added later withholds instead of leaking
  *
@@ -54,7 +55,11 @@ export function warningWindow(
   if (code === "MIN_REST_VIOLATED") {
     return { from: shiftDays(day, -1), to: shiftDays(day, 1) };
   }
-  if (code === "MAX_WEEKLY_EXCEEDED") {
+  if (
+    code === "MAX_WEEKLY_EXCEEDED" ||
+    code === "JARBSCHG_DAILY_MAX_EXCEEDED" ||
+    code === "JARBSCHG_WEEKLY_MAX_EXCEEDED"
+  ) {
     return { from: week.firstDay, to: week.lastDay };
   }
   if (code === "MAX_DAILY_AVG_EXCEEDED") {
