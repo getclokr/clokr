@@ -28,6 +28,12 @@ function addMonths(d: Date, n: number): Date {
 }
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
+/** "2026-09-10" -> "10.9.2026": the oracle of the #1117 notification texts, built from the parts. */
+function germanDay(isoDay: string): string {
+  const [y, m, d] = isoDay.split("-").map(Number);
+  return `${d}.${m}.${y}`;
+}
+
 describe("Issue #599 — month correction requests", () => {
   let app: FastifyInstance;
   let data: Seed;
@@ -135,6 +141,12 @@ describe("Issue #599 — month correction requests", () => {
     });
     expect(notices.map((n) => n.userId)).toContain(data.adminUser.id);
     expect(notices.map((n) => n.userId)).not.toContain(data.employee.userId);
+    // Issue #1117: the day is named the German way, never as an ISO day (independent oracle).
+    expect(notices.length).toBeGreaterThan(0);
+    for (const n of notices) {
+      expect(n.message).toBe(`Max Test bittet um eine Korrektur für den ${germanDay(closedDay)}.`);
+      expect(n.message).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
   });
 
   it("refuses a second pending request for the same day", async () => {
@@ -219,6 +231,13 @@ describe("Issue #599 — month correction requests", () => {
       where: { relatedId: requestId, type: "MONTH_CORRECTION_DECIDED" },
     });
     expect(decided.map((n) => n.userId)).toEqual([data.employee.userId]);
+    // Issue #1117: the day is named the German way, never as an ISO day (independent oracle).
+    for (const n of decided) {
+      expect(n.message).toBe(
+        `Deine Korrekturanfrage für den ${germanDay(closedDay)} wurde genehmigt.`,
+      );
+      expect(n.message).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
   });
 
   it("a decided request is not decided twice (409 MONTH_CORRECTION_NOT_PENDING)", async () => {

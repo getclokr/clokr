@@ -41,7 +41,7 @@ const AUDIENCE: Record<string, Audience> = {
   REMINDER_SHIFT_END: { audience: "PERSON", dateBy: "formatNoticeDay(" },
   REMINDER_DAY_CLOSE: { audience: "PERSON", dateBy: "formatNoticeDay(" },
   WIFI_DEVICE_NOT_SEEN: { audience: "PERSON", dateBy: "formatNoticeDay(" },
-  MONTH_CORRECTION_DECIDED: { audience: "PERSON", dateBy: "day(row.targetDate)" },
+  MONTH_CORRECTION_DECIDED: { audience: "PERSON", dateBy: "dayLabelDe(row.targetDate)" },
   LEAVE_DAYS_ADJUSTED: { audience: "PERSON", dateBy: "von" },
   LEAVE_PLAN_OPENED: { audience: "PERSON", dateBy: "plan.year" },
   // ── to managers, approvers, admins or planners ──
