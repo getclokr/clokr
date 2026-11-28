@@ -1,7 +1,8 @@
 <!--
   RouteGuard — Issue #83 (D-10/D-16), since #844 shared by the admin, Verwalten and Team layouts: the page
   renders only after "allow" (permissions of the route table, `admin-route-permissions.ts`); a cached session
-  without a permission list waits for its refresh; everything else goes to the person's start page (Z-02).
+  without a permission list waits for its refresh; everything else goes to the page the route table names
+  for a denial (`deniedTo`, #1114) or to the person's start page (Z-02).
   A UX gate only; the API answers 403 regardless.
 -->
 <script lang="ts">
@@ -12,7 +13,7 @@
   import { authStore } from "$stores/auth";
   import { loadPermissionsIfMissing } from "$api/client";
   import { adminGuardDecision } from "$lib/nav/admin-route-permissions";
-  import { homeHref } from "$lib/nav/routes";
+  import { guardDeniedTarget } from "$lib/nav/routes";
   import Skeleton from "$components/ui/Skeleton.svelte";
 
   interface Props {
@@ -27,7 +28,8 @@
   );
 
   $effect(() => {
-    if (decision === "deny") void goto(homeHref($authStore.user), { replace: true });
+    if (decision === "deny")
+      void goto(guardDeniedTarget($authStore.user, page.url.pathname), { replace: true });
   });
 
   onMount(async () => {

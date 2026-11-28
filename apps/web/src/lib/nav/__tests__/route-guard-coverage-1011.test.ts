@@ -29,8 +29,6 @@ const user = (permissions: string[] | undefined) => ({ permissions });
 const STILL_UNGUARDED: Record<string, string> = {
   "/inbox":
     "redirects itself in onMount through taskGates(...).page (Phase 378, #840), the same effect as the guard",
-  "/reports":
-    "its table entry names both alternatives of reportRights().periodTabs (report:read | team-overview:read, #992 N-15); it stays unguarded until #1114 decides what a person without the Team area sees there",
 };
 
 interface Checked {

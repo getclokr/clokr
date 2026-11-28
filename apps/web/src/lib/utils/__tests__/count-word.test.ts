@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countWord, monthsLabel, personsLabel } from "../count-word";
+import { countNoun, countWord, monthsLabel, personsLabel } from "../count-word";
 
 describe("countWord (Issue #946)", () => {
   it("uses the singular exactly for 1", () => {
@@ -11,5 +11,10 @@ describe("countWord (Issue #946)", () => {
     expect(monthsLabel(2)).toBe("2 Monate");
     expect(personsLabel(5)).toBe("5 Personen");
     expect(countWord(3, "Tag", "Tage")).toBe("3 Tage");
+  });
+  it("countNoun gives the noun alone, for a KPI unit next to its figure (Issue #1114)", () => {
+    expect(countNoun(1, "Monat", "Monate")).toBe("Monat");
+    expect(countNoun(0, "Monat", "Monate")).toBe("Monate");
+    expect(countNoun(2, "Monat", "Monate")).toBe("Monate");
   });
 });

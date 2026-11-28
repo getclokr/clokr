@@ -220,7 +220,7 @@ describe("admin route permissions (Issue #83)", () => {
     // #843 D-843-07: the wait state is a Skeleton, which carries role="status" itself.
     expect(layout.slice(wait)).toContain("<Skeleton");
     expect(layout).toContain("loadPermissionsIfMissing");
-    expect(layout).toContain("goto(homeHref($authStore.user)");
+    expect(layout).toContain("goto(guardDeniedTarget($authStore.user, page.url.pathname)");
     expect(layout).not.toMatch(/\.role\b|"ADMIN"|"MANAGER"/);
   });
 });

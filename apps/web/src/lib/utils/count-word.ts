@@ -4,7 +4,12 @@
  * here. `plural` is the full plural form, never derived by appending a suffix.
  */
 export function countWord(n: number, singular: string, plural: string): string {
-  return `${n} ${n === 1 ? singular : plural}`;
+  return `${n} ${countNoun(n, singular, plural)}`;
+}
+
+/** Only the noun of `countWord`, for a figure shown apart from its unit (a KPI value and its unit, #1114). */
+export function countNoun(n: number, singular: string, plural: string): string {
+  return n === 1 ? singular : plural;
 }
 
 export const monthsLabel = (n: number): string => countWord(n, "Monat", "Monate");
