@@ -98,7 +98,7 @@ describe("TenantTable", () => {
     renderWithTheme(TenantTable, { tenants: [ACTIVE, OFF], page: 1, pageSize: 25 }, "salz");
     expect(byId("op-tenant-row-t-active")).toHaveTextContent("Niedersachsen");
     expect(byId("op-tenant-row-t-off")).toHaveTextContent("Bayern");
-    expect(byId("op-tenant-row-t-active")).toHaveTextContent("05.01.2026");
+    expect(byId("op-tenant-row-t-active")).toHaveTextContent(/(?<!\d)5\.1\.2026(?!\d)/);
     expect(byId("op-tenant-row-t-active")).not.toHaveTextContent("NIEDERSACHSEN");
   });
 
@@ -216,7 +216,7 @@ describe("TenantTable", () => {
       expect(byId("op-tenant-salons-t-active")).toHaveTextContent("2 / 3");
       expect(byId("op-tenant-salons-t-active")).toHaveTextContent("2 von 3 aktiv");
       expect(byId("op-tenant-employees-t-active")).toHaveTextContent("7");
-      expect(byId("op-tenant-activity-t-active")).toHaveTextContent("01.10.2026");
+      expect(byId("op-tenant-activity-t-active")).toHaveTextContent(/(?<!\d)1\.10\.2026(?!\d)/);
     });
 
     it("shows Keine Anmeldung when the tenant never signed in", () => {

@@ -113,7 +113,7 @@ describe("SupportContracts", () => {
     mount([FIXED]);
     const row = el("op-support-contract-row-c-fixed");
     expect(row).toHaveTextContent("Feste Arbeitszeit");
-    expect(row).toHaveTextContent("01.09.2026");
+    expect(row).toHaveTextContent(/(?<!\d)1\.9\.2026(?!\d)/);
     expect(row).toHaveTextContent("Wochenstunden");
     expect(row).toHaveTextContent("40");
     expect(row).toHaveTextContent("Mo, Di, Mi, Do, Fr");

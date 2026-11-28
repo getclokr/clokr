@@ -10,8 +10,9 @@
  *
  * Lives in `$lib` because route pages cannot be mounted in this repo's vitest setup
  * (apps/web/vitest.config.ts deliberately excludes the SvelteKit pipeline). Pure module: type
- * imports only.
+ * imports only, plus the shared day wording.
  */
+import { dayLabel } from "$lib/utils/day-label";
 
 /** One entry of a day as the API returns it on a `full` day (D-11: absent on a redacted day). */
 export interface DayCheckEntry {
@@ -316,7 +317,7 @@ export function breakFindingMonthCloseHint(
 
   const shown = valid
     .slice(0, 3)
-    .map((d) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`)
+    .map((d) => dayLabel(d))
     .join(", ");
   const more = valid.length > 3 ? ` (+${valid.length - 3} weitere)` : "";
   return {

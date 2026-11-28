@@ -4,8 +4,7 @@
 // rule that decides whether the break panel has anything to show. A redacted check (#85 D-07) is
 // never a „Pausenbefund“: it sits in the neutral „Hinweis“ group with every other non-finding day,
 // so the line reveals nothing a partial reach may not see; the line prints dates only.
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
+import { dayLabel } from "$lib/utils/day-label";
 import type { DayCheck } from "$lib/breaks/day-break-violation";
 
 /**
@@ -79,7 +78,7 @@ export function dayCheckLine(checks: readonly DayCheck[]): DayCheckLineModel | n
   return { findings: group(findings), others: group(others) };
 }
 
-/** „Mi 04.11.“ for a `YYYY-MM-DD` day. */
+/** „Mi 4.11.“ for a `YYYY-MM-DD` day (the shared day wording, no leading zero; Issue #1168). */
 export function lineDayLabel(day: string): string {
-  return format(new Date(`${day}T12:00:00`), "EEEEEE dd.MM.", { locale: de });
+  return dayLabel(day, { weekday: true });
 }

@@ -122,7 +122,7 @@ describe("dayCheckLine grouping", () => {
   });
 
   it("labels a day as weekday and date", () => {
-    expect(lineDayLabel("2026-11-04")).toBe("Mi 04.11.");
+    expect(lineDayLabel("2026-11-04")).toBe("Mi 4.11.");
   });
 });
 
@@ -168,16 +168,16 @@ describe("DayCheckLine", () => {
     });
     const line = screen.getByTestId("day-check-line");
     expect(line.textContent?.replace(/\s+/g, " ").trim()).toBe(
-      "2 Tage mit Pausenbefund: Mi 04.11. · Mi 11.11.",
+      "2 Tage mit Pausenbefund: Mi 4.11. · Mi 11.11.",
     );
-    await fireEvent.click(screen.getByRole("button", { name: "Mi 04.11." }));
+    await fireEvent.click(screen.getByRole("button", { name: "Mi 4.11." }));
     expect(onOpenDay).toHaveBeenCalledWith("2026-11-04");
   });
 
   it("a redacted day reads neutral: Hinweis, no Pausenbefund, no paragraph, no figure", () => {
     renderWithTheme(DayCheckLine, { checks: [redacted("2026-11-06")], onOpenDay: () => {} });
     const text = screen.getByTestId("day-check-line").textContent ?? "";
-    expect(text.replace(/\s+/g, " ").trim()).toBe("1 Tag mit Hinweis: Fr 06.11.");
+    expect(text.replace(/\s+/g, " ").trim()).toBe("1 Tag mit Hinweis: Fr 6.11.");
     expect(text).not.toContain("Pausenbefund");
     expect(text).not.toContain("§");
     expect(text).not.toMatch(/\d+:\d{2}/);

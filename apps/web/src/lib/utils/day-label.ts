@@ -5,6 +5,10 @@
  *
  * Pure string work on the calendar day: the weekday comes from the day at noon UTC, never from
  * `getDay()` of a local midnight, so the zone of the browser cannot move it.
+ *
+ * Issue #1168: the wording is not limited to the Ich and Team areas - every human-facing day in the
+ * web app (admin, leave, operator console, audit) says it through here. Machine formats (CSV, DATEV,
+ * file names, ISO keys) and clock times (HH:MM) keep their form.
  */
 
 const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
@@ -55,4 +59,33 @@ export function dayRangeLabel(
     return `${dayLabel(fromIso, { year: true })}–${dayLabel(toIso, { year: true })}`;
   }
   return `${dayLabel(fromIso)}–${dayLabel(toIso, options)}`;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * The calendar day of an instant in the zone of the browser ("1.12.2026" with `year: true`). Local
+ * accessors on purpose: this is for a stamp the person reads in their own clock. A value that is a
+ * calendar day already belongs in `dayLabel`. An invalid date comes back as an empty string.
+ */
+export function instantDayLabel(date: Date, options: DayLabelOptions = {}): string {
+  if (Number.isNaN(date.getTime())) return "";
+  return dayLabel(
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
+    options,
+  );
+}
+
+/**
+ * An instant as "1.12.2026, 08:05" in the zone of the browser (the day without a leading zero, the
+ * time of day as HH:MM; `seconds` appends ":SS"). Issue #1168: the one date-time wording of the
+ * lists that show when something happened. An invalid date comes back as an empty string.
+ */
+export function dateTimeLabel(date: Date, options: { seconds?: boolean } = {}): string {
+  if (Number.isNaN(date.getTime())) return "";
+  const clock = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  const seconds = options.seconds ? `:${pad2(date.getSeconds())}` : "";
+  return `${instantDayLabel(date, { year: true })}, ${clock}${seconds}`;
 }

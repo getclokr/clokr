@@ -87,7 +87,7 @@ describe("TenantMasterData - facts", () => {
     expect(el("op-tenant-name")).toHaveTextContent("Beispiel Friseure GmbH");
     expect(el("op-tenant-slug")).toHaveTextContent("beispiel-friseure");
     expect(el("op-tenant-federal-state")).toHaveTextContent("Niedersachsen");
-    expect(document.querySelector("dl")).toHaveTextContent("05.03.2026");
+    expect(document.querySelector("dl")).toHaveTextContent(/(?<!\d)5\.3\.2026(?!\d)/);
   });
 
   it("marks an active tenant with data-state active and shows no deactivation notice", () => {
@@ -100,14 +100,14 @@ describe("TenantMasterData - facts", () => {
     mount(DEACTIVATED);
     expect(el("op-tenant-status")).toHaveAttribute("data-state", "deactivated");
     expect(el("op-tenant-deactivated-notice")).toHaveTextContent(
-      "Deaktiviert am 30.09.2026. Grund: Vertrag beendet",
+      "Deaktiviert am 30.9.2026. Grund: Vertrag beendet",
     );
   });
 
   it("omits the reason sentence when none is stored", () => {
     mount({ ...DEACTIVATED, deactivatedReason: null });
     const text = el("op-tenant-deactivated-notice").textContent ?? "";
-    expect(text).toContain("Deaktiviert am 30.09.2026.");
+    expect(text).toContain("Deaktiviert am 30.9.2026.");
     expect(text).not.toContain("Grund");
   });
 });

@@ -22,7 +22,7 @@
     entryId: string;
     /** "YYYY-MM-DD" — used for the testid so a day is addressable without knowing the uuid. */
     date: string;
-    /** German display label, e.g. "05.08.2026". */
+    /** German display label, e.g. "5.8.2026". */
     label: string;
   }
 

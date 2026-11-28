@@ -319,11 +319,11 @@ describe("breakFindingSaveNotice", () => {
 });
 
 describe("breakFindingMonthCloseHint", () => {
-  it("labels one day with the count and names the statutes and the date as DD.MM.", () => {
+  it("labels one day with the count and names the statutes and the date without a leading zero", () => {
     const hint = breakFindingMonthCloseHint(["2026-03-10"]);
     expect(hint?.label).toBe("Pausenverstoß offen (1)");
     expect(hint?.title).toBe(
-      "Offener Pausenverstoß (§ 4 ArbZG / § 11 JArbSchG) an: 10.03.; " +
+      "Offener Pausenverstoß (§ 4 ArbZG / § 11 JArbSchG) an: 10.3.; " +
         "vor dem Abschluss eine Pause erfassen oder den Tag quittieren.",
     );
     expect(hint?.title).not.toMatch(PRONOUN);
@@ -338,9 +338,9 @@ describe("breakFindingMonthCloseHint", () => {
       "2026-03-25",
     ]);
     expect(hint?.label).toBe("Pausenverstoß offen (5)");
-    expect(hint?.title).toContain("02.03., 10.03., 11.03.");
+    expect(hint?.title).toContain("2.3., 10.3., 11.3.");
     expect(hint?.title).toContain("+2");
-    expect(hint?.title).not.toContain("20.03.");
+    expect(hint?.title).not.toContain("20.3.");
   });
 
   it("returns null for no days, undefined and null", () => {
@@ -352,7 +352,7 @@ describe("breakFindingMonthCloseHint", () => {
   it("ignores a malformed date instead of printing it", () => {
     const hint = breakFindingMonthCloseHint(["nonsense", "2026-03-10"]);
     expect(hint?.label).toBe("Pausenverstoß offen (1)");
-    expect(hint?.title).toContain("10.03.");
+    expect(hint?.title).toContain("10.3.");
     expect(hint?.title).not.toContain("nonsense");
   });
 });

@@ -948,6 +948,9 @@ describe("confirm — Phase 104-06 Task 1", () => {
     );
     expect(carryRow.carryOverNote).toContain("§ 9 BUrlG");
     expect(carryRow.carryOverNote).toContain("C-214/10");
+    // Issue #1168: the credited range is named in the German day wording, never as ISO days.
+    expect(carryRow.carryOverNote).toContain("(2.9.–6.9.2024)");
+    expect(carryRow.carryOverNote).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it("Test 9 (R9 negative): confirming into an origin year whose Stichtag has NOT passed leaves carryOverReason null at the tenant default", async () => {

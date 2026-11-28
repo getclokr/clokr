@@ -536,7 +536,9 @@ test.describe("operator console - dashboard (#90)", () => {
 
     await expect(page.getByTestId(`op-tenant-salons-${TENANT_ID}`)).toContainText("1 / 2");
     await expect(page.getByTestId(`op-tenant-employees-${TENANT_ID}`)).toContainText("7");
-    await expect(page.getByTestId(`op-tenant-activity-${TENANT_ID}`)).toContainText("01.10.2026");
+    await expect(page.getByTestId(`op-tenant-activity-${TENANT_ID}`)).toContainText(
+      /(?<!\d)1\.10\.2026(?!\d)/,
+    );
     await expect(page.getByTestId(`op-tenant-inactive-${TENANT_ID}`)).toHaveCount(0);
 
     await expect(page.getByTestId(`op-tenant-activity-${INACTIVE_TENANT_ID}`)).toContainText(

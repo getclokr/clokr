@@ -21,6 +21,7 @@
    * as one-click actions; the page passes them (already filtered by the #64 gate) and sends the
    * request, the panel decides nothing.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
   import {
     dayCheckBadge,
@@ -71,7 +72,7 @@
   // it; a single-entry finding day only when the caller can act on it or an acknowledgement exists;
   // a withheld day always renders (its hint is the whole point).
   const visible = $derived(dayBreakPanelVisible(check));
-  const dayLabel = $derived(check.date.split("-").reverse().join("."));
+  const dayText = $derived(dayLabel(check.date, { year: true }));
   const totalsLine = $derived(
     full === null
       ? ""
@@ -186,7 +187,7 @@
     <span class="ico" aria-hidden="true">⚠</span>
     <div class="dbp-body">
       <p class="dbp-head">
-        <b>{dayLabel}</b>
+        <b>{dayText}</b>
         {#if badge}<span class="badge {badge.cls}">{badge.label}</span>{/if}
       </p>
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Issue #1029: ONE slim line above the Team › Zeiten calendar naming the days with a day-check
-  // result - „2 Tage mit Pausenbefund: Mi 04.11. · Mi 11.11.“ and, for every other day the break
+  // result - „2 Tage mit Pausenbefund: Mi 4.11. · Mi 11.11.“ and, for every other day the break
   // panel has something to show for, „N Tage mit Hinweis: …“. Each named day is a button that opens
   // that day's day view, where the details and the acknowledgement live. The text carries dates and
   // counts only; a redacted day (#85 D-07) is a „Hinweis“ day like any other and never a finding.

@@ -144,7 +144,7 @@ describe("SupportMonthView entries", () => {
   it("renders date, times, breaks, break status, salon, type and source", () => {
     mount(month());
     const row = el("op-support-entry-row-e-ok");
-    expect(row).toHaveTextContent("02.09.2026");
+    expect(row).toHaveTextContent("2.9.2026");
     expect(row.textContent).toMatch(/\d{2}:\d{2}/);
     expect(row).toHaveTextContent("30 Min.");
     expect(row).toHaveTextContent("Bestätigt");
@@ -260,7 +260,7 @@ describe("SupportMonthView day breaks, leave and absences", () => {
         ],
       }),
     );
-    expect(el("op-support-daybreaks")).toHaveTextContent("03.09.2026");
+    expect(el("op-support-daybreaks")).toHaveTextContent("3.9.2026");
     expect(el("op-support-daybreaks").textContent).toMatch(/\d{2}:\d{2}\s*–\s*\d{2}:\d{2}/);
   });
 
@@ -296,13 +296,13 @@ describe("SupportMonthView day breaks, leave and absences", () => {
     const first = el("op-support-leave-row-lr-1");
     expect(first).toHaveTextContent("Erholungsurlaub");
     expect(first).toHaveTextContent("Genehmigt");
-    expect(first).toHaveTextContent("14.09.2026 – 18.09.2026");
+    expect(first).toHaveTextContent("14.9.–18.9.2026");
     expect(first).toHaveTextContent("5");
     expect(first).toHaveTextContent("vorläufig");
     const second = el("op-support-leave-row-lr-2");
     expect(second).toHaveTextContent("SOMETHING_NEW");
-    expect(second).toHaveTextContent("21.09.2026");
-    expect(second).not.toHaveTextContent("21.09.2026 –");
+    expect(second).toHaveTextContent(/(?<!\d)21\.9\.2026(?!\d)/);
+    expect(second).not.toHaveTextContent("21.9.2026 –");
     expect(second).toHaveTextContent("halber Tag");
     expect(second).toHaveTextContent("0,5");
     expect(second).not.toHaveTextContent("vorläufig");
@@ -326,7 +326,7 @@ describe("SupportMonthView day breaks, leave and absences", () => {
     const row = el("op-support-absence-row-ab-1");
     expect(row).toHaveTextContent("Berufsschule");
     expect(row).toHaveTextContent("Automatisch (Muster)");
-    expect(row).toHaveTextContent("07.09.2026");
+    expect(row).toHaveTextContent(/(?<!\d)7\.9\.2026(?!\d)/);
   });
 
   it("says so in an empty month for day breaks, leave and absences", () => {

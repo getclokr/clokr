@@ -6,6 +6,7 @@ import type { FederalState } from "@clokr/types";
 import type { TenantModule } from "$lib/packages/tenant-modules";
 import type { SupportAccessEndedBy, SupportAccessStatus, SupportDurationHours } from "./types";
 import { CONNECTION_TEXT, RATE_LIMIT_TEXT, SERVER_FAULT_TEXT } from "./reasons";
+import { dateTimeLabel, dayLabel, dayRangeLabel } from "$lib/utils/day-label";
 
 const LABELS: Record<FederalState, string> = {
   BADEN_WUERTTEMBERG: "Baden-Württemberg",
@@ -36,18 +37,26 @@ export function federalStateLabel(value: FederalState): string {
   return LABELS[value];
 }
 
-/** `dd.MM.yyyy` in the German format; an unparsable value is shown as a dash. */
+/**
+ * The browser-zone calendar day of an instant as `YYYY-MM-DD`, the input of the shared day wording.
+ * Local accessors on purpose (D-03): the operator reads an instant in their own zone.
+ */
+function localDayOf(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
+/** The German day of an instant ("1.10.2026", no leading zero, Issue #1168); an unparsable value is a dash. */
 export function formatOperatorDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "–";
-  return format(date, "dd.MM.yyyy", { locale: de });
+  return dayLabel(localDayOf(date), { year: true });
 }
 
-/** `dd.MM.yyyy, HH:mm` of an instant in the browser's zone (D-03); an unparsable value is a dash. */
+/** "1.10.2026, 09:30" of an instant in the browser's zone (D-03); an unparsable value is a dash. */
 export function formatOperatorDateTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "–";
-  return format(date, "dd.MM.yyyy, HH:mm", { locale: de });
+  return dateTimeLabel(date);
 }
 
 /** `HH:mm` of an instant in the browser's zone (D-03); an unparsable value is a dash. */
@@ -58,14 +67,13 @@ export function formatOperatorTime(iso: string): string {
 }
 
 /**
- * `dd.MM.yyyy` of a `YYYY-MM-DD` calendar day (Issue #90). Pure string split on purpose: the API
- * sends a UTC day, and parsing it through a Date would shift it by the viewer's time zone.
+ * The German day of a `YYYY-MM-DD` calendar day ("1.10.2026", Issue #90, #1168). The shared
+ * `dayLabel` is pure string work, so the API's UTC day is never shifted by the viewer's time zone.
  * Anything that is not that shape is shown as a dash.
  */
 export function formatOperatorDay(day: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
-  if (!match) return "–";
-  return `${match[3]}.${match[2]}.${match[1]}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return "–";
+  return dayLabel(day, { year: true });
 }
 
 /**
@@ -118,9 +126,11 @@ export const SUPPORT_ENDED_BY_LABELS: Readonly<Record<SupportAccessEndedBy, stri
   TENANT: "durch Mandant",
 };
 
-/** One calendar day, or `dd.MM.yyyy – dd.MM.yyyy` for a period (both ends `YYYY-MM-DD`). */
+/** One calendar day, or "14.9.–18.9.2026" for a period (both ends `YYYY-MM-DD`). */
 export function formatOperatorDayRange(start: string, end: string): string {
-  return start === end
-    ? formatOperatorDay(start)
-    : `${formatOperatorDay(start)} – ${formatOperatorDay(end)}`;
+  // A malformed end keeps the dash of `formatOperatorDay` instead of printing the raw string.
+  if (formatOperatorDay(start) === "–" || formatOperatorDay(end) === "–") {
+    return `${formatOperatorDay(start)} – ${formatOperatorDay(end)}`;
+  }
+  return dayRangeLabel(start, end, { year: true });
 }

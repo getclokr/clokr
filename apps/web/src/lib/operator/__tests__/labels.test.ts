@@ -56,8 +56,8 @@ describe("operator labels", () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, "de")));
   });
 
-  it("formats an ISO timestamp as dd.MM.yyyy", () => {
-    expect(formatOperatorDate("2026-03-05T12:00:00.000Z")).toBe("05.03.2026");
+  it("formats an ISO timestamp as a day without a leading zero", () => {
+    expect(formatOperatorDate("2026-03-05T12:00:00.000Z")).toBe("5.3.2026");
   });
 });
 
@@ -96,8 +96,8 @@ describe("describeLoadError", () => {
 });
 
 describe("formatOperatorDay", () => {
-  it("rewrites a calendar day as dd.MM.yyyy without a time-zone shift", () => {
-    expect(formatOperatorDay("2026-10-01")).toBe("01.10.2026");
+  it("names a calendar day without a leading zero and without a time-zone shift", () => {
+    expect(formatOperatorDay("2026-10-01")).toBe("1.10.2026");
     expect(formatOperatorDay("2026-12-31")).toBe("31.12.2026");
   });
 
@@ -131,12 +131,12 @@ describe("support access vocabulary (Issue #93)", () => {
     });
   });
 
-  it("formats an instant as dd.MM.yyyy, HH:mm in the browser zone", () => {
+  it("formats an instant as day and HH:mm in the browser zone, the day without a leading zero", () => {
     const iso = "2026-10-15T09:30:00.000Z";
     const d = new Date(iso);
     const pad = (n: number) => String(n).padStart(2, "0");
     expect(formatOperatorDateTime(iso)).toBe(
-      `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`,
     );
     expect(formatOperatorDateTime("not a date")).toBe("–");
   });
@@ -152,7 +152,9 @@ describe("formatOperatorTime and formatOperatorDayRange", () => {
   });
 
   it("formats one day or a period of calendar days", () => {
-    expect(formatOperatorDayRange("2026-09-21", "2026-09-21")).toBe("21.09.2026");
-    expect(formatOperatorDayRange("2026-09-14", "2026-09-18")).toBe("14.09.2026 – 18.09.2026");
+    expect(formatOperatorDayRange("2026-09-21", "2026-09-21")).toBe("21.9.2026");
+    expect(formatOperatorDayRange("2026-09-14", "2026-09-18")).toBe("14.9.–18.9.2026");
+    expect(formatOperatorDayRange("2026-12-30", "2027-01-02")).toBe("30.12.2026–2.1.2027");
+    expect(formatOperatorDayRange("2026-09-14", "garbage")).toBe("14.9.2026 – –");
   });
 });

@@ -1,6 +1,6 @@
 // Issue #992 (D-992-16) — the one date wording of the Ich and Team areas: no leading zeros.
 import { describe, it, expect } from "vitest";
-import { dayLabel, dayRangeLabel } from "../day-label";
+import { dateTimeLabel, dayLabel, dayRangeLabel, instantDayLabel } from "../day-label";
 
 describe("dayLabel (Issue #992)", () => {
   it("prints day and month without leading zeros", () => {
@@ -47,5 +47,25 @@ describe("dayRangeLabel (Issue #992)", () => {
 
   it("hands an unparsable range back unchanged", () => {
     expect(dayRangeLabel("a", "b")).toBe("a–b");
+  });
+});
+
+describe("instantDayLabel and dateTimeLabel (Issue #1168)", () => {
+  // Local-time constructors on purpose: both helpers read the instant in the zone of the browser.
+  const instant = new Date(2026, 8, 7, 8, 5, 9);
+
+  it("names the browser-zone day of an instant without leading zeros", () => {
+    expect(instantDayLabel(instant)).toBe("7.9.");
+    expect(instantDayLabel(instant, { year: true })).toBe("7.9.2026");
+  });
+
+  it("appends the time of day as HH:MM, with seconds on request", () => {
+    expect(dateTimeLabel(instant)).toBe("7.9.2026, 08:05");
+    expect(dateTimeLabel(instant, { seconds: true })).toBe("7.9.2026, 08:05:09");
+  });
+
+  it("returns an empty string for an invalid date", () => {
+    expect(instantDayLabel(new Date("nope"))).toBe("");
+    expect(dateTimeLabel(new Date("nope"))).toBe("");
   });
 });

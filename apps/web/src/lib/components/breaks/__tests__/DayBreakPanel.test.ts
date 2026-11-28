@@ -129,7 +129,7 @@ describe("DayBreakPanel", () => {
     expect(screen.queryByTestId("day-break-entry")).toBeNull();
     expect(screen.queryByTestId("day-break-gap")).toBeNull();
     const text = container.textContent ?? "";
-    expect(text).toContain("10.03.2026");
+    expect(text).toMatch(/(?<!\d)10\.3\.2026/);
     expect(screen.getByTestId("day-break-hint").textContent).toContain(HINT_TEXT);
     expect(text).toContain(
       "Einträge außerhalb des eigenen Zuständigkeitsbereichs werden nicht angezeigt.",

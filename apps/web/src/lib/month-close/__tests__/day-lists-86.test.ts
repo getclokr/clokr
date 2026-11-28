@@ -73,7 +73,7 @@ describe("day lists of a visible row", () => {
 
   it("break finding and Karenz chips keep their dates", () => {
     expect(breakFindingHintFor(visible)?.label).toBe("Pausenverstoß offen (1)");
-    expect(breakFindingHintFor(visible)?.title).toContain("07.09.");
+    expect(breakFindingHintFor(visible)?.title).toMatch(/(?<!\d)7\.9\./);
     expect(karenzOverrunTitle(visible)).toContain("8.9., 9.9.");
   });
 });

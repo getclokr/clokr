@@ -124,7 +124,7 @@ import { countEmployeesWithoutVacationEntitlement } from "../facade/entitlements
 import { vacationBalanceForRow, type VacationBalance } from "../facade/vacation-balance"; // Issue #451 (D-07) — the ONE Resturlaub function, additive on the VACATION row of GET /entitlements
 import { revalidateLeaveCancellationEntries } from "../../time-tracking"; // Phase 100B Plan 08 — T6
 import { byCodeUnit } from "../../../utils/code-unit-order";
-import { dayRangeLabelDe } from "../../../utils/day-label-de";
+import { dayLabelDe, dayRangeLabelDe } from "../../../utils/day-label-de";
 import { fmtDays, fmtDecimalDe } from "../../../utils/number-de";
 import { REQUESTABLE_CODES as TYPE_CODES, DISPLAY_NAME, withHalfDayMarker } from "../leave-type"; // Phase 97 (T2, D-04) — the one mapping; DISPLAY_NAME added Phase 98b (D-04)
 
@@ -1170,7 +1170,7 @@ export async function leaveRoutes(app: FastifyInstance) {
               hours: reversalMinutes / 60,
               minutes: reversalMinutes,
               source: reversalSource,
-              description: `Stornierung Überstundenausgleich ${existing.startDate.toISOString().split("T")[0]}`,
+              description: `Stornierung Überstundenausgleich ${dayLabelDe(existing.startDate)}`,
             };
           }
         } else {
@@ -3679,7 +3679,7 @@ export async function leaveRoutes(app: FastifyInstance) {
                 carryOverDeadline: carryOverDeadlineFor(originYear + 2, 3, 31),
                 carryOverNote:
                   `§ 9 BUrlG: ${fmtDecimalDe(creditedDays)} Tag(e) wegen Krankheit im Urlaub gutgeschrieben ` +
-                  `(${credited.start.toISOString().split("T")[0]}–${credited.end.toISOString().split("T")[0]}). ` +
+                  `(${dayRangeLabelDe(credited.start, credited.end)}). ` +
                   `Verlängerte Übertragsfrist nach EuGH KHS C-214/10.`,
               },
             });
