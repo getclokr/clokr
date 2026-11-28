@@ -4,7 +4,13 @@ import { Prisma } from "@clokr/db";
 import { requireAuth } from "../../../middleware/auth";
 import { requirePermission } from "../../platform";
 
-/** Statutory special leave defaults per § 616 BGB / common collective agreements. */
+/**
+ * The occasions Clokr suggests to every tenant (`isStatutory: true` marks them).
+ *
+ * Issue #1126: they are suggestions, not an entitlement. § 616 BGB names no occasion and no
+ * number of days and can be excluded by contract, so a suggestion is created without a
+ * description and the tenant may write its own.
+ */
 const STATUTORY_DEFAULTS = [
   { name: "Eigene Hochzeit", defaultDays: 1, requiresProof: true },
   { name: "Geburt eines Kindes", defaultDays: 1, requiresProof: true },
@@ -19,7 +25,7 @@ const STATUTORY_DEFAULTS = [
   { name: "25-jähriges Dienstjubiläum", defaultDays: 1, requiresProof: false },
 ];
 
-/** Ensure statutory default rules exist for a tenant (lazy seeding). */
+/** Lazily creates the suggested occasions for a tenant that has none yet. */
 async function ensureStatutoryRules(prisma: Prisma.TransactionClient, tenantId: string) {
   const existing = await prisma.specialLeaveRule.findMany({
     where: { tenantId, isStatutory: true },
@@ -33,7 +39,6 @@ async function ensureStatutoryRules(prisma: Prisma.TransactionClient, tenantId: 
       create: {
         tenantId,
         name: def.name,
-        reason: `Gesetzlicher Anspruch gemäß § 616 BGB`,
         defaultDays: def.defaultDays,
         isStatutory: true,
         requiresProof: def.requiresProof,
@@ -142,11 +147,11 @@ export async function specialLeaveRoutes(app: FastifyInstance) {
       });
       if (!existing) return reply.code(404).send({ error: "Regel nicht gefunden" });
 
-      // Statutory rules: name cannot be changed
+      // A suggested occasion keeps its name
       if (existing.isStatutory && body.name && body.name !== existing.name) {
         return reply
           .code(400)
-          .send({ error: "Name gesetzlicher Regeln kann nicht geändert werden" });
+          .send({ error: "Der Name eines vorgeschlagenen Anlasses kann nicht geändert werden" });
       }
 
       const updated = await app.prisma.specialLeaveRule.update({
@@ -183,7 +188,7 @@ export async function specialLeaveRoutes(app: FastifyInstance) {
 
       if (existing.isStatutory) {
         return reply.code(400).send({
-          error: "Gesetzliche Regeln können nicht gelöscht werden — nur deaktiviert",
+          error: "Vorgeschlagene Anlässe können nicht gelöscht werden — nur deaktiviert",
         });
       }
 
