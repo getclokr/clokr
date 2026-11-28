@@ -98,6 +98,7 @@ Examples:
 | Abwesenheitsarten (Reihenfolge)         |                                               | Urlaub, Krankmeldung, Überstundenausgleich, Sonderurlaub, Bildungsurlaub, Kinderkrank, Unbezahlter Urlaub, Mutterschutz, Elternzeit — in jeder Liste und jedem Dialog (Issue #991, Owner 25.11.); review rule, no lint term.                                                                                                                                                                                                                          |
 | Offen                                   | Ausstehend                                    | Der Status eines Antrags, der auf eine Entscheidung wartet (Urlaub, Krankmeldung, Zeitnachtrag, Korrektur). „Offen“ heißt auch ein noch nicht abgeschlossener Monat; die Farbe unterscheidet nicht, der Zusammenhang schon (Issue #991, Owner 25.11.); review rule, no lint term.                                                                                                                                                                     |
 | Datum (Ich und Team)                    | 03.11., 01.10.2026                            | Day and month without a leading zero: „3.11.“, „1.10.2026“, with the weekday „Di 3.11.“; a period „1.12.–2.12.2026“, one day as one date; without the year where it is about the coming weeks (Issues #991, #992); `lib/utils/day-label.ts`; the API texts (notifications, errors, PDFs) say it through `apps/api/src/utils/day-label-de.ts` only, guarded by `notification-texts-no-iso-date-1117.test.ts` (Issue #1149); review rule, no lint term. |
+| Resturlaub                              | Resturlaub (ohne beantragte)                  | The days still free after the pending requests (Anspruch + Übertrag − Genommen − Beantragt): the one number of Ich › Abwesenheiten, Mein Tag, Konto and the request dialog; under it „davon N Tage beantragt“ (Issue #1109). Reports keep a column before pending.                                                                                                                                                                                    |
 | Person, Mitarbeitende                   | Kolleg:innen, Kollegen                        | No gender colon forms; „Im gleichen Zeitraum abwesend“ instead of „Kolleg:innen im gleichen Zeitraum“ (Issue #992); review rule, no lint term.                                                                                                                                                                                                                                                                                                        |
 | Personalnummer                          | Mitarbeiter-Nr., Personalnr.                  | In lists short „Nr. 5“ under the name (Issue #992); the same word in forms, hints and the Handbuch (Issue #993); the API texts say it too; lint term `personalnummer` (Issue #1124).                                                                                                                                                                                                                                                                  |
 | Namen                                   | Nachname, Vorname                             | „Vorname Nachname“ in every text and list, sorted by last name; pickers „Anna Muster · Nr. 5“; `lib/utils/person-name.ts` (Issue #994); review rule, no lint term.                                                                                                                                                                                                                                                                                    |
@@ -117,28 +118,29 @@ module is the one source.
 
 ## 5. What the lint checks — and what it cannot
 
-| Lint term id    | Glossary row                           |
-| --------------- | -------------------------------------- |
-| `tenant`        | Unternehmen                            |
-| `mandant`       | Unternehmen (operator console exempt)  |
-| `ma`            | Mitarbeitende                          |
-| `code-value`    | plain words                            |
-| `danger-zone`   | Kritische Aktionen                     |
-| `coverage`      | Besetzung                              |
-| `sigma`         | Summe                                  |
-| `korrelation`   | say what is compared                   |
-| `entitaet`      | name the thing                         |
-| `schedule`      | Arbeitszeitmodell                      |
-| `inbox`         | Aufgaben                               |
-| `phorest`       | Phorest (area-scoped)                  |
-| `flag`          | Hinweis (Schichtplanung only)          |
-| `generator`     | Muster anwenden (Schichtplanung only)  |
-| `audit-spur`    | wird protokolliert (Schichtplanung)    |
-| `sie-form`      | Address form „du“                      |
-| `ihr-form`      | Address form „du“ (euch, eure, euer)   |
-| `url-path`      | Menu path, no app URL (docs only)      |
-| `old-menu-path` | „Bereich › Seite“, not „→“ (docs only) |
-| `menu-path`     | Page names of `routes.ts` (docs only)  |
+| Lint term id                 | Glossary row                           |
+| ---------------------------- | -------------------------------------- |
+| `tenant`                     | Unternehmen                            |
+| `mandant`                    | Unternehmen (operator console exempt)  |
+| `ma`                         | Mitarbeitende                          |
+| `code-value`                 | plain words                            |
+| `danger-zone`                | Kritische Aktionen                     |
+| `coverage`                   | Besetzung                              |
+| `sigma`                      | Summe                                  |
+| `korrelation`                | say what is compared                   |
+| `entitaet`                   | name the thing                         |
+| `schedule`                   | Arbeitszeitmodell                      |
+| `inbox`                      | Aufgaben                               |
+| `phorest`                    | Phorest (area-scoped)                  |
+| `flag`                       | Hinweis (Schichtplanung only)          |
+| `generator`                  | Muster anwenden (Schichtplanung only)  |
+| `audit-spur`                 | wird protokolliert (Schichtplanung)    |
+| `sie-form`                   | Address form „du“                      |
+| `ihr-form`                   | Address form „du“ (euch, eure, euer)   |
+| `resturlaub-ohne-beantragte` | Resturlaub (no „ohne beantragte“)      |
+| `url-path`                   | Menu path, no app URL (docs only)      |
+| `old-menu-path`              | „Bereich › Seite“, not „→“ (docs only) |
+| `menu-path`                  | Page names of `routes.ts` (docs only)  |
 
 `lint:api-terms` adds one term of its own: `permission-key` (no permission key in a text).
 

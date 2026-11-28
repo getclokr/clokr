@@ -276,12 +276,17 @@
       ? confirmedMinutes + (maxNegativeBalanceMinutes ?? 0) < minutesNeeded
       : confirmedHours + toleranceHours - hoursNeeded < 0,
   );
-  // `pendingVacDays` (the second arg) is intentionally 0 here: `VacationSummary.remaining` does
-  // not depend on it (verbatim formula: total + carryOver - used — see vacation-summary.ts), and
-  // this dialog has no page-scoped PENDING-request list to derive it from. Reusing the shared
-  // function rather than re-inlining the formula honors that file's own "do not re-inline" rule.
-  let vacSummary = $derived(deriveVacationSummary(vacationBalance, 0));
-  let vacRemaining = $derived(vacSummary.remaining);
+  // Issue #1109: „Resturlaub“ is the ONE figure of every own-vacation screen — the days still free
+  // after the pending requests, the server's `freeDays` (carried by `mapVacationBalance`), the same
+  // number the page's card, Mein Tag and Ich › Konto show. Editing a PENDING request is the one
+  // exception: its own days are already subtracted from that figure, and the dialog subtracts the
+  // edited request's (new) price again under „Wird genutzt“, so the days of the request being
+  // edited are given back first — the arithmetic below the figure stays right.
+  let vacSummary = $derived(deriveVacationSummary(vacationBalance));
+  let ownPendingDays = $derived(
+    editingRequest?.typeCode === "VACATION" ? Number(editingRequest.days ?? 0) : 0,
+  );
+  let vacRemaining = $derived(vacSummary.free === null ? null : vacSummary.free + ownPendingDays);
   let vacAfter = $derived(vacRemaining !== null ? vacRemaining - effectiveDays : null);
   // Issue #449 (D-4): non-null whenever halfDay is ticked and the dates differ — true both for a
   // user-driven edit mid-flight and for a loaded legacy multi-day half-day request (which this

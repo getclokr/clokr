@@ -54,7 +54,8 @@
   import {
     deriveVacationSummary,
     vacationCardDelta,
-    vacationCardLabel,
+    vacationPendingLine,
+    VAC_CARD_LABEL,
     vacationTakenHint,
   } from "$lib/leave/vacation-summary";
   import { resolveChipVisual, isDrawnInCalendar } from "$lib/leave/team-calendar-visibility"; // Phase 262 / 303, Issue #446 (D-04)
@@ -917,11 +918,6 @@
   }
 
   // ── Urlaubszusammenfassung (über dem Kalender) ────────────────────────────
-  let pendingVacDays = $derived(
-    myRequests
-      .filter((r) => r.typeCode === "VACATION" && r.status === "PENDING")
-      .reduce((sum, r) => sum + Number(r.days), 0),
-  );
   // Issue #595 (D-04): the sick days of the viewed year in CALENDAR days, counted by the server's
   // sick-day kernel (the same one the monthly report and both PDFs use) - the page counts nothing
   // itself. `null` while unknown or when the read failed (the KPI then shows a dash).
@@ -938,28 +934,27 @@
     }
   }
   // Phase 114 — every Urlaubs-Größe on this page comes from ONE pinned pure function
-  // (apps/web/src/lib/leave/vacation-summary.ts). The formulas are a verbatim copy of the
-  // inline $derived expressions that used to live here; a legacy-oracle test asserts they
-  // still produce identical numbers. Do not re-inline them.
-  let vacSummary = $derived(deriveVacationSummary(vacationBalance, pendingVacDays));
+  // (apps/web/src/lib/leave/vacation-summary.ts). Issue #1109: the pending days and the free days
+  // arrive with the balance (the server's Resturlaub facade); the page sums no request list and
+  // subtracts nothing itself. Do not re-inline them.
+  let vacSummary = $derived(deriveVacationSummary(vacationBalance));
   let vacSummaryTotal = $derived(vacSummary.total);
   let vacSummaryCarryOver = $derived(vacSummary.carryOver);
   let vacSummaryUsed = $derived(vacSummary.used);
   let vacSummaryPlanned = $derived(vacSummary.planned);
   let vacSummaryCarryOverRemaining = $derived(vacSummary.carryOverRemaining);
-  let vacSummaryLeft = $derived(vacSummary.left);
 
   let showVacSummary = $state(true);
-  // Phase 114: `vacSummary.remaining` is `number | null` — the null branch is what makes the
+  // Phase 114: `vacSummary.free` is `number | null` — the null branch is what makes the
   // Urlaubskonto-Karte render "–" instead of a fake "0". Do NOT add `?? 0`. Declared here
   // (after `vacSummary`, not where the template renders it) — this is a pre-existing
   // declaration-order finding (unrelated to Issue #447) surfaced by this plan's svelte-check
   // gate: `$derived` is lazily evaluated at runtime regardless of script position, but the
   // static checker still flags a forward reference as "used before declaration".
-  let vacRemaining = $derived(vacSummary.remaining);
+  let vacRemaining = $derived(vacSummary.free);
 
   // Issue #851 (D-851-04): the figures of the Kennzahlenleiste - the same values and wording the former
-  // three cards showed (vacationCardLabel / vacationCardDelta, calendarDaysUnit for sick days, #595).
+  // three cards showed (VAC_CARD_LABEL / vacationCardDelta, calendarDaysUnit for sick days, #595).
   // A carry-over deadline is only news while it lies ahead.
   let carryDeadlineAhead = $derived(
     vacationBalance?.carryOverDeadline && vacationBalance.carryOverDeadline.slice(0, 10) >= today
@@ -972,7 +967,7 @@
   }
 
   // Issue #928 (v2, owner-approved mockup): Resturlaub is the ONE big figure of the page (label and
-  // „von … gesamt“ line stay the tested vacationCardLabel / vacationCardDelta); the other figures are
+  // „von … gesamt“ line stay the tested VAC_CARD_LABEL / vacationCardDelta); the other figures are
   // the quiet facts below it. They read the same summary (deriveVacationSummary) and the sick-day
   // kernel (#595) - nothing is recomputed here. „Verfällt“ shows only while a carry-over is at risk.
   let balanceItems = $derived<KpiItem[]>([
@@ -1011,11 +1006,13 @@
   }
 
   // The bar under the big figure: genommen & genehmigt / beantragt / frei, from the same summary.
+  // Issue #1109: the free segment is drawn from the big figure itself (`vacRemaining`) and its legend
+  // names no number — the one number that answers „was habe ich noch“ is the big one.
   let vacBar = $derived.by(() => {
     if (!vacationBalance) return null;
     const used = Math.max(0, vacSummaryUsed);
     const planned = Math.max(0, vacSummaryPlanned);
-    const free = Math.max(0, vacSummaryLeft);
+    const free = Math.max(0, vacRemaining ?? 0);
     const sum = used + planned + free;
     if (sum <= 0) return null;
     return { used, planned, free, sum };
@@ -1423,7 +1420,8 @@
 
   <!-- ── Kennzahlen — Phase 851 (prototype): Resturlaub, Genommen, Verfällt, Krankheitstage. The
        hours account lives in Ich › Konto now (#594), so this page shows no saldo. `Resturlaub` keeps its
-       one meaning (Phase 114, RU-01/02/04): label from vacationCardLabel(). -->
+       one meaning (Phase 114, RU-01/02/04; Issue #1109: the days still free after the pending
+       requests): label VAC_CARD_LABEL. -->
   <section
     class="lv-balance card"
     data-testid="leave-balance"
@@ -1431,13 +1429,18 @@
   >
     <div class="lv-balance-main">
       <div class="lv-balance-figure">
-        <span class="lv-balance-label">{vacationCardLabel(vacSummaryPlanned)}</span>
+        <span class="lv-balance-label">{VAC_CARD_LABEL}</span>
         <span class="lv-balance-big"
           >{vacRemaining === null ? "–" : formatDays(vacRemaining)}<span class="lv-balance-unit"
             >{(vacRemaining ?? 0) === 1 ? "Tag" : "Tage"}</span
           ></span
         >
         {#if vacationBalance}
+          {#if vacationPendingLine(vacSummaryPlanned)}
+            <span class="lv-balance-sub" data-testid="leave-balance-pending"
+              >{vacationPendingLine(vacSummaryPlanned)}</span
+            >
+          {/if}
           <span class="lv-balance-sub"
             >{vacationCardDelta(vacationBalance.total, vacationBalance.carryOver)}</span
           >
@@ -1457,7 +1460,7 @@
             <li>
               <span class="lv-key lv-key--planned"></span>{formatDays(vacBar.planned)} beantragt
             </li>
-            <li><span class="lv-key lv-key--free"></span>{formatDays(vacBar.free)} frei</li>
+            <li><span class="lv-key lv-key--free"></span>frei</li>
           </ul>
         </div>
       {/if}

@@ -113,7 +113,7 @@
           if (!current()) return;
           const balance = mapVacationBalance(rows.find((r) => r.typeCode === "VACATION"));
           const fact = vacationBeforeAfter({
-            remaining: deriveVacationSummary(balance, 0).remaining,
+            remaining: deriveVacationSummary(balance).remainingBeforePending,
             days,
             status,
             startDate,

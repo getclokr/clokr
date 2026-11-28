@@ -13,4 +13,7 @@ export interface EditableLeaveRequest {
   endDate: string;
   halfDay: boolean;
   note: string | null;
+  /** The request's stored price in days (Issue #1109): a PENDING vacation request is already
+   *  subtracted from the free days, so the edit dialog gives it back before pricing the new dates. */
+  days?: number | string;
 }

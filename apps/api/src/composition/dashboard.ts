@@ -577,6 +577,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         total: number;
         used: number;
         pending?: number;
+        free?: number;
       } | null = null;
 
       if (canReadOwnVacation) {
@@ -595,8 +596,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
               used: balance.usedDays,
               // Issue #845: requested, not yet decided days of the year (same facade, additive)
               pending: balance.pendingDays,
+              // Issue #1109: the figure the Mein-Tag cell calls Resturlaub — remaining minus pending,
+              // decided by the facade, never subtracted by the web.
+              free: balance.freeDays,
             }
-          : { remaining: 0, total: 0, used: 0, pending: 0 };
+          : { remaining: 0, total: 0, used: 0, pending: 0, free: 0 };
       }
 
       return {

@@ -33,6 +33,13 @@
   } from "$lib/leave/vacation-balance";
   import { fmtDateDe } from "$lib/reports/period-format"; // Issue #1156
   import {
+    deriveVacationSummary,
+    vacationPendingLine,
+    VAC_CARD_LABEL,
+  } from "$lib/leave/vacation-summary"; // Issue #1109: the one Resturlaub figure
+  import { formatDays } from "$lib/leave/review-facts";
+  import { countNoun } from "$lib/utils/count-word";
+  import {
     kontoDayRows,
     kontoMonthRows,
     openMonthsAfter,
@@ -103,9 +110,12 @@
       tenantDay(new Date(), $tenantFeatures.timezone),
     ),
   );
-  const vacationRemaining = $derived(
-    vacation ? vacation.total + vacation.carryOver - vacation.used : null,
-  );
+  // Issue #1109: „Resturlaub“ is the ONE figure of every own-vacation screen — the days still free
+  // after the pending requests, read through the same summary as Ich › Abwesenheiten (the server's
+  // `freeDays`); nothing is subtracted here.
+  const vacationSummary = $derived(deriveVacationSummary(vacation));
+  const vacationRemaining = $derived(vacationSummary.free);
+  const vacationPendingLabel = $derived(vacationPendingLine(vacationSummary.planned));
 
   const kpis = $derived<KpiItem[]>([
     {
@@ -126,12 +136,18 @@
         : "noch kein Monat abgeschlossen",
     },
     {
-      label: "Resturlaub",
+      label: VAC_CARD_LABEL,
       value: vacationRemaining === null ? "–" : vacationRemaining,
-      unit: vacationRemaining === 1 ? "Tag" : "Tage",
-      explanation: carryDeadline
-        ? `Übertrag verfällt am ${fmtDateDe(carryDeadline)}`
-        : `Urlaubsjahr ${today.year}`,
+      format: formatDays,
+      unit: countNoun(vacationRemaining ?? 0, "Tag", "Tage"),
+      explanation: [
+        vacationPendingLabel,
+        carryDeadline
+          ? `Übertrag verfällt am ${fmtDateDe(carryDeadline)}`
+          : `Urlaubsjahr ${today.year}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     },
   ]);
 
@@ -432,9 +448,23 @@
                   <dt>Genommen und genehmigt</dt>
                   <dd>− {vacation.used} Tage</dd>
                 </div>
+                <!-- Issue #1109: only while requests wait — the total below is the free days, so the
+                     ledger adds up (Anspruch + Übertrag − Genommen − Beantragt = Verbleibend). -->
+                {#if vacation.pending > 0}
+                  <div class="ledger-row">
+                    <dt>Beantragt</dt>
+                    <dd>
+                      − {formatDays(vacation.pending)}
+                      {countNoun(vacation.pending, "Tag", "Tage")}
+                    </dd>
+                  </div>
+                {/if}
                 <div class="ledger-row ledger-total">
                   <dt>Verbleibend</dt>
-                  <dd>{vacationRemaining} Tage</dd>
+                  <dd>
+                    {formatDays(vacationRemaining ?? 0)}
+                    {countNoun(vacationRemaining ?? 0, "Tag", "Tage")}
+                  </dd>
                 </div>
               </dl>
               {#if carryDeadline && vacation.carryOver > 0}

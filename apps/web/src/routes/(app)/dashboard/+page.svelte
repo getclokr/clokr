@@ -157,6 +157,7 @@
   } from "$lib/time-entries/appointment-hints"; // Issue #604: hints on probably unrecorded time
   import { formatDayCount, leaveDaysLabel } from "$lib/leave/leave-days-label"; // #853-19: formatDayCount = day figures with a decimal comma
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19
+  import { vacationPendingLine } from "$lib/leave/vacation-summary"; // Issue #1109
   import type { TodayEmployee } from "$lib/reports/today-attendance";
   import type { TodayAttendanceData } from "$lib/reports/today-attendance";
   import { inboxRequestHref } from "$lib/leave/inbox-deep-link"; // #992 N-07: one decision path
@@ -234,7 +235,13 @@
       unconfirmedMonths?: number | null;
       rosterIncomplete?: boolean;
     } | null;
-    vacation: { remaining: number; total: number; used: number; pending?: number } | null; // #845: pending = undecided days
+    vacation: {
+      remaining: number;
+      total: number;
+      used: number;
+      pending?: number;
+      free?: number;
+    } | null; // #845: pending = undecided days; #1109: free = remaining minus pending (the Resturlaub figure)
   }
 
   interface TeamDay {
@@ -1732,14 +1739,14 @@
   );
 
   // ── Issue #845: the Kennzahlenleiste (D-01, D-04, D-845-03/07) ───────────────────────────────
-  /** „3 beantragt · 21.12.–23.12.“ — undecided days (server figure) and the next approved leave. */
+  /** „davon 3 Tage beantragt · 21.12.–23.12.“ — undecided days (server figure, already subtracted
+   *  from the Resturlaub above it, Issue #1109) and the next approved leave. */
   function vacationLine(v: { total: number; pending?: number }): string {
-    const pending = v.pending ?? 0;
     const next = myNextLeave
       ? `${format(new Date(myNextLeave.startDate), "d.M.")}–${format(new Date(myNextLeave.endDate), "d.M.")}`
       : null;
     return (
-      [pending > 0 ? `${formatDays(pending)} beantragt` : null, next].filter(Boolean).join(" · ") ||
+      [vacationPendingLine(v.pending ?? 0), next].filter(Boolean).join(" · ") ||
       `von ${formatDays(v.total)}`
     );
   }
@@ -1783,9 +1790,10 @@
     if (stats?.vacation) {
       items.push({
         label: "Resturlaub",
-        value: stats.vacation.remaining,
+        // Issue #1109: the same figure as Ich › Abwesenheiten and Ich › Konto — the server's free days.
+        value: stats.vacation.free ?? 0,
         format: formatDays,
-        unit: formatDays(stats.vacation.remaining) === "1" ? "Tag" : "Tage",
+        unit: formatDays(stats.vacation.free ?? 0) === "1" ? "Tag" : "Tage",
         explanation: vacationLine(stats.vacation),
         testId: "kpi-vacation",
       });

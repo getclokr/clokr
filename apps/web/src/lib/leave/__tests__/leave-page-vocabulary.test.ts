@@ -83,6 +83,11 @@ describe("leave page vocabulary — RETIRED terms must not come back", () => {
     expect(PAGE).not.toContain('<span class="balance-label">Verfügbar</span>');
   });
 
+  it("the retired `Resturlaub (ohne beantragte)` qualifier is gone (Issue #1109) - the one number already subtracts them", () => {
+    expect(PAGE).not.toContain("ohne beantragte");
+    expect(KONTO).not.toContain("ohne beantragte");
+  });
+
   it("no strip tile is called `Geplant` — the days are submitted and awaiting approval, i.e. beantragt", () => {
     expect(LEDGER).not.toMatch(row("Geplant"));
     expect(PAGE).not.toContain('label: "Geplant"');
@@ -108,8 +113,12 @@ describe("leave page vocabulary — the new terms must be PRESENT", () => {
     expect(LEDGER).toMatch(row("Verbleibend"));
   });
 
-  it("takes the card's label from the tested conditional, not from a template literal", () => {
-    expect(PAGE).toContain("vacationCardLabel(vacSummaryPlanned)");
+  it("takes the card's label from the tested constant, not from a template literal", () => {
+    expect(PAGE).toContain("{VAC_CARD_LABEL}");
+  });
+
+  it("takes the line under the big figure from the tested pending-days function (Issue #1109)", () => {
+    expect(PAGE).toContain("vacationPendingLine(vacSummaryPlanned)");
   });
 
   it("takes the card's breakdown line from the tested copy function", () => {
@@ -132,8 +141,11 @@ describe("leave page vocabulary — the new terms must be PRESENT", () => {
 });
 
 describe("leave page vocabulary — structure", () => {
-  it("has exactly four ledger rows on Konto", () => {
-    expect(LEDGER.match(/<div class="ledger-row/g) ?? []).toHaveLength(4);
+  it("has the four ledger rows on Konto, plus the conditional `Beantragt` row (Issue #1109)", () => {
+    // Anspruch, Übertrag, Genommen und genehmigt, Verbleibend — and `Beantragt` while requests wait,
+    // so the ledger adds up to the free days the card shows.
+    expect(LEDGER.match(/<div class="ledger-row/g) ?? []).toHaveLength(5);
+    expect(LEDGER).toMatch(/\{#if vacation\.pending > 0\}[\s\S]*<dt>Beantragt<\/dt>/);
   });
 
   it("does not interpolate a year into any /leave Kennzahl label", () => {

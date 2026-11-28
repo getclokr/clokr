@@ -52,6 +52,18 @@ export interface VacationBalance {
   // Issue #940: carry-over days still counted after the deadline only because no Hinweis was
   // issued (EuGH C-684/16) — decided by the server's Resturlaub facade, 0 when not the case.
   carryOverKeptWithoutNotice: number;
+  /**
+   * Issue #1109: the days of PENDING vacation requests of the year, as the server's Resturlaub
+   * facade counted them. `0` when the row carries no facade block.
+   */
+  pending: number;
+  /**
+   * Issue #1109: the days still free to book — the server's `freeDays` (remaining minus pending),
+   * the ONE figure every own-vacation screen calls „Resturlaub“. Never subtracted in the web.
+   * Without a facade block (a legacy fixture shape; the live API always sends it for the VACATION
+   * row) it is the figure before pending requests, `total + carryOver - used`.
+   */
+  free: number;
 }
 
 /** Shape of one row of `GET /leave/entitlements/:employeeId` for the VACATION type. */
@@ -73,7 +85,12 @@ export interface VacationEntitlementRow {
   // server decided there is nothing to warn about for this row.
   exitOverUseWarning?: { used: number; entitlement: number; message: string } | null;
   // Issue #451 (D-07): the Resturlaub facade's answer, VACATION row only (Issue #940 reads one field).
-  vacationBalance?: { carryOverKeptWithoutNoticeDays?: number } | null;
+  vacationBalance?: {
+    carryOverKeptWithoutNoticeDays?: number;
+    /** Issue #1109: PENDING days of the year, and the days still free (remaining minus pending). */
+    pendingDays?: number;
+    freeDays?: number;
+  } | null;
 }
 
 /**
@@ -89,15 +106,20 @@ export function mapVacationBalance(
   vac: VacationEntitlementRow | undefined,
 ): VacationBalance | null {
   if (!vac) return null;
+  const total = Number(vac.totalDays);
+  const used = Number(vac.usedDays);
+  const carryOver = Number(vac.effectiveCarryOverDays ?? vac.carriedOverDays);
   return {
-    total: Number(vac.totalDays),
-    used: Number(vac.usedDays),
+    total,
+    used,
     provisionalUsed: Number(vac.provisionalUsedDays ?? 0),
-    carryOver: Number(vac.effectiveCarryOverDays ?? vac.carriedOverDays),
+    carryOver,
     carryOverDeadline: vac.carryOverDeadline,
     section9Movements: vac.section9Movements ?? [],
     exitOverUseWarningMessage: vac.exitOverUseWarning?.message ?? null,
     carryOverKeptWithoutNotice: Number(vac.vacationBalance?.carryOverKeptWithoutNoticeDays ?? 0),
+    pending: Number(vac.vacationBalance?.pendingDays ?? 0),
+    free: vac.vacationBalance?.freeDays ?? total + carryOver - used,
   };
 }
 

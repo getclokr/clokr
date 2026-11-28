@@ -167,6 +167,58 @@ describe("LeaveRequestForm", () => {
     expect(screen.queryByTestId("leave-form-no-entitlement")).toBeNull();
   });
 
+  // Issue #1109: „Resturlaub“ is the ONE figure of every own-vacation screen — the days still free
+  // after the pending requests, the server's `freeDays`, never a subtraction of the dialog's own.
+  it("VACATION: Resturlaub is the server's free days (pending subtracted), not total + carryOver - used (Issue #1109)", async () => {
+    apiGet.mockImplementation((path: string) => {
+      if (path.startsWith("/leave/entitlements/")) {
+        return Promise.resolve([
+          entitlementRow({
+            totalDays: 30,
+            usedDays: 4,
+            vacationBalance: { remainingDays: 26, pendingDays: 2.5, freeDays: 23.5 },
+          }),
+        ]);
+      }
+      return defaultGetImpl(path);
+    });
+    renderForm();
+    await waitFor(() => expect(screen.getByText("30 Tage")).toBeTruthy());
+    // 30 - 4 = 26 would be the figure before the pending requests; the card says 23,5.
+    expect(screen.getByText("23,5 Tage")).toBeTruthy();
+    expect(screen.queryByText("26 Tage")).toBeNull();
+  });
+
+  it("edit mode: the request being edited is given back, so its own days are not subtracted twice (Issue #1109)", async () => {
+    apiGet.mockImplementation((path: string) => {
+      if (path.startsWith("/leave/entitlements/")) {
+        return Promise.resolve([
+          entitlementRow({
+            totalDays: 30,
+            usedDays: 4,
+            // 26 remaining, 3 pending of which 2 are the request being edited, 23 free.
+            vacationBalance: { remainingDays: 26, pendingDays: 3, freeDays: 23 },
+          }),
+        ]);
+      }
+      return defaultGetImpl(path);
+    });
+    renderForm({
+      editingRequest: {
+        id: "req-1",
+        typeCode: "VACATION",
+        startDate: "2026-10-05",
+        endDate: "2026-10-06",
+        halfDay: false,
+        note: null,
+        days: 2,
+      },
+    });
+    await waitFor(() => expect(screen.getByText("30 Tage")).toBeTruthy());
+    // 23 free + the 2 days of this very request = 25 before it is priced again.
+    expect(screen.getByText("25 Tage")).toBeTruthy();
+  });
+
   // Issue #853-19: a balance that is the result of a float subtraction must never reach the screen
   // as 19.990000000000002 (30 - 10.01, 19.99 - 1). Every figure of the box is a day count with a
   // decimal comma and at most two decimals.

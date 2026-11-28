@@ -1,4 +1,7 @@
 /**
+ * Issue #1109 — it also carries `vacation.free` (= remaining minus pending), the one figure Mein Tag
+ * calls Resturlaub; the figure is the facade's `freeDays`, never a subtraction in the web.
+ *
  * Issue #845 — GET /dashboard carries the requested, undecided vacation days (`vacation.pending`)
  * for the Resturlaub cell of Ich › Mein Tag („3 beantragt“). The figure is the ONE Resturlaub facade's
  * `pendingDays` (Issue #451, D-07) — never a second sum.
@@ -7,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { getTestApp, seedTestData, cleanupTestData } from "./setup";
 
-describe("GET /dashboard vacation.pending (#845)", () => {
+describe("GET /dashboard vacation.pending (#845) and vacation.free (#1109)", () => {
   let app: FastifyInstance;
   let data: Awaited<ReturnType<typeof seedTestData>>;
 
@@ -31,7 +34,9 @@ describe("GET /dashboard vacation.pending (#845)", () => {
         headers: { authorization: `Bearer ${data.empToken}` },
       });
       expect(res.statusCode, res.body).toBe(200);
-      return (res.json() as { vacation: { pending?: number } | null }).vacation;
+      return (
+        res.json() as { vacation: { pending?: number; remaining: number; free?: number } | null }
+      ).vacation;
     };
     const facade = async () => {
       const now = new Date();
@@ -43,10 +48,22 @@ describe("GET /dashboard vacation.pending (#845)", () => {
       );
       return b?.pendingDays ?? 0;
     };
+    const facadeFree = async () => {
+      const now = new Date();
+      const b = await app.getVacationBalance(
+        data.employee.id,
+        data.tenant.id,
+        now.getUTCFullYear(),
+        now,
+      );
+      return b?.freeDays ?? 0;
+    };
 
     const before = await read();
     expect(before).not.toBeNull();
     expect(before!.pending).toBe(await facade());
+    expect(before!.free).toBe(await facadeFree());
+    expect(before!.free).toBe(before!.remaining - (before!.pending ?? 0));
 
     // A future weekday inside the current year whose request costs at least one day. A fixed
     // offset hit a public holiday (13.11. + 42 = 25.12., priced 0 days), so the request is
@@ -72,5 +89,10 @@ describe("GET /dashboard vacation.pending (#845)", () => {
     const after = await read();
     expect(after!.pending).toBe(await facade());
     expect(after!.pending).toBeGreaterThan(before!.pending ?? 0);
+    // The filed request lowers the free days by exactly its price and leaves `remaining` alone.
+    expect(after!.remaining).toBe(before!.remaining);
+    expect(after!.free).toBe(await facadeFree());
+    expect(after!.free).toBe(after!.remaining - (after!.pending ?? 0));
+    expect(after!.free).toBeLessThan(before!.free ?? 0);
   });
 });

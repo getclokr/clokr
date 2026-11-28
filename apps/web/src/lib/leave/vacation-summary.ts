@@ -20,14 +20,22 @@
 //     this function deep-equals them over a table of cases. If you change a formula here, that
 //     oracle is what will stop you — do not adjust the oracle to match.
 //
-// (c) `remaining` and `availableTotal` are `number | null` ON PURPOSE. `remaining === null` is
-//     what makes the Urlaubskonto card render the en-dash placeholder instead of a fake „0",
-//     and `availableTotal === null` is what makes it omit its breakdown line entirely for an
-//     employee who has no vacation entitlement row at all. Normalising either to 0 would change
-//     what the user sees and would break RU-05.
+// (c) `free`, `remainingBeforePending` and `availableTotal` are `number | null` ON PURPOSE.
+//     `free === null` is what makes the Urlaubskonto card render the en-dash placeholder instead
+//     of a fake „0", and `availableTotal === null` is what makes it omit its breakdown line
+//     entirely for an employee who has no vacation entitlement row at all. Normalising either to
+//     0 would change what the user sees and would break RU-05.
+//
+// (d) Issue #1109 (owner decision 28.11.2026): „Resturlaub“ is ONE number on every own-vacation
+//     screen (Ich › Abwesenheiten, Mein Tag, Ich › Konto, the request dialog) — the days still
+//     free after the pending requests, `free`. It is the server's `freeDays` (the Resturlaub
+//     facade, #451), carried by `mapVacationBalance`; this module and its callers never subtract
+//     the pending days themselves. `remainingBeforePending` is the figure before them and is for
+//     the decision facts of an approver only (the request being decided is itself pending there).
 
 import type { VacationBalance } from "./vacation-balance";
 import { formatDays } from "./review-facts";
+import { countNoun } from "../utils/count-word";
 import { isEffectiveLeaveStatus } from "./effective-leave-statuses";
 
 export interface VacationSummary {
@@ -37,44 +45,53 @@ export interface VacationSummary {
   carryOver: number;
   /** Genommen — includes provisional days at full value (Phase 107 D-13). */
   used: number;
-  /** Beantragt (PENDING), already year-scoped by the caller's fetch. */
+  /** Beantragt (PENDING), the facade's `pendingDays` of the viewed year. */
   planned: number;
   /** Ungenutzter Rest des Vorjahresübertrags. Clamped at 0. */
   carryOverRemaining: number;
-  /** Verbleibend nach Genommen UND Beantragt. NOT clamped — may be negative. */
-  left: number;
-  /** Resturlaub: verfügbar OHNE Abzug der beantragten Tage. `null` when no balance. */
-  remaining: number | null;
+  /**
+   * Resturlaub (Issue #1109): the days still free after Genommen AND Beantragt — the server's
+   * `freeDays`, NOT clamped (may be negative). `null` when no balance.
+   */
+  free: number | null;
+  /**
+   * The balance BEFORE the pending requests (`total + carryOver - used`). Not „Resturlaub“: it
+   * is read only where the pending request is itself the subject (an approver's decision facts).
+   * `null` when no balance.
+   */
+  remainingBeforePending: number | null;
   /** Anspruch + Übertrag. `null` when no balance. */
   availableTotal: number | null;
 }
 
 /**
- * Derives every Urlaubs-Größe the `/leave` page renders from the mapped balance plus the
- * caller's already year-scoped PENDING vacation day count.
- *
- * `pendingVacDays` is passed through untouched — not clamped, not rounded, and NOT year-filtered
- * here: `myRequests` is fetched as `/leave/requests?year=${calYear}`, so the scoping already
- * happened at the fetch. Adding a second filter would double-scope it.
+ * Derives every Urlaubs-Größe the `/leave` page renders from the mapped balance. The pending days
+ * and the free days arrive with the balance (`mapVacationBalance`, from the Resturlaub facade) —
+ * nothing here is read from a second list or subtracted a second time.
  */
-export function deriveVacationSummary(
-  balance: VacationBalance | null,
-  pendingVacDays: number,
-): VacationSummary {
-  // Verbatim from `leave/+page.svelte:992-999` (pre-Phase-114).
+export function deriveVacationSummary(balance: VacationBalance | null): VacationSummary {
   const total = balance?.total ?? 0;
   const carryOver = balance?.carryOver ?? 0;
   const used = balance?.used ?? 0;
-  const planned = pendingVacDays;
+  const planned = balance?.pending ?? 0;
   const carryOverRemaining = Math.max(0, carryOver - used);
-  const left = total + carryOver - used - planned;
-  // Verbatim from `:919-923` — the `null` branch is load-bearing, see (c) above.
-  const remaining = balance ? balance.total + balance.carryOver - balance.used : null;
+  // Issue #1109: the server's answer, passed through. The `null` branch is load-bearing, see (c) above.
+  const free = balance ? balance.free : null;
+  const remainingBeforePending = balance ? balance.total + balance.carryOver - balance.used : null;
   // Verbatim from the card's `delta` prop at `:1146-1147`, which interpolated
   // `${vacationBalance.total + vacationBalance.carryOver}` and rendered nothing without a balance.
   const availableTotal = balance ? balance.total + balance.carryOver : null;
 
-  return { total, carryOver, used, planned, carryOverRemaining, left, remaining, availableTotal };
+  return {
+    total,
+    carryOver,
+    used,
+    planned,
+    carryOverRemaining,
+    free,
+    remainingBeforePending,
+    availableTotal,
+  };
 }
 
 // ── Urlaubskonto-Karte: deutsche Beschriftung ──────────────────────────────────────────────
@@ -82,19 +99,19 @@ export function deriveVacationSummary(
 // unit-tested (`tsc --noEmit` does not typecheck templates) and drifts. Same precedent as
 // Phase 113's `karenz-nudge.ts`. Both functions are pinned by exact-string assertions.
 
-/** Base label for the Urlaubskonto card. `Resturlaub` means EXACTLY ONE thing on /leave:
- *  the available balance (`VacationSummary.remaining`) — never the Vorjahresübertrag. */
+/** Label of the one big figure. `Resturlaub` means EXACTLY ONE thing on every own-vacation screen:
+ *  the days still free after the pending requests (`VacationSummary.free`, Issue #1109) — never the
+ *  Vorjahresübertrag, and never a figure that leaves the pending days out. The label is a constant
+ *  on purpose: the number is the same with and without pending requests, so no qualifier
+ *  („ohne beantragte“, retired in #1109, forbidden by lint:ui-terms) is needed. */
 export const VAC_CARD_LABEL = "Resturlaub";
 
-/** Qualifier appended when there ARE pending requests, so the card's number (which does not
- *  subtract them) cannot be read as contradicting the strip's `Verbleibend` (which does).
- *  CONDITIONAL on purpose — same reasoning as Phase 107 gap G-03 two rows below in the
- *  Urlaubskonto panel: at `planned === 0` both numbers are equal and the qualifier would
- *  advertise a difference that does not exist. Do NOT collapse this to a constant. */
-export const VAC_CARD_LABEL_WITH_PENDING = "Resturlaub (ohne beantragte)";
-
-export function vacationCardLabel(planned: number): string {
-  return planned > 0 ? VAC_CARD_LABEL_WITH_PENDING : VAC_CARD_LABEL;
+/** The line under the big figure, „davon 2 Tage beantragt“ (owner decision 28.11.2026, Issue #1109):
+ *  names the pending days the figure already subtracted. `null` without pending days — nothing to
+ *  say. Mein Tag and Ich › Konto word it the same way. */
+export function vacationPendingLine(planned: number): string | null {
+  if (!(planned > 0)) return null;
+  return `davon ${formatDays(planned)} ${countNoun(planned, "Tag", "Tage")} beantragt`;
 }
 
 /** Replaces the pre-Phase-114 `von ${total + carryOver} verfügbar` line. Two changes, both

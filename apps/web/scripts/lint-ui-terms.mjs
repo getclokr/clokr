@@ -134,6 +134,12 @@ export const FORBIDDEN_TERMS = [
     reason: "address the reader with „du“, never „ihr / euch“ (Issue #946)",
   },
   {
+    id: "resturlaub-ohne-beantragte",
+    re: /ohne\s+beantragte/i,
+    reason:
+      "„Resturlaub“ already is the days free after the pending requests — no „ohne beantragte“ qualifier (glossary row Resturlaub, Issue #1109)",
+  },
+  {
     id: "personalnummer",
     re: /Mitarbeiter-Nr|Personalnr/i,
     reason: "use „Personalnummer“ (glossary row Personalnummer; lists say „Nr. 5“) (Issue #1124)",

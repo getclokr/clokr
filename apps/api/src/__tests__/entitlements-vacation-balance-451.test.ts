@@ -157,6 +157,94 @@ describe("Issue #451 (D-07) — GET /leave/entitlements exposes vacationBalance"
     expect(direct!.remainingDays).toBe(row!.vacationBalance!.remainingDays);
   });
 
+  // Issue #1109 — „Resturlaub“ of every own-vacation screen is the days still free after the
+  // pending requests; the facade decides it once and the entitlement row carries it.
+  it("VACATION row carries freeDays = remainingDays - pendingDays (Issue #1109)", async () => {
+    const employeeId = await mkEmployee("free1109");
+    await app.prisma.leaveEntitlement.create({
+      data: {
+        employeeId,
+        leaveTypeId: data.vacationType.id,
+        year: 2026,
+        totalDays: 30,
+        usedDays: 4,
+        carriedOverDays: 0,
+        isAutoCalculated: true,
+      },
+    });
+    await app.prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        leaveTypeId: data.vacationType.id,
+        status: "APPROVED",
+        startDate: new Date(Date.UTC(2026, 5, 1)),
+        endDate: new Date(Date.UTC(2026, 5, 4)),
+        days: 4,
+      },
+    });
+    await app.prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        leaveTypeId: data.vacationType.id,
+        status: "PENDING",
+        startDate: new Date(Date.UTC(2026, 7, 3)),
+        endDate: new Date(Date.UTC(2026, 7, 4)),
+        days: 2,
+      },
+    });
+    await app.prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        leaveTypeId: data.vacationType.id,
+        status: "PENDING",
+        startDate: new Date(Date.UTC(2026, 8, 7)),
+        endDate: new Date(Date.UTC(2026, 8, 7)),
+        days: 0.5,
+      },
+    });
+    // Rejected and soft-deleted requests are not pending and free nothing up or down.
+    await app.prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        leaveTypeId: data.vacationType.id,
+        status: "REJECTED",
+        startDate: new Date(Date.UTC(2026, 9, 5)),
+        endDate: new Date(Date.UTC(2026, 9, 9)),
+        days: 5,
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/leave/entitlements/${employeeId}?year=2026`,
+      headers: { authorization: `Bearer ${data.adminToken}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const row = (
+      JSON.parse(res.body) as Array<{
+        typeCode: string;
+        vacationBalance: {
+          remainingDays: number;
+          pendingDays: number;
+          freeDays: number;
+        } | null;
+      }>
+    ).find((r) => r.typeCode === "VACATION");
+    expect(row?.vacationBalance).toBeTruthy();
+    expect(row!.vacationBalance!.remainingDays).toBe(26); // 30 - 4, pending NOT deducted
+    expect(row!.vacationBalance!.pendingDays).toBe(2.5);
+    expect(row!.vacationBalance!.freeDays).toBe(23.5); // 26 - 2.5
+
+    const direct = await getVacationBalance(
+      app.prisma,
+      employeeId,
+      data.tenant.id,
+      2026,
+      new Date(),
+    );
+    expect(direct!.freeDays).toBe(row!.vacationBalance!.freeDays);
+  });
+
   it("non-VACATION rows carry no vacationBalance; every pre-existing field keeps its value", async () => {
     const employeeId = await mkEmployee("s2");
     const specialType = await app.prisma.leaveType.create({
