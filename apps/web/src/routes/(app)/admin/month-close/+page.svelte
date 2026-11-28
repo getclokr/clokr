@@ -32,7 +32,15 @@
   import Spinner from "$components/ui/Spinner.svelte";
   import CloseStepper from "$lib/components/admin/monatsabschluss/CloseStepper.svelte";
   import MonthStatusTable from "$lib/components/admin/monatsabschluss/MonthStatusTable.svelte";
-  import { daysWithoutEntryText, gapCountOf, missingDaysText } from "$lib/month-close/day-lists";
+  import {
+    breakBlockOf,
+    breakBlockText,
+    daysWithoutEntryText,
+    gapCountOf,
+    formatMissingDates,
+    missingDaysText,
+  } from "$lib/month-close/day-lists";
+  import { mayOpenTeamPage } from "$lib/nav/team-nav";
   import { READY_KPI, autoCloseHintText, closesBlind } from "$lib/month-close/next-step";
   import type {
     DeferredEmployee,
@@ -190,6 +198,34 @@
     }
     return closesBlind(detailEmployees.filter((e) => e.status === "missing"));
   });
+
+  // Issue #522: a break reason the close is certain to be refused for. The verdict is the server's
+  // (`breakBlocksClose` on the status row); the dialog only names it and links the days.
+  const confirmBreakBlock = $derived.by(() => {
+    if (!confirmEmployeeId) return null;
+    const emp = detailEmployees.find((e) => e.employeeId === confirmEmployeeId);
+    if (!emp) return null;
+    const block = breakBlockOf(emp);
+    return block.blocked ? block : null;
+  });
+  const closablePersons = $derived(
+    detailEmployees.filter((e) => e.status === "ready" || e.status === "missing"),
+  );
+  // The whole-month dialog closes person by person: a blocked person is refused, the rest closes.
+  const confirmBlockedCount = $derived.by(() => {
+    if (confirmEmployeeId) return 0;
+    return closablePersons.filter((e) => breakBlockOf(e).blocked).length;
+  });
+  const confirmBreakBlocksAll = $derived(
+    confirmEmployeeId
+      ? confirmBreakBlock !== null
+      : closablePersons.length > 0 && confirmBlockedCount === closablePersons.length,
+  );
+  // The day links lead to a team page: only for a reader who may open it (UX; the API guards).
+  const mayOpenZeiten = $derived(mayOpenTeamPage("/team/zeiten", $authStore.user));
+  function zeitenDayHref(employeeId: string, day: string): string {
+    return `/team/zeiten?employeeId=${encodeURIComponent(employeeId)}&date=${day}`;
+  }
 
   const visibleMonths = $derived.by(() => {
     if (statusFilter === "open") {
@@ -415,7 +451,8 @@
   }
 
   async function onConfirmProceed() {
-    if (confirmMonth == null) return;
+    // The button is disabled for a certain refusal (Issue #522); this keeps a synthetic click out too.
+    if (confirmMonth == null || confirmBreakBlocksAll) return;
     const month = confirmMonth;
     const empId = confirmEmployeeId;
     confirmError = "";
@@ -705,6 +742,44 @@
   title={confirmTitle}
 >
   <div class="mc-dialog" data-testid="month-close-modal">
+    <!-- A refusal comes first so it is in view without scrolling (Issue #522). -->
+    {#if confirmError}
+      <div role="alert" data-testid="month-close-error"><Note tone="bad">{confirmError}</Note></div>
+    {/if}
+
+    {#if confirmBreakBlock}
+      <div role="alert" data-testid="month-close-break-block">
+        <Note tone="bad">
+          <b>Der Abschluss wird abgelehnt.</b>
+          {breakBlockText(confirmBreakBlock) || "Es sind Pausen offen."} Erfasse zuerst die Pause oder
+          quittiere den Tag.
+          {#if confirmBreakBlock.days.length > 0 && confirmEmployeeId}
+            {@const personId = confirmEmployeeId}
+            <ul class="mc-gap-list" data-testid="month-close-break-days">
+              {#each confirmBreakBlock.days as d (d)}
+                <li>
+                  {#if mayOpenZeiten}
+                    <a href={zeitenDayHref(personId, d)}>{formatMissingDates([d])}</a>
+                  {:else}
+                    {formatMissingDates([d])}
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </Note>
+      </div>
+    {:else if confirmBlockedCount > 0}
+      <div role="alert" data-testid="month-close-break-block">
+        <Note tone="warn">
+          {confirmBlockedCount === 1
+            ? "Bei 1 Person ist eine Pause offen: Der Abschluss dieser Person wird abgelehnt,"
+            : `Bei ${confirmBlockedCount} Personen ist eine Pause offen: Der Abschluss dieser Personen wird abgelehnt,`}
+          alle anderen werden gesperrt.
+        </Note>
+      </div>
+    {/if}
+
     <Note tone="warn">
       Diese Aktion ist nicht rückgängig. Alle Zeiteinträge dieses Monats werden gesperrt.
       Korrekturen sind danach nur noch durch Storno-Buchungen möglich.
@@ -758,10 +833,6 @@
         <span>{closingProgress} von {personsLabel(closingTotal)} verarbeitet</span>
       </div>
     {/if}
-
-    {#if confirmError}
-      <div role="alert"><Note tone="bad">{confirmError}</Note></div>
-    {/if}
   </div>
   {#snippet footer()}
     <button
@@ -777,7 +848,7 @@
       type="button"
       class="btn btn-primary"
       onclick={onConfirmProceed}
-      disabled={confirmBusy || (pendingGapCount > 0 && !gapAcknowledged)}
+      disabled={confirmBusy || confirmBreakBlocksAll || (pendingGapCount > 0 && !gapAcknowledged)}
       data-testid="month-close-confirm"
     >
       {#if confirmBusy}<Spinner size={14} />{/if}

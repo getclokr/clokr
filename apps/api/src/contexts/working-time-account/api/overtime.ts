@@ -968,9 +968,19 @@ export async function overtimeRoutes(app: FastifyInstance) {
         result.map((r) => r.employeeId),
         monthLastDay,
       );
+      // Issue #522: whether this person's close is certain to be refused for a break reason. The
+      // POST gate above refuses under the tenant flag while a day is in either break list; the
+      // lists are already empty for a closed month and (Phase 92) for an un-opted tenant. Decided
+      // here from the full lists BEFORE the redaction, so a reader without day-level reach gets the
+      // same flag and the web never derives the rule itself.
+      const blocksOnBreak = statusTenantConfig?.blockMonthCloseOnUnconfirmedBreak ?? false;
       const statusEmployees = result.map((row) => {
         const counted = {
           ...row,
+          breakBlocksClose:
+            blocksOnBreak &&
+            ((row.unconfirmedBreakDays?.length ?? 0) > 0 ||
+              (row.breakFindingDays?.length ?? 0) > 0),
           missingDateCount: row.missingDates?.length ?? 0,
           unconfirmedBreakDayCount: row.unconfirmedBreakDays?.length ?? 0,
           breakFindingDayCount: row.breakFindingDays?.length ?? 0,
