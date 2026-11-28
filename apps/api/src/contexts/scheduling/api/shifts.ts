@@ -1784,12 +1784,12 @@ export async function shiftRoutes(app: FastifyInstance) {
         if (sched) scheduleByEmp.set(emp.id, sched as unknown as Record<string, unknown>);
       }
 
-      // Clip helper: intersect [startDate, endDate] with [monday, sunday].
-      // Returns null if no overlap (shouldn't happen given the SQL filter, but
-      // defence in depth for edge timezones).
+      // Clip helper: intersect [startDate, endDate] with the visible week; the end is the tenant-local
+      // Sunday (sundayForSoll, CR-01), never the raw UTC Sunday (Issue #1089). Returns null if no
+      // overlap (defence in depth for edge timezones).
       function clipToWeek(startDate: Date, endDate: Date): { start: Date; end: Date } | null {
         const start = startDate < monday ? monday : startDate;
-        const end = endDate > sunday ? sunday : endDate;
+        const end = endDate > sundayForSoll ? sundayForSoll : endDate;
         if (start > end) return null;
         return { start, end };
       }
