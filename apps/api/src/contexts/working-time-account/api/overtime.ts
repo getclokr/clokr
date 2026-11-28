@@ -59,6 +59,7 @@ import {
 import { getCarryOverBase } from "../carry-over-base"; // Phase 99 (OB-02) — shared chain-head seed
 import { recalculateSnapshots } from "../recalculate-snapshots"; // Phase 99 (OB-03) — full-history re-thread
 import { resolveNegativeBalanceTolerance } from "../negative-balance-tolerance"; // Phase 100 (OTC-01) — the one shared precedence chain
+import { breakBlocksCloseFor } from "../month-close-break-block"; // Issue #522
 import {
   getValidWorkedEntriesInRange,
   getWorkedEntriesInRange, // Phase 71b (issue #71) — T2, fed into the holiday resolver
@@ -105,8 +106,7 @@ const openingBalanceSchema = z.object({
   supersededReason: z.string().max(500).optional().nullable(), // required when replacing an existing row
 });
 
-// Phase 76.7 (D-07) — § 18 ArbZG exempt employees never appear in close-month*
-// status responses or snapshot creation. Single source of truth for the filter.
+// Phase 76.7 (D-07) — § 18 ArbZG exempt people never appear in close-month* status/snapshots (one filter).
 const EXCLUDE_EXEMPT_EMPLOYEE_FILTER = { isTimeTrackingExempt: false } as const;
 
 /**
@@ -908,11 +908,10 @@ export async function overtimeRoutes(app: FastifyInstance) {
             }).gaps.map((g) => g.date)
           : [];
 
-        // Phase 92 (BREAK-05): derive unconfirmedBreakDays from the SAME bulk-fetched
-        // `entries` (now carrying breakStatus+isLocked, close-month-data.ts Q2) — no
-        // new DB call in the loop. Gated by enforceBreakConfirmation (master gate).
-        // Additive/parallel to `status` — an employee can be gap-`ready` yet still
-        // have unconfirmed AUTO breaks when the tenant is opted in.
+        // Phase 92 (BREAK-05): derive unconfirmedBreakDays from the SAME bulk-fetched `entries`
+        // (carrying breakStatus+isLocked, close-month-data.ts Q2) — no new DB call in the loop. Gated
+        // by enforceBreakConfirmation (master gate). Additive to `status` — an employee can be
+        // gap-`ready` yet still have unconfirmed AUTO breaks when the tenant is opted in.
         const unconfirmedBreakDays = unconfirmedDaysFromEntries(
           entries,
           tz,
@@ -968,19 +967,10 @@ export async function overtimeRoutes(app: FastifyInstance) {
         result.map((r) => r.employeeId),
         monthLastDay,
       );
-      // Issue #522: whether this person's close is certain to be refused for a break reason. The
-      // POST gate above refuses under the tenant flag while a day is in either break list; the
-      // lists are already empty for a closed month and (Phase 92) for an un-opted tenant. Decided
-      // here from the full lists BEFORE the redaction, so a reader without day-level reach gets the
-      // same flag and the web never derives the rule itself.
-      const blocksOnBreak = statusTenantConfig?.blockMonthCloseOnUnconfirmedBreak ?? false;
       const statusEmployees = result.map((row) => {
         const counted = {
           ...row,
-          breakBlocksClose:
-            blocksOnBreak &&
-            ((row.unconfirmedBreakDays?.length ?? 0) > 0 ||
-              (row.breakFindingDays?.length ?? 0) > 0),
+          breakBlocksClose: breakBlocksCloseFor(row, statusTenantConfig), // Issue #522, before redaction
           missingDateCount: row.missingDates?.length ?? 0,
           unconfirmedBreakDayCount: row.unconfirmedBreakDays?.length ?? 0,
           breakFindingDayCount: row.breakFindingDays?.length ?? 0,
