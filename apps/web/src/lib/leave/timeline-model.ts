@@ -13,6 +13,13 @@
  * 840-02, completed in 840-05.
  */
 import type { HomeSalonMark } from "$lib/salons/home-salon-mark";
+import {
+  COMPANY_SHUTDOWN_CODE,
+  shutdownMark,
+  withShutdownLabel,
+  type ShutdownFields,
+  type ShutdownMark,
+} from "./company-shutdown";
 import { MONTH_NAMES_DE, MONTH_NAMES_SHORT_DE } from "$lib/reports/period-state";
 import {
   ROW_STATE_LABELS,
@@ -111,14 +118,18 @@ export function calendarRangeQuery(period: Period): string {
 
 // ── The calendar answer (shapes of `GET /leave/calendar?from&to`, plan 840-01) ─
 
-/** A row the reader may see in detail (own, or inside the `leave-request:read` reach). */
-export interface CalendarDetailedEntry {
+/**
+ * A row the reader may see in detail (own, or inside the `leave-request:read` reach). A row booked
+ * from a Betriebsurlaub, or a release day of one (`typeCode` COMPANY_SHUTDOWN, Issue #1095), names
+ * the shutdown in `companyShutdown`.
+ */
+export interface CalendarDetailedEntry extends ShutdownFields {
   id: string;
   isOwn: boolean;
   employeeId: string;
   firstName: string;
   lastName: string;
-  typeCode: CalendarTypeCode;
+  typeCode: CalendarTypeCode | typeof COMPANY_SHUTDOWN_CODE;
   typeName: string;
   startDate: string;
   endDate: string;
@@ -204,6 +215,8 @@ export interface TimelineBar {
   label: string;
   editable: boolean;
   requestId?: string;
+  /** Issue #1095: set when the bar comes from a Betriebsurlaub; its text says so in addition to the type. */
+  shutdown?: ShutdownMark | null;
   /** A wish over a leave row of the same person (#835). */
   conflict?: boolean;
   /** The #835 wish hint (conflict, foreign plan, taken over); display only. */
@@ -309,16 +322,20 @@ export function calendarToTimeline(
       });
       continue;
     }
+    // Issue #1095: a row that comes from a Betriebsurlaub is drawn as one - the colour and the legend
+    // entry follow the shutdown field, the label keeps the request type next to it.
+    const shutdown = shutdownMark(entry);
     personOf(entry).bars.push({
       key: entry.id,
       start: entry.startDate,
       end: entry.endDate,
       halfDay: entry.halfDay,
       style: entry.status === "PENDING" ? "beantragt" : "gesetzt",
-      typeCode: entry.typeCode,
-      label: entry.typeName,
+      typeCode: shutdown ? COMPANY_SHUTDOWN_CODE : entry.typeCode,
+      label: withShutdownLabel(entry.typeName, shutdown, entry.typeCode),
       editable: false,
       requestId: entry.id,
+      ...(shutdown ? { shutdown } : {}),
     });
   }
 

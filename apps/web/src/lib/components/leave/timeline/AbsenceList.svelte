@@ -91,6 +91,11 @@
                   <span class="absence-list-dot" style:background={dotColor(bar)}></span>
                   <span class="absence-list-range">{rangeLabel(bar)}</span>
                   <span class="absence-list-type">{bar.label}</span>
+                  {#if bar.shutdown?.name}
+                    <span class="absence-list-shutdown" data-testid="absence-list-shutdown"
+                      >{bar.shutdown.name}</span
+                    >
+                  {/if}
                   {#if bar.style === "beantragt"}
                     <span class="badge badge-yellow">beantragt</span>
                   {/if}
@@ -100,6 +105,11 @@
                   <span class="absence-list-dot" style:background={dotColor(bar)}></span>
                   <span class="absence-list-range">{rangeLabel(bar)}</span>
                   <span class="absence-list-type">{bar.label}</span>
+                  {#if bar.shutdown?.name}
+                    <span class="absence-list-shutdown" data-testid="absence-list-shutdown"
+                      >{bar.shutdown.name}</span
+                    >
+                  {/if}
                   {#if bar.style === "beantragt"}
                     <span class="badge badge-yellow">beantragt</span>
                   {/if}
@@ -187,7 +197,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .absence-list-type {
+  .absence-list-type,
+  .absence-list-shutdown {
     color: var(--text-2);
   }
 </style>

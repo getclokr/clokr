@@ -72,16 +72,18 @@ const EXPECTED_FILL_ALIASES: Record<string, string> = {
   "--leave-type-holiday": "var(--brand)",
   "--leave-type-maternity": "var(--a6-t)",
   "--leave-type-parental": "var(--a1-t)",
+  // Issue #1095: a row from a Betriebsurlaub.
+  "--leave-type-company-shutdown": "var(--a3-t)",
   "--leave-type-absent": "var(--text-2)",
   "--leave-type-absent-muted": "var(--text-3)",
   "--leave-type-default": "var(--line-2)",
 };
 
 describe("leave-chip-contrast — WCAG AA for every --leave-type-* fill/text pair (Phase 257, D-12; #842 D-842-10)", () => {
-  it("Test 0: the alias block is parsed, holds all 26 leave tokens and is declared on every themed element", () => {
+  it("Test 0: the alias block is parsed, holds all 28 leave tokens and is declared on every themed element", () => {
     expect(ALIAS_RULES.length).toBeGreaterThan(0);
-    expect(ALIAS_DECLS.size).toBe(26);
-    expect(FILLS).toHaveLength(13);
+    expect(ALIAS_DECLS.size).toBe(28);
+    expect(FILLS).toHaveLength(14);
     // A var() alias resolves where it is declared: it has to be declared on the root, on a themed
     // element and on a moded element, otherwise a preview element would keep the document's colours.
     expect(ALIAS_SELECTORS).toEqual([":root", "[data-mode]", "[data-theme]"]);
@@ -108,7 +110,7 @@ describe("leave-chip-contrast — WCAG AA for every --leave-type-* fill/text pai
         resolved += 2;
       }
     }
-    expect(resolved).toBe(13 * 2 * 6);
+    expect(resolved).toBe(14 * 2 * 6);
   });
 
   it("Test 2: every fill/text pair reaches WCAG AA (>= 4.5:1), in all six combinations — generated", () => {
@@ -128,7 +130,7 @@ describe("leave-chip-contrast — WCAG AA for every --leave-type-* fill/text pai
         );
       }
     }
-    expect(caseCount).toBe(13 * 6);
+    expect(caseCount).toBe(14 * 6);
   });
 
   it("Test 2b: the checker can fail — a role that is not a text pair measures below the floor", () => {

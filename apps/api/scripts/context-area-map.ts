@@ -338,6 +338,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/company-shutdown/constants.ts": "abwesenheiten", // Issue #1069 - Betriebsurlaub booking codes, texts and audit markers (pure, writes nothing)
   "src/contexts/absence/company-shutdown/affected-days.ts": "abwesenheiten", // Issue #1079 - the one rule of who a Betriebsurlaub affects on which day (pure, writes nothing)
   "src/contexts/absence/company-shutdown/booking.ts": "abwesenheiten", // Issue #1069 - the one place a Betriebsurlaub becomes bookings; writes Absence (COMPANY_SHUTDOWN) and, through the leave cores, LeaveRequest/LeaveEntitlement
+  "src/contexts/absence/company-shutdown/calendar-release-days.ts": "abwesenheiten", // Issue #1095 - the Betriebsurlaub days the absence calendar draws that no leave row covers (display only; reads Absence)
   "src/contexts/absence/leave-request-create.ts": "abwesenheiten", // Issue #835 (D-835-12) — create core extracted from POST /leave/requests (refusals as data, hook inside the locked create transaction); writes LeaveRequest/LeaveEntitlement
   "src/contexts/absence/leave-decision.ts": "abwesenheiten", // Issue #835 (D-835-12) — decision core extracted from PATCH /leave/requests/:id/review (approve/reject a PENDING request); writes LeaveRequest/LeaveEntitlement/Section9Credit
   "src/contexts/absence/overtime-comp-minutes.ts": "abwesenheiten", // Issue #614 — the Überstundenausgleich amount rule moved out of the leave route; read-only over the stored minutes and the schedule

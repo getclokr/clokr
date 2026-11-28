@@ -10,6 +10,7 @@
    */
   import { ABSENT, MIXED, leaveTypeColor } from "$lib/leave/leave-colors";
   import { LEAVE_TYPES } from "$lib/leave/team-calendar-visibility";
+  import { COMPANY_SHUTDOWN_CODE, COMPANY_SHUTDOWN_LABEL } from "$lib/leave/company-shutdown"; // Issue #1095
 
   type BarStyle = "gesetzt" | "beantragt" | "wunsch" | "abwesend";
 
@@ -74,7 +75,10 @@
   const types = $derived(
     typeCodes.map((code) => ({
       code,
-      label: LEAVE_TYPES.find((t) => t.code === code)?.label ?? "Andere Abwesenheit",
+      label:
+        code === COMPANY_SHUTDOWN_CODE
+          ? COMPANY_SHUTDOWN_LABEL
+          : (LEAVE_TYPES.find((t) => t.code === code)?.label ?? "Andere Abwesenheit"),
       fill: leaveTypeColor(code).fill,
     })),
   );

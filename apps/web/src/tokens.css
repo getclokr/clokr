@@ -350,6 +350,8 @@
   --leave-type-holiday: var(--brand);
   --leave-type-maternity: var(--a6-t);
   --leave-type-parental: var(--a1-t);
+  /* Issue #1095: a row from a Betriebsurlaub */
+  --leave-type-company-shutdown: var(--a3-t);
   --leave-type-absent: var(--text-2);
   --leave-type-absent-muted: var(--text-3);
   --leave-type-default: var(--line-2);
@@ -364,6 +366,7 @@
   --leave-type-holiday-text: var(--brand-ink);
   --leave-type-maternity-text: var(--card);
   --leave-type-parental-text: var(--card);
+  --leave-type-company-shutdown-text: var(--card);
   --leave-type-absent-text: var(--card);
   --leave-type-absent-muted-text: var(--card);
   --leave-type-default-text: var(--text);

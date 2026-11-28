@@ -52,6 +52,12 @@
             <span class="day-detail-dot" style:background={row.background}></span>
             <span class="day-detail-name">{row.name}</span>
             <span class="day-detail-type" data-testid="cal-day-detail-type">{row.typeLabel}</span>
+            {#if row.shutdownName}
+              <!-- Issue #1095: the shutdown's own name, which the bar label leaves out. -->
+              <span class="day-detail-shutdown" data-testid="cal-day-detail-shutdown"
+                >{row.shutdownName}</span
+              >
+            {/if}
             {#if row.isPending}
               <span class="badge badge-yellow">offen</span>
             {/if}
@@ -102,7 +108,8 @@
     font-weight: 600;
     font-size: 0.9375rem;
   }
-  .day-detail-type {
+  .day-detail-type,
+  .day-detail-shutdown {
     font-size: 0.875rem;
     color: var(--text-2);
   }

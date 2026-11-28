@@ -19,6 +19,13 @@
  * this module is the display half of it, not its only line of defence.
  */
 
+import {
+  COMPANY_SHUTDOWN_CODE,
+  shutdownMark,
+  withShutdownLabel,
+  withShutdownTitle,
+  type ShutdownFields,
+} from "./company-shutdown";
 import { isEffectiveLeaveStatus } from "./effective-leave-statuses";
 import { ABSENT, ABSENT_MUTED, FALLBACK, leaveTypeColor, type LeaveColor } from "./leave-colors";
 
@@ -142,7 +149,7 @@ export const NEUTRAL_CHIP_LABEL = "abwesend";
 /** The two sickness codes. Gates the Attest section (Phase 201) and the half-day block. */
 export const SICK_CODES: readonly CalendarTypeCode[] = ["SICK", "SICK_CHILD"];
 
-function entryFor(code: CalendarTypeCode): LeaveTypeEntry | undefined {
+function entryFor(code: string): LeaveTypeEntry | undefined {
   return LEAVE_TYPES.find((t) => t.code === code);
 }
 
@@ -187,8 +194,9 @@ export interface ChipVisual {
 }
 
 /** The subset of `CalEntry` this decision needs. */
-export interface ChipEntry {
-  typeCode: CalendarTypeCode | null;
+export interface ChipEntry extends ShutdownFields {
+  /** `COMPANY_SHUTDOWN` (Issue #1095) is the release day of a Betriebsurlaub, not a request type. */
+  typeCode: CalendarTypeCode | typeof COMPANY_SHUTDOWN_CODE | null;
   typeName: string | null;
   status: string;
   isOwn: boolean;
@@ -212,12 +220,19 @@ export function resolveChipVisual(entry: ChipEntry, canSeeOthersType: boolean): 
   }
 
   const label = entry.typeName ?? type?.label ?? entry.typeCode;
-  const color = type ? leaveTypeColor(type.code) : FALLBACK;
+  // Issue #1095: a row that comes from a Betriebsurlaub says so in addition to its type, drawn in
+  // the Betriebsurlaub colour. The decision is the row's shutdown field, never its type name.
+  const mark = shutdownMark(entry);
+  const color = mark
+    ? leaveTypeColor(COMPANY_SHUTDOWN_CODE)
+    : type
+      ? leaveTypeColor(type.code)
+      : FALLBACK;
   return {
     background: background(color),
     textColor: textColor(color),
-    typeLabel: label,
-    chipLabel: label,
+    typeLabel: withShutdownTitle(label, mark, entry.typeCode),
+    chipLabel: withShutdownLabel(label, mark, entry.typeCode),
   };
 }
 
@@ -237,10 +252,20 @@ export interface DayDetailRow {
   typeLabel: string;
   /** Renders the "ausstehend" marker — same condition as `.cal-chip--pending` on the bar. */
   isPending: boolean;
+  /**
+   * Issue #1095: the Betriebsurlaub's own name when the row comes from one and this viewer may learn
+   * the type, else `null`. The text a finger cannot read off a tooltip.
+   */
+  shutdownName: string | null;
   /** Fill of the row's colour swatch — ties the line back to the bar the finger hit. */
   background: string;
   /** Foreground paired with `background`, for anything drawn on the swatch. */
   textColor: string;
+}
+
+/** The shutdown's own name of a row that comes from a Betriebsurlaub, else `null` (Issue #1095). */
+function markName(entry: ShutdownFields): string | null {
+  return shutdownMark(entry)?.name ?? null;
 }
 
 /**
@@ -265,6 +290,8 @@ export function resolveDayDetailRows(
       id: entry.id,
       name: `${entry.firstName} ${entry.lastName}`.trim(),
       typeLabel: visual.chipLabel,
+      // Masked for a viewer who may not learn the type: nothing of the row is named.
+      shutdownName: visual.typeLabel === null ? null : markName(entry),
       isPending: entry.status === "PENDING" || entry.status === "CANCELLATION_REQUESTED",
       background: visual.background,
       textColor: visual.textColor,

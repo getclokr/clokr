@@ -36,6 +36,11 @@
     type TimelinePerson,
   } from "$lib/leave/timeline-model";
   import { LEAVE_TYPES } from "$lib/leave/team-calendar-visibility";
+  import {
+    COMPANY_SHUTDOWN_CODE,
+    COMPANY_SHUTDOWN_LABEL,
+    shutdownTitle,
+  } from "$lib/leave/company-shutdown"; // Issue #1095
   import { MONTH_NAMES_DE } from "$lib/reports/period-state";
   import {
     assignLanes,
@@ -283,6 +288,7 @@
 
   function typeLabelOf(code: string | null): string | null {
     if (code === null) return null;
+    if (code === COMPANY_SHUTDOWN_CODE) return COMPANY_SHUTDOWN_LABEL;
     return LEAVE_TYPES.find((t) => t.code === code)?.label ?? null;
   }
 
@@ -427,7 +433,9 @@
     const range =
       bar.start === bar.end ? fmtDate(bar.start) : `${fmtDate(bar.start)} bis ${fmtDate(bar.end)}`;
     const hint = bar.hint ? `. ${bar.hint}` : "";
-    return `${bar.label}${state}: ${range}${half}${hint}`;
+    // Issue #1095: the shutdown's own name, which the short bar label leaves out.
+    const shutdown = bar.shutdown?.name ? `. ${shutdownTitle(bar.shutdown)}` : "";
+    return `${bar.label}${state}: ${range}${half}${hint}${shutdown}`;
   }
 
   function wishAriaLabel(person: TimelinePerson, bar: TimelineBar): string {
