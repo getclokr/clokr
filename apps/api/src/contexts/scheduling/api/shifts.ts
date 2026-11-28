@@ -42,6 +42,7 @@ import {
   homeSalonsForDays, // Issue #589 (D-589-04) — the Stammsalon per day, for contract presence under a salon filter
 } from "../../platform";
 import {
+  bsDayPriority,
   isMonthClosed, // Phase 100B Plan 07 — W1
   getVocationalSchoolMinutesForDate,
   getTenantTimezone,
@@ -1665,14 +1666,10 @@ export async function shiftRoutes(app: FastifyInstance) {
 
       const empById = new Map(employees.map((e) => [e.id, e]));
 
-      // Phase 63 follow-up (post-v1.7) — Soll-Korrelation must count BS days as
-      // worked minutes (D-01..D-04). The /shifts/week Soll-Korrelation row was
-      // missed in Plan 03 (which patched overtime, auto-close, arbzg, time-entries
-      // but not shifts.ts). Aggregate per employee using the same
-      // `getVocationalSchoolMinutesForDate` helper so block-week cap (D-02) and
-      // tenant-config (vocationalSchoolMinutesPerDay) semantics stay in lockstep
-      // with the saldo math. CLAUDE.md soft-delete rule is enforced inside the
-      // helper (deletedAt: null).
+      // Phase 63 follow-up — the Soll-Korrelation counts BS days as worked minutes (D-01..D-04).
+      // Aggregated per employee with `getVocationalSchoolMinutesForDate`, so the block-week cap
+      // (D-02) and the tenant config stay in lockstep with the saldo math; the helper filters
+      // `deletedAt: null`.
       const tenantConfig = await app.prisma.tenantConfig.findUnique({
         where: { tenantId },
         select: {
@@ -1685,15 +1682,24 @@ export async function shiftRoutes(app: FastifyInstance) {
           defaultWorkDays: true,
         },
       });
+      // Issue #1089 — Berufsschultage by ROW (VOCATIONAL_SCHOOL, any source), not by the cell's
+      // display rank: VACATION, SICK and SPECIAL win the cell, which used to hide the credit.
+      const bsDaysByEmp = new Map<string, Set<string>>();
+      for (const ab of absences) {
+        if (ab.type !== "VOCATIONAL_SCHOOL") continue;
+        for (const iso of weekDays) {
+          if (!coversDay(ab.startDate, ab.endDate, iso)) continue;
+          const days = bsDaysByEmp.get(ab.employeeId) ?? new Set<string>();
+          days.add(iso);
+          bsDaysByEmp.set(ab.employeeId, days);
+        }
+      }
       const vocationalSchoolMinutesByEmp: Record<string, number> = {};
       for (const emp of employees) {
         let total = 0;
         for (const iso of weekDays) {
-          // Only call the helper for cells the availability resolver flagged as
-          // vocational_school — cheap short-circuit avoids N×7 unconditional DB
-          // round-trips on weeks without any BS data.
-          const av = availabilityMap.get(keyOf(emp.id, iso))?.availability;
-          if (av !== "vocational_school") continue;
+          // Issue #1089: the credit is the day's only relief; no Soll loop below relieves it.
+          if (!bsDaysByEmp.get(emp.id)?.has(iso)) continue;
           const empSched = emp.workSchedules?.[0];
           const min = await getVocationalSchoolMinutesForDate(
             app.prisma,
@@ -1739,23 +1745,13 @@ export async function shiftRoutes(app: FastifyInstance) {
       }
 
       // ── Phase 76.11 — Leave + Absence minute aggregation per visible week ──
-      // The Schichtplaner Soll-Korrelation row must subtract genehmigten Urlaub
-      // und Abwesenheit (Krank/Sonderurlaub/…) vom Wochen-Soll. Same pattern as
-      // `updateOvertimeAccount` in time-entries.ts (L1601 / L1618):
-      // `calcExpectedMinutesTz(schedule, intersectStart, intersectEnd, tz)` per
-      // overlapping leave/absence row, clipped to the visible Mon-Sun week.
-      //
-      // Filters mirror CLAUDE.md rules:
-      //  - Leave: APPROVED + CANCELLATION_REQUESTED count (CANCELLATION_REQUESTED
-      //    leave remains active until cancellation is approved — § "Leave
-      //    Cancellation Flow"). PENDING/REJECTED/CANCELLED do NOT reduce Soll.
-      //    Separate query from the availability merge above (which only loads
-      //    APPROVED) to avoid coupling the two semantics.
+      // The Soll-Korrelation row subtracts approved leave and absence (sick, special leave, …)
+      // from the week Soll: `calcLeaveAbsenceMinutesTz` per overlapping row, clipped to the
+      // visible Mon-Sun week.
+      //  - Leave: the effective statuses (APPROVED + CANCELLATION_REQUESTED, which stays active
+      //    until the cancellation is approved); PENDING/REJECTED/CANCELLED never reduce Soll.
       //  - Absence: deletedAt: null (soft-delete query rule).
-      //
-      // Map values are MINUTES (integers, matching `vocationalSchoolMinutesByEmp`
-      // and `shiftBreakMinutesByEmp`). Client divides by 60 for hours.
-      // tenantTz already resolved above (CR-01 fix).
+      // Map values are MINUTES (integers); the client divides by 60. tenantTz is resolved above.
 
       // Phase 100B Plan 13 — A2, contexts/absence facade.
       const leaveForSoll = await getActiveLeaveOverlapping(
@@ -2002,14 +1998,10 @@ export async function shiftRoutes(app: FastifyInstance) {
         });
       }
 
-      // Phase 104 (D-15, Tier 2): tagesbasierte Entdopplung für das Planungs-Soll.
-      // Seit R1 (§ 9 BUrlG) können zwei genehmigte Anträge denselben Tag abdecken. Ohne
-      // Entdopplung zöge das Planungs-Soll den Tag zweimal ab — und widerspräche damit dem
-      // Saldo-Soll, was Phase 76.23 (D-02, "kein driftendes zweites Soll") ausdrücklich
-      // ausschließt. Wir erweitern die bestehende, für die Feiertags-Ausschluss-Logik
-      // eingeführte excludeHolidays-Menge pro Mitarbeiter um die bereits belegten Tage;
-      // ein zweiter Mechanismus wäre genau die
-      // Doppelung, die dieser Plan behebt.
+      // Phase 104 (D-15, Tier 2): per-day de-duplication for the Planungs-Soll. Since R1 (§ 9 BUrlG)
+      // two approved requests can cover the same day; without it the Planungs-Soll would deduct
+      // that day twice and drift from the saldo Soll (Phase 76.23 D-02, "no drifting second
+      // Soll"). The existing per-employee excludeHolidays set also carries the days claimed so far.
       const claimedByEmp = new Map<string, Set<string>>();
       function claimSetFor(employeeId: string): Set<string> {
         let s = claimedByEmp.get(employeeId);
@@ -2019,11 +2011,21 @@ export async function shiftRoutes(app: FastifyInstance) {
         }
         return s;
       }
+      // Claiming a Berufsschultag here is harmless: no VOCATIONAL_SCHOOL row is priced in these
+      // loops (A5 excludes them) and sollExclusion() keeps the day out of every later row anyway.
       function claimWeekDays(employeeId: string, from: Date, to: Date): void {
         const s = claimSetFor(employeeId);
         for (let t = from.getTime(); t <= to.getTime(); t += 86400000) {
           s.add(dateStrInTz(new Date(t), tenantTz));
         }
+      }
+      // Issue #1089 — "Berufsschule hat Vorrang" (#1080): the saldo core's bsDayPriority(), the one
+      // place of the rule. Every leaveForSoll row yields (all leave types, #448) and so does every
+      // absencesForSoll row (A5 excludes VOCATIONAL_SCHOOL), so no yields() call is needed.
+      function sollExclusion(employeeId: string): Set<string> {
+        return bsDayPriority(bsDaysByEmp.get(employeeId) ?? new Set<string>(), tenantTz).exclusion(
+          claimSetFor(employeeId),
+        );
       }
 
       // Sort ganztags vor halbtags, dann startDate — mirrors close-employee-month.ts's
@@ -2057,7 +2059,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           const { start, end } = dayRangeUtc(iso, tenantTz);
           total += calcLeaveAbsenceMinutesTz(daySched, start, end, tenantTz, {
             halfDay,
-            excludeHolidays: claimSetFor(employeeId),
+            excludeHolidays: sollExclusion(employeeId),
           });
           claimWeekDays(employeeId, start, start);
         });
@@ -2084,19 +2086,16 @@ export async function shiftRoutes(app: FastifyInstance) {
           ? perDayLeaveMinutes(lr.employeeId, clip, Boolean(lr.halfDay))
           : calcLeaveAbsenceMinutesTz(sched, clip.start, clip.end, tenantTz, {
               halfDay: Boolean(lr.halfDay),
-              excludeHolidays: claimSetFor(lr.employeeId),
+              excludeHolidays: sollExclusion(lr.employeeId),
             });
         if (!hasMixedContracts(lr.employeeId)) claimWeekDays(lr.employeeId, clip.start, clip.end);
         if (minutes <= 0) continue;
         leaveMinutesByEmp[lr.employeeId] = (leaveMinutesByEmp[lr.employeeId] ?? 0) + minutes;
       }
 
-      // Phase 104 (D-15): absencesForSoll's own Prisma where-clause above already
-      // excludes VOCATIONAL_SCHOOL (type) and PATTERN (source) — Berufsschule rows never
-      // reach this loop at all, so there is no separate isBsAbsence()-style JS carve-out
-      // to add here; the v1.8.27/v1.8.28 subtract-then-recredit symmetry is preserved by
-      // construction, the same way close-employee-month.ts's isBsAbsence() predicate
-      // preserves it there explicitly.
+      // Phase 104 (D-15): absencesForSoll's where-clause already excludes VOCATIONAL_SCHOOL (type)
+      // and PATTERN (source), so Berufsschule rows never reach this loop and no isBsAbsence()-style
+      // carve-out is needed; subtract-then-recredit (v1.8.27/v1.8.28) holds by construction.
       for (const ab of sortForSollDedup(absencesForSoll)) {
         const sched = scheduleByEmp.get(ab.employeeId);
         if (!sched) continue;
@@ -2108,7 +2107,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           ? perDayLeaveMinutes(ab.employeeId, clip, Boolean(ab.halfDay))
           : calcLeaveAbsenceMinutesTz(sched, clip.start, clip.end, tenantTz, {
               halfDay: Boolean(ab.halfDay),
-              excludeHolidays: claimSetFor(ab.employeeId),
+              excludeHolidays: sollExclusion(ab.employeeId),
             });
         if (!hasMixedContracts(ab.employeeId)) claimWeekDays(ab.employeeId, clip.start, clip.end);
         if (minutes <= 0) continue;
@@ -2209,7 +2208,8 @@ export async function shiftRoutes(app: FastifyInstance) {
         absenceMinutesByEmp,
         // Phase 76.23 — server-authoritative contract Soll per SHIFT_BASED employee
         // (minutes). Computed via calcExpectedMinutesTz (Ø-Methode) minus leave/absence
-        // credits (Ausfallprinzip) plus Berufsschule — the 76.22 C_net contract exactly.
+        // credits (Ausfallprinzip) — the 76.22 C_net contract exactly. A Berufsschultag stays in the
+        // base Soll and is relieved once, by its credit on the Ist side (D-01, Issue #1089).
         // The frontend MUST render this value as the Soll (D-02 — no re-derivation from
         // weeklyHours). Never written to OvertimeAccount (D-04, § 615 planning-only).
         // Issue #558 (D-02/D-13): `null` plus a reason CODE under a filter — the planner hides the Soll

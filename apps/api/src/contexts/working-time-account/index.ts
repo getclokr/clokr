@@ -135,6 +135,9 @@ export { closeEmployeeMonth } from "./close-employee-month";
 // Issue #433 (D-11) — pure re-export, no Prisma: the one full-month MONTHLY_HOURS Soll, shared
 // by the month-saldo endpoint, the dashboard tile and the monthly report/PDFs.
 export { monthlyHoursMonthSollMinutes } from "./close-employee-month";
+// Issue #1089 — the ONE Berufsschule priority rule of #1080, a pure function with no Prisma; the
+// roster Planungs-Soll (GET /shifts/week) reads it here instead of restating it.
+export { bsDayPriority } from "./close-employee-month";
 export { fetchCloseMonthData } from "./close-month-data";
 // Phase 101B plan 04 moved these here out of time-tracking/api/time-entries.ts (Arbeitszeitkonto
 // subject matter in a Zeiterfassung route file — owner Nebenbefund, measured cycle-neutral).
