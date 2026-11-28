@@ -42,6 +42,7 @@ function mkCtx(
     breakOver9hOverride?: number | null;
     minorWeek?: MinorShiftWeek;
     birth?: string | null;
+    exitDate?: Date | null;
   } = {},
 ): ShiftWriteContext {
   const contractFrom = o.contractFrom === undefined ? "2024-01-01" : o.contractFrom;
@@ -62,6 +63,7 @@ function mkCtx(
         birthDate: o.birth ? new Date(`${o.birth}T00:00:00Z`) : null,
         breakOver6hOverride: null,
         breakOver9hOverride: o.breakOver9hOverride ?? null,
+        exitDate: o.exitDate ?? null,
       },
     ],
     earliestContractStart: new Map(

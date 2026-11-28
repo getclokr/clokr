@@ -80,6 +80,27 @@ describe("single shift writes — one gate (Issue #1075)", () => {
       expect(await shiftCreateAuditCount(app)).toBe(auditsBefore);
     });
 
+    it("a day after the exit day is refused (422 SHIFT_NO_CONTRACT, not forceable), the exit day itself is plannable", async () => {
+      const emp = await person("PostExit", { exitDate: day(2) });
+      const body = { employeeId: emp, date: day(3), startTime: "08:00", endTime: "16:00" };
+
+      const res = await post(body);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Schicht-Zuweisung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+        message: "Für diese Person gilt an diesem Tag kein Vertrag.",
+      });
+
+      const forced = await post(body, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(422);
+      expect(JSON.parse(forced.body).code).toBe("SHIFT_NO_CONTRACT");
+      expect(await liveShifts(app, emp)).toHaveLength(0);
+
+      const onExitDay = await post({ ...body, date: day(2) });
+      expect(onExitDay.statusCode, onExitDay.body).toBe(201);
+    });
+
     it("a short rest to the NEXT day's shift is a forceable 409; forced, it writes the shift and a nextShiftId audit", async () => {
       const emp = await person("PostRest");
       const next = await stored(emp, day(2), "06:00", "14:00");
