@@ -26,7 +26,7 @@ describe("carryOverDeadlineAhead (Issue #1156)", () => {
 
       expect(carryOverDeadlineAhead("2027-03-31", "2027-03-01")).toBe("2027-03-31");
       expect(carryOverDeadlineAhead("2027-03-31T23:59:59.000Z", "2027-03-01")).toBe("2027-03-31");
-      expect(fmtDateDe(carryOverDeadlineAhead("2027-03-31", "2027-03-01")!)).toBe("31.03.2027");
+      expect(fmtDateDe(carryOverDeadlineAhead("2027-03-31", "2027-03-01")!)).toBe("31.3.2027");
     });
   }
 

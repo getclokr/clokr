@@ -156,7 +156,7 @@ describe("teamTrendView — the running month through yesterday (Issue #1011)", 
 
   it("names the Stichtag, the Soll variant, and splits recorded time from credit", () => {
     expect(teamTrendView(running()).runningNote).toBe(
-      "Laufender Monat bis gestern (14.06.): Soll und Ist zählen bis zu diesem Tag. Im Ist: 10:00 h erfasst, 8:00 h Gutschrift.",
+      "Laufender Monat bis gestern (14.6.): Soll und Ist zählen bis zu diesem Tag. Im Ist: 10:00 h erfasst, 8:00 h Gutschrift.",
     );
   });
 
@@ -169,7 +169,7 @@ describe("teamTrendView — the running month through yesterday (Issue #1011)", 
     });
     expect(view.shouldHours).toBeNull();
     expect(view.runningNote).toBe(
-      "Laufender Monat bis gestern (14.06.): Die Stunden zählen bis zu diesem Tag.",
+      "Laufender Monat bis gestern (14.6.): Die Stunden zählen bis zu diesem Tag.",
     );
   });
 

@@ -282,7 +282,7 @@ describe("LeaveReviewDialog — leave limit exception step (#836)", () => {
     const description = document.querySelector(".confirm-description")?.textContent ?? "";
     expect(description).toContain("Azubis");
     expect(description).toContain("höchstens 2");
-    expect(description).toContain("02.09. (3)");
+    expect(description).toMatch(/(?<!\d)2\.9\. \(3\)/);
     expect(document.querySelectorAll(".scrim").length).toBeLessThanOrEqual(1);
   });
 

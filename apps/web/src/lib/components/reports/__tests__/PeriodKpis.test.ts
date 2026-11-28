@@ -136,7 +136,7 @@ describe("PeriodKpis - the eight tiles", () => {
   it("deltas of a fully confirmed period: bestätigt, Stand + bestätigt, vacation per P-05, Kalendertage", () => {
     const zeiten = mount("zeiten");
     expect(tile("Saldo im Zeitraum").delta).toBe("bestätigt");
-    expect(tile("Gesamtsaldo am Ende").delta).toBe("Stand 30.09.2026 · bestätigt");
+    expect(tile("Gesamtsaldo am Ende").delta).toBe("Stand 30.9.2026 · bestätigt");
     expect(tile("Ist").delta).toBeNull();
     expect(tile("Soll").delta).toBeNull();
     zeiten.unmount();
@@ -233,7 +233,7 @@ describe("PeriodKpis - under a salon filter (#714)", () => {
     expect(tile("Saldo im Zeitraum")).toEqual({ value: "+12:45 h", delta: "bestätigt" });
     expect(tile("Gesamtsaldo am Ende")).toEqual({
       value: "+1.204:30 h",
-      delta: "Stand 30.09.2026 · bestätigt",
+      delta: "Stand 30.9.2026 · bestätigt",
     });
     expect(tile("Soll")).toEqual({ value: "3.800:00 h", delta: null });
   });

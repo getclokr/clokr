@@ -273,7 +273,7 @@ describe("VacationAbsenceTab - the Verfall column", () => {
 
   it("shows days and deadline of an at-risk row and „Noch kein Hinweis“", () => {
     renderWithTheme(VacationAbsenceTab, props({ vacation: vacation([year(2026, [AT_RISK])]) }));
-    expect(verfallCell().textContent).toContain("3 T. bis 31.03.2027");
+    expect(verfallCell().textContent).toContain("3 T. bis 31.3.2027");
     expect(verfallCell().textContent).toContain("Noch kein Hinweis");
   });
 
@@ -284,7 +284,7 @@ describe("VacationAbsenceTab - the Verfall column", () => {
       carryOverDeadline: "2027-03-31",
     });
     renderWithTheme(VacationAbsenceTab, props({ vacation: vacation([year(2026, [noAtRisk])]) }));
-    expect(verfallCell().textContent).toContain("5 T. bis 31.03.2027");
+    expect(verfallCell().textContent).toContain("5 T. bis 31.3.2027");
   });
 
   it("shows the date of the last notice", () => {
@@ -374,7 +374,7 @@ describe("VacationAbsenceTab - the Verfall column", () => {
     });
     renderWithTheme(VacationAbsenceTab, props({ vacation: vacation([year(2026, [kept])]) }));
     expect(verfallCell().textContent).toContain(
-      "Frist 31.03.2026 vorbei, ohne Hinweis kein Verfall",
+      "Frist 31.3.2026 vorbei, ohne Hinweis kein Verfall",
     );
     expect(screen.queryByTestId("vacation-eugh-callout")).not.toBeNull();
   });
@@ -410,7 +410,7 @@ describe("VacationAbsenceTab - narrow containers (cards)", () => {
     expect(
       Array.from(rows[0].querySelectorAll("td")).map((td) => td.getAttribute("data-label")),
     ).toEqual(["Person", ...VACATION_YEAR_COLUMNS, "Verfall"]);
-    expect(rows[0].textContent).toContain("3 T. bis 31.03.2027");
+    expect(rows[0].textContent).toContain("3 T. bis 31.3.2027");
     expect(rows[1].textContent).not.toContain("Hinweis senden");
     const link = within(rows[0]).getByRole("link", { name: "Person A" });
     const button = within(rows[0]).getByRole("button", { name: "Hinweis senden an Person A" });

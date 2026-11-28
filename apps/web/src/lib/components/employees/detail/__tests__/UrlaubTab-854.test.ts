@@ -127,7 +127,7 @@ describe("UrlaubTab", () => {
     });
     const note = screen.getByTestId("urlaub-carry-kept");
     expect(note.textContent).toContain("3 Tage");
-    expect(note.textContent).toContain("31.03.2026");
+    expect(note.textContent).toMatch(/(?<!\d)31\.3\.2026/);
     expect(note.textContent).toContain("EuGH C-684/16");
   });
 

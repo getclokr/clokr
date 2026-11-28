@@ -108,10 +108,10 @@ describe("saldoLine", () => {
         saldo: { balanceMinutes: -12000, asOf: "2026-11-04" },
         saldoUnavailableReason: null,
       }),
-    ).toBe("−200:00 h (Stand gestern, 04.11.2026)");
+    ).toBe("−200:00 h (Stand gestern, 4.11.2026)");
     expect(
       saldoLine({ saldo: { balanceMinutes: 0, asOf: "2026-11-04" }, saldoUnavailableReason: null }),
-    ).toBe("±0:00 h (Stand gestern, 04.11.2026)");
+    ).toBe("±0:00 h (Stand gestern, 4.11.2026)");
   });
   it("shows one calm line and no number per unavailable reason", () => {
     for (const reason of ["NO_PERMISSION", "NOT_TRACKED", "UNAVAILABLE"] as const) {

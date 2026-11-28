@@ -22,7 +22,7 @@ describe("KarenzAttestPanel", () => {
     });
     expect(screen.getByTestId("karenz-attest-panel")).toBeTruthy();
     expect(container.textContent).toContain("2 Tage ohne Attest");
-    expect(screen.getByTestId("karenz-attest-days").textContent).toBe("10.08.2026, 11.08.2026");
+    expect(screen.getByTestId("karenz-attest-days").textContent).toBe("10.8.2026, 11.8.2026");
   });
 
   it("Test 3: the prose says WHERE the Attest goes — it does not restate the problem", () => {
@@ -68,6 +68,6 @@ describe("KarenzAttestPanel", () => {
       label: "1 Tag ohne Attest",
       days: ["2027-01-31"],
     });
-    expect(screen.getByTestId("karenz-attest-days").textContent).toBe("31.01.2027");
+    expect(screen.getByTestId("karenz-attest-days").textContent).toBe("31.1.2027");
   });
 });

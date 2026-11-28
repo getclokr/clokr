@@ -110,7 +110,7 @@ describe("TimesAccountsTable - columns and cells (wide)", () => {
     const link = within(cell).getByRole("link", { name: "Person A" });
     expect(link).toHaveAttribute("href", "/reports?person=A");
     expect(cell).toHaveTextContent("N-A");
-    expect(cell).toHaveTextContent("ausgetreten am 31.08.2026");
+    expect(cell).toHaveTextContent("ausgetreten am 31.8.2026");
     expect(within(b).getAllByRole("cell")[0]).not.toHaveTextContent("ausgetreten");
   });
 

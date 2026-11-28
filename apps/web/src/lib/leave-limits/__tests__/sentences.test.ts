@@ -65,7 +65,7 @@ describe("warningSentences", () => {
       ],
     });
     expect(warningSentences([w])).toEqual([
-      "Inventur vom 01.03.2027 bis 07.03.2027: an 2 Tagen betroffen.",
+      "Inventur vom 1.3.2027 bis 7.3.2027: an 2 Tagen betroffen.",
     ]);
   });
 
@@ -79,7 +79,7 @@ describe("warningSentences", () => {
       days: [{ day: "2027-03-03", count: 1, max: 0 }],
     });
     expect(warningSentences([w])[0]).toBe(
-      "Urlaubssperre vom 01.03.2027 bis 07.03.2027: an 1 Tag betroffen.",
+      "Urlaubssperre vom 1.3.2027 bis 7.3.2027: an 1 Tag betroffen.",
     );
   });
 
@@ -120,8 +120,8 @@ describe("exceedanceDescription", () => {
     const text = exceedanceDescription([warning()]);
     expect(text).toContain("Azubis");
     expect(text).toContain("höchstens 2");
-    expect(text).toContain("03.03. (3)");
-    expect(text).toContain("05.03. (3)");
+    expect(text).toMatch(/(?<!\d)3\.3\. \(3\)/);
+    expect(text).toMatch(/(?<!\d)5\.3\. \(3\)/);
   });
 
   it("describes a blackout by its name and window", () => {
@@ -137,8 +137,8 @@ describe("exceedanceDescription", () => {
       }),
     ]);
     expect(text).toContain("Inventur");
-    expect(text).toContain("01.03.2027");
-    expect(text).toContain("03.03.");
+    expect(text).toMatch(/(?<!\d)1\.3\.2027/);
+    expect(text).toMatch(/(?<!\d)3\.3\./);
   });
 
   it("separates rules by a line break", () => {

@@ -222,8 +222,8 @@ describe("helpers", () => {
   });
 
   it("germanDay words an ISO day and leaves anything else unchanged", () => {
-    expect(germanDay("2026-12-01")).toBe("01.12.2026");
-    expect(germanDay("2026-12-01T00:00:00.000Z")).toBe("01.12.2026");
+    expect(germanDay("2026-12-01")).toBe("1.12.2026");
+    expect(germanDay("2026-12-01T00:00:00.000Z")).toBe("1.12.2026");
     expect(germanDay(null)).toBe("");
   });
 

@@ -179,8 +179,8 @@ describe("karenzOverrunDays", () => {
 
 describe("formatKarenzDay", () => {
   it("Test 16: renders German DD.MM.YYYY", () => {
-    expect(formatKarenzDay("2026-08-05")).toBe("05.08.2026");
-    expect(formatKarenzDay("2027-01-31")).toBe("31.01.2027");
+    expect(formatKarenzDay("2026-08-05")).toBe("5.8.2026");
+    expect(formatKarenzDay("2027-01-31")).toBe("31.1.2027");
   });
 
   it("Test 17: returns the input unchanged when it is not an ISO day", () => {

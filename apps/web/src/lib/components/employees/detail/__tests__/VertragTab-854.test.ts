@@ -137,7 +137,7 @@ describe("VertragTab - the form", () => {
       overtimeMode: "CARRY_FORWARD",
     });
     await waitFor(() =>
-      expect(success).toHaveBeenCalledWith("Vertrag gespeichert · gilt ab 01.12.2026"),
+      expect(success).toHaveBeenCalledWith("Vertrag gespeichert · gilt ab 1.12.2026"),
     );
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Speicherleiste" })).toBeNull(),
@@ -319,7 +319,7 @@ describe("VertragTab - pending shifts (409 shiftPreview)", () => {
   it("lists the shifts and offers Behalten, Stornieren (with the right) and Abbrechen", async () => {
     const dialog = await trigger(true);
     expect(dialog.textContent).toContain("sind 3 geplante Schichten");
-    expect(dialog.textContent).toContain("03.12.2026");
+    expect(dialog.textContent).toMatch(/(?<!\d)3\.12\.2026/);
     expect(dialog.textContent).toContain("… und 1 weitere");
     for (const name of ["Abbrechen", "Behalten", "Stornieren"]) {
       expect(within(dialog).getByRole("button", { name })).toBeTruthy();
@@ -390,15 +390,15 @@ describe("VertragTab - the timeline", () => {
     const timeline = await screen.findByTestId("contract-history");
     const rows = within(timeline).getAllByRole("listitem");
     expect(rows).toHaveLength(3);
-    expect(rows[0].textContent).toContain("ab 01.12.2026");
+    expect(rows[0].textContent).toMatch(/ab 1\.12\.2026/);
     expect(rows[0].textContent).toContain("Monatsstunden · 40 Std./Monat");
     expect(rows[0].textContent).toContain("Geplant");
-    expect(rows[1].textContent).toContain("seit 01.06.2026");
+    expect(rows[1].textContent).toMatch(/seit 1\.6\.2026/);
     expect(rows[1].textContent).toContain("Feste Arbeitszeit · 40 Std./Woche");
     expect(rows[1].textContent).toContain("bis 30.11.2026");
     expect(rows[1].textContent).toContain("Gültig");
-    expect(rows[2].textContent).toContain("ab 01.01.2025");
-    expect(rows[2].textContent).toContain("bis 31.05.2026");
+    expect(rows[2].textContent).toMatch(/ab 1\.1\.2025/);
+    expect(rows[2].textContent).toMatch(/bis 31\.5\.2026/);
     expect(rows[2].textContent).not.toContain("Gültig");
     expect(rows[2].textContent).not.toContain("Geplant");
     expect(screen.getByRole("heading", { name: "Vertragsverlauf" })).toBeTruthy();
@@ -410,7 +410,7 @@ describe("VertragTab - the timeline", () => {
     await fireEvent.input(screen.getByLabelText("Montag"), { target: { value: "6" } });
     const draft = await within(timeline).findByTestId("contract-history-draft");
     expect(within(timeline).getAllByRole("listitem")[0]).toBe(draft);
-    expect(draft.textContent).toContain("ab 01.12.2026");
+    expect(draft.textContent).toMatch(/ab 1\.12\.2026/);
     expect(draft.textContent).toContain("Feste Arbeitszeit · 38 Std./Woche");
     expect(draft.textContent).toContain("Entwurf");
     await fireEvent.click(screen.getByRole("button", { name: "Verwerfen" }));
@@ -455,7 +455,7 @@ describe("VertragTab - Nachtrag of the übliche Arbeitstage (#481)", () => {
     expect(screen.getByText(/nicht automatisch neu berechnet/)).toBeTruthy();
 
     const row = screen.getByRole("group", {
-      name: /Vertrag gültig ab 01\.03\.2025 · 3 Tage\/Woche/,
+      name: /Vertrag gültig ab 1\.3\.2025 · 3 Tage\/Woche/,
     });
     // One day is not enough for a contract of three days: an error blocks the save.
     await fireEvent.click(within(row).getByLabelText("Montag"));

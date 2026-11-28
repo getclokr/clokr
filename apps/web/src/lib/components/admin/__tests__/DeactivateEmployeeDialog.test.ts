@@ -107,7 +107,7 @@ describe("DeactivateEmployeeDialog", () => {
   it("shows the saldo, the Resturlaub and the empty absence list", async () => {
     mount();
     await screen.findByText(/−200:00 h/);
-    expect(screen.getByText(/Stand gestern, 04\.11\.2026/)).toBeTruthy();
+    expect(screen.getByText(/Stand gestern, 4\.11\.2026/)).toBeTruthy();
     // Review WR-02: the figure is labelled as the current saldo, not as the end saldo.
     expect(screen.getByText("Aktueller Saldo")).toBeTruthy();
     expect(
@@ -179,7 +179,7 @@ describe("DeactivateEmployeeDialog", () => {
     expect(screen.getByText("Urlaub")).toBeTruthy();
     expect(screen.getByText("wird storniert")).toBeTruthy();
     expect(screen.getByText("Krankmeldung")).toBeTruthy();
-    expect(screen.getByText("wird auf den letzten Arbeitstag (05.11.2026) gekürzt")).toBeTruthy();
+    expect(screen.getByText("wird auf den letzten Arbeitstag (5.11.2026) gekürzt")).toBeTruthy();
     expect(screen.getByText("Berufsschule")).toBeTruthy();
     // Review WR-05: a SKIP row is listed in its own group, not under what ends.
     expect(screen.getByRole("heading", { name: "Bleiben unverändert" })).toBeTruthy();

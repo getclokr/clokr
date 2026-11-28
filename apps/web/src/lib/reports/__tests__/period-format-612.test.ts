@@ -72,8 +72,8 @@ describe("fmtDaysDe", () => {
 
 describe("dates and month names", () => {
   it("formats an ISO day", () => {
-    expect(fmtDateDe("2026-03-31")).toBe("31.03.2026");
-    expect(fmtDateShortDe("2026-03-31")).toBe("31.03.");
+    expect(fmtDateDe("2026-03-31")).toBe("31.3.2026");
+    expect(fmtDateShortDe("2026-03-31")).toBe("31.3.");
   });
 
   it("returns something that is no ISO day unchanged", () => {

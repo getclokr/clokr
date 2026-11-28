@@ -41,7 +41,7 @@ describe("BulkPreviewDialog", () => {
     mount();
     expect(screen.getByRole("dialog", { name: "Vorschau der Änderungen" })).toBeTruthy();
     expect(screen.getByText("Betrifft 12 Personen")).toBeTruthy();
-    expect(screen.getByText("Gilt ab 01.12.2026")).toBeTruthy();
+    expect(screen.getByText("Gilt ab 1.12.2026")).toBeTruthy();
     expect(screen.getByText("Person B")).toBeTruthy();
   });
 

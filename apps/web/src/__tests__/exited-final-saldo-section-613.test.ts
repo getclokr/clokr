@@ -52,7 +52,7 @@ describe("ExitedFinalSaldoSection (Issue #613)", () => {
     expect(screen.getByText("N-2")).toBeInTheDocument();
     expect(screen.getAllByTestId("exit-date").map((e) => e.textContent)).toEqual([
       "15.10.2026",
-      "30.09.2026",
+      "30.9.2026",
     ]);
     const confirmed = screen.getAllByTestId("saldo-cell-confirmed");
     expect(confirmed).toHaveLength(2);

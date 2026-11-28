@@ -88,9 +88,7 @@ describe("VertragTab - stored contradiction (#939)", () => {
     const bar = await screen.findByRole("region", { name: "Speicherleiste" });
     await fireEvent.click(within(bar).getByRole("button", { name: "Vertrag speichern" }));
     const dialog = await screen.findByRole("dialog", { name: "Vertrag so speichern?" });
-    expect(dialog.textContent).toContain(
-      "Ab 01.12.2026 gelten 32:00 h pro Woche an Mo, Di, Mi, Do",
-    );
+    expect(dialog.textContent).toContain("Ab 1.12.2026 gelten 32:00 h pro Woche an Mo, Di, Mi, Do");
     expect(dialog.textContent).toContain("Gespeichert sind 32:00 h pro Woche an Di, Mi, Do, Fr.");
     expect(apiPut).not.toHaveBeenCalled();
 
