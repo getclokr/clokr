@@ -36,7 +36,11 @@ import {
   daysDiffer, // Issue #435 (D-10) — 2-decimal-precision "did totalDays actually change" test
   healEntitlementUsedDays, // Issue #940 — the same usedDays heal GET /leave/entitlements runs
 } from "../leave-days";
-import { carryOverDeadlineFor } from "../carry-over-deadline"; // Issue #1156
+import {
+  carryOverDeadlineFor,
+  isCarryOverDeadlineInput,
+  parseCarryOverDeadlineInput,
+} from "../carry-over-deadline"; // Issues #1156, #1162
 import { vacationBalanceForRow } from "../facade/vacation-balance"; // Issue #940 — the ONE Resturlaub function (#451)
 import {
   statutoryMinimumVacationThresholdBySegments, // Issue #450 (D-09) — the ONE segment-aware floor, GET and PUT
@@ -51,7 +55,15 @@ const vacationEntitlementSchema = z.object({
   year: z.number().int().min(2000).max(2100),
   totalDays: z.number().min(0).max(365),
   carriedOverDays: z.number().min(0).max(365).optional(),
-  carryOverDeadline: z.string().nullable().optional(), // ISO date string or null
+  // Issue #1162: a Stichtag as `YYYY-MM-DD` or an ISO datetime, or null. Stored as the end of that
+  // UTC day (parseCarryOverDeadlineInput), never as the 00:00 instant `new Date(str)` would give.
+  carryOverDeadline: z
+    .string()
+    .refine(isCarryOverDeadlineInput, {
+      message: "Die Übertragsfrist muss ein gültiges Datum sein (JJJJ-MM-TT).",
+    })
+    .nullable()
+    .optional(),
   // Issue #445 (D-16): omitted keeps the stored value, explicit null removes the protection.
   carryOverReason: z.enum(CARRY_OVER_REASONS).nullable().optional(),
   carryOverNote: z.string().max(500).nullable().optional(),
@@ -423,7 +435,9 @@ export async function leaveSettingsRoutes(app: FastifyInstance) {
       }
 
       const existingProtected = preserveCarryOverDeadline(existing);
-      const requestedDeadline = body.carryOverDeadline ? new Date(body.carryOverDeadline) : null;
+      // Issue #1162: the typed Stichtag means "until the end of that day" (23:59:59Z), exactly like
+      // the automatically built deadlines — see parseCarryOverDeadlineInput.
+      const requestedDeadline = parseCarryOverDeadlineInput(body.carryOverDeadline);
 
       // Issue #445 (D-16, P-20): `carryOverReason`/`carryOverNote` are resolved BEFORE any
       // validation or write — omitted keeps the stored value, an explicit `null` removes the

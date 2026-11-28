@@ -214,6 +214,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   days: "Tage",
   defaultDays: "Tage",
   totalDays: "Urlaubstage",
+  carryOverDeadline: "Übertragsfrist", // Issue #1162
   federalState: "Bundesland",
   datevFreistellungNr: "Bezahlte Freistellung", // Issue #1082
 };
