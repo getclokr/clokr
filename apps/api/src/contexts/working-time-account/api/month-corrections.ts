@@ -45,6 +45,7 @@ import { isNoContractSchedule } from "../month-contract";
 import { isTrackOnlySchedule } from "../track-only-schedule";
 import { updateOvertimeAccount } from "../overtime-balance";
 import { dayDetailVisibility } from "./day-detail-visibility";
+import { dayLabelDe } from "../../../utils/day-label-de";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NOT_FOUND = { error: "Korrekturanfrage nicht gefunden" } as const;
@@ -382,7 +383,7 @@ export async function monthCorrectionRoutes(app: FastifyInstance) {
             userId: r.id,
             type: "MONTH_CORRECTION_REQUESTED",
             title: "Korrektur für einen abgeschlossenen Monat angefragt",
-            message: `${employee.firstName} ${employee.lastName} bittet um eine Korrektur für den ${body.targetDate}.`,
+            message: `${employee.firstName} ${employee.lastName} bittet um eine Korrektur für den ${dayLabelDe(body.targetDate)}.`,
             link: "/inbox",
             tenantId,
             relatedType: "MonthCorrectionRequest",
@@ -718,7 +719,7 @@ export async function monthCorrectionRoutes(app: FastifyInstance) {
         userId: row.employee.userId,
         type: "MONTH_CORRECTION_DECIDED",
         title: `Korrekturanfrage ${word}`,
-        message: `Deine Korrekturanfrage für den ${day(row.targetDate)} wurde ${word}.`,
+        message: `Deine Korrekturanfrage für den ${dayLabelDe(row.targetDate)} wurde ${word}.`,
         link: "/ich/zeiten",
         tenantId: row.employee.tenantId,
         relatedType: "MonthCorrectionRequest",

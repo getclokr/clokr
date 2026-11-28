@@ -1,6 +1,7 @@
 import fp from "fastify-plugin";
 import cron, { type ScheduledTask } from "node-cron";
 import { withAdvisoryLock, ADVISORY_LOCK_KEYS } from "../../../utils/with-advisory-lock";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import { getDeferredMonthCloseState, type DeferredMonthCloseState } from "../deferred-month-close";
 import {
   MONTH_CLOSE_DEFERRAL_RELATED_TYPE,
@@ -81,7 +82,7 @@ export const deferredMonthCloseReminderPlugin = fp(async (app) => {
         const month = monthLabelDe(e.oldestOpenMonth);
         const detail =
           e.gapCount > 0
-            ? `${e.gapCount} fehlende Tage: ${e.gapDates.join(", ")}`
+            ? `${e.gapCount} fehlende Tage: ${e.gapDates.map((d) => dayLabelDe(d)).join(", ")}`
             : "keine Lücken gefunden";
         return `${e.employeeName} — offen seit ${month} (${e.monthsBehind} Monate), ${detail}`;
       })

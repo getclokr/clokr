@@ -112,6 +112,7 @@ import {
   TRAVEL_SHAPE_MESSAGE,
 } from "../travel-entry"; // Issue #92 (Phase 92b, D-05/D-06) — the ONE travel write rule
 import { otherWorkingMinutesOfDay } from "../day-entries"; // Issue #70 (D-04)
+import { dayLabelDe } from "../../../utils/day-label-de"; // Issue #1117
 import {
   CLOCK_ENTRY_OVERLAP_MESSAGE,
   EntryConflictError,
@@ -180,9 +181,8 @@ const clockInSchema = z.object({
   salonId: z.string().uuid().optional(),
 });
 
-// No `breakMinutes` here on purpose (Phase 129, issue #129): the value is derived from the
-// entry's Break rows and nothing else. Zod strips unknown keys, so a caller that still sends
-// it gets no error — and no effect.
+// No `breakMinutes` here on purpose (Phase 129, issue #129): the value is derived from the entry's
+// Break rows only. Zod strips unknown keys, so a caller that still sends it gets no effect.
 const clockOutSchema = z.object({
   note: z.string().optional(),
 });
@@ -2234,7 +2234,7 @@ export async function timeEntryRoutes(app: FastifyInstance) {
               userId: mgr.user.id,
               type: "RETRO_ENTRY_REQUESTED",
               title: "Neuer Zeitnachtrag",
-              message: `${targetEmployee.firstName} ${targetEmployee.lastName} hat einen Zeitnachtrag für den ${entryDateStr} eingereicht und wartet auf Genehmigung.`,
+              message: `${targetEmployee.firstName} ${targetEmployee.lastName} hat einen Zeitnachtrag für den ${dayLabelDe(entryDateStr)} eingereicht und wartet auf Genehmigung.`,
               link: "/inbox",
               tenantId: targetEmployee.tenantId,
               relatedType: "RetroEntryRequest",

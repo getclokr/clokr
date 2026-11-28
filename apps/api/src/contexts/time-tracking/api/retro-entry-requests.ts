@@ -37,6 +37,7 @@ import { otherWorkingMinutesOfDay, findEntriesOfDay } from "../day-entries"; // 
 import { planAutoBreak, autoBreakAppliesOnCreate, type AutoBreakPlan } from "../auto-break-plan"; // Issue #1021 — POST parity for a created entry
 import { recheckOverlapInTx } from "../entry-invariants"; // Issue #70 (D-10)
 import { checkTravelNeighbours, TravelRefusalError } from "../travel-entry"; // Issue #92 (T6)
+import { dayLabelDe } from "../../../utils/day-label-de"; // Issue #1117
 import {
   EntryConflictError,
   isEntryOverlapViolation,
@@ -722,7 +723,7 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
               userId: existing.employee.userId,
               type: "RETRO_ENTRY_DECIDED",
               title: "Zeitnachtrag genehmigt",
-              message: `Dein Zeitnachtrag für den ${targetDateStr} wurde genehmigt.`,
+              message: `Dein Zeitnachtrag für den ${dayLabelDe(targetDateStr)} wurde genehmigt.`,
               link: `/time-entries?highlight=${entryIdToRelease}`,
               tenantId: user.tenantId,
               relatedType: "TimeEntry",
@@ -818,7 +819,7 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
               userId: existing.employee.userId,
               type: "RETRO_ENTRY_DECIDED",
               title: "Zeitnachtrag abgelehnt",
-              message: `Dein Zeitnachtrag für den ${targetDateStr} wurde abgelehnt.`,
+              message: `Dein Zeitnachtrag für den ${dayLabelDe(targetDateStr)} wurde abgelehnt.`,
               link: `/time-entries?highlight=${entryIdToReject}`,
               tenantId: user.tenantId,
               relatedType: "TimeEntry",
@@ -1044,7 +1045,7 @@ export async function retroEntryRequestRoutes(app: FastifyInstance) {
               userId: existing.employee.userId,
               type: "RETRO_ENTRY_DECIDED",
               title: "Zeitnachtrag genehmigt",
-              message: `Dein Zeitnachtrag für den ${targetDateStr} wurde genehmigt.`,
+              message: `Dein Zeitnachtrag für den ${dayLabelDe(targetDateStr)} wurde genehmigt.`,
               link: `/time-entries?highlight=${appliedEntryId}`,
               tenantId: user.tenantId,
               relatedType: "TimeEntry",

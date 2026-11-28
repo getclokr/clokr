@@ -608,7 +608,8 @@ describe("Phase 292 C — wiederholte, mit dem Alter wachsende Eskalation", () =
     expect(n.title).toContain("Mai 2026");
     expect(n.message).toContain("1 Mitarbeiter");
     expect(n.message).toContain("4 Monate Rückstand");
-    expect(n.message).toContain("2026-05-04"); // the concrete gap day
+    expect(n.message).toContain("4.5.2026"); // the concrete gap day, named the German way (#1117)
+    expect(n.message).not.toContain("2026-05-04");
     expect(n.message).toContain("§ 16 Abs. 2 ArbZG");
     // Short path from the message to the gap days: the link names the blocked month itself.
     expect(n.link).toBe("/admin/month-close?year=2026&month=5");

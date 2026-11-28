@@ -53,6 +53,7 @@ import {
 } from "./leave-days";
 import { writeEntitlementAudit } from "./entitlement-audit";
 import { LEAVE_TYPE_DEFS, LEAVE_REQUEST_EMAIL_SUBJECT, type RequestableCode } from "./leave-type";
+import { dayRangeLabelDe } from "../../utils/day-label-de";
 import {
   getOvertimeAccount,
   getTenantTimezone,
@@ -630,7 +631,7 @@ export async function notifyLeaveRequestApprovers(
       userId: mgr.id,
       type: "LEAVE_REQUEST",
       title: typeDef.notificationTitle,
-      message: `${request.employee.firstName} ${request.employee.lastName} ${typeDef.requestPhrase} (${input.startDay} – ${input.endDay})`,
+      message: `${request.employee.firstName} ${request.employee.lastName} ${typeDef.requestPhrase} (${dayRangeLabelDe(input.startDay, input.endDay)})`,
       // Manager-facing: link to the approval surface, the inbox (Issue #840, D-840-28), which
       // honors ?request=. NOT /leave (the personal area, which holds the recipient's OWN requests).
       link: `/inbox?request=${request.id}`,
