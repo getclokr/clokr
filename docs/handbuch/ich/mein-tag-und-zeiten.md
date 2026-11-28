@@ -110,7 +110,7 @@ Bis zur Entscheidung gilt der bisherige Stand. Deine Führungskraft entscheidet 
 Beim Erfassen prüft Clokr deine Zeiten und markiert den Tag, wenn etwas auffällt:
 
 - Mehr als 6 Stunden Arbeitszeit brauchen mindestens 30 Minuten Pause, mehr als 9 Stunden mindestens 45 Minuten (§ 4 ArbZG). Eine Pause zählt erst ab 15 Minuten, und nach spätestens 6 Stunden am Stück muss eine Pause liegen.
-- Als Höchstarbeitszeit gelten 10 Stunden am Tag (§ 3 ArbZG).
+- Als Höchstarbeitszeit gelten 10 Stunden am Tag (§ 3 ArbZG). Unter 18 Jahren gelten stattdessen 8 Stunden am Tag, bis zu 8,5 Stunden, wenn du an einem anderen Werktag derselben Woche weniger als 8 Stunden arbeitest, und 40 Stunden in der Woche (§ 8 JArbSchG).
 - Zwischen zwei Arbeitstagen müssen mindestens 11 Stunden Ruhezeit liegen (§ 5 ArbZG).
 - Unter 18 Jahren gelten die strengeren Pausenregeln des Jugendarbeitsschutzgesetzes (§ 11 JArbSchG).
 

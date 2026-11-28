@@ -26,6 +26,7 @@
     dayCheckBadge,
     hasPlacementFinding,
     hoursDe,
+    isDailyLimitWarning,
     type DayCheck,
     type DayCheckTravelOffer,
   } from "$lib/breaks/day-break-violation";
@@ -63,8 +64,9 @@
   const dayBreaks = $derived(check.dayBreaks ?? []);
   const warnings = $derived((check.warnings ?? []).filter((w) => !w.hint));
   const hints = $derived((check.warnings ?? []).filter((w) => w.hint));
-  // The server already sent its § 3 sentence; the fixed one below is only the fallback.
-  const hasDailyLimitWarning = $derived(warnings.some((w) => w.code === "MAX_DAILY_EXCEEDED"));
+  // The server already sent its day-sum sentence (§ 3 ArbZG, or § 8 JArbSchG for a minor day, #524);
+  // the fixed one below is only the fallback.
+  const hasDailyLimitWarning = $derived(warnings.some(isDailyLimitWarning));
   // Issue #1029: when the panel renders at all is ONE rule (lib/breaks/day-check-line.ts), shared
   // with the slim line above the calendar so the two never disagree. A cross-salon day is shown for a
   // finding (open or acknowledged), a cross-salon § 3 breach or as soon as a day break is recorded on

@@ -102,6 +102,8 @@ export {
   weekRangeUtc,
   weekDateRange, // Issue #493 (D-10)
 } from "./timezone";
+// Issue #524 (D-07) — the holiday pricing of #1077, shared by the roster and the recording week.
+export { holidayContractSollMinutes } from "./holiday-contract-soll";
 export { recalculateSnapshots } from "./recalculate-snapshots";
 export {
   bsUnterrichtsMinutesByDateForIsoWeek,

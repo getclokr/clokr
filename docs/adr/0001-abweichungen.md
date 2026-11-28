@@ -5802,6 +5802,25 @@ zwei Salons als eigener Zeiteintrag der Art `TRAVEL` erfasst, und:
 - Der Satz „Kein Fahrzeitmodell (#92)“ ist **überholt**; das Folge-Issue für ein Angebot „Lücke als Fahrzeit erfassen“ ist
   #660.
 
+### Nachtrag 2026-11-28 (Issue #524): § 8 JArbSchG ersetzt die Tagessumme nach § 3 ArbZG für Jugendliche
+
+Die Aussage „§ 8 JArbSchG wird nicht geprüft (#524)“ im Nachtrag Phase 511 beschreibt den Stand vor #524 und gilt nicht mehr.
+Für einen Tag, an dem die Person unter 18 ist (`isMinorAtDate`, gleiche Entscheidung wie die Pausenregel), liefert
+`dayLimitWarnings()` die Tagessumme nach § 8 JArbSchG statt nach § 3 ArbZG:
+
+- **Zwei neue Codes** `JARBSCHG_DAILY_MAX_EXCEEDED` (8:00, bis 8:30 nach Abs. 2a) und `JARBSCHG_WEEKLY_MAX_EXCEEDED` (40:00 je
+  ISO-Woche mit Berufsschulzeit und Feiertagsausfall nach § 4 Abs. 4 Satz 2). Für einen Jugendlichen-Tag entfallen
+  `MAX_DAILY_EXCEEDED`, `MAX_WEEKLY_EXCEEDED` und `MAX_DAILY_AVG_EXCEEDED`. Beide Codes ruhen auf der ISO-Woche
+  (`warningWindow`), weil die Tagesgrenze von den anderen Werktagen der Woche abhängt.
+- **Eine Rechenregel.** Die Arithmetik steht einmal in `contexts/time-tracking/minor-working-time.ts` (reines Blatt ohne
+  Importe) und wird vom Dienstplan (#1057) und von der Erfassung aufgerufen; der Feiertagspreis des Dienstplans (#1077) ist
+  jetzt `holidayContractSollMinutes` im Arbeitszeitkonto.
+- **Tagesansichten** (`/day-breaks/preview`, `/day-breaks/checks`) kennen keine Woche und beurteilen die Obergrenze von
+  8:30; `maxDailyExceeded` ist für beide Tagessummen-Codes wahr.
+- **Kein Nachtrag an der eingefrorenen Fixture nötig:** die Tage von `day-break-equivalence-80` sind Erwachsenen-Tage, der
+  Erwachsenenzweig von `dayLimitWarnings()` ist unverändert.
+- Eine Warnung, keine Sperre (wie § 3); die harte Berufsschultag-Sperre nach § 9 (Phase 63) bleibt.
+
 ## Y — Betreiberkonto oberhalb des Mandanten und Mandantenverwaltung (Phase 88, Issue #88)
 
 **Schwere: informativ. Nachtrag nach Auslieferung (D-06) — Unterbau-Erweiterung nach ADR 0002, Entscheidung 7.**

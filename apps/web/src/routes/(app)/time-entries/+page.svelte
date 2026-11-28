@@ -35,6 +35,7 @@
     breakFindingSaveNotice,
     dayChecksToArbzgMap,
     isChecksRangeAllowed,
+    isDailyLimitWarning,
   } from "$lib/breaks/day-break-violation";
   // Issue #511 D-18 — the edit form's findings come from the server preview, never from a
   // browser-side rule.
@@ -3402,10 +3403,8 @@
       {#if formNetMin !== null}
         <div class="net-display" data-testid="time-entry-modal-net">
           <span class="net-label">Arbeitszeit</span>
-          <span
-            class="net-value {modalWarnings.some((w) => w.code === 'MAX_DAILY_EXCEEDED')
-              ? 'net-over'
-              : ''}">{fmtMin(formNetMin)}<span class="net-unit">h</span></span
+          <span class="net-value {modalWarnings.some(isDailyLimitWarning) ? 'net-over' : ''}"
+            >{fmtMin(formNetMin)}<span class="net-unit">h</span></span
           >
         </div>
       {/if}

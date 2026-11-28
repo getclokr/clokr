@@ -56,8 +56,11 @@
  *    or a Freizeit gap shrinks), so an already illegal plan (legacy, Phorest import) never freezes
  *    the roster.
  *
- * The day/week arithmetic lives in `evaluateMinorWeekFigures` over per-day minute figures, not over
- * Shift rows, so the recording side (#524) can reuse it without a rewrite.
+ * The § 8 day/week arithmetic (8:00 / 8:30 / 40:00, Abs. 2a, the week sum, the holiday fallout) is
+ * NOT declared here: it lives once in Zeiterfassung's `minor-working-time.ts` (Issue #524, D-05),
+ * which the recording check (`checkArbZG`) calls as well, so roster and recording cannot drift. The
+ * holiday pricing is the Arbeitszeitkonto's `holidayContractSollMinutes` (D-07). The rest of the
+ * arithmetic here runs over per-day minute figures, not over Shift rows.
  *
  * A plan nobody can refuse (Phorest import, Issue #1074) is reported with
  * `findStoredMinorWeekViolations`, which lists every violation of the stored week with the same
@@ -73,21 +76,23 @@ import {
   type EmployeeScope,
 } from "../platform";
 import {
-  calcExpectedMinutesTz,
-  dateStrInTz,
   dayRangeUtc,
   getTenantTimezone,
   getVocationalSchoolMinutesForDate,
+  holidayContractSollMinutes,
 } from "../working-time-account";
-import { getWorkedEntriesInRange, type BreakTenantConfigShape } from "../time-tracking";
+import {
+  MINOR_DAILY_LIMIT_MINUTES,
+  MINOR_WEEKLY_LIMIT_MINUTES,
+  getWorkedEntriesInRange,
+  holidayFalloutMinutes,
+  minorDailyLimitExceeded,
+  minorWeekHolidayMinutes,
+  minorWeekMinutes,
+  type BreakTenantConfigShape,
+} from "../time-tracking";
 import { shiftNettoMinutes, type ShiftBreakEmployee } from "./shift-netto";
 
-/** § 8 Abs. 1 JArbSchG: 8 h a day. */
-export const MINOR_DAILY_LIMIT_MINUTES = 480;
-/** § 8 Abs. 2a JArbSchG: 8.5 h a day when another Werktag of the week is shortened. */
-export const MINOR_DAILY_EXTENDED_LIMIT_MINUTES = 510;
-/** § 8 Abs. 1 JArbSchG: 40 h a week. */
-export const MINOR_WEEKLY_LIMIT_MINUTES = 2400;
 /** § 12 JArbSchG: Schichtzeit of at most 10 h. */
 export const MINOR_SHIFT_TIME_LIMIT_MINUTES = 600;
 /** § 14 Abs. 1 JArbSchG: work only from 06:00 ... */
@@ -256,29 +261,8 @@ export function minorWeekHorizon(week: Pick<MinorShiftWeek, "weekDays">): string
 
 // ── pure arithmetic over per-day figures ─────────────────────────────────────────────────────────
 
-// § 8 Abs. 2a: is another Werktag (Mon-Sat) of the list shorter than 8:00?
-function hasShortenedOtherWerktag(figures: MinorDayFigures[], index: number): boolean {
-  return figures.some((f, i) => i !== index && i <= 5 && f.workMinutes < MINOR_DAILY_LIMIT_MINUTES);
-}
-
-function dailyBad(figures: MinorDayFigures[], index: number): boolean {
-  const f = figures[index];
-  if (!f.isMinor) return false;
-  if (f.workMinutes > MINOR_DAILY_EXTENDED_LIMIT_MINUTES) return true;
-  return f.workMinutes > MINOR_DAILY_LIMIT_MINUTES && !hasShortenedOtherWerktag(figures, index);
-}
-
 function spanBad(figures: MinorDayFigures[], index: number): boolean {
   return figures[index].isMinor && figures[index].spanMinutes > MINOR_SHIFT_TIME_LIMIT_MINUTES;
-}
-
-// The holiday time inside `weekSum` (Issue #1077), named in the weekly message.
-function weekHolidayMinutes(figures: MinorDayFigures[]): number {
-  return figures.reduce((sum, f) => sum + (f.isMinor ? f.holidayMinutes : 0), 0);
-}
-
-function weekSum(figures: MinorDayFigures[]): number {
-  return figures.reduce((sum, f) => sum + (f.isMinor ? f.workMinutes + f.holidayMinutes : 0), 0);
 }
 
 // § 14 Abs. 1: any shift minute outside 06:00-20:00.
@@ -470,8 +454,8 @@ export function evaluateMinorWeekFigures(input: {
   for (const i of order) {
     const dateIso = weekDays[i];
     if (
-      dailyBad(after, i) &&
-      (!dailyBad(before, i) || after[i].workMinutes > before[i].workMinutes)
+      minorDailyLimitExceeded(after, i) &&
+      (!minorDailyLimitExceeded(before, i) || after[i].workMinutes > before[i].workMinutes)
     ) {
       return {
         code: "JARBSCHG_VIOLATION_DAILY_MAX",
@@ -527,13 +511,13 @@ export function evaluateMinorWeekFigures(input: {
   const freeTimeNextMonday = freeTimeFinding(8, addDaysIso(weekDays[6], 1));
   if (freeTimeNextMonday) return freeTimeNextMonday;
 
-  const afterSum = weekSum(after);
-  if (afterSum > MINOR_WEEKLY_LIMIT_MINUTES && afterSum > weekSum(before)) {
+  const afterSum = minorWeekMinutes(after);
+  if (afterSum > MINOR_WEEKLY_LIMIT_MINUTES && afterSum > minorWeekMinutes(before)) {
     const weeklyDateIso = triggerIndex >= 0 ? weekDays[triggerIndex] : weekDays[0];
     return {
       code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
       dateIso: weeklyDateIso,
-      message: weeklyMessage(weekDays, afterSum, weeklyDateIso, weekHolidayMinutes(after)),
+      message: weeklyMessage(weekDays, afterSum, weeklyDateIso, minorWeekHolidayMinutes(after)),
     };
   }
 
@@ -570,7 +554,7 @@ export function listMinorWeekViolations(input: {
   const out: MinorShiftLimitViolation[] = [];
   for (let i = 0; i < weekDays.length; i++) {
     const dateIso = weekDays[i];
-    if (dailyBad(figures, i)) {
+    if (minorDailyLimitExceeded(figures, i)) {
       out.push({
         code: "JARBSCHG_VIOLATION_DAILY_MAX",
         dateIso,
@@ -620,12 +604,12 @@ export function listMinorWeekViolations(input: {
       });
     }
   }
-  const sum = weekSum(figures);
+  const sum = minorWeekMinutes(figures);
   if (sum > MINOR_WEEKLY_LIMIT_MINUTES) {
     out.push({
       code: "JARBSCHG_VIOLATION_WEEKLY_MAX",
       dateIso: weekDays[0],
-      message: weeklyMessage(weekDays, sum, null, weekHolidayMinutes(figures)),
+      message: weeklyMessage(weekDays, sum, null, minorWeekHolidayMinutes(figures)),
     });
   }
   if (fiveDayBad(figures, weekDays)) {
@@ -738,9 +722,11 @@ function dayFigures(
   // § 4 Abs. 4 Satz 2: only what is not worked falls out, so the day counts the larger of its
   // contract Soll and its planned Arbeitszeit, never both (Issue #1077).
   // § 4 Abs. 4 Satz 2 speaks of a Werktag, so a Sunday holiday adds nothing (GA-3).
-  const holidayMinutes = isSundayIso(iso)
-    ? 0
-    : Math.max(0, (week.holidaySollMinutesByDate?.[iso] ?? 0) - work);
+  const holidayMinutes = holidayFalloutMinutes({
+    isSunday: isSundayIso(iso),
+    sollMinutes: week.holidaySollMinutesByDate?.[iso] ?? 0,
+    workMinutes: work,
+  });
   return {
     isMinor: isMinorAtDate(week.birthDate, utcMidnightOf(iso)),
     workMinutes: work,
@@ -913,9 +899,6 @@ export async function loadMinorShiftWeeks(
 
   for (const emp of minors) {
     const holidays = holidaysByEmployee.get(emp.id);
-    // The employment window in tenant-local days (like the Arbeitszeitkonto's exit clip, Issue #447).
-    const hireDay = dateStrInTz(emp.hireDate, tz);
-    const exitDay = emp.exitDate ? dateStrInTz(emp.exitDate, tz) : null;
     const shifts = await prisma.shift.findMany({
       where: {
         employeeId: emp.id,
@@ -947,25 +930,17 @@ export async function loadMinorShiftWeeks(
       const dayEnd = dayRangeUtc(iso, tz).end;
       const schedule = schedules.find((s) => s.validFrom <= dayEnd) ?? null;
       // D-01: the time that falls out on a holiday is the day's Soll per contract, priced by the
-      // Arbeitszeitkonto's own day Soll over this ONE day under the contract valid on it (D-03):
-      // FIXED_SCHEDULE = the weekday's hours (like the month close's holiday reduction),
-      // MONTHLY_HOURS = its Ø-day, SHIFT_BASED / FLEXTIME = weeklyHours over the contract days on a
-      // contract weekday (like the roster's Planungs-Soll); a non-contract day prices 0.
-      if (
-        holidays?.has(iso) &&
-        schedule &&
-        hireDay <= iso &&
-        (exitDay === null || iso <= exitDay)
-      ) {
-        const { start, end } = dayRangeUtc(iso, tz);
-        const soll = calcExpectedMinutesTz(
-          schedule,
-          start,
-          end,
+      // Arbeitszeitkonto's `holidayContractSollMinutes` (Issue #524, D-07: the same function the
+      // recording week uses); a non-contract day and a day outside the employment price 0.
+      if (holidays?.has(iso)) {
+        const soll = holidayContractSollMinutes({
+          dayIso: iso,
+          schedules,
+          hireDate: emp.hireDate,
+          exitDate: emp.exitDate,
           tz,
-          undefined,
-          tenantConfig?.defaultWorkDays,
-        );
+          defaultWorkDays: tenantConfig?.defaultWorkDays,
+        });
         if (soll > 0) holidaySollMinutesByDate[iso] = soll;
       }
       creditedMinutesByDate[iso] = await getVocationalSchoolMinutesForDate(

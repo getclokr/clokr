@@ -9,16 +9,23 @@
  * on that day in every salon (the figure § 3 ArbZG sums today), plus on a minor Berufsschultag the
  * Berufsschule credit (§ 9 Abs. 2) as the Arbeitszeitkonto computes it. The age is decided per day,
  * so the week of a person who turns 18 mid-week counts only the days before the birthday.
+ *
+ * § 4 Abs. 4 S. 2 (the same reading as the roster, Issue #1077): the working time that falls out
+ * on a Werktag holiday at the work location counts towards the week. A minor day that is such a
+ * holiday carries `holidayMinutes` = the larger of its contract Soll (the Arbeitszeitkonto's
+ * `holidayContractSollMinutes`) and the recorded work, minus the recorded work.
  */
 import type { PrismaClient } from "@clokr/db";
 import { getVocationalSchoolDays, isMinorAtDate } from "../absence";
+import { holidaysAtWorkLocation } from "../platform";
 import {
   dayRangeUtc,
   getVocationalSchoolMinutesForDate,
+  holidayContractSollMinutes,
   weekDateRange,
 } from "../working-time-account";
 import { addWorkingMinutes } from "./entry-durations";
-import type { MinorWorkDay } from "./minor-working-time";
+import { holidayFalloutMinutes, type MinorWorkDay } from "./minor-working-time";
 
 /** The TenantConfig fields the loader needs (a subset of what `checkArbZG` reads). */
 export interface MinorWeekTenantConfig {
@@ -103,6 +110,12 @@ export async function loadMinorRecordedWeek(
     orderBy: { validFrom: "desc" },
   });
 
+  // The holidays of the week at the person's work location, resolved only by the Unterbau and fed
+  // with the closed work entries read above.
+  const holidays = (
+    await holidaysAtWorkLocation(db, tenantId, [employee.id], weekDays[0], weekDays[6], rows)
+  ).get(employee.id);
+
   const days: MinorWorkDay[] = [];
   for (const iso of weekDays) {
     const isMinor = isMinorAtDate(employee.birthDate, utcMidnight(iso));
@@ -120,7 +133,22 @@ export async function loadMinorRecordedWeek(
         { schedule, scheduleType: schedule?.type ?? null },
       );
     }
-    days.push({ isMinor, workMinutes });
+    const holidayMinutes =
+      isMinor && holidays?.has(iso)
+        ? holidayFalloutMinutes({
+            isSunday: utcMidnight(iso).getUTCDay() === 0,
+            sollMinutes: holidayContractSollMinutes({
+              dayIso: iso,
+              schedules,
+              hireDate: employee.hireDate,
+              exitDate: employee.exitDate,
+              tz,
+              defaultWorkDays: tenantConfig?.defaultWorkDays,
+            }),
+            workMinutes,
+          })
+        : 0;
+    days.push({ isMinor, workMinutes, holidayMinutes });
   }
 
   return { weekDays, days, dayIndex: Math.max(0, weekDays.indexOf(dayIso)) };

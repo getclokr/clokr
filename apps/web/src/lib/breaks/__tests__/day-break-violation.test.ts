@@ -10,6 +10,7 @@ import {
   type FullDayCheck,
   type WithheldDayCheck,
   hasPlacementFinding,
+  isDailyLimitWarning,
   isChecksRangeAllowed,
   dayCheckBadge,
   type DayCheckWarning,
@@ -379,5 +380,18 @@ describe("a withheld (redacted) day", () => {
 
   it("gives no save notice for the withheld hint", () => {
     expect(breakFindingSaveNotice(withheld().warnings)).toBeNull();
+  });
+});
+
+// Issue #524 (W1): the day-sum finding of either regime, the § 3 ArbZG one and the § 8 JArbSchG one
+// that replaces it for a minor day.
+describe("isDailyLimitWarning (Issue #524)", () => {
+  it.each([
+    ["MAX_DAILY_EXCEEDED", true],
+    ["JARBSCHG_DAILY_MAX_EXCEEDED", true],
+    ["JARBSCHG_WEEKLY_MAX_EXCEEDED", false],
+    ["BREAK_TOO_SHORT", false],
+  ])("%s -> %s", (code, expected) => {
+    expect(isDailyLimitWarning({ code })).toBe(expected);
   });
 });
