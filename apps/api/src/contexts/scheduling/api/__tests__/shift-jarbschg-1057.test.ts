@@ -389,7 +389,7 @@ describe("POST /shifts — JArbSchG § 8 / § 12 (Issue #1057)", () => {
       expect(body.error).toBe("JArbSchG-Verstoß");
       expect(body.canForce).toBe(false);
       const [y, m, d] = day(0).split("-");
-      expect(body.message).toContain(`${d}.${m}.${y}`);
+      expect(body.message).toContain(`${Number(d)}.${Number(m)}.${y}`);
     }
     expect(await shiftRows(emp, 0)).toHaveLength(0);
     expect(await createAuditRows(emp)).toHaveLength(0);

@@ -64,6 +64,7 @@
  * predicates and messages; the module still only reads.
  */
 import type { PrismaClient } from "@clokr/db";
+import { dayLabelDe, dayRangeLabelDe } from "../../utils/day-label-de";
 import { hasVocationalSchoolDay, isMinorAtDate, mondayOfWeekUtc } from "../absence";
 import {
   holidaysAtWorkLocation,
@@ -205,16 +206,6 @@ export interface MinorWeekFigures {
 }
 
 // ── formatting ───────────────────────────────────────────────────────────────────────────────────
-
-function formatDateDe(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-}
-
-function formatShortDateDe(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${d}.${m}.`;
-}
 
 function formatHm(minutes: number): string {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
@@ -366,31 +357,31 @@ function freeTimeBad(previous: MinorDayFigures, next: MinorDayFigures): boolean 
 }
 
 function dailyMessage(dateIso: string, workMinutes: number): string {
-  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} beträgt ${formatHm(workMinutes)} Stunden. Für Jugendliche sind höchstens 8 Stunden am Tag erlaubt, bis zu 8,5 Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als 8 Stunden gearbeitet wird (§ 8 Abs. 1 und 2a JArbSchG).`;
+  return `Die geplante Arbeitszeit am ${dayLabelDe(dateIso)} beträgt ${formatHm(workMinutes)} Stunden. Für Jugendliche sind höchstens 8 Stunden am Tag erlaubt, bis zu 8,5 Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als 8 Stunden gearbeitet wird (§ 8 Abs. 1 und 2a JArbSchG).`;
 }
 
 function shiftTimeMessage(dateIso: string, spanMinutes: number): string {
-  return `Die Schichtzeit am ${formatDateDe(dateIso)} beträgt ${formatHm(spanMinutes)} Stunden (Beginn bis Ende einschließlich Pausen). Für Jugendliche sind höchstens 10 Stunden erlaubt (§ 12 JArbSchG).`;
+  return `Die Schichtzeit am ${dayLabelDe(dateIso)} beträgt ${formatHm(spanMinutes)} Stunden (Beginn bis Ende einschließlich Pausen). Für Jugendliche sind höchstens 10 Stunden erlaubt (§ 12 JArbSchG).`;
 }
 
 function nightRestMessage(dateIso: string, f: MinorDayFigures): string {
-  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} reicht von ${formatClock(f.firstStartMinute ?? 0)} bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Jugendliche dürfen nur in der Zeit von 6 bis 20 Uhr beschäftigt werden (§ 14 Abs. 1 JArbSchG).`;
+  return `Die geplante Arbeitszeit am ${dayLabelDe(dateIso)} reicht von ${formatClock(f.firstStartMinute ?? 0)} bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Jugendliche dürfen nur in der Zeit von 6 bis 20 Uhr beschäftigt werden (§ 14 Abs. 1 JArbSchG).`;
 }
 
 function sundayRestMessage(dateIso: string): string {
-  return `Am Sonntag, ${formatDateDe(dateIso)}, ist eine Schicht geplant. Jugendliche dürfen an Sonntagen nicht beschäftigt werden (§ 17 Abs. 1 JArbSchG).`;
+  return `Am Sonntag, ${dayLabelDe(dateIso)}, ist eine Schicht geplant. Jugendliche dürfen an Sonntagen nicht beschäftigt werden (§ 17 Abs. 1 JArbSchG).`;
 }
 
 function holidayRestMessage(dateIso: string, holidayName: string): string {
-  return `Am ${formatDateDe(dateIso)} (${holidayName}) ist eine Schicht geplant. Jugendliche dürfen an gesetzlichen Feiertagen nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
+  return `Am ${dayLabelDe(dateIso)} (${holidayName}) ist eine Schicht geplant. Jugendliche dürfen an gesetzlichen Feiertagen nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
 }
 
 function decemberEveMessage(dateIso: string, f: MinorDayFigures): string {
-  return `Die geplante Arbeitszeit am ${formatDateDe(dateIso)} reicht bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Am 24. und 31. Dezember dürfen Jugendliche nach 14 Uhr nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
+  return `Die geplante Arbeitszeit am ${dayLabelDe(dateIso)} reicht bis ${formatClock(f.lastEndMinute ?? 0)} Uhr. Am 24. und 31. Dezember dürfen Jugendliche nach 14 Uhr nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
 }
 
 function freeTimeMessage(dateIso: string, gapMinutes: number): string {
-  return `Zwischen dem Schichtende am ${formatDateDe(addDaysIso(dateIso, -1))} und dem Schichtbeginn am ${formatDateDe(dateIso)} liegen ${formatHm(Math.max(0, gapMinutes))} Stunden. Jugendliche brauchen nach dem Ende der täglichen Arbeitszeit mindestens 12 Stunden ununterbrochene Freizeit (§ 13 JArbSchG).`;
+  return `Zwischen dem Schichtende am ${dayLabelDe(addDaysIso(dateIso, -1))} und dem Schichtbeginn am ${dayLabelDe(dateIso)} liegen ${formatHm(Math.max(0, gapMinutes))} Stunden. Jugendliche brauchen nach dem Ende der täglichen Arbeitszeit mindestens 12 Stunden ununterbrochene Freizeit (§ 13 JArbSchG).`;
 }
 
 /**
@@ -412,22 +403,22 @@ function weeklyMessage(
   const limit =
     "Für Jugendliche sind höchstens 40 Stunden in der Woche erlaubt, Berufsschulzeit eingerechnet (§ 8 Abs. 1 und § 9 Abs. 2 JArbSchG)." +
     holiday;
-  const range = `${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])}`;
+  const range = dayRangeLabelDe(weekDays[0], weekDays[6]);
   if (triggerIso === null) {
     return `In der Woche vom ${range} beträgt die geplante Arbeitszeit ${formatHm(sumMinutes)} Stunden. ${limit}`;
   }
-  return `Mit der Schicht am ${formatDateDe(triggerIso)} beträgt die geplante Arbeitszeit in der Woche vom ${range} ${formatHm(sumMinutes)} Stunden. ${limit}`;
+  return `Mit der Schicht am ${dayLabelDe(triggerIso)} beträgt die geplante Arbeitszeit in der Woche vom ${range} ${formatHm(sumMinutes)} Stunden. ${limit}`;
 }
 
 /** With a trigger day the text names the shift that tipped the week; without, it names the week. */
 function fiveDayMessage(weekDays: string[], days: number, triggerIso: string | null): string {
-  const range = `${formatShortDateDe(weekDays[0])} bis ${formatDateDe(weekDays[6])}`;
+  const range = dayRangeLabelDe(weekDays[0], weekDays[6]);
   const rule =
     "Jugendliche dürfen nur an fünf Tagen in der Woche beschäftigt werden. Wer samstags arbeitet, braucht in derselben Woche einen anderen freien Tag ohne Berufsschule; an diesem Tag ist höchstens ein Ausgleich bis 13 Uhr erlaubt (§ 15, § 16 Abs. 3 und 4 JArbSchG).";
   if (triggerIso === null) {
     return `In der Woche vom ${range} sind an ${days} Tagen Schicht oder Berufsschule geplant. ${rule}`;
   }
-  return `Mit der Schicht am ${formatDateDe(triggerIso)} sind in der Woche vom ${range} an ${days} Tagen Schicht oder Berufsschule geplant. ${rule}`;
+  return `Mit der Schicht am ${dayLabelDe(triggerIso)} sind in der Woche vom ${range} an ${days} Tagen Schicht oder Berufsschule geplant. ${rule}`;
 }
 
 /** The figure list over the whole horizon: index 0 = Sunday before, 1..7 = Monday..Sunday, 8 = Monday after. */
@@ -647,21 +638,21 @@ export function listMinorWeekViolations(input: {
   return out;
 }
 
-/** Short German label of a finding for a list of further violations ("DD.MM.YYYY (Arbeitszeit)"). */
+/** Short German label of a finding for a list of further violations ("1.12.2026 (Arbeitszeit)"). */
 export function minorShiftLimitLabel(v: MinorShiftLimitViolation): string {
   switch (v.code) {
     case "JARBSCHG_VIOLATION_DAILY_MAX":
-      return `${formatDateDe(v.dateIso)} (Arbeitszeit)`;
+      return `${dayLabelDe(v.dateIso)} (Arbeitszeit)`;
     case "JARBSCHG_VIOLATION_SHIFT_TIME":
-      return `${formatDateDe(v.dateIso)} (Schichtzeit)`;
+      return `${dayLabelDe(v.dateIso)} (Schichtzeit)`;
     case "JARBSCHG_VIOLATION_NIGHT_REST":
-      return `${formatDateDe(v.dateIso)} (Nachtruhe)`;
+      return `${dayLabelDe(v.dateIso)} (Nachtruhe)`;
     case "JARBSCHG_VIOLATION_SUNDAY_REST":
-      return `${formatDateDe(v.dateIso)} (Sonntagsruhe)`;
+      return `${dayLabelDe(v.dateIso)} (Sonntagsruhe)`;
     case "JARBSCHG_VIOLATION_HOLIDAY_REST":
-      return `${formatDateDe(v.dateIso)} (Feiertagsruhe)`;
+      return `${dayLabelDe(v.dateIso)} (Feiertagsruhe)`;
     case "JARBSCHG_VIOLATION_FREE_TIME":
-      return `${formatDateDe(v.dateIso)} (Freizeit)`;
+      return `${dayLabelDe(v.dateIso)} (Freizeit)`;
     case "JARBSCHG_VIOLATION_WEEKLY_MAX":
       return "Wochenarbeitszeit";
     case "JARBSCHG_VIOLATION_FIVE_DAY_WEEK":

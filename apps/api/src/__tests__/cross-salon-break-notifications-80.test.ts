@@ -983,5 +983,5 @@ describe("Issue #80 — next-day cross-salon § 4 notification (Feature 10)", ()
 /** "2026-03-10" -> "10.03.2026". */
 function germanDate(day: string): string {
   const [y, m, d] = day.split("-");
-  return `${d}.${m}.${y}`;
+  return `${Number(d)}.${Number(m)}.${y}`;
 }

@@ -70,3 +70,24 @@ describe("dayRangeLabelDe (Issue #1117)", () => {
     expect(dayRangeLabelDe("2026-12-29", "2027-01-02")).not.toMatch(ISO_DAY);
   });
 });
+
+describe("the year-less form (Issue #1149)", () => {
+  it("drops the year for one day and for a range, still without a leading zero", () => {
+    expect(dayLabelDe("2026-12-01", { year: false })).toBe("1.12.");
+    expect(dayLabelDe(new Date("2026-11-03T00:00:00.000Z"), { year: false })).toBe("3.11.");
+    expect(dayRangeLabelDe("2026-12-21", "2026-12-23", { year: false })).toBe("21.12.–23.12.");
+    expect(dayRangeLabelDe("2026-12-29", "2027-01-02", { year: false })).toBe("29.12.–2.1.");
+    expect(dayRangeLabelDe("2026-12-01", "2026-12-01", { year: false })).toBe("1.12.");
+  });
+
+  it("never prints a day or month with a leading zero", () => {
+    const zero = /(^|[^\d.])(0\d\.\d{1,2}\.|\d{1,2}\.0\d\.)/;
+    for (const s of [
+      dayLabelDe("2026-01-05"),
+      dayLabelDe("2026-01-05", { year: false }),
+      dayRangeLabelDe("2026-01-05", "2026-02-06"),
+      dayRangeLabelDe("2026-01-05", "2026-02-06", { year: false }),
+    ])
+      expect(s).not.toMatch(zero);
+  });
+});

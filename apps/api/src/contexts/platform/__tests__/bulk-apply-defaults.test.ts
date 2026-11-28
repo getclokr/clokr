@@ -133,7 +133,7 @@ describe("checkEffectiveFrom", () => {
     const r = checkEffectiveFrom("2026-10-01", today);
     expect(r?.status).toBe(400);
     expect(r?.code).toBe("BULK_APPLY_RETROACTIVE");
-    expect(r?.message).toContain("01.11.2026");
+    expect(r?.message).toContain("1.11.2026");
   });
 
   it("rejects one month past the latest as too far", () => {

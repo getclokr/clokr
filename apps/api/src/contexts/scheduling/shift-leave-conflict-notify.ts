@@ -21,6 +21,7 @@
  * used before this extraction. No new permission, no new recipient logic.
  */
 import type { FastifyInstance } from "fastify";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { userIdsHoldingPermission, resolveScopedHolderIds, isShiftInScope } from "../platform";
 
 export interface ShiftLeaveConflictParams {
@@ -112,8 +113,8 @@ export async function notifyShiftLeaveConflicts(
       },
       select: { id: true },
     });
-    const dStart = leaveStart.toLocaleDateString("de-DE");
-    const dEnd = leaveEnd.toLocaleDateString("de-DE");
+    const dStart = dayLabelDe(leaveStart);
+    const dEnd = dayLabelDe(leaveEnd);
     for (const mgr of managers) {
       await app
         .notify({

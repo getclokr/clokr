@@ -171,8 +171,8 @@ describe("Issue #1156 — carry-over deadline under a non-UTC host", () => {
       const notif = await soleNotificationOrNull(app.prisma, {
         where: { userId: row.employee.userId, type: "CARRYOVER_EXPIRING" },
       });
-      expect(notif!.title).toBe("Resturlaub verfällt am 31.03.2027");
-      expect(notif!.message).toContain("verfällt am 31.03.2027.");
+      expect(notif!.title).toBe("Resturlaub verfällt am 31.3.2027");
+      expect(notif!.message).toContain("verfällt am 31.3.2027.");
     });
   }
 });

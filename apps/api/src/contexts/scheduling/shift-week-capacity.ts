@@ -28,6 +28,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { Prisma } from "@clokr/db";
+import { dayLabelDe } from "../../utils/day-label-de";
 import {
   userIdsHoldingPermission,
   resolveScopedHolderIds,
@@ -161,7 +162,7 @@ export async function notifyWeekCapacityConflictOnce(
       select: { id: true },
     });
 
-    const weekStartDe = weekStart.toLocaleDateString("de-DE");
+    const weekStartDe = dayLabelDe(weekStart);
     const allowed = conflict.contractDays - conflict.leaveDays - conflict.otherAbsenceDays;
 
     for (const mgr of managers) {

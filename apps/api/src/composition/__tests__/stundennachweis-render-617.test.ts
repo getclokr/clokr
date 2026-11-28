@@ -89,9 +89,9 @@ function render(data: MonthlyReportData): string[] {
   return texts;
 }
 
-/** `\d.\d` outside a dd.MM.yyyy date and outside the dd.MM. dates of a period label. */
+/** `\d.\d` outside a d.M.yyyy date and outside the d.M. dates of a period label (Issue #1149). */
 function hasDecimalPoint(text: string): boolean {
-  return /\d\.\d/.test(text.replace(/\d{2}\.\d{2}\.(\d{4})?/g, ""));
+  return /\d\.\d/.test(text.replace(/\d{1,2}\.\d{1,2}\.(\d{4})?/g, ""));
 }
 
 /** Number of page dictionaries of a PDF buffer (`/Type /Page`, not `/Type /Pages`). */
@@ -227,7 +227,7 @@ describe("Stundennachweis renderer (Issue #617)", () => {
       const texts = render(
         makeData({
           entries: [
-            { date: "01.09.2026", start: "08:00", end: "16:45", breakMin: 30, netMinutes: 495 },
+            { date: "1.9.2026", start: "08:00", end: "16:45", breakMin: 30, netMinutes: 495 },
           ],
         }),
       );
@@ -238,7 +238,7 @@ describe("Stundennachweis renderer (Issue #617)", () => {
     it("an open entry prints a dash instead of an end time", () => {
       const texts = render(
         makeData({
-          entries: [{ date: "01.09.2026", start: "08:00", end: "", breakMin: 0, netMinutes: 0 }],
+          entries: [{ date: "1.9.2026", start: "08:00", end: "", breakMin: 0, netMinutes: 0 }],
         }),
       );
       expect(texts).toContain("—");
@@ -264,10 +264,10 @@ describe("Stundennachweis renderer (Issue #617)", () => {
         makeData({
           dayRows: DAY_ROWS,
           entries: [
-            entryAt("01.09.2026", "08:00"),
-            entryAt("02.09.2026", "07:00"),
-            entryAt("02.09.2026", "13:00"),
-            entryAt("10.09.2026", "09:00"),
+            entryAt("1.9.2026", "08:00"),
+            entryAt("2.9.2026", "07:00"),
+            entryAt("2.9.2026", "13:00"),
+            entryAt("10.9.2026", "09:00"),
           ],
         }),
       );
@@ -293,11 +293,11 @@ describe("Stundennachweis renderer (Issue #617)", () => {
       ]);
     });
 
-    it("prints a period as TT.MM.-TT.MM. and a single day as TT.MM.JJJJ", () => {
+    it("prints a period as T.M.-T.M. and a single day as T.M.JJJJ (no leading zero, Issue #1149)", () => {
       const texts = render(makeData({ dayRows: DAY_ROWS, entries: [] }));
-      expect(texts).toContain("07.09.\u201309.09.");
-      expect(texts).toContain("10.09.2026");
-      expect(texts).toContain("01.09.2026");
+      expect(texts).toContain("7.9.\u20139.9.");
+      expect(texts).toContain("10.9.2026");
+      expect(texts).toContain("1.9.2026");
     });
 
     it("draws the table for day rows alone, and no table for neither entries nor rows", () => {
@@ -351,14 +351,14 @@ describe("Stundennachweis renderer (Issue #617)", () => {
 
   describe("footer", () => {
     it("reads 'Erstellt am <generatedAt>  ·  Seite X von Y  ·  Clokr' with the time of the payload", async () => {
-      expect(pageFooterText("01.01.2027, 00:05", 2, 3)).toBe(
-        "Erstellt am 01.01.2027, 00:05  ·  Seite 2 von 3  ·  Clokr",
+      expect(pageFooterText("1.1.2027, 00:05", 2, 3)).toBe(
+        "Erstellt am 1.1.2027, 00:05  ·  Seite 2 von 3  ·  Clokr",
       );
       const calls: string[] = [];
-      await renderWithFooter(makeData({ generatedAt: "01.01.2027, 00:05" }), (_doc, text) =>
+      await renderWithFooter(makeData({ generatedAt: "1.1.2027, 00:05" }), (_doc, text) =>
         calls.push(text),
       );
-      expect(calls).toEqual(["Erstellt am 01.01.2027, 00:05  ·  Seite 1 von 1  ·  Clokr"]);
+      expect(calls).toEqual(["Erstellt am 1.1.2027, 00:05  ·  Seite 1 von 1  ·  Clokr"]);
     });
   });
 });

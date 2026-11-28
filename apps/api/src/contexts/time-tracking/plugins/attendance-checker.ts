@@ -1,6 +1,7 @@
 import fp from "fastify-plugin";
 import cron, { type ScheduledTask } from "node-cron";
 import { withAdvisoryLock, ADVISORY_LOCK_KEYS } from "../../../utils/with-advisory-lock";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import {
   userIdsHoldingPermission, // Phase 75b Plan 10 (#75), D-16
   resolveScopedHolderIds, // Phase 91b Plan 09 (#91), D-17
@@ -162,13 +163,8 @@ export const attendanceCheckerPlugin = fp(async (app) => {
 
             if (existing) continue;
 
-            const startStr = entry.startTime.toLocaleString("de-DE", {
-              timeZone: cfg?.timezone ?? "Europe/Berlin",
-              hour: "2-digit",
-              minute: "2-digit",
-              day: "2-digit",
-              month: "2-digit",
-            });
+            const entryTz = cfg?.timezone ?? "Europe/Berlin";
+            const startStr = `${dayLabelDe(dateStrInTz(entry.startTime, entryTz))}, ${timeStrInTz(entry.startTime, entryTz)}`;
 
             await app.notify({
               userId: entry.employee.userId,
@@ -219,8 +215,7 @@ export const attendanceCheckerPlugin = fp(async (app) => {
           // Issue #602: the notices name the period. It starts at the calendar day the entry query
           // below compares against (Prisma casts the instant to its UTC date part for the
           // @db.Date column), so the named day is exactly the first day that counted.
-          const [cy, cm, cd] = cutoffDate.toISOString().slice(0, 10).split("-");
-          const sinceDe = `${cd}.${cm}.${cy}`;
+          const sinceDe = dayLabelDe(cutoffDate.toISOString().slice(0, 10));
 
           // Find all active employees for this tenant
           const employees = await app.prisma.employee.findMany({
@@ -401,11 +396,9 @@ export const attendanceCheckerPlugin = fp(async (app) => {
           });
 
           for (const entry of openEntries) {
-            const startStr = entry.startTime.toLocaleString("de-DE", {
-              timeZone: cfg?.timezone ?? "Europe/Berlin",
-              day: "2-digit",
-              month: "2-digit",
-            });
+            const startStr = dayLabelDe(
+              dateStrInTz(entry.startTime, cfg?.timezone ?? "Europe/Berlin"),
+            );
 
             // Invalidate the entry instead of deleting
             await app.prisma.timeEntry.update({
@@ -612,10 +605,7 @@ export const attendanceCheckerPlugin = fp(async (app) => {
           const upcoming = await getLeaveStartingInWindow(app.prisma, tenant.id, today, targetDate);
 
           for (const req of upcoming) {
-            const startStr = req.startDate.toLocaleDateString("de-DE", {
-              day: "2-digit",
-              month: "2-digit",
-            });
+            const startStr = dayLabelDe(req.startDate); // @db.Date: UTC midnight
             const dedupLink = `/leave?request=${req.id}&reminder=upcoming`;
 
             const existing = await app.prisma.notification.findFirst({
@@ -1180,11 +1170,7 @@ export const attendanceCheckerPlugin = fp(async (app) => {
               });
               if (existing) continue;
 
-              const dateDe = new Date(entry.date + "T00:00:00Z").toLocaleDateString("de-DE", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              });
+              const dateDe = dayLabelDe(entry.date);
 
               await app.notify({
                 userId: emp.user.id,

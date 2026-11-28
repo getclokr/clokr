@@ -256,7 +256,7 @@ describe("§ 3 ArbZG — the day sum (GD-3)", () => {
       status: 422,
       overridable: false,
     });
-    expect(v.blocking?.message).toContain("12.03.2027");
+    expect(v.blocking?.message).toContain("12.3.2027");
     expect(v.blocking?.message).toContain("10:15");
     expect(v.blocking?.message).toContain("§ 3 ArbZG");
   });
@@ -310,7 +310,7 @@ describe("§ 5 ArbZG — both directions (GD-4)", () => {
     const v = run(ctx, draft(D, "08:00", "16:00"));
     expect(v.blocking).toMatchObject({ rule: "restPeriod", status: 409, overridable: true });
     expect(v.blocking?.message).toBe(
-      "Verstoß gegen § 5 ArbZG: zwischen Schichtende am 11.03.2027 und neuem Beginn liegen nur 9.0h (mindestens 11h erforderlich).",
+      "Verstoß gegen § 5 ArbZG: zwischen Schichtende am 11.3.2027 und neuem Beginn liegen nur 9.0h (mindestens 11h erforderlich).",
     );
     expect(v.blocking?.restGaps).toEqual([
       { direction: "previous", otherShiftId: "prev", restHours: 9 },
@@ -336,7 +336,7 @@ describe("§ 5 ArbZG — both directions (GD-4)", () => {
     const v = run(ctx, draft(D, "14:00", "22:00"));
     expect(v.blocking?.code).toBe("ARBZG_VIOLATION_REST_PERIOD");
     expect(v.blocking?.message).toBe(
-      "Verstoß gegen § 5 ArbZG: zwischen neuem Schichtende und dem Schichtbeginn am 13.03.2027 liegen nur 8.0h (mindestens 11h erforderlich).",
+      "Verstoß gegen § 5 ArbZG: zwischen neuem Schichtende und dem Schichtbeginn am 13.3.2027 liegen nur 8.0h (mindestens 11h erforderlich).",
     );
     expect(v.blocking?.restGaps).toEqual([
       { direction: "next", otherShiftId: "next", restHours: 8 },

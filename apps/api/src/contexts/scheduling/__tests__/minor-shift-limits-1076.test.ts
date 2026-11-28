@@ -472,7 +472,7 @@ describe("§ 15 JArbSchG — Fünf-Tage-Woche (Issue #1076)", () => {
     const listed = findStoredMinorWeekViolations(week);
     expect(listed.map((v) => v.code)).toEqual(["JARBSCHG_VIOLATION_FIVE_DAY_WEEK"]);
     expect(listed[0].dateIso).toBe(MON);
-    expect(listed[0].message).toContain("In der Woche vom 16.11. bis 22.11.2026 sind an 6 Tagen");
+    expect(listed[0].message).toContain("In der Woche vom 16.11.–22.11.2026 sind an 6 Tagen");
     expect(listed[0].message).not.toContain("Mit der Schicht");
     expect(minorShiftLimitLabel(listed[0])).toBe("Fünf-Tage-Woche");
   });

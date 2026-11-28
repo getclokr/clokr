@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
@@ -8,7 +9,6 @@ import {
   SHIFT_PAST_MESSAGE,
   SHIFT_WRITE_SKIP_REASON,
   checkShiftWrite,
-  formatDateDe,
   isPastShiftDay,
   loadShiftWriteContext,
   shiftWriteReplyBody,
@@ -364,7 +364,7 @@ async function findShiftConflict(
 
   return {
     conflict: null,
-    halfDayHint: halfDayLeave ? halfDayLeaveHint(halfDayLeave.id, formatDateDe(isoDate)) : null,
+    halfDayHint: halfDayLeave ? halfDayLeaveHint(halfDayLeave.id, dayLabelDe(isoDate)) : null,
   };
 }
 
@@ -831,8 +831,8 @@ async function notifyLeaveDaysAdjusted(
   actorUserId: string,
 ): Promise<void> {
   for (const adj of adjustments) {
-    const von = formatDateDe(adj.startDate.toISOString().slice(0, 10));
-    const bis = formatDateDe(adj.endDate.toISOString().slice(0, 10));
+    const von = dayLabelDe(adj.startDate);
+    const bis = dayLabelDe(adj.endDate);
     const message =
       adj.direction === "down"
         ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage — der Schichtplan für diesen Zeitraum steht.`
@@ -2565,7 +2565,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         const isLeave = conflict.kind === "leave";
         return reply.code(409).send({
           error: "Schicht-Konflikt",
-          message: `Mitarbeiter ist am ${formatDateDe(body.date)} ${isLeave ? "im Urlaub" : "krank/abwesend"} — Schicht nicht zuweisbar.`,
+          message: `Mitarbeiter ist am ${dayLabelDe(body.date)} ${isLeave ? "im Urlaub" : "krank/abwesend"} — Schicht nicht zuweisbar.`,
           code: isLeave ? "SHIFT_CONFLICT_LEAVE" : "SHIFT_CONFLICT_ABSENCE",
           conflictType: conflict.conflictType,
           canForce: true,
@@ -2583,7 +2583,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           if (unavailabilityHit && !force) {
             return reply.code(409).send({
               error: "Schicht-Konflikt",
-              message: `Mitarbeiter hat am ${formatDateDe(body.date)} „Nicht verfügbar" markiert — Schicht trotzdem zuweisen?`,
+              message: `Mitarbeiter hat am ${dayLabelDe(body.date)} „Nicht verfügbar" markiert — Schicht trotzdem zuweisen?`,
               code: "SHIFT_CONFLICT_UNAVAILABILITY",
               canForce: true,
             });
@@ -2860,7 +2860,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         const isLeave = conflict.kind === "leave";
         return reply.code(409).send({
           error: "Schicht-Konflikt",
-          message: `Mitarbeiter ist am ${formatDateDe(effDateIso)} ${isLeave ? "im Urlaub" : "krank/abwesend"} — Schicht nicht zuweisbar.`,
+          message: `Mitarbeiter ist am ${dayLabelDe(effDateIso)} ${isLeave ? "im Urlaub" : "krank/abwesend"} — Schicht nicht zuweisbar.`,
           code: isLeave ? "SHIFT_CONFLICT_LEAVE" : "SHIFT_CONFLICT_ABSENCE",
           conflictType: conflict.conflictType,
           canForce: true,
@@ -2876,7 +2876,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           if (unavailabilityHit && !force) {
             return reply.code(409).send({
               error: "Schicht-Konflikt",
-              message: `Mitarbeiter hat am ${formatDateDe(effDateIso)} „Nicht verfügbar" markiert — Schicht trotzdem zuweisen?`,
+              message: `Mitarbeiter hat am ${dayLabelDe(effDateIso)} „Nicht verfügbar" markiert — Schicht trotzdem zuweisen?`,
               code: "SHIFT_CONFLICT_UNAVAILABILITY",
               canForce: true,
             });

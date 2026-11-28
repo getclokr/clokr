@@ -76,9 +76,3 @@ export function isCarryOverDeadlineInput(input: string): boolean {
 export function carryOverDeadlineDay(deadline: Date): string {
   return deadline.toISOString().slice(0, 10);
 }
-
-/** The Stichtag a stored deadline names, in the German reading `DD.MM.YYYY`. */
-export function formatCarryOverDeadlineDe(deadline: Date): string {
-  const [y, m, d] = carryOverDeadlineDay(deadline).split("-");
-  return `${d}.${m}.${y}`;
-}

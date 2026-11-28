@@ -24,7 +24,7 @@ import {
 } from "../../platform";
 import { formatInTimeZone } from "date-fns-tz";
 import { getTenantTimezone } from "../../working-time-account";
-import { formatDateDe } from "../leave-decision";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import { limitExceptionSchema } from "../leave-limits";
 import {
   LEAVE_PLAN_ALREADY_OPEN,
@@ -189,7 +189,7 @@ export async function leavePlanRoutes(app: FastifyInstance) {
       const { persons } = await planPopulation(app.prisma, tenantId, plan.salonId, plan.year);
       // Issue #840 (D-840-28): the plan opens in the planner tab of the personal leave page.
       const link = `/leave?tab=planung&salonId=${plan.salonId}&year=${plan.year}`;
-      const frist = plan.deadline ? ` Frist: ${formatDateDe(plan.deadline)}.` : "";
+      const frist = plan.deadline ? ` Frist: ${dayLabelDe(plan.deadline)}.` : "";
       const message = `Die Urlaubsplanung ${plan.year} für ${salon?.name ?? "deinen Salon"} ist eröffnet. Trag deine Urlaubswünsche ein.${frist}`;
       const recipients = persons.filter((p) => p.userId !== null && p.userId !== req.user.sub);
       const results = await Promise.allSettled(

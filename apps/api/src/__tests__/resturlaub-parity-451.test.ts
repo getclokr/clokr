@@ -284,7 +284,7 @@ describe("Issue #451 Plan 08 (D-07, D-08) — one Resturlaub across dashboard, U
     expect(exportRes.statusCode, `monthly-export must succeed: ${exportRes.statusCode}`).toBe(200);
     expect(spy).toHaveBeenCalledTimes(1);
     const payload = spy.mock.calls[0][0];
-    expect(payload.vacationYear).toEqual({ year: 2026, asOf: "30.06.2026" });
+    expect(payload.vacationYear).toEqual({ year: 2026, asOf: "30.6.2026" });
     const exportRow = payload.rows.find((r) => r.employeeNumber.startsWith("RBP451-"));
     expect(exportRow, "the export must include this employee").toBeDefined();
     expect(exportRow!.vacation, "VACATION figures of the employee must be present").not.toBeNull();

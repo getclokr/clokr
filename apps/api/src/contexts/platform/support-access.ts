@@ -24,6 +24,8 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { Prisma, PrismaClient, SupportAccess } from "@clokr/db";
+import { formatInTimeZone } from "date-fns-tz";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { isAnonymizedEmployee } from "./employee-anonymization-filter";
 import { userIdsHoldingPermission } from "./facade/role-assignments";
 import { readTenantTimezone } from "./facade/salon-assignments";
@@ -502,11 +504,8 @@ export async function notifySupportAccessStarted(
     await userIdsHoldingPermission(app.prisma, input.tenantId, "audit-log:read:ZUGEWIESEN"),
   );
   const timeZone = await readTenantTimezone(app.prisma, input.tenantId);
-  const endsAt = new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone,
-  }).format(input.expiresAt);
+  // The tenant-local day through the one German day label (Issue #1149), then the clock time.
+  const endsAt = `${dayLabelDe(formatInTimeZone(input.expiresAt, timeZone, "yyyy-MM-dd"))}, ${formatInTimeZone(input.expiresAt, timeZone, "HH:mm")}`;
   const message = `Ein Support-Zugriff auf dein Unternehmen wurde gestartet. Er endet am ${endsAt} Uhr. Grund: ${input.reason}`;
 
   for (const recipient of recipients) {

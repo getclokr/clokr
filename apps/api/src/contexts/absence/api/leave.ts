@@ -100,7 +100,6 @@ import {
   loadLeaveRequestForReview,
   leaveDecisionGuard,
   decidePendingLeaveRequest,
-  formatDateDe,
 } from "../leave-decision"; // Issue #835 (D-835-12) — the decision core, lifted out of PATCH /requests/:id/review
 import { supersedeSection9CreditsOfCancelledRequest } from "../section9-supersede";
 import { intersectRanges } from "../section9-detect"; // Phase 104-05/06, Issue #468 (D-04/A-3)
@@ -125,6 +124,7 @@ import { countEmployeesWithoutVacationEntitlement } from "../facade/entitlements
 import { vacationBalanceForRow, type VacationBalance } from "../facade/vacation-balance"; // Issue #451 (D-07) — the ONE Resturlaub function, additive on the VACATION row of GET /entitlements
 import { revalidateLeaveCancellationEntries } from "../../time-tracking"; // Phase 100B Plan 08 — T6
 import { byCodeUnit } from "../../../utils/code-unit-order";
+import { dayRangeLabelDe } from "../../../utils/day-label-de";
 import { REQUESTABLE_CODES as TYPE_CODES, DISPLAY_NAME, withHalfDayMarker } from "../leave-type"; // Phase 97 (T2, D-04) — the one mapping; DISPLAY_NAME added Phase 98b (D-04)
 
 // Forwarded for the same backward-compatibility reason as the import above.
@@ -142,14 +142,6 @@ function daysBetweenInclusiveIso(start: Date, end: Date): string[] {
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return days;
-}
-
-/** Renders a Date as German "DD.MM." — used only in the § 9 entitlement movement label (D-31). */
-function formatDayMonth(d: Date | null | undefined): string {
-  if (!d) return "";
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.`;
 }
 
 /**
@@ -3022,7 +3014,7 @@ export async function leaveRoutes(app: FastifyInstance) {
             to: c.creditedEnd?.toISOString().split("T")[0] ?? null,
             label:
               `+${Number(c.creditedDays ?? 0)} Tage gutgeschrieben (§ 9 BUrlG, Krankheit ` +
-              `${formatDayMonth(c.creditedStart)}–${formatDayMonth(c.creditedEnd)})`,
+              `${c.creditedStart && c.creditedEnd ? dayRangeLabelDe(c.creditedStart, c.creditedEnd) : ""})`,
           })),
         };
       });
@@ -3730,7 +3722,7 @@ export async function leaveRoutes(app: FastifyInstance) {
       await app.dismissByRelated("Section9Credit", credit.id);
 
       if (credit.employee.userId) {
-        const rangeLabel = `${formatDateDe(credited.start)} – ${formatDateDe(credited.end)}`;
+        const rangeLabel = dayRangeLabelDe(credited.start, credited.end);
         await app.notify({
           userId: credit.employee.userId,
           type: "SECTION9_CREDIT_CONFIRMED",
@@ -3849,7 +3841,7 @@ export async function leaveRoutes(app: FastifyInstance) {
       // wieder eröffnet werden, sobald eine gültige AU vorliegt.
       if (credit.employee.userId) {
         // Issue #602: the notice names the period of the case, like the § 9 notices before it.
-        const rangeLabel = `${formatDateDe(credit.overlapStart)} – ${formatDateDe(credit.overlapEnd)}`;
+        const rangeLabel = dayRangeLabelDe(credit.overlapStart, credit.overlapEnd);
         await app.notify({
           userId: credit.employee.userId,
           type: "SECTION9_CREDIT_REJECTED",
@@ -3951,7 +3943,7 @@ export async function leaveRoutes(app: FastifyInstance) {
 
       // Re-emit the same D-14 notifications the original detection sent — reusing the
       // exact copy from Phase 104-05, not a second wording.
-      const rangeLabel = `${formatDateDe(credit.overlapStart)} – ${formatDateDe(credit.overlapEnd)}`;
+      const rangeLabel = dayRangeLabelDe(credit.overlapStart, credit.overlapEnd);
       if (credit.employee.userId) {
         await app.notify({
           userId: credit.employee.userId,

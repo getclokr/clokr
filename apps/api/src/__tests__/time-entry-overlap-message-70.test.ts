@@ -133,7 +133,7 @@ describe("Issue #70 — overlap answers are a clean 409 whose wording follows th
     day = nextWeekdayStr(pastDateStr(6));
     oldDay = nextWeekdayStr(pastDateStr(200));
     const [y, m, d] = day.split("-");
-    detailed = `Überschneidung mit bestehendem Eintrag vom ${d}.${m}.${y} (07:00 – 11:00)`;
+    detailed = `Überschneidung mit bestehendem Eintrag vom ${Number(d)}.${Number(m)}.${y} (07:00 – 11:00)`;
 
     entryX = await app.prisma.timeEntry.create({
       data: {

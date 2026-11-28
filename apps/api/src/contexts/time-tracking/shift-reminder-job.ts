@@ -12,6 +12,7 @@
  * Stage 2 reads only for the candidate persons and days.
  */
 import type { FastifyInstance } from "fastify";
+import { dayLabelDe } from "../../utils/day-label-de";
 import {
   ACTIVE_TENANT_WHERE, // Phase 88 (D-05a): a deactivated tenant is a suspended customer - no notices
   accessContextForJob,
@@ -35,7 +36,6 @@ import {
   decideShiftEnd,
   decideShiftStart,
   exclusionFor,
-  formatNoticeDay,
   formatShiftTime,
   shiftInstantKey,
   shiftDaysOf,
@@ -435,7 +435,7 @@ async function runTenant(
       tenantId,
       type: "REMINDER_SHIFT_START",
       title: "Schicht begonnen",
-      message: `Deine Schicht am ${formatNoticeDay(candidate.day)} hat um ${formatShiftTime(shift.startTime)} begonnen. Jetzt einstempeln?`,
+      message: `Deine Schicht am ${dayLabelDe(candidate.day)} hat um ${formatShiftTime(shift.startTime)} begonnen. Jetzt einstempeln?`,
       link: REMINDER_CLOCK_LINK,
       relatedType: "Shift",
       relatedId: shift.id,
@@ -491,7 +491,7 @@ async function runTenant(
       tenantId,
       type: "REMINDER_SHIFT_END",
       title: "Schichtende",
-      message: `Deine Schicht vom ${formatNoticeDay(candidate.day)} endete um ${formatShiftTime(shift.endTime)}. Feierabend? Jetzt ausstempeln.`,
+      message: `Deine Schicht vom ${dayLabelDe(candidate.day)} endete um ${formatShiftTime(shift.endTime)}. Feierabend? Jetzt ausstempeln.`,
       link: REMINDER_CLOCK_LINK,
       relatedType: "Shift",
       relatedId: shift.id,
@@ -536,7 +536,7 @@ async function runTenant(
       tenantId,
       type: "REMINDER_DAY_CLOSE",
       title: "Zeit fehlt",
-      message: `Für den ${formatNoticeDay(day)} fehlt noch deine Zeit. Trag sie jetzt ein.`,
+      message: `Für den ${dayLabelDe(day)} fehlt noch deine Zeit. Trag sie jetzt ein.`,
       link: dayCloseLink(day),
       relatedType: "EmployeeDay",
       relatedId: `${employeeId}:${day}`,

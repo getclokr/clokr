@@ -37,9 +37,7 @@ import { join, dirname, posix } from "node:path";
 import ts from "typescript";
 import { describe, it, expect } from "vitest";
 import { dayLabelDe, dayRangeLabelDe } from "../utils/day-label-de";
-import { formatDateDe, decisionPeriodDe } from "../contexts/absence/leave-decision";
-import { formatDateDe as formatIsoDayDe } from "../contexts/scheduling/shift-write-checks";
-import { formatNoticeDay } from "../contexts/time-tracking/shift-reminders";
+import { decisionPeriodDe } from "../contexts/absence/leave-decision";
 import { monthLabelDe } from "../contexts/working-time-account/month-close-notification";
 
 const SRC = join(__dirname, "..");
@@ -53,18 +51,19 @@ const TEXT_PROPS = new Set(["title", "message", "emailSubject"]);
 const GERMAN_FORMATTERS: Record<string, string> = {
   dayLabelDe: "the one German day label (Issue #1117): 1.12.2026",
   dayRangeLabelDe: "the German range label (Issue #1117): 1.12.–2.12.2026",
-  formatDateDe: "TT.MM.JJJJ (leave-decision.ts on a Date, shift-write-checks.ts on an ISO string)",
-  decisionPeriodDe: "'vom TT.MM.JJJJ [bis TT.MM.JJJJ]' of leave-decision.ts",
-  formatNoticeDay: "TT.MM.JJJJ of a reminder notice (shift-reminders.ts)",
-  germanDate: "TT.MM.JJJJ, local helper (break-finding-notice.ts, bulk-apply-defaults.ts)",
-  fmtDMY: "TT.MM.JJJJ, local helper of bs-leave-correction.ts",
-  formatCarryOverDeadlineDe:
-    "TT.MM.JJJJ of a carry-over Stichtag (carry-over-deadline.ts, Issue #1156)",
+  decisionPeriodDe: "'vom 1.12.2026 [bis 2.12.2026]' of leave-decision.ts, built from dayLabelDe",
   monthLabelDe: "'Juni 2026', a month label that names no day",
-  toLocaleDateString: "Intl formatting with a German locale, never an ISO day",
-  toLocaleString: "Intl formatting with a German locale, never an ISO day",
 };
-const BUILTIN_FORMATTERS = new Set(["toLocaleDateString", "toLocaleString"]);
+
+/**
+ * Issue #1149: the one formatter is `dayLabelDe` / `dayRangeLabelDe`, so a day with a leading zero
+ * ("01.12.2026", "vom 01.12.") is a finding of its own kind (F), just like an ISO day is (A-D).
+ * Literal text is read for it; so are the calls that can print one: `toLocaleDateString` /
+ * `toLocaleString` whose options name a `day` (or that carry no options at all, which prints the
+ * day and reads the host time zone), and `formatInTimeZone` with a `dd` pattern.
+ */
+const LEADING_ZERO_DAY = /(^|[^\d.])(0\d\.\d{1,2}\.|\d{1,2}\.0\d\.)/;
+const LOCALE_DAY_CALLS = new Set(["toLocaleDateString", "toLocaleString"]);
 
 /** "file::leaf" -> reason: an opaque leaf whose name reads as a day but is not a calendar day. */
 const NOT_A_CALENDAR_DAY: Record<string, string> = {
@@ -90,6 +89,7 @@ const isFn = (n: ts.Node): n is FnNode =>
 type Leaf =
   | { k: "text"; text: string }
   | { k: "iso"; why: string }
+  | { k: "zero"; why: string }
   | { k: "opaque"; name: string; rel: string; forwarder: boolean };
 
 interface BindingHit {
@@ -473,7 +473,18 @@ function resolveCall(call: ts.CallExpression, cx: Cx, hops: number, select?: str
     const format = call.arguments[2];
     if (format && ts.isStringLiteralLike(format) && ISO_FORMAT.test(format.text)) {
       cx.leaves.push({ k: "iso", why: `formatInTimeZone(${format.text})` });
+    } else if (format && ts.isStringLiteralLike(format) && /dd/.test(format.text)) {
+      cx.leaves.push({ k: "zero", why: `formatInTimeZone(${format.text})` });
     } else cx.safe++;
+    return;
+  }
+  if (name && LOCALE_DAY_CALLS.has(name) && ts.isPropertyAccessExpression(callee)) {
+    const options = call.arguments[1];
+    const printsDay =
+      !options || (ts.isObjectLiteralExpression(options) && /\bday\s*:/.test(options.getText()));
+    if (printsDay)
+      cx.leaves.push({ k: "zero", why: `${name}(${options ? "{ day }" : "no options"})` });
+    else cx.safe++;
     return;
   }
   if ((name === "map" || name === "flatMap") && ts.isPropertyAccessExpression(callee)) {
@@ -593,6 +604,10 @@ function scanProject(sources: Record<string, string>): ScanResult {
         if (leaf.k === "text") {
           const hit = ISO_DAY.exec(leaf.text);
           if (hit) report("A", `literal text names the day ${hit[0]}`);
+          const zero = LEADING_ZERO_DAY.exec(leaf.text);
+          if (zero) report("F", `literal text names a day with a leading zero ${zero[0].trim()}`);
+        } else if (leaf.k === "zero") {
+          report("F", `a day printed with a leading zero or in the host zone: ${leaf.why}`);
         } else if (leaf.k === "iso") {
           report("B", `ISO producer ${leaf.why}`);
         } else if (leaf.forwarder) {
@@ -767,6 +782,42 @@ const POSITIVE_CONTROLS: [string, string, string][] = [
     "E",
   ],
   [
+    "(o) toLocaleDateString with a 2-digit day",
+    HEAD +
+      "const startStr = row.startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });\n" +
+      "await app.notify({ type: 'X', title: 't', message: `beginnt am ${startStr}` });\n}",
+    "F",
+  ],
+  [
+    "(p) toLocaleDateString without options",
+    HEAD +
+      "await app.notify({ type: 'X', title: 't', message: `ab ${row.weekStart.toLocaleDateString('de-DE')}` });\n}",
+    "F",
+  ],
+  [
+    "(q) a dd.MM. pattern",
+    HEAD +
+      "const label = formatInTimeZone(row.start, 'UTC', 'dd.MM.');\n" +
+      "await app.notify({ type: 'X', title: 't', message: `am ${label}` });\n}",
+    "F",
+  ],
+  [
+    "(r) a literal day with a leading zero",
+    HEAD +
+      "await app.notify({ type: 'X', title: 't', message: 'Urlaub vom 01.12.2026 bis 02.12.2026' });\n}",
+    "F",
+  ],
+  [
+    "(s) a literal day and month with a leading zero and no year",
+    HEAD + "await app.notify({ type: 'X', title: 't', message: 'am 01.12. beginnt' });\n}",
+    "F",
+  ],
+  [
+    "(t) a literal day with a leading zero in the month only",
+    HEAD + "await app.notify({ type: 'X', title: 't', message: 'am 1.01.2027 endet' });\n}",
+    "F",
+  ],
+  [
     "(n) the title carries the day",
     HEAD + "await app.notify({ type: 'X', title: `Tag ${input.startDay}`, message: 'm' });\n}",
     "C",
@@ -793,7 +844,18 @@ const NEGATIVE_CONTROLS: [string, string][] = [
   [
     "an ISO producer wrapped in a German formatter",
     HEAD +
-      "await app.notify({ type: 'X', title: 't', message: `für den ${formatDateDe(row.startDate.toISOString().slice(0, 10))}` });\n}",
+      "await app.notify({ type: 'X', title: 't', message: `für den ${dayLabelDe(row.startDate.toISOString().slice(0, 10))}` });\n}",
+  ],
+  [
+    "a month label from toLocaleDateString",
+    HEAD +
+      "const monthLabel = new Date(2026, 11, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });\n" +
+      "await app.notify({ type: 'X', title: 't', message: `Monat ${monthLabel}` });\n}",
+  ],
+  [
+    "a day label without a leading zero and a decimal comma",
+    HEAD +
+      "await app.notify({ type: 'X', title: 't', message: 'ab 1.12.2026 noch 0,5 Tage, 10.12. und 5.10.2026' });\n}",
   ],
   [
     "split parts rebuilt as D.M.Y",
@@ -901,7 +963,6 @@ describe("the registers are alive (a stale entry fails)", () => {
   it("every registered German formatter is reached by the scan and declared under src", () => {
     for (const name of Object.keys(GERMAN_FORMATTERS)) {
       expect(REAL.reached.formatters.has(name), `${name} is never reached`).toBe(true);
-      if (BUILTIN_FORMATTERS.has(name)) continue;
       const declared = new RegExp(`(function\\s+|const\\s+|let\\s+)${name}\\b`);
       expect(
         FILES.some((f) => declared.test(f.text)),
@@ -910,18 +971,21 @@ describe("the registers are alive (a stale entry fails)", () => {
     }
   });
 
-  it("the exported formatters print no ISO day", () => {
+  it("the exported formatters print no ISO day and no leading zero (Issue #1149)", () => {
     const day = new Date("2026-12-01T00:00:00.000Z");
     const samples = [
       dayLabelDe("2026-12-01"),
+      dayLabelDe("2026-12-01", { year: false }),
       dayRangeLabelDe("2026-12-01", "2026-12-02"),
-      formatDateDe(day),
-      formatIsoDayDe("2026-12-01"),
+      dayRangeLabelDe("2026-12-01", "2026-12-02", { year: false }),
       decisionPeriodDe(day, new Date("2026-12-02T00:00:00.000Z")),
-      formatNoticeDay("2026-12-01"),
+      decisionPeriodDe(day, day),
       monthLabelDe({ year: 2026, month: 12 }),
     ];
-    for (const s of samples) expect(s).not.toMatch(ISO_DAY);
+    for (const s of samples) {
+      expect(s).not.toMatch(ISO_DAY);
+      expect(s).not.toMatch(LEADING_ZERO_DAY);
+    }
   });
 
   it("every NOT_A_CALENDAR_DAY and SINKS entry is consulted", () => {

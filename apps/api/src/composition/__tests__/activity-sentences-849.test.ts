@@ -51,7 +51,7 @@ describe("activity sentences (Issue #849)", () => {
       { tz: TZ, ownUserId: OWN, authorFirstName: "Sabine" },
     );
     expect(events.map(sentence)).toEqual([
-      "Sabine hat für dich Mo, 02.11. 08:02–18:15 eingetragen.",
+      "Sabine hat für dich Mo, 2.11. 08:02–18:15 eingetragen.",
     ]);
     const anonymous = entryActivityEvents(
       { ...base, source: "MANUAL", createdBy: "user-gone" },
@@ -65,7 +65,7 @@ describe("activity sentences (Issue #849)", () => {
       { ...base, source: "MANUAL" },
       { tz: TZ, ownUserId: OWN, authorFirstName: null },
     );
-    expect(events.map(sentence)).toEqual(["Du hast für Mo, 02.11. 08:02–18:15 eingetragen."]);
+    expect(events.map(sentence)).toEqual(["Du hast für Mo, 2.11. 08:02–18:15 eingetragen."]);
   });
 
   it("five manual entries on different days are five different lines; a repeated sentence shows once", () => {

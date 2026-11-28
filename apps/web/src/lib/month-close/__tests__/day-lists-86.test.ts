@@ -52,13 +52,13 @@ describe("day lists of a visible row", () => {
         { short: true },
       ),
     ).toBe("01.09., 02.09., 03.09. (+2)");
-    // The deferred list keeps the stored ISO strings (visual baseline 09 shows them; 86b-03 had
-    // switched it to DD.MM. and shrank the page by 40 px).
+    // The deferred list names its days the German way, with the year and without leading zeros
+    // (Issue #1149; it used to print the stored YYYY-MM-DD strings, visual baseline 09).
     expect(
-      missingDaysText({ gapDates: ["2026-09-03", "2026-09-04"], gapCount: 2 }, { iso: true }),
-    ).toBe("2026-09-03, 2026-09-04");
+      missingDaysText({ gapDates: ["2026-09-03", "2026-09-04"], gapCount: 2 }, { year: true }),
+    ).toBe("3.9.2026, 4.9.2026");
     expect(
-      missingDaysText({ gapDates: [], gapCount: 3, dayDetailsWithheld: true }, { iso: true }),
+      missingDaysText({ gapDates: [], gapCount: 3, dayDetailsWithheld: true }, { year: true }),
     ).toBe("3 Tage ohne Eintrag");
     expect(formatMissingDates(["2026-09-03"])).toBe("03.09.");
     expect(formatMissingShort(["2026-09-03"])).toBe("03.09.");

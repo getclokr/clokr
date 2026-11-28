@@ -32,6 +32,6 @@ describe("leaveActivitySentence", () => {
       endDate: d("2026-03-01"),
       typeName: "Urlaub",
     });
-    expect(s.what).toContain("01.03.");
+    expect(s.what).toContain("1.3.");
   });
 });

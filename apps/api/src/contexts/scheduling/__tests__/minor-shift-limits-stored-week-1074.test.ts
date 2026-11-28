@@ -135,7 +135,7 @@ describe("findStoredMinorWeekViolations — the stored week (Issue #1074)", () =
     expect(found.map((v) => v.code)).toEqual(["JARBSCHG_VIOLATION_WEEKLY_MAX"]);
     expect(found[0].dateIso).toBe(dayIso(MON_I));
     expect(found[0].message).toContain(
-      "In der Woche vom 16.11. bis 22.11.2026 beträgt die geplante Arbeitszeit 42:30 Stunden",
+      "In der Woche vom 16.11.–22.11.2026 beträgt die geplante Arbeitszeit 42:30 Stunden",
     );
     expect(found[0].message).not.toContain("Mit der Schicht");
   });

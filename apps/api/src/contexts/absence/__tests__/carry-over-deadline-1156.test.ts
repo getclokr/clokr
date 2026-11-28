@@ -8,11 +8,8 @@
  * case would pass vacuously in a UTC run.
  */
 import { describe, it, expect, afterAll } from "vitest";
-import {
-  carryOverDeadlineFor,
-  carryOverDeadlineDay,
-  formatCarryOverDeadlineDe,
-} from "../carry-over-deadline";
+import { carryOverDeadlineFor, carryOverDeadlineDay } from "../carry-over-deadline";
+import { dayLabelDe } from "../../../utils/day-label-de";
 
 const ORIGINAL_TZ = process.env.TZ;
 
@@ -24,7 +21,7 @@ afterAll(() => {
 // East of UTC (day edge goes forward), the production zone, and west of UTC (day edge goes back).
 const HOST_ZONES = ["Pacific/Auckland", "Europe/Berlin", "America/Los_Angeles", "UTC"] as const;
 
-describe("carryOverDeadlineFor / carryOverDeadlineDay / formatCarryOverDeadlineDe (Issue #1156)", () => {
+describe("carryOverDeadlineFor / carryOverDeadlineDay / dayLabelDe (Issue #1156, #1149)", () => {
   for (const tz of HOST_ZONES) {
     it(`writes and reads the same Stichtag under host zone ${tz}`, () => {
       process.env.TZ = tz;
@@ -35,7 +32,7 @@ describe("carryOverDeadlineFor / carryOverDeadlineDay / formatCarryOverDeadlineD
       expect(deadline.toISOString()).toBe("2027-03-31T23:59:59.000Z");
       // Every reader names the same day, whatever the host zone.
       expect(carryOverDeadlineDay(deadline)).toBe("2027-03-31");
-      expect(formatCarryOverDeadlineDe(deadline)).toBe("31.03.2027");
+      expect(dayLabelDe(deadline)).toBe("31.3.2027");
 
       // Control: the pre-#1156 host-zone construction disagrees outside UTC.
       const legacy = new Date(2027, 2, 31, 23, 59, 59);
@@ -58,6 +55,6 @@ describe("carryOverDeadlineFor / carryOverDeadlineDay / formatCarryOverDeadlineD
     process.env.TZ = "Pacific/Auckland";
     expect(carryOverDeadlineDay(carryOverDeadlineFor(2027, 12, 31))).toBe("2027-12-31");
     expect(carryOverDeadlineDay(carryOverDeadlineFor(2028, 2, 29))).toBe("2028-02-29");
-    expect(formatCarryOverDeadlineDe(carryOverDeadlineFor(2028, 1, 1))).toBe("01.01.2028");
+    expect(dayLabelDe(carryOverDeadlineFor(2028, 1, 1))).toBe("1.1.2028");
   });
 });

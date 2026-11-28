@@ -30,11 +30,11 @@ function evaluation(netWorkedMin: number, totalBreakMin: number, requiredBreakMi
 
 const NEUTRAL_TITLE = "Prüfhinweis zu einem Arbeitstag";
 const NEUTRAL_MESSAGE =
-  "Fixture Alpha, 10.03.2026: Für diesen Tag liegt ein Prüfhinweis vor; die Klärung erfolgt über den Stammsalon.";
+  "Fixture Alpha, 10.3.2026: Für diesen Tag liegt ein Prüfhinweis vor; die Klärung erfolgt über den Stammsalon.";
 
 /** The title and message with the calendar date removed: nothing numeric may be left. */
 function withoutDate(text: string): string {
-  return text.replace("10.03.2026", "");
+  return text.replace("10.3.2026", "");
 }
 
 describe("buildWithheldNotice (Issue #85 D-07)", () => {
@@ -42,7 +42,7 @@ describe("buildWithheldNotice (Issue #85 D-07)", () => {
     expect(buildWithheldNotice({ employeeName: "Probe Test", date: "2026-03-10" })).toEqual({
       title: "Prüfhinweis zu einem Arbeitstag",
       message:
-        "Probe Test, 10.03.2026: Für diesen Tag liegt ein Prüfhinweis vor; die Klärung erfolgt über den Stammsalon.",
+        "Probe Test, 10.3.2026: Für diesen Tag liegt ein Prüfhinweis vor; die Klärung erfolgt über den Stammsalon.",
     });
   });
 
@@ -124,7 +124,7 @@ describe("buildCrossSalonNotice", () => {
     });
 
     expect(message).toBe(
-      "Fixture Alpha: Am 10.03.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend " +
+      "Fixture Alpha: Am 10.3.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend " +
         "(Salon Alpha 08:00–12:00, Salon Beta 12:30–16:30).",
     );
   });
@@ -138,7 +138,7 @@ describe("buildCrossSalonNotice", () => {
     });
 
     expect(message).toBe(
-      "Fixture Alpha: Am 10.03.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend.",
+      "Fixture Alpha: Am 10.3.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend.",
     );
   });
 
@@ -187,7 +187,7 @@ describe("buildCrossSalonNotice", () => {
     });
 
     expect(message).toBe(
-      "Fixture Alpha: Am 10.03.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend " +
+      "Fixture Alpha: Am 10.3.2026 insgesamt 8 h ohne 30 Min Pause, salonübergreifend " +
         "(Salon Alpha 08:00–12:00, Salon Beta 12:30–16:30).",
     );
   });
@@ -203,7 +203,7 @@ describe("buildBreakPlacementNotice (Issue #511, D-13)", () => {
 
     expect(title).toBe(BREAK_PLACEMENT_NOTICE_TITLE);
     expect(message).toBe(
-      "Fixture Alpha: Am 10.03.2026 § 4 Satz 3 ArbZG: Erste Meldung. § 4 Satz 2 ArbZG: Zweite Meldung.",
+      "Fixture Alpha: Am 10.3.2026 § 4 Satz 3 ArbZG: Erste Meldung. § 4 Satz 2 ArbZG: Zweite Meldung.",
     );
   });
 

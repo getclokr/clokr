@@ -37,10 +37,10 @@ const AUDIENCE: Record<string, Audience> = {
   VACATION_EXPIRY: { audience: "PERSON", dateBy: "carryOverDeadlineDay" },
   GAP_WARNING_EMPLOYEE: { audience: "PERSON", dateBy: "monthLabel" },
   BREAK_UNCONFIRMED: { audience: "PERSON", dateBy: "dateDe" },
-  REMINDER_SHIFT_START: { audience: "PERSON", dateBy: "formatNoticeDay(" },
-  REMINDER_SHIFT_END: { audience: "PERSON", dateBy: "formatNoticeDay(" },
-  REMINDER_DAY_CLOSE: { audience: "PERSON", dateBy: "formatNoticeDay(" },
-  WIFI_DEVICE_NOT_SEEN: { audience: "PERSON", dateBy: "formatNoticeDay(" },
+  REMINDER_SHIFT_START: { audience: "PERSON", dateBy: "dayLabelDe(" },
+  REMINDER_SHIFT_END: { audience: "PERSON", dateBy: "dayLabelDe(" },
+  REMINDER_DAY_CLOSE: { audience: "PERSON", dateBy: "dayLabelDe(" },
+  WIFI_DEVICE_NOT_SEEN: { audience: "PERSON", dateBy: "dayLabelDe(" },
   MONTH_CORRECTION_DECIDED: { audience: "PERSON", dateBy: "dayLabelDe(row.targetDate)" },
   LEAVE_DAYS_ADJUSTED: { audience: "PERSON", dateBy: "von" },
   LEAVE_PLAN_OPENED: { audience: "PERSON", dateBy: "plan.year" },
@@ -73,7 +73,7 @@ const DIRECT_WRITERS = [
 ];
 const DIRECT_PERSON_NOTICE = {
   file: "contexts/absence/bs-leave-correction.ts",
-  messageStart: "const message =\n    `Der ${fmtDMY(bsDate)} ist ein Berufsschultag.",
+  messageStart: "const message =\n    `Der ${dayLabelDe(bsDate)} ist ein Berufsschultag.",
 };
 
 const SRC = resolve(process.cwd(), "src");
@@ -190,7 +190,7 @@ describe("employee notifications name their period (Issue #602)", () => {
     const interpolations = [..."`Heute fehlt noch deine Zeit.`".matchAll(/\$\{([^}]*)\}/g)].map(
       (x) => x[1],
     );
-    expect(interpolations.some((e) => e.includes("formatNoticeDay("))).toBe(false);
+    expect(interpolations.some((e) => e.includes("dayLabelDe("))).toBe(false);
   });
 
   it("R3: the direct writers are the known ones, and the person's own notice names its dates", () => {

@@ -123,7 +123,7 @@
       e.reason === "EXIT_DATE_MISSING"
         ? "Austrittsdatum fehlt, bitte prüfen"
         : gapCountOf(e) > 0
-          ? `${e.dayDetailsWithheld ? "" : "fehlende Tage: "}${missingDaysText(e, { iso: true })}`
+          ? `${e.dayDetailsWithheld ? "" : "fehlende Tage: "}${missingDaysText(e, { year: true })}`
           : "keine Tageslücken gefunden";
     return `${e.employeeName}: offen seit ${monthLabel(e.oldestOpenMonth)} · ${why}`;
   }

@@ -8,6 +8,7 @@
  * of an array that the redaction emptied. UX only - what a caller may read is decided by the API.
  */
 import { breakFindingMonthCloseHint, type MonthCloseHint } from "$lib/breaks/day-break-violation";
+import { dayLabel } from "$lib/utils/day-label";
 
 /** Short rights line next to a row with withheld days (Issue #947: no longer one page-wide note). */
 export const DAY_DETAILS_WITHHELD_HINT =
@@ -73,17 +74,18 @@ function gapDatesOf(row: DayListRow): string[] {
 
 /**
  * The text for the days without an entry: the dates when present, the count text when the dates
- * were withheld, an empty string when there is nothing to show (count 0). `iso` prints the stored
- * `YYYY-MM-DD` strings unchanged (the deferred list), the default is the short `DD.MM.` form.
+ * were withheld, an empty string when there is nothing to show (count 0). `year` prints each day the
+ * way the glossary names a date, with the year and without leading zeros ("3.9.2026"; the deferred
+ * list spans months, Issue #1149), the default is the short `DD.MM.` form.
  */
 export function missingDaysText(
   row: DayListRow,
-  options: { short?: boolean; iso?: boolean } = {},
+  options: { short?: boolean; year?: boolean } = {},
 ): string {
   const dates = gapDatesOf(row);
   if (dates.length > 0) {
-    // `iso`: the deferred-close list has always printed the stored YYYY-MM-DD values (visual baseline 09).
-    if (options.iso) return dates.join(", ");
+    // `year`: the deferred-close list names its days with the year (visual baseline 09).
+    if (options.year) return dates.map((d) => dayLabel(d, { year: true })).join(", ");
     return options.short ? formatMissingShort(dates) : formatMissingDates(dates);
   }
   const count = gapCountOf(row);

@@ -69,6 +69,13 @@ import {
   withHalfDayMarker, // Issue #746 — the one half-day wording, owned by the absence context
 } from "../contexts/absence"; // Phase 100B Plan 10 — A12/A14/A15; Plan 11 — A22
 import type { LeaveEntitlement, LeaveRequestStatus, LeaveTypeCode } from "@clokr/db";
+import { dayLabelDe } from "../utils/day-label-de";
+
+/** The PDF footer's creation stamp: the tenant-local day, then the clock time ("1.12.2026, 09:05"). */
+function generatedAtLabel(tz: string): string {
+  const now = new Date();
+  return `${dayLabelDe(formatInTimeZone(now, tz, "yyyy-MM-dd"))}, ${formatInTimeZone(now, tz, "HH:mm")}`;
+}
 
 // Issue #542 (P-04): the optional salon filter of the report views. Unknown query keys are
 // stripped by zod, a malformed id answers 400 through the global handler (like the dashboard's
@@ -329,7 +336,7 @@ export function computeEmployeeSummary(
 
   // ── Time entries (formatted) ─────────────────────────────────────────────
   const entries = emp.timeEntries.map((e) => ({
-    date: formatInTimeZone(e.date, tz, "dd.MM.yyyy"),
+    date: dayLabelDe(e.date), // @db.Date: the UTC calendar day, never shifted by the tenant zone
     start: formatInTimeZone(e.startTime, tz, "HH:mm"),
     end: e.endTime ? formatInTimeZone(e.endTime, tz, "HH:mm") : "",
     breakMin: Number(e.breakMinutes ?? 0),
@@ -2244,14 +2251,13 @@ export async function reportRoutes(app: FastifyInstance) {
         });
       }
 
-      const [stichtagYear, stichtagMonth, stichtagDay] = stichtag.split("-");
       const pdfBuffer = await generateMonthlyExportPdf({
         tenantName: tenant?.name ?? "",
         monthLabel: `${MONTH_NAMES[m - 1]} ${y}`,
         year: y,
         month: m,
-        generatedAt: formatInTimeZone(new Date(), tz, "dd.MM.yyyy, HH:mm"),
-        vacationYear: { year: y, asOf: `${stichtagDay}.${stichtagMonth}.${stichtagYear}` },
+        generatedAt: generatedAtLabel(tz),
+        vacationYear: { year: y, asOf: dayLabelDe(stichtag) },
         rows,
         ...(salon ? { salonScope: { salonName: salon.name } } : {}),
       });
@@ -2432,7 +2438,7 @@ export async function reportRoutes(app: FastifyInstance) {
         employeeName: `${emp.firstName} ${emp.lastName}`,
         employeeNumber: emp.employeeNumber,
         month: `${MONTH_NAMES[m - 1]} ${y}`,
-        generatedAt: formatInTimeZone(new Date(), tz, "dd.MM.yyyy, HH:mm"),
+        generatedAt: generatedAtLabel(tz),
         // Issue #617 (D-617-3): minutes straight from the account's month figures; the renderer
         // formats them. Issue #451 (D-03): the reconciliation item is 0 when the row is unlabelled.
         workedMinutes: figures.workedMinutes,
