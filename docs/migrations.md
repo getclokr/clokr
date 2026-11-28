@@ -2035,3 +2035,48 @@ genehmigte Anfrage ändert sich kein Saldo, kein Snapshot und kein abgeschlossen
 **Rollback.** Ein Image-Rollback auf eine Version ohne #599 lässt die Tabelle stehen; der alte Code liest sie nicht, gebuchte
 Korrekturen fallen dann aus dem Live-Saldo heraus (die Journalzeile bleibt). Nach einem Rollback mit bereits genehmigten Anfragen
 deshalb wieder vorwärts gehen, nicht die Tabelle löschen (Revisionssicherheit).
+
+## Phase 1126 — Sonderurlaub-Vorschläge ohne Anspruchstext (Issue #1126)
+
+**Hinweis für die Release Notes.** Es gibt **keine Migration und keinen Schemawechsel.** Die elf vorgeschlagenen Sonderurlaubs-Anlässe
+trugen bisher die Beschreibung „Gesetzlicher Anspruch gemäß § 616 BGB“. § 616 BGB nennt weder Anlässe noch Tage und lässt sich
+vertraglich ausschließen, also darf kein Text einen Anspruch behaupten. Neue Vorschläge entstehen ohne Beschreibung; Name, Tage,
+Nachweispflicht, Status und das Feld `isStatutory` bleiben unverändert. Die Fehlermeldungen beim Umbenennen und Löschen eines
+Vorschlags sprechen jetzt von einem „vorgeschlagenen Anlass“.
+
+**Was das Skript tut.** `apps/api/scripts/backfill-1126-special-leave-claim-text.ts` setzt die Beschreibung (`reason`) auf leer
+(`NULL`), und zwar nur bei Zeilen mit `isStatutory = true`, deren Beschreibung **byte-genau** dem alten Seed-Text entspricht. Eine
+vom Mandanten geänderte oder ergänzte Beschreibung, ein eigener Anlass (`isStatutory = false`) mit demselben Text und ein Vorschlag
+ohne Beschreibung bleiben unangetastet; geschrieben wird nur `reason`. Alle Mandanten, auch deaktivierte, werden verarbeitet;
+`--tenant <id>` grenzt auf einen Mandanten ein. Der **Probelauf** (Voreinstellung) schreibt **nichts**. `--confirm` schreibt eine
+Transaktion je Regel (geschützter `updateMany`, der Mandant, `isStatutory` und den Text erneut prüft). Idempotent: ein zweiter Lauf
+findet nichts. Scheitert eine Regel, wird sie gemeldet (`result=failed:<CODE>`, Exit-Code `1`), die übrigen laufen weiter.
+
+**Audit.** Eine Zeile je geänderter Regel: `UPDATE` auf `SpecialLeaveRule`, ohne Benutzer (= System), `oldValue` `{reason: <Alttext>}`,
+`newValue` `{reason: null, trigger: "BACKFILL_1126", auditReason: "Bestandskorrektur #1126"}`.
+
+**Ablauf (Owner, auf jeder Stufe nach dem Deploy des Release mit #1126; auf prod vorher `pg_dump`).**
+
+```bash
+# 1. Probelauf (Voreinstellung, schreibt NICHTS)
+docker exec clokr-api sh -lc "cd /app && ./node_modules/.bin/tsx apps/api/scripts/backfill-1126-special-leave-claim-text.ts" \
+  | tee "1126-probelauf-<umgebung>-$(date +%Y%m%d).txt"
+
+# 2. Schreiben (optional --tenant <id>)
+docker exec clokr-api sh -lc "cd /app && ./node_modules/.bin/tsx apps/api/scripts/backfill-1126-special-leave-claim-text.ts --confirm" \
+  | tee "1126-lauf-<umgebung>-$(date +%Y%m%d).txt"
+```
+
+Eine Zeile je Regel: `tenant=<id> rule=<id> result=<planned|written|unchanged|failed:CODE>`, dann eine `Totals:`-Zeile. Nur Ids und
+Zahlen, nie ein Text.
+
+**Prüfen (lesend).** Nach dem Lauf darf keine Zeile mehr den alten Text tragen:
+
+```sql
+SELECT count(*) FROM "SpecialLeaveRule" WHERE "isStatutory" AND "reason" = 'Gesetzlicher Anspruch gemäß § 616 BGB';
+```
+
+Erwartet: `0`.
+
+**Rollback.** Keiner. Der Alttext steht in `oldValue` der Audit-Zeile; ihn zurückzuschreiben würde die falsche Anspruchsbehauptung
+wieder einführen.

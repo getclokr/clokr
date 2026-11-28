@@ -158,7 +158,7 @@ describe("Leave Config — Lead time, half-day, max advance, special leave", () 
       });
 
       expect(res.statusCode).toBe(400);
-      expect(JSON.parse(res.body).error).toContain("Gesetzliche");
+      expect(JSON.parse(res.body).error).toContain("Vorgeschlagene Anlässe");
     });
 
     it("requires specialLeaveRuleId for SPECIAL type", async () => {
