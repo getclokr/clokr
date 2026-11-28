@@ -51,10 +51,10 @@ const DAY = {
 
 const instant = (day: string, hhmm: string): Date => fromZonedTime(`${day}T${hhmm}:00`, TEST_TZ);
 
-/** "2026-08-18" -> "18.08.2026". */
+/** "2026-08-18" -> "18.8.2026": no leading zero, the glossary form of Issue #1117. */
 function germanDay(day: string): string {
   const [y, m, d] = day.split("-");
-  return `${d}.${m}.${y}`;
+  return `${Number(d)}.${Number(m)}.${y}`;
 }
 
 type Warning = { code: string; message: string };

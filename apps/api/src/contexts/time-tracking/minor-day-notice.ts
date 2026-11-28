@@ -32,6 +32,7 @@ import { checkArbZG } from "./arbzg";
 import { buildWithheldNotice } from "./break-finding-notice";
 import { dayCoverage } from "./day-scope";
 import { findEntriesOfDay, otherWorkingMinutesOfDay } from "./day-entries";
+import { dayLabelDe } from "../../utils/day-label-de"; // Issue #1117 — the one German day label
 
 /** Neutral title; also the email subject, because a subject travels further than a body. */
 export const MINOR_DAY_NOTICE_TITLE = "Hinweis Jugendarbeitsschutz";
@@ -42,13 +43,7 @@ export const SECTION9_DAY_NOTICE_TEXT =
 
 const NOTICE_TYPE_CODES = ["JARBSCHG_DAILY_MAX_EXCEEDED", "JARBSCHG_WEEKLY_MAX_EXCEEDED"];
 
-/** "2026-03-10" -> "10.03.2026". */
-function germanDate(date: string): string {
-  const [year, month, day] = date.split("-");
-  return `${day}.${month}.${year}`;
-}
-
-/** The full notice: "<name>: Am DD.MM.YYYY <finding messages joined by a space>". */
+/** The full notice: "<name>: Am D.M.YYYY <finding messages joined by a space>". */
 export function buildMinorDayNotice(input: {
   employeeName: string;
   /** Calendar day, "YYYY-MM-DD". */
@@ -57,7 +52,7 @@ export function buildMinorDayNotice(input: {
 }): { title: string; message: string } {
   return {
     title: MINOR_DAY_NOTICE_TITLE,
-    message: `${input.employeeName}: Am ${germanDate(input.date)} ${input.findingMessages.join(" ")}`,
+    message: `${input.employeeName}: Am ${dayLabelDe(input.date)} ${input.findingMessages.join(" ")}`,
   };
 }
 
