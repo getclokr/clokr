@@ -407,6 +407,8 @@ describe("Shift Conflicts API (Phase 67.2 Plan 05)", () => {
         ...s,
         date: s.date.toISOString().slice(0, 10),
         deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
+        // Issue #1100 — the one additive field; the fixture day (2033) is after the tenant's today.
+        pastDay: false,
       });
       const legacySoft = await app.prisma.shift.findMany({
         where: {

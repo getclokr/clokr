@@ -6,6 +6,7 @@
   // by `buildShiftNotices()`; the explanation of each kind sits behind (i). The page is a thin
   // renderer: which shift lands in which bucket stays the API's rule, and the only write is the
   // unchanged POST /shifts/:id/restore (restores a removed shift, clears the mark of a marked one).
+  // A removed shift on a past day gets no button, the row names why (Issue #1100).
   //
   // Issue #853 (D-853-18): the fourth tab of Dienstplan - the v2 head with the link tabs, the date
   // window in one row and the notices as one List. The old filter card, notice card and hand-built
@@ -223,8 +224,10 @@
                 >
                   {busyKey === n.key ? "Einen Moment…" : n.action.label}
                 </button>
-              {:else}
+              {:else if n.action.type === "link"}
                 <a class="btn btn-ghost btn-sm" href={n.action.href}>{n.action.label}</a>
+              {:else}
+                <span class="notice-unavailable">{n.action.label}</span>
               {/if}
             {/snippet}
           </ListRow>
@@ -251,7 +254,8 @@
     gap: var(--s-3);
   }
 
-  .notice-reason {
+  .notice-reason,
+  .notice-unavailable {
     color: var(--text-2);
     font-size: var(--fs-sm);
   }

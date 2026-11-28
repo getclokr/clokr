@@ -4382,7 +4382,8 @@ export async function shiftRoutes(app: FastifyInstance) {
   //
   // GET /conflicts — list soft-deleted (deletedReason=AUTO_BS_DAY_CLEANUP) and
   //   actively-flagged (conflictsWithLeave=true) shifts in a window. Manager-
-  //   facing conflict overview for /shifts/conflicts page.
+  //   facing conflict overview for /shifts/conflicts page. Each shift item carries `pastDay`
+  //   (Issue #1100).
   // POST /:id/restore — manager-initiated restore: clears deletedAt + deletedReason
   //   (for soft-deleted rows) OR conflictsWithLeave (for actively-flagged rows).
   //   Always emits a SHIFT_RESTORED AuditLog entry with the pre-restore snapshot
@@ -4448,12 +4449,22 @@ export async function shiftRoutes(app: FastifyInstance) {
       });
 
       // Serialise Dates to ISO strings so the JSON payload is stable for the UI.
+      //
+      // Issue #1100 — restoring a removed shift on a day before the tenant's calendar day is refused
+      // by rule 2 of the shift gate (pastDay, GD-6), so the list says which days those are with the
+      // gate's own predicate and tenant day; the page then offers no restore there instead of a
+      // button that can only fail.
+      const conflictsTodayIso = await tenantTodayIso(app.prisma, req.user.tenantId);
       type Joined = (typeof softDeleted)[number];
-      const ser = (s: Joined) => ({
-        ...s,
-        date: s.date.toISOString().slice(0, 10),
-        deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
-      });
+      const ser = (s: Joined) => {
+        const dayIso = s.date.toISOString().slice(0, 10);
+        return {
+          ...s,
+          date: dayIso,
+          deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
+          pastDay: isPastShiftDay(conflictsTodayIso, dayIso),
+        };
+      };
 
       // Phase 430 (D-10, revised 430-05) — third bucket, live-computed Type-2 (week-overbooking)
       // conflicts, scoped to the same reach resolved above (the "plannable staff" question).
