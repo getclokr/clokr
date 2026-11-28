@@ -146,6 +146,29 @@ describe("collective shift writes — one gate (Issue #1075)", () => {
       expect(JSON.parse(res.body).code).toBe("SHIFT_NO_CONTRACT");
     });
 
+    it("an item after the exit day refuses the WHOLE batch with its index; the exit day itself is created", async () => {
+      const emp = await person("BulkExit", { exitDate: day(2) });
+      const res = await bulk([
+        item(emp, day(2), "08:00", "16:00"),
+        item(emp, day(3), "08:00", "16:00"),
+      ]);
+      expect(res.statusCode, res.body).toBe(422);
+      // A contract refusal never carries `canForce` (only the overridable rules do) — same body as
+      // the pre-contract refusal of the same batch path.
+      const refused = JSON.parse(res.body);
+      expect(refused).toMatchObject({
+        error: "Schicht-Zuweisung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+        itemIndex: 1,
+      });
+      expect(refused).not.toHaveProperty("canForce");
+      expect(await liveShifts(app, emp)).toHaveLength(0);
+
+      const ok = await bulk([item(emp, day(2), "08:00", "16:00")]);
+      expect(ok.statusCode, ok.body).toBe(201);
+      expect(JSON.parse(ok.body).created).toBe(1);
+    });
+
     it("two persons on valid future weekdays are created", async () => {
       const a = await person("BulkTwoA");
       const b = await person("BulkTwoB");
@@ -399,6 +422,57 @@ describe("collective shift writes — one gate (Issue #1075)", () => {
         (await liveShifts(app, lateContract)).map((r) => r.date.toISOString().slice(0, 10)),
       ).toEqual([addDaysStr(week, 2), addDaysStr(week, 3), addDaysStr(week, 4)]);
     });
+
+    it("generates the exit day and skips the days after it (existing 'no-pattern' skip answers first)", async () => {
+      const tpl = await template("Gen-Exit", "08:00", "16:00");
+      const week = wk(3);
+      const emp = await person("GenExit", { exitDate: addDaysStr(week, 2) });
+      for (const dow of [0, 1, 2, 3, 4]) await pattern(emp, tpl.id, dow);
+      const expected = [0, 1, 2].map((i) => addDaysStr(week, i));
+
+      const preview = JSON.parse((await generate(week, false)).body) as {
+        create: Cell[];
+        skip: Cell[];
+      };
+      expect(preview.create.filter((c) => c.employeeId === emp).map((c) => c.date)).toEqual(
+        expected,
+      );
+      for (const offset of [3, 4]) {
+        expect(
+          preview.skip.find((s) => s.employeeId === emp && s.date === addDaysStr(week, offset))
+            ?.reason,
+          `day ${offset}`,
+        ).toBe("no-pattern");
+      }
+
+      const commit = await generate(week, true);
+      expect(commit.statusCode, commit.body).toBe(200);
+      expect((await liveShifts(app, emp)).map((r) => r.date.toISOString().slice(0, 10))).toEqual(
+        expected,
+      );
+    });
+
+    it("a person whose exit day is the Monday of the week still gets that Monday, and nothing after it", async () => {
+      const tpl = await template("Gen-ExitMon", "08:00", "16:00");
+      const week = wk(4);
+      const emp = await person("GenExitMon", { exitDate: week });
+      for (const dow of [0, 1, 2, 3, 4]) await pattern(emp, tpl.id, dow);
+
+      const preview = JSON.parse((await generate(week, false)).body) as {
+        create: Cell[];
+        skip: Cell[];
+      };
+      expect(preview.create.filter((c) => c.employeeId === emp).map((c) => c.date)).toEqual([week]);
+      expect(
+        preview.skip.find((s) => s.employeeId === emp && s.date === addDaysStr(week, 1))?.reason,
+      ).toBe("no-pattern");
+
+      const commit = await generate(week, true);
+      expect(commit.statusCode, commit.body).toBe(200);
+      expect((await liveShifts(app, emp)).map((r) => r.date.toISOString().slice(0, 10))).toEqual([
+        week,
+      ]);
+    });
   });
 
   // ── copy-week ───────────────────────────────────────────────────────────────────────────────
@@ -506,6 +580,37 @@ describe("collective shift writes — one gate (Issue #1075)", () => {
         addDaysStr(source, 1),
         addDaysStr(source, 2),
         addDaysStr(target, 2),
+      ]);
+    });
+
+    it("target days after the exit day are skipped with 'no-contract', the exit day is copied", async () => {
+      const source = wk(14);
+      const target = wk(15);
+      const emp = await person("CopyExit", { exitDate: addDaysStr(target, 1) });
+      for (const i of [0, 1, 2]) await stored(emp, addDaysStr(source, i), "08:00", "16:00");
+
+      const preview = JSON.parse((await copy(source, target, false)).body) as Answer;
+      const mine = (list: Cell[]) => list.filter((c) => c.employeeId === emp);
+      expect(mine(preview.create).map((c) => c.date)).toEqual([
+        addDaysStr(target, 0),
+        addDaysStr(target, 1),
+      ]);
+      expect(mine(preview.skip)).toEqual([
+        expect.objectContaining({
+          date: addDaysStr(target, 2),
+          reason: "no-contract",
+          message: "Für diese Person gilt an diesem Tag kein Vertrag.",
+        }),
+      ]);
+
+      const commit = await copy(source, target, true);
+      expect(commit.statusCode, commit.body).toBe(200);
+      expect((await liveShifts(app, emp)).map((r) => r.date.toISOString().slice(0, 10))).toEqual([
+        addDaysStr(source, 0),
+        addDaysStr(source, 1),
+        addDaysStr(source, 2),
+        addDaysStr(target, 0),
+        addDaysStr(target, 1),
       ]);
     });
 

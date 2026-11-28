@@ -3099,7 +3099,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           app.prisma.employee.findMany({
             where: {
               tenantId,
-              OR: [{ exitDate: null }, { exitDate: { gt: weekStartDate } }],
+              OR: [{ exitDate: null }, { exitDate: { gte: weekStartDate } }],
               // Never auto-generate shifts for DSGVO-anonymized employees.
               ...NOT_ANONYMIZED_EMPLOYEE_WHERE,
               ...(generateWeekPersonScopedIds !== "all"
@@ -3231,7 +3231,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       }> = [];
 
       for (const emp of employees) {
-        // Skip pre-hire and post-exit dates
+        // Skip pre-hire and post-exit dates; the exit day is kept (inclusive, Issue #1101)
         const hireIso = emp.hireDate.toISOString().slice(0, 10);
         const exitIso = emp.exitDate ? emp.exitDate.toISOString().slice(0, 10) : null;
 

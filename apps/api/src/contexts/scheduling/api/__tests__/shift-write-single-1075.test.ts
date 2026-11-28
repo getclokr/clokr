@@ -80,6 +80,27 @@ describe("single shift writes — one gate (Issue #1075)", () => {
       expect(await shiftCreateAuditCount(app)).toBe(auditsBefore);
     });
 
+    it("a day after the exit day is refused (422 SHIFT_NO_CONTRACT, not forceable), the exit day itself is plannable", async () => {
+      const emp = await person("PostExit", { exitDate: day(2) });
+      const body = { employeeId: emp, date: day(3), startTime: "08:00", endTime: "16:00" };
+
+      const res = await post(body);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Schicht-Zuweisung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+        message: "Für diese Person gilt an diesem Tag kein Vertrag.",
+      });
+
+      const forced = await post(body, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(422);
+      expect(JSON.parse(forced.body).code).toBe("SHIFT_NO_CONTRACT");
+      expect(await liveShifts(app, emp)).toHaveLength(0);
+
+      const onExitDay = await post({ ...body, date: day(2) });
+      expect(onExitDay.statusCode, onExitDay.body).toBe(201);
+    });
+
     it("a short rest to the NEXT day's shift is a forceable 409; forced, it writes the shift and a nextShiftId audit", async () => {
       const emp = await person("PostRest");
       const next = await stored(emp, day(2), "06:00", "14:00");
@@ -222,6 +243,25 @@ describe("single shift writes — one gate (Issue #1075)", () => {
       expect(await auditRowsFor(app, "Shift", legacy.id, "UPDATE")).toHaveLength(2);
     });
 
+    it("moving a shift to a day after the exit day is refused with the row untouched, the exit day stays editable", async () => {
+      const emp = await person("PutExit", { exitDate: day(2) });
+      const mine = await stored(emp, day(2), "08:00", "16:00");
+
+      const res = await put(mine.id, { date: day(3) });
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Schicht-Verschiebung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+      });
+      const forced = await put(mine.id, { date: day(3) }, "?force=true");
+      expect(forced.statusCode, forced.body).toBe(422);
+      const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: mine.id } });
+      expect(row.date.toISOString().slice(0, 10)).toBe(day(2));
+
+      const onExitDay = await put(mine.id, { label: "Austrittstag" });
+      expect(onExitDay.statusCode, onExitDay.body).toBe(200);
+    });
+
     it("moving a shift onto a day that already holds another one counts the day together", async () => {
       const emp = await person("PutMove");
       const moving = await stored(emp, day(1), "08:00", "13:00");
@@ -300,6 +340,26 @@ describe("single shift writes — one gate (Issue #1075)", () => {
       const row = await app.prisma.shift.findUniqueOrThrow({ where: { id: gone.id } });
       expect(row.deletedAt).not.toBeNull();
       expect(await auditRowsFor(app, "Shift", gone.id, "SHIFT_RESTORED")).toHaveLength(0);
+    });
+
+    it("a removed shift after the exit day cannot come back, one on the exit day can", async () => {
+      const emp = await person("RestoreExit", { exitDate: day(2) });
+      const after = await removed(emp, day(3), "08:00", "16:00");
+      const res = await restore(after.id);
+      expect(res.statusCode, res.body).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({
+        error: "Wiederherstellung nicht möglich",
+        code: "SHIFT_NO_CONTRACT",
+      });
+      const stillGone = await app.prisma.shift.findUniqueOrThrow({ where: { id: after.id } });
+      expect(stillGone.deletedAt).not.toBeNull();
+      expect(await auditRowsFor(app, "Shift", after.id, "SHIFT_RESTORED")).toHaveLength(0);
+
+      const onExit = await removed(emp, day(2), "08:00", "16:00");
+      const ok = await restore(onExit.id);
+      expect(ok.statusCode, ok.body).toBe(200);
+      const back = await app.prisma.shift.findUniqueOrThrow({ where: { id: onExit.id } });
+      expect(back.deletedAt).toBeNull();
     });
 
     it("a restore that would push the day above 10:00 is refused", async () => {

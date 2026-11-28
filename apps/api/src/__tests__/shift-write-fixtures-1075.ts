@@ -36,6 +36,11 @@ export interface PersonOptions {
   contractFrom?: string;
   /** No contract row at all. */
   noContract?: boolean;
+  /**
+   * The person's exit day (YYYY-MM-DD), stored as its UTC midnight like the Issue #615 convention;
+   * absent = still employed.
+   */
+  exitDate?: string;
 }
 
 export async function mkPerson(
@@ -61,6 +66,7 @@ export async function mkPerson(
       lastName: "Write1075",
       hireDate: new Date("2024-09-01T00:00:00Z"),
       birthDate: opts.birth ? new Date(`${opts.birth}T00:00:00Z`) : null,
+      ...(opts.exitDate ? { exitDate: new Date(`${opts.exitDate}T00:00:00Z`) } : {}),
     },
   });
   await grantSystemRole(app.prisma, {

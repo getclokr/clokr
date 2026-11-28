@@ -313,6 +313,7 @@ function gateCtx(weeks: MinorShiftWeek[], birth: string): ShiftWriteContext {
         birthDate: new Date(`${birth}T00:00:00Z`),
         breakOver6hOverride: null,
         breakOver9hOverride: null,
+        exitDate: null,
       },
     ],
     earliestContractStart: new Map([[EMP, new Date("2024-01-01T00:00:00Z")]]),

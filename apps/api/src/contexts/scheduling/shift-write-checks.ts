@@ -5,7 +5,8 @@
  * PUT /shifts/:id, the restore of a removed shift, POST /shifts/bulk, POST /shifts/generate-week and
  * POST /shifts/copy-week all call `checkShiftWrite`, with the same six rules in the same order:
  *
- *   1. contract      a WorkSchedule row of the person valid on the day (Issue #589)
+ *   1. contract      a WorkSchedule row of the person valid on the day (Issue #589) and the day not
+ *                    after the person's exit day (Issue #1101; the exit day itself stays plannable)
  *   2. pastDay       the day is not before the TENANT's calendar day (Phase 47.2, Issue #1075 GD-6)
  *   3. openingHours  the salon's opening hours (Phase 47.5), overridable on a single write
  *   4. minorLimits   JArbSchG §§ 8, 12-17 for a person under 18 (Issues #1057, #1076, minor-shift-limits.ts)
@@ -136,6 +137,8 @@ interface ShiftWriteEmployee {
   birthDate: Date | null;
   breakOver6hOverride: number | null;
   breakOver9hOverride: number | null;
+  /** Inclusive last working day (Issue #1101), read as a tenant-local calendar day; null = employed. */
+  exitDate: Date | null;
 }
 
 export interface ShiftWriteContext {
@@ -227,7 +230,13 @@ export async function loadShiftWriteContext(
   const tz = await getTenantTimezone(prisma, tenantId);
   const employees = await prisma.employee.findMany({
     where: { id: { in: employeeIds }, tenantId },
-    select: { id: true, birthDate: true, breakOver6hOverride: true, breakOver9hOverride: true },
+    select: {
+      id: true,
+      birthDate: true,
+      breakOver6hOverride: true,
+      breakOver9hOverride: true,
+      exitDate: true,
+    },
   });
   const schedules = await prisma.workSchedule.findMany({
     where: { employeeId: { in: employeeIds }, employee: { tenantId } },
@@ -313,7 +322,14 @@ function absStart(s: { dateIso: string; startTime: string }): number {
 function contractRule(ctx: ShiftWriteContext, change: ShiftWriteChange): ShiftWriteFinding | null {
   const { draft } = change;
   const earliest = ctx.earliestContractStart.get(draft.employeeId);
-  if (earliest && earliest <= dayRangeUtc(draft.dateIso, ctx.tz).end) return null;
+  const startsInTime = !!earliest && earliest <= dayRangeUtc(draft.dateIso, ctx.tz).end;
+  // Issue #1101: exitDate is inclusive (the exit day is the last working day) and read as the
+  // tenant-local calendar day, like minor-shift-limits.ts and the generate-week skip. The exit day
+  // itself stays plannable; only a day after it is refused.
+  const exitDate = employeeOf(ctx, draft.employeeId).exitDate;
+  const exitDay = exitDate ? dateStrInTz(exitDate, ctx.tz) : null;
+  const beforeExit = exitDay === null || draft.dateIso <= exitDay;
+  if (startsInTime && beforeExit) return null;
   return {
     rule: "contract",
     code: "SHIFT_NO_CONTRACT",
