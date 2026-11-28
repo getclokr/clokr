@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildShiftNotices,
+  NOTICE_KINDS,
   noticeDay,
   restoreForceQuestion,
   type ConflictShift,
@@ -17,6 +18,7 @@ const shift = (over: Partial<ConflictShift>): ConflictShift => ({
   deletedAt: null,
   deletedReason: null,
   conflictsWithLeave: true,
+  pastDay: false,
   ...over,
 });
 
@@ -119,5 +121,56 @@ describe("restoreForceQuestion (Issue #1075)", () => {
     expect(restoreForceQuestion(500, { canForce: true })).toBeNull();
     expect(restoreForceQuestion(409, undefined)).toBeNull();
     expect(restoreForceQuestion(409, null)).toBeNull();
+  });
+});
+
+describe("a removed shift on a past day (Issue #1100)", () => {
+  const removal = {
+    deletedAt: "2026-11-01T10:00:00.000Z",
+    deletedReason: "AUTO_BS_DAY_CLEANUP",
+    conflictsWithLeave: false,
+  };
+  const notices = buildShiftNotices({
+    softDeleted: [
+      shift({ id: "past", date: "2026-11-09T00:00:00.000Z", pastDay: true, ...removal }),
+      shift({ id: "today", date: "2026-11-10T00:00:00.000Z", pastDay: false, ...removal }),
+    ],
+    flagged: [shift({ id: "kept", date: "2026-11-09T00:00:00.000Z", pastDay: true })],
+    weekOverbooked: [],
+  });
+  const byKey = (key: string) => notices.find((n) => n.key === key)!;
+
+  it("offers no restore, only the reason, and keeps the removal reason", () => {
+    const past = byKey("removed:past");
+    expect(past.action).toEqual({
+      type: "unavailable",
+      label: "Vergangener Tag – nicht mehr änderbar.",
+    });
+    expect(past.reason).toBe("Wegen eines neuen Berufsschultags automatisch entfernt.");
+    expect(notices.some((n) => n.action.type === "restore" && n.action.shiftId === "past")).toBe(
+      false,
+    );
+  });
+
+  it("keeps Wiederherstellen for a removed shift on the tenant's today", () => {
+    expect(byKey("removed:today").action).toMatchObject({
+      type: "restore",
+      shiftId: "today",
+      label: "Wiederherstellen",
+    });
+  });
+
+  it("keeps Schicht behalten on a past marked shift (the flag-clearing restore runs no gate)", () => {
+    expect(byKey("marked:kept").action).toMatchObject({
+      type: "restore",
+      shiftId: "kept",
+      label: "Schicht behalten",
+    });
+  });
+
+  it("explains the past-day limit", () => {
+    expect(NOTICE_KINDS.removed.explanation).toContain(
+      "An einem vergangenen Tag geht das nicht mehr.",
+    );
   });
 });

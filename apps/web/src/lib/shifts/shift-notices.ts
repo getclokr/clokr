@@ -4,6 +4,7 @@
 // because they overlap leave or Berufsschule, weeks with more shift days than the contract
 // allows). This module turns them into notices with a date, a person, a reason and one action,
 // sorted by date. It only re-shapes; which shift belongs in which bucket stays the API's rule.
+// A removed shift on a past day gets no action, only the reason (Issue #1100).
 
 import { planningWeekLabel, shortGermanDay } from "./planning-week";
 
@@ -17,6 +18,12 @@ export interface ConflictShift {
   deletedAt: string | null;
   deletedReason: string | null;
   conflictsWithLeave: boolean;
+  /**
+   * Issue #1100 — the day lies before the tenant's calendar day as the API's shift gate reads it
+   * (`isPastShiftDay`); a removed shift there cannot come back. The web never compares dates for this
+   * itself.
+   */
+  pastDay: boolean;
 }
 
 export interface WeekOverbookedEntry {
@@ -41,7 +48,9 @@ export type NoticeKind = "removed" | "marked" | "week-overbooked";
 
 export type NoticeAction =
   | { type: "restore"; shiftId: string; label: string; doneToast: string }
-  | { type: "link"; href: string; label: string };
+  | { type: "link"; href: string; label: string }
+  /** No action is possible; `label` says why and is shown where the button would be. */
+  | { type: "unavailable"; label: string };
 
 export interface ShiftNotice {
   key: string;
@@ -62,7 +71,8 @@ export const NOTICE_KINDS: Record<NoticeKind, { badge: string; explanation: stri
     badge: "Entfernt",
     explanation:
       "Beim Anlegen eines neuen Berufsschultags werden Schichten an diesem Tag automatisch " +
-      "entfernt. Mit „Wiederherstellen“ holst du die Schicht zurück; das wird protokolliert.",
+      "entfernt. Mit „Wiederherstellen“ holst du die Schicht zurück; das wird protokolliert. " +
+      "An einem vergangenen Tag geht das nicht mehr.",
   },
   marked: {
     badge: "Prüfen",
@@ -104,20 +114,28 @@ function shiftNotice(s: ConflictShift, kind: "removed" | "marked"): ShiftNotice 
       kind === "removed"
         ? "Wegen eines neuen Berufsschultags automatisch entfernt."
         : "Überschneidet sich mit Urlaub oder Berufsschule.",
-    action:
-      kind === "removed"
-        ? {
-            type: "restore",
-            shiftId: s.id,
-            label: "Wiederherstellen",
-            doneToast: "Schicht wiederhergestellt",
-          }
-        : {
-            type: "restore",
-            shiftId: s.id,
-            label: "Schicht behalten",
-            doneToast: "Hinweis erledigt",
-          },
+    action: shiftAction(s, kind),
+  };
+}
+
+function shiftAction(s: ConflictShift, kind: "removed" | "marked"): NoticeAction {
+  if (kind === "removed") {
+    // Issue #1100 — the shift gate refuses a restore on a day before the tenant's today.
+    if (s.pastDay) return { type: "unavailable", label: "Vergangener Tag – nicht mehr änderbar." };
+    return {
+      type: "restore",
+      shiftId: s.id,
+      label: "Wiederherstellen",
+      doneToast: "Schicht wiederhergestellt",
+    };
+  }
+  // Marked shifts keep their action on past days: the flag-clearing restore runs no gate and is
+  // allowed there (Issue #1100, proven in shift-write-single-1075.test.ts).
+  return {
+    type: "restore",
+    shiftId: s.id,
+    label: "Schicht behalten",
+    doneToast: "Hinweis erledigt",
   };
 }
 

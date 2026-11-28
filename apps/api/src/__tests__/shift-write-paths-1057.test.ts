@@ -547,9 +547,16 @@ describe("Issue #1057 — every Shift write path is registered with a verdict", 
       }
     });
 
-    it("the past lock outside the gate is DELETE /:id only", () => {
+    it("the past lock outside the gate is DELETE /:id only; GET /conflicts reads the same predicate and writes nothing (Issue #1100)", () => {
       const withPastLock = handlers.filter((h) => h.pastLockCalls > 0).map((h) => h.key);
-      expect(withPastLock).toEqual(["DELETE /:id"]);
+      expect(withPastLock).toEqual(["DELETE /:id", "GET /conflicts"]);
+      const conflicts = handlers.find((h) => h.key === "GET /conflicts");
+      expect(conflicts, "GET /conflicts not found").toBeDefined();
+      expect(
+        conflicts!.shiftWrites,
+        "GET /conflicts only tells the list which days the past rule refuses, it must never write a Shift",
+      ).toEqual([]);
+      expect(conflicts!.gateCalls, "GET /conflicts runs no gate").toEqual([]);
     });
   });
 
