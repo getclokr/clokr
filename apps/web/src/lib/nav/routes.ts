@@ -71,6 +71,12 @@ export interface AppRoute {
   /** Issue #853 (D-853-15 revised) — NAVIGATION visibility only: the entry is hidden from a navigation
    *  when one of these alternatives is held. Guards and direct URLs are unaffected (see `navRequires`). */
   navHiddenWhen?: PermissionAlternatives;
+  /**
+   * Issue #1114 — where the route guard sends a person who may not open this page, instead of their start page
+   * (`homeHref`). Must be a page every signed-in user opens (`requires: null`, pinned by
+   * `reports-guard-1114.test.ts`).
+   */
+  deniedTo?: string;
 }
 
 const Z = (resourceAction: string) => `${resourceAction}:ZUGEWIESEN`;
@@ -280,7 +286,8 @@ export const APP_ROUTES: readonly AppRoute[] = [
   // Owner decision 25.11.2026 on #992 (N-15, D-992-01): the page also serves `team-overview:read` holders the
   // tabs Heute and Verläufe (`reportRights().periodTabs`, pinned equal by `berichte-salonleitung-992.test.ts`),
   // so the rail and ⌘K show it to them too. Only navigation visibility widens: no permission and no endpoint
-  // changed, and the page stays unguarded until #1114 decides what a person without the Team area sees.
+  // changed. #1114: a person without either permission (own reach only) is sent to Ich › Konto, which already
+  // shows the own figures, instead of seeing the personal-closes branch under a „Team / Berichte“ crumb.
   {
     href: "/team/berichte",
     salonFilter: true,
@@ -291,6 +298,7 @@ export const APP_ROUTES: readonly AppRoute[] = [
     requires: [[Z("report:read")], [Z("team-overview:read")]],
     file: "/reports",
     inNav: true,
+    deniedTo: "/ich/konto",
     description: "Auswertungen nach Zeitraum, Person und Salon",
   },
   // D-05: the team availability belongs to the roster. #853 (D-853-04 revised): it is the fourth tab of
@@ -966,6 +974,18 @@ export function homeHref(user: PermissionHolder | null | undefined): string {
   if (open("/team/heute")) return "/team/heute";
   if (open("/verwalten") && !open("/team/zeiten")) return "/verwalten";
   return "/ich/tag";
+}
+
+/**
+ * Issue #1114 — where the route guard sends a person who may not open `pathname`: the `deniedTo` page of its
+ * table entry (Berichte → Ich › Konto, the own figures), else the person's start page (Z-02).
+ */
+export function guardDeniedTarget(
+  user: PermissionHolder | null | undefined,
+  pathname: string,
+): string {
+  const target = routeFor(pathname)?.deniedTo;
+  return target !== undefined ? target : homeHref(user);
 }
 
 /** The area label of `pathname` for the crumb („Team“), "" outside the table. */

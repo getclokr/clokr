@@ -47,6 +47,7 @@
     type PeriodState,
     type PeriodTab,
   } from "$lib/reports/period-state"; // Issue #612 (D-612-1)
+  import { countNoun } from "$lib/utils/count-word"; // Issue #1114: "1 Monat", never "1 Monate"
   import { absencePeriodLabel } from "$lib/reports/period-format"; // Issue #1011
   import {
     periodAbsencesCsvPath,
@@ -703,8 +704,10 @@
     return `${sign}${h}:${String(m).padStart(2, "0")}`;
   }
 
+  // Issue #1114: the unit agrees with the count - "1 Monat", never "1 Monate".
+  const closedMonthsUnit = $derived(countNoun(kpiClosedMonths, "Monat", "Monate"));
   const empKpiItems = $derived<KpiItem[]>([
-    { label: MONTH_STATUS_LABEL.CLOSED, value: kpiClosedMonths, unit: "Monate" },
+    { label: MONTH_STATUS_LABEL.CLOSED, value: kpiClosedMonths, unit: closedMonthsUnit },
     { label: "Soll", value: fmtHoursFromMin(kpiTotalExpectedMin), unit: "h" },
     { label: "Ist", value: fmtHoursFromMin(kpiTotalWorkedMin), unit: "h" },
     { label: "Saldo", value: fmtBalance(kpiTotalBalanceMin), unit: "h" },
