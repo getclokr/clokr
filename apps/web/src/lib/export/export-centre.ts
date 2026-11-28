@@ -6,7 +6,7 @@
  * The words of an export kind come only from `$lib/audit/labels` (the code stays the control value), so the history
  * says the same as the Protokoll.
  */
-import { format } from "date-fns";
+import { dateTimeLabel, dayRangeLabel } from "$lib/utils/day-label";
 import { auditActorLabel } from "$lib/audit/actor-label";
 import { personName } from "$lib/utils/person-name";
 import { exportTypeLabel } from "$lib/audit/labels";
@@ -60,7 +60,7 @@ export interface ExportLogLike {
 
 export interface ExportHistoryRow {
   id: string;
-  /** „03.11.2026 14:05“ in the browser's local time, like the Protokoll. */
+  /** „3.11.2026, 14:05“ in the browser's local time, like the Protokoll. */
   when: string;
   who: string;
   /** The German word of the export kind. */
@@ -78,11 +78,6 @@ function wholeNumber(value: unknown): number | null {
   if (typeof value === "number") return Number.isInteger(value) ? value : null;
   if (typeof value === "string" && /^\d{1,4}$/.test(value)) return Number(value);
   return null;
-}
-
-function dayLabel(day: string): string {
-  const [, y, m, d] = DAY_KEY.exec(day) ?? [];
-  return `${d}.${m}.${y}`;
 }
 
 /** The period a row names, as words; null when it names none. */
@@ -104,10 +99,8 @@ function periodScope(newValue: unknown): string | null {
     return a === b ? a : `${a} bis ${b}`;
   }
   if (DAY_KEY.test(from) && DAY_KEY.test(to)) {
-    // „01.09.–30.09.2026“ within one year, the full form across years.
-    return from.slice(0, 4) === to.slice(0, 4)
-      ? `${dayLabel(from).slice(0, 6)}–${dayLabel(to)}`
-      : `${dayLabel(from)}–${dayLabel(to)}`;
+    // „1.9.–30.9.2026“ within one year, the full form across years.
+    return dayRangeLabel(from, to, { year: true });
   }
   return null;
 }
@@ -142,7 +135,7 @@ export function exportHistoryRows(logs: readonly ExportLogLike[]): ExportHistory
       const scope = [person, periodScope(log.newValue)].filter((part) => part !== null).join(" · ");
       return {
         id: log.id,
-        when: format(new Date(log.createdAt), "dd.MM.yyyy HH:mm"),
+        when: dateTimeLabel(new Date(log.createdAt)),
         who: auditActorLabel(log).text,
         kind: exportTypeLabel(typeof type === "string" ? type : ""),
         scope: scope === "" ? "—" : scope,

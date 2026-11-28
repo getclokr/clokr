@@ -10,6 +10,7 @@
    *
    * It draws what it is given, writes nothing and renders no dialog.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import EmptyState from "$components/ui/EmptyState.svelte";
   import { ABSENT, leaveTypeColor } from "$lib/leave/leave-colors";
   import type { Period, TimelineBar, TimelinePerson } from "$lib/leave/timeline-model";
@@ -24,8 +25,7 @@
   let { rows, period, holidays = [], onBarSelect }: Props = $props();
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function rangeLabel(bar: TimelineBar): string {

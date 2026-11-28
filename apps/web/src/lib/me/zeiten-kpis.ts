@@ -60,7 +60,7 @@ export interface ZeitenAccountFigure {
   balanceHours: number;
   unconfirmedMonths?: number | null;
   hasClosedMonth?: boolean;
-  /** „Stand gestern, DD.MM.“ - see `standGesternText`. */
+  /** „Stand gestern, 3.11.“ - see `standGesternText`. */
   stand: string;
 }
 

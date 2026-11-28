@@ -15,6 +15,7 @@
    * `canManage`. A non-manager sees the deadline as read-only text. All dialogs are mounted at the
    * root, outside every animated block (#570).
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import { onMount, untrack } from "svelte";
   import { authStore } from "$stores/auth";
   import { salonContext } from "$stores/salon-context";
@@ -237,8 +238,7 @@
   );
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   const deadlineText = $derived(

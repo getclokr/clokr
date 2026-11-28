@@ -85,7 +85,6 @@ function addDays(day: string, n: number): string {
   return daysAgo(-n, new Date(`${day}T00:00:00.000Z`));
 }
 
-/** `YYYY-MM-DD` to the German `DD.MM.YYYY` the pages print. */
 /**
  * Types an ISO day into a DatePicker field (segments Tag, Monat, Jahr in the German order): focus the
  * first segment and type the digits as a person would; the field advances by itself.
@@ -96,9 +95,10 @@ async function typeDay(field: Locator, isoDay: string): Promise<void> {
   await field.page().keyboard.type(`${day}${month}${year}`);
 }
 
+/** `YYYY-MM-DD` to the German day the pages print, without leading zeros ("1.6.2026"). */
 function deDate(day: string): string {
   const [y, m, d] = day.split("-");
-  return `${d}.${m}.${y}`;
+  return `${Number(d)}.${Number(m)}.${y}`;
 }
 
 /** The first day of the previous month, as a calendar day. */
@@ -482,12 +482,12 @@ test.describe("Issue #86 — Personalabteilung im Browser", () => {
     const xDetail = monthPersons.locator("tr").filter({ hasText: x.lastName });
     await expect(xDetail).toBeVisible();
     await expect(xDetail).toContainText(/\d+ Tage? ohne Eintrag/);
-    await expect(xDetail).not.toContainText(/\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\./);
+    await expect(xDetail).not.toContainText(/\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\./);
     await expect(page.getByTestId("month-close-withheld-hint")).toBeVisible();
     // The redaction follows the person: HR's own row (time-entry:read EIGENE over herself) keeps
     // its dates, which also proves the assertion above is not satisfied by an empty page.
     await expect(monthPersons.locator("tr").filter({ hasText: hr.lastName })).toContainText(
-      /\d{2}\.\d{2}\./,
+      /\d{1,2}\.\d{1,2}\./,
     );
 
     // Back to the employee for the exit date.

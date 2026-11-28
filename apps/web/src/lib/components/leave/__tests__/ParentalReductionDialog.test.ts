@@ -235,7 +235,7 @@ describe("ParentalReductionDialog", () => {
     renderWithTheme(ParentalReductionDialog, { open: true, request: REQUEST, onChanged });
 
     const row2026 = await screen.findByTestId("parental-reduction-row-2026");
-    expect(within(row2026).getByText("erklärt am 01.09.2026")).toBeTruthy();
+    expect(within(row2026).getByText("erklärt am 1.9.2026")).toBeTruthy();
     await fireEvent.click(within(row2026).getByRole("button", { name: "Widerrufen" }));
 
     const revokeHeading = await screen.findByText("Elternzeit-Kürzung widerrufen");
@@ -312,7 +312,7 @@ describe("ParentalReductionDialog", () => {
     renderDialog(revokedPreview);
 
     const row2026 = await screen.findByTestId("parental-reduction-row-2026");
-    expect(within(row2026).getByText("widerrufen am 02.10.2026")).toBeTruthy();
+    expect(within(row2026).getByText("widerrufen am 2.10.2026")).toBeTruthy();
     expect(within(row2026).queryByRole("checkbox")).toBeNull();
     expect(within(row2026).queryByRole("button", { name: "Widerrufen" })).toBeNull();
   });

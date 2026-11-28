@@ -9,7 +9,7 @@ describe("retro window hint (Issue #849)", () => {
       "Nachträge sind bis zu 10 Tage rückwirkend ohne Genehmigung möglich (ab 30.10.2026). Für frühere Tage stellst du einen Antrag.",
     );
     expect(retroWindowHint(1, "2026-03-01")).toContain("bis zu 1 Tag rückwirkend");
-    expect(retroWindowHint(1, "2026-03-01")).toContain("(ab 28.02.2026)");
+    expect(retroWindowHint(1, "2026-03-01")).toMatch(/(?<!\d)\(ab 28\.2\.2026\)/);
   });
 
   it("a zero window allows only today", () => {

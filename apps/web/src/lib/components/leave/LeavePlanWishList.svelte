@@ -7,6 +7,7 @@
    * it is `editable` (and it is not a foreign plan's or a taken-over wish). The list writes nothing:
    * every action is a callback of the parent.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import {
     ADD_WISH_LABEL,
     NO_WISHES_LABEL,
@@ -31,8 +32,7 @@
   let { persons, ownEmployeeId, onEdit, onRemove, onAdd, canAdd = true }: Props = $props();
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function isEditable(wish: PlannerWish): boolean {

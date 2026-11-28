@@ -7,12 +7,11 @@
   through the same allow-list schema as the list itself.
 -->
 <script lang="ts">
+  import { dateTimeLabel } from "$lib/utils/day-label";
   import { showDetailCrumb } from "$lib/nav/detail-crumb";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { format } from "date-fns";
-  import { de } from "date-fns/locale";
   import { api, ApiError } from "$api/client";
   import { parseUrlState, serialiseUrlState } from "$lib/table/url-state";
   import { auditActorLabel } from "$lib/audit/actor-label";
@@ -73,7 +72,7 @@
   });
 
   function fmtDate(iso: string): string {
-    return format(new Date(iso), "dd.MM.yyyy HH:mm:ss", { locale: de });
+    return dateTimeLabel(new Date(iso), { seconds: true });
   }
 
   const columns: DataTableColumn[] = [

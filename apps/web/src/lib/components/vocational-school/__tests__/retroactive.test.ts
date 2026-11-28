@@ -100,12 +100,12 @@ describe("shouldOfferRetroactiveRun (Phase 103, D-01, widened by plan 04)", () =
 });
 
 describe("formatIsoDateDe (Phase 103)", () => {
-  it("formats a two-digit day/month", () => {
-    expect(formatIsoDateDe("2026-08-12")).toBe("12.08.2026");
+  it("formats a two-digit day and a single-digit month", () => {
+    expect(formatIsoDateDe("2026-08-12")).toBe("12.8.2026");
   });
 
-  it("formats a single-digit day and month, preserving the leading zero", () => {
-    expect(formatIsoDateDe("2026-01-05")).toBe("05.01.2026");
+  it("formats a single-digit day and month without a leading zero", () => {
+    expect(formatIsoDateDe("2026-01-05")).toBe("5.1.2026");
   });
 
   it("formats the last day of a month", () => {
@@ -114,28 +114,28 @@ describe("formatIsoDateDe (Phase 103)", () => {
 });
 
 describe("buildRetroactiveSummary (Phase 103 plan 04, D-02)", () => {
-  it('renders the exact CONTEXT.md example — "Ab 12.08.2026: 2 Tage entfallen, 1 Tag kommt hinzu."', () => {
+  it('renders the exact CONTEXT.md example — "Ab 12.8.2026: 2 Tage entfallen, 1 Tag kommt hinzu."', () => {
     const preview = basePreview({ created: 1, removed: 2, windowStart: "2026-08-12" });
     expect(buildRetroactiveSummary(preview)).toBe(
-      "Ab 12.08.2026: 2 Tage entfallen, 1 Tag kommt hinzu.",
+      "Ab 12.8.2026: 2 Tage entfallen, 1 Tag kommt hinzu.",
     );
   });
 
   it("singular on both halves independently", () => {
     const preview = basePreview({ created: 1, removed: 1, windowStart: "2026-01-05" });
     expect(buildRetroactiveSummary(preview)).toBe(
-      "Ab 05.01.2026: 1 Tag entfällt, 1 Tag kommt hinzu.",
+      "Ab 5.1.2026: 1 Tag entfällt, 1 Tag kommt hinzu.",
     );
   });
 
   it("drops the removed clause when removed is 0", () => {
     const preview = basePreview({ created: 3, removed: 0, windowStart: "2026-08-12" });
-    expect(buildRetroactiveSummary(preview)).toBe("Ab 12.08.2026: 3 Tage kommen hinzu.");
+    expect(buildRetroactiveSummary(preview)).toBe("Ab 12.8.2026: 3 Tage kommen hinzu.");
   });
 
   it("drops the created clause when created is 0", () => {
     const preview = basePreview({ created: 0, removed: 4, windowStart: "2026-08-12" });
-    expect(buildRetroactiveSummary(preview)).toBe("Ab 12.08.2026: 4 Tage entfallen.");
+    expect(buildRetroactiveSummary(preview)).toBe("Ab 12.8.2026: 4 Tage entfallen.");
   });
 
   it("with created: 0, removed: 0 but locked days present, omits the create/remove clause entirely", () => {
@@ -144,7 +144,7 @@ describe("buildRetroactiveSummary (Phase 103 plan 04, D-02)", () => {
     const summary = buildRetroactiveSummary(preview);
     expect(summary).not.toContain("0 Tage entfallen");
     expect(summary).not.toContain("0 Tage kommen hinzu");
-    expect(summary).toBe("Ab 12.08.2026: keine Berufsschultage betroffen.");
+    expect(summary).toBe("Ab 12.8.2026: keine Berufsschultage betroffen.");
   });
 });
 

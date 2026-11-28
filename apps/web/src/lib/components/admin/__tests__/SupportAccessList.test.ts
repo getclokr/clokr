@@ -67,8 +67,8 @@ describe("SupportAccessList", () => {
     expect(link.textContent).toContain("Aktiv");
     expect(link.textContent).toContain("3 Abrufe");
     // an access that is still running shows the instant it runs out
-    expect(link.textContent).toContain("02.07.2026, 00:30");
-    expect(link.textContent).toContain("03.07.2026, 00:30");
+    expect(link.textContent).toMatch(/(?<!\d)2\.7\.2026, 00:30/);
+    expect(link.textContent).toMatch(/(?<!\d)3\.7\.2026, 00:30/);
   });
 
   it("writes the instants in the tenant zone from the API, not the browser's", () => {
@@ -78,7 +78,7 @@ describe("SupportAccessList", () => {
     renderWithTheme(SupportAccessList, props({ timezone: "America/New_York" }));
     const newYork = rowOf().textContent;
     expect(berlin).not.toBe(newYork);
-    expect(newYork).toContain("01.07.2026, 18:30");
+    expect(newYork).toMatch(/(?<!\d)1\.7\.2026, 18:30/);
   });
 
   it("says who ended an access and when, and counts one read in the singular", () => {
@@ -102,8 +102,8 @@ describe("SupportAccessList", () => {
     expect(link.textContent).toContain("1 Abruf");
     expect(link.textContent).not.toContain("1 Abrufe");
     // the end of an ended access is the instant it was ended, not the planned expiry
-    expect(link.textContent).toContain("02.07.2026, 01:30");
-    expect(link.textContent).not.toContain("03.07.2026, 00:30");
+    expect(link.textContent).toMatch(/(?<!\d)2\.7\.2026, 01:30/);
+    expect(link.textContent).not.toMatch(/(?<!\d)3\.7\.2026, 00:30/);
   });
 
   it("shows an expired access without an ended-by note", () => {

@@ -6,6 +6,7 @@
  * them, `GET /employees/:id/salon-assignments`), the employment state from `employmentState()`; a
  * part that is unknown or unreadable is left out, nothing is guessed.
  */
+import { dayLabel } from "$lib/utils/day-label";
 import { employmentState } from "$lib/employees/employment-state";
 import type { SalonRef } from "$lib/employees/salon-assignments";
 
@@ -16,8 +17,7 @@ export function salonNameOf(salons: readonly SalonRef[], salonId: string | null)
 }
 
 function germanDay(isoDay: string): string {
-  const [y, m, d] = isoDay.split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(isoDay, { year: true });
 }
 
 export interface DetailHeadInput {

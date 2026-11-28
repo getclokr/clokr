@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dayLabel } from "$lib/utils/day-label";
   import { homeHref } from "$lib/nav/routes";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick } from "svelte";
@@ -445,8 +446,7 @@
   // ── Helpers ──────────────────────────────────────────────────────────────
   function fmtDate(iso: string): string {
     if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   // ── Derived: the leave requests and Zeitnachträge as task rows + the KPI band ──

@@ -225,7 +225,7 @@ describe("resolveAdjustmentBadge", () => {
       direction: "down",
       at: "2026-08-27T14:36:00.000Z",
     })!;
-    expect(badge.tooltip).toBe("Alt: 5 Tage → Neu: 3 Tage · Auslöser: Roster-Planung · 27.08.2026");
+    expect(badge.tooltip).toBe("Alt: 5 Tage → Neu: 3 Tage · Auslöser: Roster-Planung · 27.8.2026");
   });
 
   it("rounds the delta and words the tooltip days with the day formatter (Issue #853-19)", () => {
@@ -238,7 +238,7 @@ describe("resolveAdjustmentBadge", () => {
     expect(5.5 - 5.4).not.toBe(0.1); // 0.09999999999999964
     expect(badge.delta).toBe(0.1);
     expect(badge.tooltip).toBe(
-      "Alt: 5,4 Tage → Neu: 5,5 Tage · Auslöser: Roster-Planung · 27.08.2026",
+      "Alt: 5,4 Tage → Neu: 5,5 Tage · Auslöser: Roster-Planung · 27.8.2026",
     );
   });
 

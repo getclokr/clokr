@@ -212,12 +212,6 @@ export const CAP_EXCEPTIONS: readonly CapException[] = [
     reason: "The six-digit one-time code input of the operator sign-in (`.slice(0, 6)`).",
   },
   {
-    file: "lib/export/export-centre.ts",
-    detector: "slice-literal",
-    count: 1,
-    reason: "The day label „01.09.“ of a period (`dayLabel(from).slice(0, 6)`).",
-  },
-  {
     file: "lib/operator/slug.ts",
     detector: "slice-const",
     count: 1,
@@ -246,8 +240,7 @@ export const UNSEEN_CAPS: readonly { file: string; needle: string; reason: strin
   {
     file: "lib/month-close/day-lists.ts",
     needle: "(+${dates.length - 3})",
-    reason:
-      "L20: the Monatsabschluss gap-day sentence „03.10., 04.10., 05.10. (+N)“; one sentence.",
+    reason: "L20: the Monatsabschluss gap-day sentence „3.10., 4.10., 5.10. (+N)“; one sentence.",
   },
 ];
 

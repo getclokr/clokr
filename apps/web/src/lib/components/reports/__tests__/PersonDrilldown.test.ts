@@ -435,7 +435,7 @@ describe("PersonDrilldown - the day list (only with time-entry:read)", () => {
       within(r)
         .getAllByRole("cell")
         .map((c) => c.textContent?.replace(/\s+/g, " ").trim());
-    expect(text(rows[0])).toEqual(["Mo 07.09.", "08:00–12:00", "0:00", "4:00", "Nord"]);
+    expect(text(rows[0])).toEqual(["Mo 7.9.", "08:00–12:00", "0:00", "4:00", "Nord"]);
     expect(text(rows[1])).toEqual(["", "13:00–16:30", "0:30", "3:00", "Nord"]);
     expect(within(table).queryByRole("row", { name: /Summe|Gesamt/i })).toBeNull();
     expect(table.textContent).not.toMatch(/Summe|Gesamt|Total/);
@@ -510,7 +510,7 @@ describe("PersonDrilldown - the day list (only with time-entry:read)", () => {
     const table = await screen.findByRole("table", { name: /Tage im September 2026/ });
     expect(within(table).queryByText(/NaN|undefined/)).toBeNull();
     const first = within(table).getAllByRole("link")[0];
-    expect(first).toHaveTextContent(/^(Mo|Di|Mi|Do|Fr|Sa|So) \d{2}\.09\.$/);
+    expect(first).toHaveTextContent(/^(Mo|Di|Mi|Do|Fr|Sa|So) (?!0)\d{1,2}\.9\.$/);
     expect(first.getAttribute("href")).toMatch(/&date=2026-09-\d{2}$/);
   });
 

@@ -22,6 +22,7 @@
    * `apps/web/vitest.config.ts` has no alias for, so a component importing it cannot be mounted
    * in vitest. `employeeId` therefore comes in as a required prop, never read from the store.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import { preventDefault } from "svelte/legacy";
   import type { Snippet } from "svelte";
   import { format } from "date-fns";
@@ -238,8 +239,7 @@
 
   function fmtDate(iso: string): string {
     if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function calcDays(start: string, end: string, halfDay: boolean): number {

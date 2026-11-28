@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dayLabel } from "$lib/utils/day-label";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
@@ -817,8 +818,7 @@
   // ── Helfer ────────────────────────────────────────────────────────────────
   function fmtDate(iso: string): string {
     if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function statusClass(s: Status) {

@@ -686,7 +686,7 @@ describe("LeaveReviewDialog - decision facts (#853)", () => {
     renderFacts({ canReadShifts: true });
     const block = await screen.findByTestId("review-fact-shifts");
     const items = Array.from(block.querySelectorAll("li")).map((li) => li.textContent);
-    expect(items).toEqual(["Di 01.09. · 09:00–17:00", "Mi 02.09. · 10:00–18:30"]);
+    expect(items).toEqual(["Di 1.9. · 09:00–17:00", "Mi 2.9. · 10:00–18:30"]);
     expect(paths()).toContain("/shifts/range?from=2026-09-01&to=2026-09-05&employeeId=emp-1");
   });
 
@@ -729,12 +729,12 @@ describe("LeaveReviewDialog - decision facts (#853)", () => {
       }),
     });
     await waitFor(() =>
-      expect(screen.getByTestId("review-fact-shifts").textContent).toContain("Mo 05.10."),
+      expect(screen.getByTestId("review-fact-shifts").textContent).toMatch(/(?<!\d)Mo 5\.10\./),
     );
     releaseFirst([{ date: "2026-09-01", startTime: "09:00", endTime: "17:00" }]);
     await new Promise((r) => setTimeout(r, 0));
     const text = screen.getByTestId("review-fact-shifts").textContent ?? "";
-    expect(text).toContain("Mo 05.10.");
-    expect(text).not.toContain("01.09.");
+    expect(text).toMatch(/(?<!\d)Mo 5\.10\./);
+    expect(text).not.toMatch(/(?<!\d)1\.9\./);
   });
 });

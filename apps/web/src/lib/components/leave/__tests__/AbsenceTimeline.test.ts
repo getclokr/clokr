@@ -133,8 +133,8 @@ describe("bars", () => {
     const label = bar.getAttribute("aria-label") ?? "";
     expect(label).toContain("Anna Muster");
     expect(label).toContain("Urlaub");
-    expect(label).toContain("02.11.2026");
-    expect(label).toContain("04.11.2026");
+    expect(label).toMatch(/(?<!\d)2\.11\.2026/);
+    expect(label).toMatch(/(?<!\d)4\.11\.2026/);
     expect(bar.getAttribute("title")).toBeTruthy();
   });
 
@@ -681,8 +681,8 @@ describe("Jahr: the ISO week grid", () => {
     expect(cell.tagName).toBe("BUTTON");
     const label = cell.getAttribute("aria-label") ?? "";
     expect(label).toContain("KW 45");
-    expect(label).toContain("02.11.");
-    expect(label).toContain("08.11.2026");
+    expect(label).toMatch(/(?<!\d)2\.11\./);
+    expect(label).toMatch(/(?<!\d)8\.11\.2026/);
     expect(label).toContain("83 %");
     expect(label).toContain("Urlaub");
     expect(cell.getAttribute("title")).toBeTruthy();

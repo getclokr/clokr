@@ -135,7 +135,7 @@ describe("the leave form on a device that is on another year than the tenant (#1
   it("shows the expiry of a deadline on the tenant's today", async () => {
     world.carryOverDeadline = "2027-01-01";
     await mountForm();
-    expect(await screen.findByText("(verfällt 01.01.2027)")).toBeTruthy();
+    expect(await screen.findByText("(verfällt 1.1.2027)")).toBeTruthy();
   });
 });
 

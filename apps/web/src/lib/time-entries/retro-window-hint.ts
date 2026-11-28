@@ -5,9 +5,10 @@
 // days with RETRO_WINDOW_EXCEEDED (entry-invariants.ts). The form used to learn the window only from
 // that refusal. The earliest day mirrors computeRetroLimitStr(): today − windowDays, inclusive.
 
+import { dayLabel } from "$lib/utils/day-label";
+
 function germanDay(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(iso, { year: true });
 }
 
 /** `YYYY-MM-DD` of `todayIso` minus `days` calendar days (pure string-day arithmetic in UTC). */

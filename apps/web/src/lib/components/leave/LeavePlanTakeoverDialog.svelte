@@ -12,6 +12,7 @@
    * leave: which wish is limit-refused is read from the refusal CODE, the German text is display
    * only. Mounted inside the page but OUTSIDE any animated block (#570).
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import { untrack } from "svelte";
   import ConfirmDialog from "$components/ui/ConfirmDialog.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
@@ -62,8 +63,7 @@
   }
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function nameOf(employeeId: string): string {

@@ -21,6 +21,7 @@
    * renders no dialog (#570: an animated Section traps fixed dialogs) and imports neither the auth
    * store nor the API client, so it stays mountable in vitest.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import { onMount } from "svelte";
   import { ABSENT, MIXED, leaveTypeColor } from "$lib/leave/leave-colors";
   import {
@@ -170,13 +171,11 @@
   // ── Formatting ───────────────────────────────────────────────────────────────────────────────
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function fmtShort(iso: string): string {
-    const [, m, d] = iso.split("-");
-    return `${d}.${m}.`;
+    return dayLabel(iso);
   }
 
   // ── Header: months ───────────────────────────────────────────────────────────────────────────
@@ -292,7 +291,7 @@
     return LEAVE_TYPES.find((t) => t.code === code)?.label ?? null;
   }
 
-  /** „KW 45, 02.11. bis 08.11.2026: 83 % der Werktage abwesend (Urlaub), beantragt“. */
+  /** „KW 45, 2.11. bis 8.11.2026: 83 % der Werktage abwesend (Urlaub), beantragt“. */
   function weekLabel(
     week: { isoWeek: number; monday: string; sunday: string },
     cell: {

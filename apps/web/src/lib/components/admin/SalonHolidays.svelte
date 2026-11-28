@@ -17,6 +17,7 @@
     canManage - show the add and remove controls (presentation only)
 -->
 <script lang="ts">
+  import { dayLabel } from "$lib/utils/day-label";
   import { onMount } from "svelte";
   import { api, ApiError } from "$api/client";
   import { toasts } from "$stores/toast";
@@ -81,17 +82,9 @@
     { key: "name", label: "Bezeichnung", primary: true },
   ];
 
-  const dateFormat = new Intl.DateTimeFormat("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
-  /** Formats the calendar day `YYYY-MM-DD` without a time zone shift. */
+  /** The calendar day `YYYY-MM-DD` as "Do 1.1.2026", without a time zone shift. */
   function formatDay(day: string): string {
-    return dateFormat.format(new Date(`${day}T00:00:00Z`));
+    return dayLabel(day, { weekday: true, year: true });
   }
 
   async function load() {

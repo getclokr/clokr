@@ -22,9 +22,9 @@ describe("contractHistoryRows (Issue #86, D-01)", () => {
   it("lists newest first, the newest as „seit“, older rows as a closed period", () => {
     const out = contractHistoryRows(rows);
     expect(out.map((r) => r.id)).toEqual(["c", "b", "a"]);
-    expect(out[0].period).toBe("seit 01.07.2026");
-    expect(out[1].period).toBe("01.10.2025 – 30.06.2026");
-    expect(out[2].period).toBe("01.01.2025 – 30.09.2025");
+    expect(out[0].period).toBe("seit 1.7.2026");
+    expect(out[1].period).toBe("1.10.2025 – 30.6.2026");
+    expect(out[2].period).toBe("1.1.2025 – 30.9.2025");
   });
 
   it("labels the model in German and formats the extent per type", () => {
@@ -56,7 +56,7 @@ describe("contractHistoryRows (Issue #86, D-01)", () => {
   it("a single row is only „seit“", () => {
     const out = contractHistoryRows([rows[0]]);
     expect(out).toHaveLength(1);
-    expect(out[0].period).toBe("seit 01.01.2025");
+    expect(out[0].period).toBe("seit 1.1.2025");
   });
 });
 
@@ -84,15 +84,15 @@ describe("validityLabel and contractStatus (Issue #854)", () => {
 
   it("words a closed version with its end and the newest one as aktuell", () => {
     const out = contractHistoryRows(history);
-    expect(validityLabel(out[0])).toBe("ab 01.06.2027 · aktuell");
-    expect(validityLabel(out[1])).toBe("ab 01.12.2026 · bis 31.05.2027");
-    expect(validityLabel(out[2])).toBe("ab 01.06.2026 · bis 30.11.2026");
+    expect(validityLabel(out[0])).toBe("ab 1.6.2027 · aktuell");
+    expect(validityLabel(out[1])).toBe("ab 1.12.2026 · bis 31.5.2027");
+    expect(validityLabel(out[2])).toBe("ab 1.6.2026 · bis 30.11.2026");
   });
 
   it("words a newest version that has not started yet as geplant once today is known", () => {
     const out = contractHistoryRows(history);
-    expect(validityLabel(out[0], "2027-05-20")).toBe("ab 01.06.2027 · geplant");
-    expect(validityLabel(out[0], "2027-06-01")).toBe("ab 01.06.2027 · aktuell");
+    expect(validityLabel(out[0], "2027-05-20")).toBe("ab 1.6.2027 · geplant");
+    expect(validityLabel(out[0], "2027-06-01")).toBe("ab 1.6.2027 · aktuell");
   });
 
   it("names ended, running and planned versions against a calendar day", () => {
@@ -110,7 +110,7 @@ describe("validityLabel and contractStatus (Issue #854)", () => {
 
   it("a single open-ended version is simply aktuell", () => {
     const out = contractHistoryRows([history[0]]);
-    expect(validityLabel(out[0])).toBe("ab 01.06.2026 · aktuell");
+    expect(validityLabel(out[0])).toBe("ab 1.6.2026 · aktuell");
     expect(contractStatus(out[0], "2026-06-01")).toBe("CURRENT");
   });
 });

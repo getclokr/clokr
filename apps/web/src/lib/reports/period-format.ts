@@ -6,6 +6,7 @@
  * at most two decimals with a decimal comma (Issue #993 N-05).
  */
 
+import { dayLabel } from "$lib/utils/day-label";
 import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
 import { MONTH_NAMES_DE } from "./period-state";
 
@@ -55,16 +56,14 @@ function trimFraction(fraction: number): string {
 
 const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** "2026-03-31" → "31.03.2026"; anything else is returned unchanged. */
+/** "2026-03-05" → "5.3.2026"; anything else is returned unchanged. */
 export function fmtDateDe(isoDay: string): string {
-  const m = ISO_DAY_RE.exec(isoDay);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : isoDay;
+  return ISO_DAY_RE.test(isoDay) ? dayLabel(isoDay, { year: true }) : isoDay;
 }
 
-/** "2026-03-31" → "31.03."; anything else is returned unchanged. */
+/** "2026-03-05" → "5.3."; anything else is returned unchanged. */
 export function fmtDateShortDe(isoDay: string): string {
-  const m = ISO_DAY_RE.exec(isoDay);
-  return m ? `${m[3]}.${m[2]}.` : isoDay;
+  return ISO_DAY_RE.test(isoDay) ? dayLabel(isoDay) : isoDay;
 }
 
 /** (2026, 7) → "Juli 2026". */

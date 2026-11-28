@@ -5,8 +5,8 @@ import { exitLabel } from "$lib/month-close/exit-label";
 
 describe("exitLabel", () => {
   it("formats the exit day in German day-month-year order", () => {
-    expect(exitLabel("2026-09-30")).toBe("Austritt am 30.09.2026");
-    expect(exitLabel("2027-01-05")).toBe("Austritt am 05.01.2027");
+    expect(exitLabel("2026-09-30")).toBe("Austritt am 30.9.2026");
+    expect(exitLabel("2027-01-05")).toBe("Austritt am 5.1.2027");
   });
 
   it("returns null without an exit date", () => {
@@ -26,7 +26,7 @@ describe("exitLabel", () => {
     try {
       for (const tz of ["Pacific/Auckland", "America/Los_Angeles", "UTC"]) {
         process.env.TZ = tz;
-        expect(exitLabel("2026-10-01")).toBe("Austritt am 01.10.2026");
+        expect(exitLabel("2026-10-01")).toBe("Austritt am 1.10.2026");
       }
     } finally {
       if (original === undefined) delete process.env.TZ;

@@ -65,15 +65,15 @@ describe("formatInZone", () => {
     const berlin = formatInZone(instant, "Europe/Berlin");
     const newYork = formatInZone(instant, "America/New_York");
     expect(berlin).not.toBe(newYork);
-    expect(berlin).toBe("02.07.2026, 00:30");
-    expect(newYork).toBe("01.07.2026, 18:30");
+    expect(berlin).toBe("2.7.2026, 00:30");
+    expect(newYork).toBe("1.7.2026, 18:30");
   });
 
   it("never follows the browser zone", () => {
     const original = process.env.TZ;
     try {
       process.env.TZ = "Pacific/Auckland";
-      expect(formatInZone(instant, "Europe/Berlin")).toBe("02.07.2026, 00:30");
+      expect(formatInZone(instant, "Europe/Berlin")).toBe("2.7.2026, 00:30");
     } finally {
       if (original === undefined) delete process.env.TZ;
       else process.env.TZ = original;
@@ -100,10 +100,10 @@ describe("formatMonth and formatReadWindow", () => {
 
   it("writes a stored window from the audit-log read", () => {
     expect(formatReadWindow({ from: "2026-09-01", to: "2026-09-30", page: 1 })).toBe(
-      "01.09.2026 – 30.09.2026",
+      "1.9.2026 – 30.9.2026",
     );
-    expect(formatReadWindow({ from: "2026-09-01" })).toBe("ab 01.09.2026");
-    expect(formatReadWindow({ to: "2026-09-30" })).toBe("bis 30.09.2026");
+    expect(formatReadWindow({ from: "2026-09-01" })).toBe("ab 1.9.2026");
+    expect(formatReadWindow({ to: "2026-09-30" })).toBe("bis 30.9.2026");
     expect(formatReadWindow({ page: 2 })).toBe("");
     expect(formatReadWindow(null)).toBe("");
   });

@@ -117,9 +117,9 @@ describe("shiftLines", () => {
     expect(JSON.stringify(input)).toBe(copy);
   });
 
-  it("names Sunday and pads a single-digit day", () => {
+  it("names Sunday and prints a single-digit day without a leading zero", () => {
     expect(shiftLines([{ date: "2026-11-01", startTime: "10:00", endTime: "14:00" }])).toEqual([
-      "So 01.11. · 10:00–14:00",
+      "So 1.11. · 10:00–14:00",
     ]);
   });
 

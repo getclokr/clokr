@@ -4,6 +4,8 @@
 // are shown in the tenant's time zone that the API returns, never in the browser's.
 
 /** `SupportAccessStatus` as `GET /support-accesses` sends it. */
+import { dayLabel } from "$lib/utils/day-label";
+
 export type SupportAccessStatus = "ACTIVE" | "EXPIRED" | "ENDED";
 
 export interface SupportAccessItem {
@@ -90,7 +92,7 @@ export function statusChipTone(status: string): "warn" | "neutral" | "info" {
 }
 
 /**
- * `dd.MM.yyyy, HH:mm` of the instant in the given IANA zone. An unparseable instant or an unknown zone
+ * "1.9.2026, 09:30" of the instant in the given IANA zone (the day without a leading zero, the time as HH:MM). An unparseable instant or an unknown zone
  * returns the raw value; a missing instant is an em dash.
  */
 export function formatInZone(iso: string | null, timezone: string): string {
@@ -98,7 +100,8 @@ export function formatInZone(iso: string | null, timezone: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   try {
-    return new Intl.DateTimeFormat("de-DE", {
+    const parts: Record<string, string> = {};
+    for (const part of new Intl.DateTimeFormat("de-DE", {
       timeZone: timezone,
       day: "2-digit",
       month: "2-digit",
@@ -106,7 +109,11 @@ export function formatInZone(iso: string | null, timezone: string): string {
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
-    }).format(date);
+    }).formatToParts(date)) {
+      parts[part.type] = part.value;
+    }
+    const day = dayLabel(`${parts.year}-${parts.month}-${parts.day}`, { year: true });
+    return `${day}, ${parts.hour}:${parts.minute}`;
   } catch {
     return iso;
   }
@@ -137,14 +144,13 @@ export function formatMonth(month: string | null): string {
 
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** A stored `YYYY-MM-DD` as `dd.MM.yyyy`; anything else (a tampered or foreign value) is null. */
+/** A stored `YYYY-MM-DD` as "1.9.2026"; anything else (a tampered or foreign value) is null. */
 function dayOf(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const match = DAY_PATTERN.exec(value);
-  return match ? `${match[3]}.${match[2]}.${match[1]}` : null;
+  return DAY_PATTERN.test(value) ? dayLabel(value, { year: true }) : null;
 }
 
-/** The window of an audit-log read („01.09.2026 – 30.09.2026“); empty when no day was stored. */
+/** The window of an audit-log read („1.9.2026 – 30.9.2026“); empty when no day was stored. */
 export function formatReadWindow(filters: Record<string, unknown> | null): string {
   if (filters === null) return "";
   const from = dayOf(filters.from);

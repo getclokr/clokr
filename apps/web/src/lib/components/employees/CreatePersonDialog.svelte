@@ -20,6 +20,7 @@
                          role dialog), only for a holder of role-assignment:manage
 -->
 <script lang="ts">
+  import { dayLabel } from "$lib/utils/day-label";
   import { tick, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { api } from "$api/client";
@@ -343,8 +344,7 @@
 
   function dayText(iso: string | null): string {
     if (!iso) return "";
-    const [y, m, d] = iso.slice(0, 10).split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   const homeSalonName = $derived(salons?.find((s) => s.id === draft.homeSalonId)?.name ?? "");

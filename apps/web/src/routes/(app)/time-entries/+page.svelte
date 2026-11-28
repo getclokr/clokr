@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dayLabel } from "$lib/utils/day-label";
   import { pageLabel } from "$lib/nav/page-labels";
   import { leaveTypeColor, FALLBACK } from "$lib/leave/leave-colors"; // Issue #840 (D-840-12)
   import { calendarAbsenceLabel, OTHER_ABSENCE_LABEL } from "$lib/time-entries/absence-label"; // Issue #528
@@ -477,11 +478,7 @@
             return {
               entryId: e.id,
               date: day,
-              label: new Date(`${day}T12:00:00`).toLocaleDateString("de-DE", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              }),
+              label: dayLabel(day, { year: true }),
             };
           })
           .sort((a, b) => a.date.localeCompare(b.date))

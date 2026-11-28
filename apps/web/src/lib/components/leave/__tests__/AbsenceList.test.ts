@@ -83,7 +83,7 @@ describe("lines", () => {
   it("names the German date range and the type by text, with a colour dot", () => {
     render([person({ bars: [bar({ key: "a" })] })]);
     const line = screen.getByTestId("absence-list-line-a");
-    expect(within(line).getByText("02.11.2026 – 04.11.2026")).toBeTruthy();
+    expect(within(line).getByText("2.11.2026 – 4.11.2026")).toBeTruthy();
     expect(within(line).getByText("Urlaub")).toBeTruthy();
     const dot = line.querySelector<HTMLElement>(".absence-list-dot");
     expect(dot?.style.background).toContain("--leave-type-vacation");
@@ -93,7 +93,7 @@ describe("lines", () => {
     render([
       person({ bars: [bar({ key: "a", start: "2026-11-02", end: "2026-11-02", halfDay: true })] }),
     ]);
-    expect(screen.getByText("02.11.2026 (halber Tag)")).toBeTruthy();
+    expect(screen.getByText("2.11.2026 (halber Tag)")).toBeTruthy();
   });
 
   it("a requested bar adds „beantragt“ in text", () => {
@@ -166,7 +166,7 @@ describe("holidays", () => {
       ],
     });
     const note = screen.getByTestId("absence-list-holidays").textContent ?? "";
-    expect(note).toContain("04.11.2026 Feiertag Beispiel");
+    expect(note).toMatch(/(?<!\d)4\.11\.2026 Feiertag Beispiel/);
     expect(note).not.toContain("Weihnachten");
   });
 });

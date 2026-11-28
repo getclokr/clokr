@@ -5,10 +5,8 @@
 // helpers only build relative URLs from ids the API already sent. A value that would not pass the
 // receiver's validation yields `null`, so a caller leaves the element unlinked instead of
 // rendering a link the target would ignore. No caller-supplied path segment ever enters a URL.
+import { dayLabel } from "$lib/utils/day-label";
 import { normalizeDateParam, normalizeEmployeeIdParam } from "$lib/breaks/deep-link";
-
-/** Short German weekday names, indexed by the UTC weekday (0 = Sunday). */
-const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 
 /**
  * `/team/time-entries?employeeId=<id>` or `null` when the id is unusable (Issue #588, P-11): the
@@ -41,12 +39,9 @@ export function teamLeaveCreateHref(employeeId: string, day: string): string | n
 }
 
 /**
- * The accessible name of a team-week cell: „<name>, <Wochentag> <TT.MM.>: <status>“.
- * The weekday is read from the calendar day string at noon UTC, never from a local `getDay()`.
+ * The accessible name of a team-week cell: „<name>, <Wochentag> <T.M.>: <status>“.
+ * The weekday comes from the shared `dayLabel`, read at noon UTC, never from a local `getDay()`.
  */
 export function teamCellAriaLabel(name: string, day: string, statusText: string): string {
-  const weekday = WEEKDAY_SHORT[new Date(`${day}T12:00:00Z`).getUTCDay()];
-  const dd = day.slice(8, 10);
-  const mm = day.slice(5, 7);
-  return `${name}, ${weekday} ${dd}.${mm}.: ${statusText}`;
+  return `${name}, ${dayLabel(day, { weekday: true })}: ${statusText}`;
 }

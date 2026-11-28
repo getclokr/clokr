@@ -392,8 +392,7 @@
   // description. Avoids `Intl.DateTimeFormat` to stay deterministic regardless
   // of the user's locale.
   function formatDeDate(iso: string): string {
-    const [y, m, d] = iso.slice(0, 10).split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   async function openGenerate() {

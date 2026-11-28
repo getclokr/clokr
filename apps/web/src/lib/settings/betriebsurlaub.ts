@@ -6,9 +6,8 @@
 // The server stays the authority (the Zod schema of `/company-shutdowns`, the overlap refusal and the booking
 // itself); the checks here only save a round trip.
 
+import { dayLabel } from "$lib/utils/day-label";
 import { SCOPE_TENANT_LABEL } from "$lib/roles/assignment-label";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
 import { countWord, personsLabel } from "../utils/count-word";
 
 // Type aliases, not interfaces: DataTable rows must satisfy `Record<string, unknown>`.
@@ -279,7 +278,7 @@ export function shutdownYears(currentYear: number): string[] {
 }
 
 export function formatShutdownDate(date: string): string {
-  return format(new Date(date), "dd.MM.yyyy", { locale: de });
+  return dayLabel(date, { year: true });
 }
 
 /** Calendar days of the period, both ends included. */

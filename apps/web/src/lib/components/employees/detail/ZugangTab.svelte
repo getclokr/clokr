@@ -29,6 +29,7 @@
     onRemoved     called after the person was anonymised or hard-deleted (the page leaves the detail)
 -->
 <script lang="ts">
+  import { dateTimeLabel, instantDayLabel } from "$lib/utils/day-label";
   import { untrack } from "svelte";
   import { api } from "$api/client";
   import { toasts } from "$stores/toast";
@@ -106,15 +107,7 @@
   });
 
   const lastLogin = $derived(
-    account?.lastLoginAt
-      ? new Date(account.lastLoginAt).toLocaleDateString("de-DE", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : null,
+    account?.lastLoginAt ? dateTimeLabel(new Date(account.lastLoginAt)) : null,
   );
 
   // ── Role assignments (Issue #580) ───────────────────────────────────────────────────────────
@@ -264,11 +257,7 @@
 
   const retentionDay = $derived(
     hardDeleteRetentionExpiresAt
-      ? new Date(hardDeleteRetentionExpiresAt).toLocaleDateString("de-DE", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
+      ? instantDayLabel(new Date(hardDeleteRetentionExpiresAt), { year: true })
       : null,
   );
 </script>

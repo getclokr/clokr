@@ -38,6 +38,7 @@ import {
   Section9ConcurrentCorrectionError,
   supersedeSection9CreditsOfCancelledRequest,
 } from "./section9-supersede";
+import { dayLabelDe } from "../../utils/day-label-de";
 
 export type OpenLeaveStatus = "PENDING" | "APPROVED" | "CANCELLATION_REQUESTED";
 
@@ -279,7 +280,7 @@ export async function cancelLeaveRequestInTx(
       employeeId,
       tenantId,
       minutes / 60,
-      `Stornierung Überstundenausgleich ${isoDay(action.guard.startDate)} (${marker.auditReason})`,
+      `Stornierung Überstundenausgleich ${dayLabelDe(action.guard.startDate)} (${marker.auditReason})`,
     );
     await audit({
       action: "OVERTIME_COMP_REVERSED",

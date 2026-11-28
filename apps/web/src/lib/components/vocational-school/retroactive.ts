@@ -14,6 +14,8 @@
 /** The reasons a day can be reported as skipped (create side) or unremoved (removal
  * side) by the backend generator. Mirrors GeneratorResult's `details[].reason` values
  * in `apps/api/src/contexts/absence/vocational-school-generator.ts` verbatim. */
+import { dayLabel } from "$lib/utils/day-label";
+
 export type RetroactiveReason =
   | "locked"
   | "existing"
@@ -76,13 +78,12 @@ export function shouldOfferRetroactiveRun(preview: RetroactivePreview): boolean 
 }
 
 /**
- * "2026-08-12" → "12.08.2026". Plain string reformat of an already-resolved
+ * "2026-08-02" → "2.8.2026". Plain string reformat of an already-resolved
  * YYYY-MM-DD date — deliberately NOT a `new Date(iso)` parse, which would introduce
  * the classic UTC-vs-local-timezone off-by-one for a date-only string.
  */
 export function formatIsoDateDe(iso: string): string {
-  const [year, month, day] = iso.split("-");
-  return `${day}.${month}.${year}`;
+  return dayLabel(iso, { year: true });
 }
 
 const MONTH_NAMES_DE = [

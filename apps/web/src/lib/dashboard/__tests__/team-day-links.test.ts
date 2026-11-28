@@ -55,14 +55,14 @@ describe("teamCellAriaLabel", () => {
   it("names person, weekday, day and status", () => {
     // 2026-06-17 is a Wednesday
     expect(teamCellAriaLabel("Anna Beispiel", "2026-06-17", "Fehlt")).toBe(
-      "Anna Beispiel, Mi 17.06.: Fehlt",
+      "Anna Beispiel, Mi 17.6.: Fehlt",
     );
   });
 
   it("derives the weekday from the calendar day, not from a local getDay() of a UTC parse", () => {
-    expect(teamCellAriaLabel("A", "2026-06-14", "Frei")).toBe("A, So 14.06.: Frei");
-    expect(teamCellAriaLabel("A", "2026-06-15", "Frei")).toBe("A, Mo 15.06.: Frei");
-    expect(teamCellAriaLabel("A", "2026-06-20", "Frei")).toBe("A, Sa 20.06.: Frei");
+    expect(teamCellAriaLabel("A", "2026-06-14", "Frei")).toBe("A, So 14.6.: Frei");
+    expect(teamCellAriaLabel("A", "2026-06-15", "Frei")).toBe("A, Mo 15.6.: Frei");
+    expect(teamCellAriaLabel("A", "2026-06-20", "Frei")).toBe("A, Sa 20.6.: Frei");
   });
 });
 

@@ -111,7 +111,7 @@ describe("labels", () => {
   });
 
   it("names the Stichtag of the counted hours", () => {
-    expect(countedThroughLabel("2026-11-24")).toBe("bis Di, 24.11.2026");
+    expect(countedThroughLabel("2026-11-24")).toBe("bis Di 24.11.2026");
     expect(countedThroughLabel(null)).toBe("noch nichts gezählt");
   });
 
@@ -299,7 +299,7 @@ describe("salonHoursCsvPath and openItemSubtitle", () => {
         date: "2026-11-23",
         startTime: "09:00",
       }),
-    ).toBe("Mo, 23.11. · seit 09:00");
+    ).toBe("Mo 23.11. · seit 09:00");
   });
 });
 

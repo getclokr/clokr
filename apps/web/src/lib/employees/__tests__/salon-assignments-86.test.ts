@@ -32,8 +32,8 @@ function a(over: Partial<SalonAssignment> & Pick<SalonAssignment, "id">): SalonA
 }
 
 describe("formatCalendarDay", () => {
-  it("turns YYYY-MM-DD into TT.MM.JJJJ without a time zone", () => {
-    expect(formatCalendarDay("2026-03-05")).toBe("05.03.2026");
+  it("turns YYYY-MM-DD into T.M.JJJJ without a time zone", () => {
+    expect(formatCalendarDay("2026-03-05")).toBe("5.3.2026");
     expect(formatCalendarDay("2026-12-31T00:00:00.000Z")).toBe("31.12.2026");
   });
 });
@@ -78,17 +78,17 @@ describe("assignmentRows (Issue #86, AC-86-5)", () => {
     expect(byId.h).toMatchObject({
       kindLabel: "Stammsalon",
       salonName: "Salon Nord",
-      periodLabel: "seit 01.01.2026",
+      periodLabel: "seit 1.1.2026",
       weekdaysLabel: "",
     });
     expect(byId.d).toMatchObject({
       kindLabel: "Einsatzsalon",
-      periodLabel: "seit 04.05.2026",
+      periodLabel: "seit 4.5.2026",
       weekdaysLabel: "Mo, Mi, Fr, So",
     });
     expect(byId.x).toMatchObject({
       salonName: "Salon Ost (inaktiv)",
-      periodLabel: "03.02.2025 – 30.04.2025",
+      periodLabel: "3.2.2025 – 30.4.2025",
       weekdaysLabel: "alle Tage",
       ended: true,
     });

@@ -54,6 +54,7 @@ import { revalidateLeaveCancellationEntries } from "../time-tracking";
 import { Section9ConcurrentCorrectionError, supersedeSection9Credit } from "./section9-supersede";
 import { lockEmployeeForLeavePricing } from "./employee-leave-lock";
 import { repriceLaterVacationRequests } from "./later-request-reprice";
+import { dayLabelDe, dayRangeLabelDe } from "../../utils/day-label-de";
 
 export { Section9ConcurrentCorrectionError };
 
@@ -630,7 +631,7 @@ export async function applyLeaveCorrection(
       existing.employeeId,
       tenantId,
       (oldOtMinutes ?? 0) / 60,
-      `Korrektur Überstundenausgleich ${existing.startDate.toISOString().split("T")[0]}`,
+      `Korrektur Überstundenausgleich ${dayLabelDe(existing.startDate)}`,
     );
   }
   // SICK / SICK_CHILD / PARENTAL / MATERNITY / SPECIAL / UNPAID / EDUCATION:
@@ -710,7 +711,7 @@ export async function applyLeaveCorrection(
       existing.employeeId,
       tenantId,
       (newOtMinutes ?? 0) / 60,
-      `Überstundenausgleich ${start.toISOString().split("T")[0]} – ${end.toISOString().split("T")[0]}`,
+      `Überstundenausgleich ${dayRangeLabelDe(start, end)}`,
     );
   }
   // SICK / SICK_CHILD / PARENTAL / MATERNITY / SPECIAL / UNPAID / EDUCATION:

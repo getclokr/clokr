@@ -76,7 +76,9 @@ describe("WifiPresenceSettings - device list", () => {
     expect(screen.getByText("aa:bb:cc:dd:ee:02")).toBeTruthy();
     expect(screen.getByText("über QR-Code gekoppelt")).toBeTruthy();
     expect(screen.getByText("manuell eingetragen")).toBeTruthy();
-    expect(screen.getByText(/^zuletzt erkannt am \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/)).toBeTruthy();
+    expect(
+      screen.getByText(/^zuletzt erkannt am (?!0)\d{1,2}\.(?!0)\d{1,2}\.\d{4}, \d{2}:\d{2}$/),
+    ).toBeTruthy();
     expect(screen.getByText("noch nicht erkannt")).toBeTruthy();
     expect(screen.getByText("Pixel-8")).toBeTruthy();
     // The QR code in the salon is named as the easy way.

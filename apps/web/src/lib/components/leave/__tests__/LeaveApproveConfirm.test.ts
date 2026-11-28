@@ -88,7 +88,7 @@ describe("LeaveApproveConfirm (#941)", () => {
       "22 → 17 Tage",
     );
     expect((await screen.findByTestId("review-fact-shifts")).textContent).toContain(
-      "Di 01.09. · 09:00–17:00",
+      "Di 1.9. · 09:00–17:00",
     );
   });
 

@@ -12,6 +12,7 @@
    * T-468-23: every number shown here comes straight from the server preview
    * (`GET /leave/parental-reductions/:leaveRequestId`) — this component computes none of them.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import Modal from "$components/ui/Modal.svelte";
   import ReasonDialog from "$components/ui/ReasonDialog.svelte";
   import { api } from "$api/client";
@@ -93,8 +94,7 @@
   // ── Helpers ──────────────────────────────────────────────────────────────
   function fmtDate(iso: string): string {
     if (!iso) return "";
-    const [y, m, d] = iso.slice(0, 10).split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   function toggleYear(year: number) {

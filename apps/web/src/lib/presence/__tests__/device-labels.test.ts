@@ -16,14 +16,14 @@ describe("lastSeenLabel", () => {
   });
 
   it("puts the formatted moment after the fixed words", () => {
-    expect(lastSeenLabel("2026-11-02T10:00:00.000Z", () => "02.11.2026, 11:00")).toBe(
-      "zuletzt erkannt am 02.11.2026, 11:00",
+    expect(lastSeenLabel("2026-11-02T10:00:00.000Z", () => "2.11.2026, 11:00")).toBe(
+      "zuletzt erkannt am 2.11.2026, 11:00",
     );
   });
 
-  it("formats German day.month.year, hour:minute by default", () => {
+  it("formats German day.month.year without leading zeros, hour:minute by default", () => {
     expect(lastSeenLabel("2026-11-02T10:00:00.000Z")).toMatch(
-      /^zuletzt erkannt am \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/,
+      /^zuletzt erkannt am (?!0)\d{1,2}\.(?!0)\d{1,2}\.\d{4}, \d{2}:\d{2}$/,
     );
   });
 

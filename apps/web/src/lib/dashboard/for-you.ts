@@ -60,7 +60,7 @@ export interface ForYouInput {
   breakDays: Iterable<string>;
   openItems: ForYouOpenItems | null | undefined;
   karenz: KarenzNudgeSummary;
-  /** „Mi 04.11.“ for a `YYYY-MM-DD` day. */
+  /** „Mi 4.11.“ for a `YYYY-MM-DD` day. */
   dayShort: (iso: string) => string;
   /** Issue #604: the own appointment hints of `GET /appointment-hints` (absent while the switch is off). */
   appointmentHints?: readonly OwnAppointmentHint[];

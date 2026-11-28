@@ -573,7 +573,7 @@ export async function monthCorrectionRoutes(app: FastifyInstance) {
             overtimeAccountId: account.id,
             hours, // |minutes| >= 1, so at least 0.02 h; the exact minutes live on the request
             type: "CORRECTION",
-            description: `Korrektur abgeschlossener Monat: Tag ${day(row.targetDate)}, ${body.correctionMinutes} Minuten (Anfrage ${id})`,
+            description: `Korrektur abgeschlossener Monat: Tag ${dayLabelDe(row.targetDate)}, ${body.correctionMinutes} Minuten (Anfrage ${id})`,
             referenceMonth: day(row.targetDate)!.slice(0, 7),
             createdBy: req.user.sub,
           },

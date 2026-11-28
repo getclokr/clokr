@@ -156,9 +156,9 @@ test.describe("Month-close gap acknowledgement (UX-01)", () => {
     const gapWarning = page.getByTestId("month-close-gap-warning");
     await expect(gapWarning).toBeVisible();
 
-    // The formatted gap date must appear in the list (DD.MM. format)
+    // The formatted gap date must appear in the list (D.M. format, no leading zeros)
     const [, gapMm, gapDd] = gapDate.split("-");
-    const formattedGap = `${gapDd}.${gapMm}.`;
+    const formattedGap = `${Number(gapDd)}.${Number(gapMm)}.`;
     await expect(gapWarning).toContainText(formattedGap);
 
     // "Endgültig sperren" must be disabled before the checkbox is checked

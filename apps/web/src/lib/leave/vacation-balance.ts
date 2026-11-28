@@ -21,6 +21,7 @@
 // there is now exactly one place that can omit the field, and it is covered by a
 // plain-function test below.
 
+import { dayLabel } from "$lib/utils/day-label";
 import { formatDayCount } from "./leave-days-label";
 
 export interface Section9Movement {
@@ -145,12 +146,11 @@ export interface AdjustmentBadge {
   tooltip: string;
 }
 
-/** `"2026-08-27T14:36:00.000Z"` -> `"27.08.2026"` — same DD.MM.YYYY shape as the page's own
- * `fmtDate()`, but slices the date portion first so a full ISO datetime string (what
+/** `"2026-08-27T14:36:00.000Z"` -> `"27.8.2026"` — same shape as the page's own `fmtDate()`;
+ * `dayLabel` reads the date portion first so a full ISO datetime string (what
  * `AuditLog.createdAt.toISOString()` produces) works too, not just a date-only string. */
 function formatGermanDate(isoDateTime: string): string {
-  const [y, m, d] = isoDateTime.slice(0, 10).split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(isoDateTime, { year: true });
 }
 
 /**

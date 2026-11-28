@@ -75,7 +75,7 @@ describe("order and content", () => {
     const own = within(screen.getByTestId("wish-group-e1"));
     const items = own.getAllByTestId(/^wish-item-/).map((el) => el.getAttribute("data-testid"));
     expect(items).toEqual(["wish-item-w1", "wish-item-w2"]);
-    expect(own.getByText(/08\.03\.2027 – 12\.03\.2027/)).toBeTruthy();
+    expect(own.getByText(/(?<!\d)8\.3\.2027 – 12\.3\.2027/)).toBeTruthy();
     expect(own.getByText("halber Tag")).toBeTruthy();
     expect(screen.getByTestId("wish-conflict-w1").textContent).toBe(
       "Überschneidet sich mit einem Antrag",

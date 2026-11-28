@@ -9,17 +9,18 @@
  * `$lib/utils/tenant-day` (Issues #1066, #1072), never the device day. A person whose last day is
  * today is still employed (EXIT_PLANNED) until the day is over.
  */
+import { dayLabel } from "$lib/utils/day-label";
+
 export type EmploymentKind = "EMPLOYED" | "EXIT_PLANNED" | "ENDED";
 
 export interface EmploymentState {
   kind: EmploymentKind;
-  /** „Austritt am TT.MM.JJJJ“ / „Ausgeschieden am TT.MM.JJJJ“; empty for EMPLOYED. */
+  /** „Austritt am T.M.JJJJ“ / „Ausgeschieden am T.M.JJJJ“; empty for EMPLOYED. */
   label: string;
 }
 
 function germanDay(isoDay: string): string {
-  const [y, m, d] = isoDay.split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(isoDay, { year: true });
 }
 
 /** `today` is a `YYYY-MM-DD` calendar day. */

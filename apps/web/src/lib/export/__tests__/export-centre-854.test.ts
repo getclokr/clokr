@@ -57,7 +57,7 @@ describe("exportHistoryRows", () => {
     const [r] = exportHistoryRows([row({})]);
     expect(r).toEqual({
       id: "a",
-      when: "03.11.2026 14:05",
+      when: "3.11.2026, 14:05",
       who: "chef@example.test",
       kind: "DATEV-Export",
       scope: "Oktober 2026",

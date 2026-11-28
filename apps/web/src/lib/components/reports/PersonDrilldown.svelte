@@ -11,6 +11,7 @@
   // The component owns no URL, no navigation and no API client. The page injects the day-list
   // loader, which it only reaches through this component - and this component calls it only with
   // `canTimeEntryRead` (T-612-20): without the right there is no request, just one hint line.
+  import { dayLabel } from "$lib/utils/day-label";
   import { untrack } from "svelte";
   import Chip from "$components/ui/Chip.svelte";
   import DataTable, { type DataTableColumn } from "$components/ui/DataTable.svelte";
@@ -69,7 +70,6 @@
   }: Props = $props();
 
   const DASH = "—";
-  const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 
   // ── Close ────────────────────────────────────────────────────────────────────────
 
@@ -219,9 +219,8 @@
     return date.slice(0, 10);
   }
 
-  function dayLabel(date: string): string {
-    const [y, m, d] = calendarDay(date).split("-").map(Number);
-    return `${WEEKDAYS[new Date(y, m - 1, d).getDay()]} ${pad(d)}.${pad(m)}.`;
+  function dayText(date: string): string {
+    return dayLabel(calendarDay(date), { weekday: true });
   }
 
   function clock(iso: string | null): string {
@@ -340,7 +339,7 @@
 
 {#snippet dayCell(e: DayRow, column: DataTableColumn)}
   {#if column.key === "date"}
-    {#if firstOfDayIds.has(e.id)}<a class="drill-link" href={dayHref(e.date)}>{dayLabel(e.date)}</a
+    {#if firstOfDayIds.has(e.id)}<a class="drill-link" href={dayHref(e.date)}>{dayText(e.date)}</a
       >{:else}<span class="drill-repeat"></span>{/if}
   {:else if column.key === "time"}
     {span(e)}

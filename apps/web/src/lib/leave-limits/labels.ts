@@ -1,5 +1,6 @@
 // Issue #836 — German display labels of leave-limit rules. Display only: a label is never
 // compared or used as a control value (CLAUDE.md), the group is decided by `groupKind`.
+import { dayLabel } from "$lib/utils/day-label";
 import { CLASSIFICATION_LABELS, type EmployeeClassification } from "$lib/employee-classification";
 import type { LeaveLimitGroupKind } from "./types";
 
@@ -61,10 +62,9 @@ export function isBlackout(rule: Pick<RuleTextFields, "groupKind" | "maxPersons"
   return rule.groupKind === "ALL" && rule.maxPersons === 0;
 }
 
-/** `YYYY-MM-DD` as `TT.MM.JJJJ`, by splitting the string: no time zone can move the day. */
+/** `YYYY-MM-DD` as `T.M.JJJJ`, by string work: no time zone can move the day. */
 function germanDay(day: string): string {
-  const [year, month, date] = day.split("-");
-  return `${date}.${month}.${year}`;
+  return dayLabel(day, { year: true });
 }
 
 /** The validity window of a rule: "ganzjährig" without one, else the dates. */

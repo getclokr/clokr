@@ -7,6 +7,8 @@
 // (`deriveVacationSummary(...).remaining`, #451), this module only subtracts the request's own
 // days for the "before -> after" display and words the result.
 
+import { dayLabel } from "$lib/utils/day-label";
+
 export type ReviewDecision = "APPROVED" | "REJECTED";
 
 /**
@@ -92,8 +94,6 @@ export function vacationBeforeAfter(input: VacationFactInput): VacationFact | nu
   return { year, before, after, label, value, text: `${label}: ${value}` };
 }
 
-const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
-
 /** Shown when no shift is returned: the roster holds none in the period. The contract days of a
  *  fixed-contract person are not readable for every reader (Issue #992 S-27, follow-up issue). */
 export const NO_SHIFTS_TEXT = "Keine Schichten im Dienstplan";
@@ -119,10 +119,6 @@ export function shiftLines(shifts: readonly RangeShift[]): string[] {
             : 0,
     )
     .map((s) => {
-      const [y, m, d] = s.date.slice(0, 10).split("-").map(Number);
-      const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-      const dd = String(d).padStart(2, "0");
-      const mm = String(m).padStart(2, "0");
-      return `${weekday} ${dd}.${mm}. · ${s.startTime}–${s.endTime}`;
+      return `${dayLabel(s.date, { weekday: true })} · ${s.startTime}–${s.endTime}`;
     });
 }

@@ -111,12 +111,12 @@ describe("SalonAssignmentsSection - read (Issue #86, AC-86-5)", () => {
     ]);
     const rows = rowTexts();
     expect(rows[0]).toContain("Salon Süd");
-    expect(rows[0]).toContain("seit 01.09.2026");
+    expect(rows[0]).toMatch(/(?<!\d)seit 1\.9\.2026/);
     expect(rows[0]).toContain("Mo, Mi, Fr");
     expect(rows[1]).toContain("Salon Nord");
-    expect(rows[1]).toContain("seit 01.01.2025");
+    expect(rows[1]).toMatch(/(?<!\d)seit 1\.1\.2025/);
     expect(rows[2]).toContain("Salon Ost (inaktiv)");
-    expect(rows[2]).toContain("01.03.2025 – 31.05.2025");
+    expect(rows[2]).toMatch(/(?<!\d)1\.3\.2025 – 31\.5\.2025/);
     expect(rows[2]).toContain("beendet");
     expect(rows[3]).toContain("Unbekannter Salon");
     expect(rows[3]).toContain("alle Tage");

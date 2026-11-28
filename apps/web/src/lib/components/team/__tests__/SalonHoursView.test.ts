@@ -194,7 +194,7 @@ describe("SalonHoursView - ready", () => {
     const kpi = screen.getByTestId("salon-hours-kpi-total");
     expect(kpi.textContent).toContain("Stunden im Salon");
     expect(kpi.textContent).toContain("20:34");
-    expect(kpi.textContent).toContain("bis Di, 24.11.2026");
+    expect(kpi.textContent).toContain("bis Di 24.11.2026");
   });
 
   it("renders ONE table: Stammteam and Aushilfen are row groups with a header row each", () => {
@@ -311,10 +311,10 @@ describe("SalonHoursView - ready", () => {
 
   it("names the Stichtag in the sum head and mentions no Soll or saldo anywhere", () => {
     const { container } = render();
-    expect(container.querySelector("th[title='Summe bis Di, 24.11.2026']")?.textContent).toBe(
+    expect(container.querySelector("th[title='Summe bis Di 24.11.2026']")?.textContent).toBe(
       "Summe",
     );
-    expect(screen.getByTestId("salon-hours-kpi-total").textContent).toContain("bis Di, 24.11.2026");
+    expect(screen.getByTestId("salon-hours-kpi-total").textContent).toContain("bis Di 24.11.2026");
     const visible = (document.body.textContent ?? "").replace(
       "Soll, Saldo und Überstunden gehören zur Person, nicht zum Salon. Du findest sie in der Personenansicht.",
       "",
@@ -500,9 +500,9 @@ describe("SalonHoursView - open items (Issue #1030)", () => {
     const items = list.querySelectorAll("li");
     expect(items).toHaveLength(2);
     expect(items[0].textContent).toContain("Anna Berg");
-    expect(items[0].textContent).toContain("Mo, 23.11. · seit 09:00");
+    expect(items[0].textContent).toContain("Mo 23.11. · seit 09:00");
     expect(items[1].textContent).toContain("Bernd Adler");
-    expect(items[1].textContent).toContain("Di, 24.11. · seit 08:30");
+    expect(items[1].textContent).toContain("Di 24.11. · seit 08:30");
   });
 
   it("opens the person's day from an item of a clickable person only", async () => {

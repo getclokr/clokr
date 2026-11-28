@@ -1,12 +1,6 @@
 // Issue #610 (D-12, P-610-21): how the profile words a coupled device. Pure; the component presents.
 
-const DATE_TIME = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+import { dateTimeLabel } from "$lib/utils/day-label";
 
 /** How the mapping was made: by the QR pairing or typed in by hand. */
 export function pairedViaLabel(via: "MANUAL" | "QR"): string {
@@ -19,7 +13,7 @@ export function pairedViaLabel(via: "MANUAL" | "QR"): string {
  */
 export function lastSeenLabel(
   lastSeenAt: string | null,
-  format: (date: Date) => string = (date) => DATE_TIME.format(date),
+  format: (date: Date) => string = (date) => dateTimeLabel(date),
 ): string {
   if (lastSeenAt === null) return "noch nicht erkannt";
   const date = new Date(lastSeenAt);

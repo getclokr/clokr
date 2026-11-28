@@ -158,10 +158,10 @@ describe("result step", () => {
     await clickConfirm();
     const created = await screen.findByTestId("takeover-created");
     expect(created.textContent).toContain("Alex Muster");
-    expect(created.textContent).toContain("08.03.2027 – 12.03.2027");
+    expect(created.textContent).toMatch(/(?<!\d)8\.3\.2027 – 12\.3\.2027/);
     const pending = screen.getByTestId("takeover-pending");
     expect(pending.textContent).toContain("Bea Beispiel");
-    expect(pending.textContent).toContain("05.04.2027");
+    expect(pending.textContent).toMatch(/(?<!\d)5\.4\.2027/);
     expect(pending.textContent).toContain("Eigener Wunsch – wartet auf eine zweite Genehmigung");
     const refused = screen.getByTestId("takeover-refused");
     expect(refused.textContent).toContain("Cem Check");

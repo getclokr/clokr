@@ -7,6 +7,8 @@
  */
 
 /** The fields of an overview row that decide its section. */
+import { dayLabel } from "$lib/utils/day-label";
+
 export interface SectionedOverviewRow {
   /** Absent in an older cached answer: such a row belongs to the team. */
   exitedWithOpenFinalSaldo?: boolean;
@@ -49,9 +51,8 @@ export function exitedMoreCount(total: number, shown: number): number {
   return Math.max(0, total - shown);
 }
 
-/** `2026-10-15` -> `15.10.2026`; null or malformed -> en dash. */
+/** `2026-10-05` -> `5.10.2026`; null or malformed -> en dash. */
 export function exitDateLabel(iso: string | null | undefined): string {
-  const match = typeof iso === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso) : null;
-  if (match === null) return "–";
-  return `${match[3]}.${match[2]}.${match[1]}`;
+  if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "–";
+  return dayLabel(iso, { year: true });
 }

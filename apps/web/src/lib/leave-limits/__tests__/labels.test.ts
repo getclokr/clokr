@@ -85,9 +85,9 @@ describe("windowLabel", () => {
   it("is 'ganzjährig' without a window and prints German dates otherwise", () => {
     expect(windowLabel({ validFrom: null, validUntil: null })).toBe("ganzjährig");
     expect(windowLabel({ validFrom: "2027-12-01", validUntil: "2027-12-24" })).toBe(
-      "01.12.2027 – 24.12.2027",
+      "1.12.2027 – 24.12.2027",
     );
-    expect(windowLabel({ validFrom: "2027-12-01", validUntil: null })).toBe("ab 01.12.2027");
+    expect(windowLabel({ validFrom: "2027-12-01", validUntil: null })).toBe("ab 1.12.2027");
     expect(windowLabel({ validFrom: null, validUntil: "2027-12-24" })).toBe("bis 24.12.2027");
   });
 });

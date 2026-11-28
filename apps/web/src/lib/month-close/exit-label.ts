@@ -5,13 +5,13 @@
  * of a person with an exit date, `null` otherwise. The web only formats that string: it is split,
  * never parsed into a `Date`, so no browser time zone can move the day.
  */
+import { dayLabel } from "$lib/utils/day-label";
+
 const ISO_DAY = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-/** "Austritt am TT.MM.JJJJ", or `null` when there is no (or no well-formed) exit day. */
+/** "Austritt am T.M.JJJJ", or `null` when there is no (or no well-formed) exit day. */
 export function exitLabel(exitDate: string | null | undefined): string | null {
   if (!exitDate) return null;
-  const match = ISO_DAY.exec(exitDate);
-  if (!match) return null;
-  const [, year, month, day] = match;
-  return `Austritt am ${day}.${month}.${year}`;
+  if (!ISO_DAY.test(exitDate)) return null;
+  return `Austritt am ${dayLabel(exitDate, { year: true })}`;
 }

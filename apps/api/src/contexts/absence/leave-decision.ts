@@ -445,7 +445,7 @@ export async function decidePendingLeaveRequest(
         tenantId: tenantIdForBooking,
         hours: bookingMinutes / 60,
         minutes: bookingMinutes,
-        description: `Überstundenausgleich ${existing.startDate.toISOString().split("T")[0]} – ${existing.endDate.toISOString().split("T")[0]}`,
+        description: `Überstundenausgleich ${dayRangeLabelDe(existing.startDate, existing.endDate)}`,
       };
     }
 

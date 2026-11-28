@@ -8,6 +8,7 @@
  * Dates follow the page's existing convention for `validFrom`: a UTC-midnight instant read by its
  * UTC calendar day (`snapToMonthFirstUtc` on the server).
  */
+import { dayLabel } from "$lib/utils/day-label";
 import type { ContractHistoryRow } from "$lib/utils/work-schedule";
 
 /** A history row with the figures the extent column needs; Decimal columns arrive as strings. */
@@ -18,7 +19,7 @@ export interface ContractHistoryInput extends ContractHistoryRow {
 
 export interface ContractHistoryDisplayRow {
   id: string;
-  /** „seit 01.10.2026“ for the newest row, „01.06.2026 – 30.09.2026“ otherwise. */
+  /** „seit 1.10.2026“ for the newest row, „1.6.2026 – 30.9.2026“ otherwise. */
   period: string;
   /** German model label, e.g. „Gleitzeit“. */
   model: string;
@@ -58,9 +59,7 @@ function positiveNumber(v: string | number | null | undefined): number | null {
 }
 
 function formatDay(d: Date): string {
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getUTCFullYear()}`;
+  return dayLabel(d.toISOString().slice(0, 10), { year: true });
 }
 
 function isoDay(d: Date): string {
@@ -68,8 +67,7 @@ function isoDay(d: Date): string {
 }
 
 function germanDay(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(iso, { year: true });
 }
 
 /** The extent of one version (or of an unsaved draft of the Vertrag tab): the same words as the list. */

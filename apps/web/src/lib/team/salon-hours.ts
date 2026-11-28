@@ -7,6 +7,7 @@
  * nothing here adds a minute. A cell shows hours worked in THIS salon - never a Soll or saldo, those
  * belong to the person.
  */
+import { dayLabel } from "$lib/utils/day-label";
 import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { fmtMin } from "$lib/utils/format-minutes";
@@ -241,17 +242,15 @@ export function salonHoursCsvPath(salonId: string, period: SalonPeriod): string 
   return salonHoursRequestPath(salonId, period).replace("/salon-hours?", "/salon-hours/csv?");
 }
 
-/** „Mo, 23.11. · seit 09:00“ - the second line of an open item. */
+/** „Mo 23.11. · seit 09:00“ - the second line of an open item. */
 export function openItemSubtitle(item: SalonHoursOpenItem): string {
-  const d = localNoon(item.date);
-  return `${format(d, "EEEEEE", { locale: de })}, ${format(d, "dd.MM.")} · seit ${item.startTime}`;
+  return `${dayLabel(item.date, { weekday: true })} · seit ${item.startTime}`;
 }
 
-/** „bis Di, 24.11.2026“ - the Stichtag of the counted hours, or „noch nichts gezählt“. */
+/** „bis Di 24.11.2026“ - the Stichtag of the counted hours, or „noch nichts gezählt“. */
 export function countedThroughLabel(countedThrough: string | null): string {
   if (countedThrough === null) return "noch nichts gezählt";
-  const d = localNoon(countedThrough);
-  return `bis ${format(d, "EEEEEE", { locale: de })}, ${format(d, "dd.MM.yyyy")}`;
+  return `bis ${dayLabel(countedThrough, { weekday: true, year: true })}`;
 }
 
 /** „Mo 23.“ - the head of a day column; the full date belongs in the head's title. */
@@ -263,7 +262,7 @@ export function dayColumnLabel(day: string): string {
 /** „Montag, 23.11.2026“ - the full date of a day column (title and accessible names). */
 export function dayFullLabel(day: string): string {
   const d = localNoon(day);
-  return format(d, "EEEE, dd.MM.yyyy", { locale: de });
+  return `${format(d, "EEEE", { locale: de })}, ${dayLabel(day, { year: true })}`;
 }
 
 /**

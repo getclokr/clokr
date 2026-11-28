@@ -5,6 +5,8 @@
  * DTO carries only the salon id, so names come from `GET /salons?includeInactive=true`.
  */
 
+import { dayLabel } from "$lib/utils/day-label";
+
 export type AssignmentKind = "HOME" | "DEPLOYMENT";
 
 /** Mirror of the API `AssignmentDto` (calendar days are `YYYY-MM-DD` strings). */
@@ -58,10 +60,9 @@ export const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: "So" },
 ];
 
-/** `2026-03-05` -> `05.03.2026` (pure string work, no time zone involved). */
+/** `2026-03-05` -> `5.3.2026` (pure string work, no time zone involved). */
 export function formatCalendarDay(day: string): string {
-  const [y, m, d] = day.slice(0, 10).split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(day, { year: true });
 }
 
 function weekdaysLabel(weekdays: number[]): string {

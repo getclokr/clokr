@@ -6,6 +6,7 @@
 // first of a month), `WEEKLY_HOURS_MISMATCH` (#848, FIXED_SCHEDULE weeklyHours = Σ day hours), the
 // SHIFT_BASED `usualWorkDays` rule (#481) and the pending-shift 409. The checks here only save a round
 // trip and mirror the bounds of the API's Zod schema.
+import { dayLabel } from "$lib/utils/day-label";
 import { weeklyHoursOf, type DayHoursValues } from "$lib/settings/arbeitszeit";
 import { isMonthFirst } from "$lib/employees/contract-start";
 import {
@@ -311,10 +312,9 @@ export function overtimeLocked(values: ContractValues): boolean {
   return overtimeModeLocked(values.type, values.monthlyHours);
 }
 
-/** „2026-12-01“ -> „01.12.2026“ (string split, no time zone involved); anything else is returned unchanged. */
+/** „2026-12-01“ -> „1.12.2026“ (string work, no time zone involved); anything else is returned unchanged. */
 export function germanDay(iso: string | null | undefined): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : (iso ?? "");
+  return /^\d{4}-\d{2}-\d{2}/.test(iso ?? "") ? dayLabel(iso ?? "", { year: true }) : (iso ?? "");
 }
 
 // ── Stored FIXED_SCHEDULE contradiction (Issue #939) ─────────────────────────────────────────────

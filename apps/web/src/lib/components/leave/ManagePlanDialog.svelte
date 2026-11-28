@@ -16,6 +16,7 @@
    * inline through `planErrorMessage`; the dialog stays open. It decides nothing about access — the
    * API refuses every write without `leave-plan:manage` reach.
    */
+  import { dayLabel } from "$lib/utils/day-label";
   import { untrack } from "svelte";
   import Modal from "$components/ui/Modal.svelte";
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
@@ -74,8 +75,7 @@
   });
 
   function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   async function doOpenPlan() {

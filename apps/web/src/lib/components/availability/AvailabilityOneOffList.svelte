@@ -3,6 +3,7 @@
   // and destructive delete. Used by both /availability (MA-Self-Service) and
   // /admin/availability (Admin) pages.
 
+  import { dayLabel } from "$lib/utils/day-label";
   import { tenantFeatures } from "$stores/tenant-features";
   import { tenantDay } from "$lib/utils/tenant-day";
   import Modal from "$components/ui/Modal.svelte";
@@ -38,8 +39,7 @@
   function formatDE(iso: string): string {
     // Local-only ISO date (YYYY-MM-DD) → DD.MM.YYYY without dragging in date-fns.
     if (!iso || iso.length < 10) return iso;
-    const [y, m, d] = iso.slice(0, 10).split("-");
-    return `${d}.${m}.${y}`;
+    return dayLabel(iso, { year: true });
   }
 
   // ── Sorted view ─────────────────────────────────────────────────────

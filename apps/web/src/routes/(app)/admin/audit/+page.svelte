@@ -10,12 +10,11 @@
   people, and its options are the reach-scoped `GET /employees` answer.
 -->
 <script lang="ts">
+  import { dateTimeLabel } from "$lib/utils/day-label";
   import { pageLabel } from "$lib/nav/page-labels";
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { format } from "date-fns";
-  import { de } from "date-fns/locale";
   import { api } from "$api/client";
   import { downloadFromApi } from "$api/download";
   import { authStore } from "$stores/auth";
@@ -213,7 +212,7 @@
   ];
 
   function fmtDate(iso: string): string {
-    return format(new Date(iso), "dd.MM.yyyy HH:mm:ss", { locale: de });
+    return dateTimeLabel(new Date(iso), { seconds: true });
   }
 
   /** Tone by the action CODE (a control value); the label is display only. */

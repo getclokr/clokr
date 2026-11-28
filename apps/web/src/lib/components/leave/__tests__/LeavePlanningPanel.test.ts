@@ -405,7 +405,7 @@ describe("LeavePlanningPanel - manage rights", () => {
     );
     const { props } = render();
     const controls = await controlsOf(props);
-    expect(controls.deadlineText).toBe("Wünsche bis 01.02.2027");
+    expect(controls.deadlineText).toBe("Wünsche bis 1.2.2027");
     expect(screen.queryByTestId("leave-plan-deadline")).toBeNull();
     expect(screen.queryByLabelText("Frist für Wünsche")).toBeNull();
     expect(await screen.findByTestId("leave-plan-lock-hint")).toBeTruthy();
@@ -424,7 +424,7 @@ describe("LeavePlanningPanel - manage rights", () => {
     // #840 G-6: no add action is offered, and the panel itself renders none.
     const controls = await controlsOf(props);
     expect(controls.canAdd).toBe(false);
-    expect(controls.deadlineText).toBe("Frist abgelaufen (10.01.2027)");
+    expect(controls.deadlineText).toBe("Frist abgelaufen (10.1.2027)");
     expect(screen.queryByTestId("leave-plan-add-wish")).toBeNull();
   });
 });
@@ -688,7 +688,7 @@ describe("LeavePlanningPanel - one card and the controls for the toolbar (G-6)",
     expect(controls).toMatchObject({
       statusLabel: "Offen",
       statusOpen: true,
-      deadlineText: "Wünsche bis 01.02.2027",
+      deadlineText: "Wünsche bis 1.2.2027",
       canAdd: true,
     });
     expect(screen.queryByTestId("leave-plan-wish-form")).toBeNull();
@@ -756,7 +756,7 @@ describe("LeavePlanControls", () => {
     return {
       statusLabel: "Offen",
       statusOpen: true,
-      deadlineText: "Wünsche bis 01.02.2027",
+      deadlineText: "Wünsche bis 1.2.2027",
       canAdd: true,
       add: vi.fn(),
       ...overrides,
@@ -768,7 +768,7 @@ describe("LeavePlanControls", () => {
     renderWithTheme(LeavePlanControls, { controls: c });
     const head = screen.getByTestId("leave-plan-head");
     expect(head.textContent).toContain("Offen");
-    expect(screen.getByTestId("leave-plan-deadline-text").textContent).toContain("01.02.2027");
+    expect(screen.getByTestId("leave-plan-deadline-text").textContent).toMatch(/(?<!\d)1\.2\.2027/);
     expect(head.querySelector(".badge-blue")).not.toBeNull();
     await fireEvent.click(screen.getByTestId("leave-plan-add-wish"));
     expect(c.add).toHaveBeenCalledTimes(1);

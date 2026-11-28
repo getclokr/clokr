@@ -11,6 +11,7 @@
 // or any error returns null so the caller proceeds with its mutation — a
 // pre-check must NEVER block a legitimate leave/shift operation (T-87-06).
 
+import { dayLabel } from "$lib/utils/day-label";
 import { api } from "$api/client";
 
 /**
@@ -53,16 +54,10 @@ export async function checkAppointmentCollisions(
 
 // ── PII-free German presentation helpers (shared by CollisionWarnBody) ────────
 
-/** Format a "YYYY-MM-DD" collision date as de-DE with a weekday prefix. */
+/** Format a "YYYY-MM-DD" collision date as "Do 1.1.2026" (weekday prefix, no leading zeros). */
 export function formatCollisionDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  if (Number.isNaN(new Date(`${iso}T00:00:00`).getTime())) return iso;
+  return dayLabel(iso, { weekday: true, year: true });
 }
 
 /** Singular/plural-aware per-date count label ("1 Termin" / "N Termine"). */

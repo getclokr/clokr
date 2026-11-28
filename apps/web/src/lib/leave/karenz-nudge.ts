@@ -7,6 +7,8 @@
  * target and formats German copy.
  */
 
+import { dayLabel } from "$lib/utils/day-label";
+
 export interface KarenzOverrunRow {
   leaveRequestId: string;
   days: string[]; // ISO YYYY-MM-DD, tenant-local
@@ -103,10 +105,9 @@ export function karenzOverrunDays(res: KarenzOverrunResponse | null | undefined)
   return [...distinct].sort();
 }
 
-/** "2026-08-05" → "05.08.2026". Returns the input unchanged if it is not an ISO day. */
+/** "2026-08-05" → "5.8.2026". Returns the input unchanged if it is not an ISO day. */
 export function formatKarenzDay(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? dayLabel(iso, { year: true }) : iso;
 }
 
 /**

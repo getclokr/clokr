@@ -92,8 +92,8 @@ describe("SupportAccessDetail — the access", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Support-Team");
     expect(text).toContain("Ticket 4711: Saldo eines Monats prüfen");
-    expect(text).toContain("02.07.2026, 00:30");
-    expect(text).toContain("03.07.2026, 00:30");
+    expect(text).toMatch(/(?<!\d)2\.7\.2026, 00:30/);
+    expect(text).toMatch(/(?<!\d)3\.7\.2026, 00:30/);
     expect(text).toContain("Aktiv");
   });
 
@@ -102,7 +102,7 @@ describe("SupportAccessDetail — the access", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Beendet");
     expect(text).toContain("durch den Betreiber");
-    expect(text).toContain("02.07.2026, 01:30");
+    expect(text).toMatch(/(?<!\d)2\.7\.2026, 01:30/);
   });
 
   it("writes the instants in the zone the API sent", () => {
@@ -110,8 +110,8 @@ describe("SupportAccessDetail — the access", () => {
       SupportAccessDetail,
       props({ detail: detail({ timezone: "America/New_York" }) }),
     );
-    expect(container.textContent).toContain("01.07.2026, 18:30");
-    expect(container.textContent).not.toContain("02.07.2026, 00:30");
+    expect(container.textContent).toMatch(/(?<!\d)1\.7\.2026, 18:30/);
+    expect(container.textContent).not.toMatch(/(?<!\d)2\.7\.2026, 00:30/);
   });
 
   it("renders the reason as text, never as markup", () => {
@@ -139,13 +139,13 @@ describe("SupportAccessDetail — the reads", () => {
     renderWithTheme(SupportAccessDetail, props());
     const rows = readRows();
     expect(rows).toHaveLength(4);
-    expect(rows[0].textContent).toContain("02.07.2026, 00:40");
+    expect(rows[0].textContent).toMatch(/(?<!\d)2\.7\.2026, 00:40/);
     expect(rows[0].textContent).toContain("Mitarbeitende");
     expect(rows[1].textContent).toContain("Monatsansicht");
     expect(rows[1].textContent).toContain("Erika Beispiel");
     expect(rows[1].textContent).toContain("Juni 2026");
     expect(rows[2].textContent).toContain("Änderungsprotokoll");
-    expect(rows[2].textContent).toContain("01.06.2026 – 30.06.2026");
+    expect(rows[2].textContent).toMatch(/(?<!\d)1\.6\.2026 – 30\.6\.2026/);
     expect(rows[3].textContent).toContain("Verträge");
   });
 
