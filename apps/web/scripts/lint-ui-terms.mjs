@@ -133,6 +133,11 @@ export const FORBIDDEN_TERMS = [
     re: /\b(euch|eure[nmrs]?|euer)\b/i,
     reason: "address the reader with „du“, never „ihr / euch“ (Issue #946)",
   },
+  {
+    id: "personalnummer",
+    re: /Mitarbeiter-Nr|Personalnr/i,
+    reason: "use „Personalnummer“ (glossary row Personalnummer; lists say „Nr. 5“) (Issue #1124)",
+  },
 ];
 
 /** Exact (file, term, text) triples that are not a finding, each with its reason. Stays empty. */

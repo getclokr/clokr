@@ -39,6 +39,7 @@ const POSITIVE: Record<string, { file?: string; source: string }> = {
   phorest: { file: LEAVE_COMPONENT, source: `<a href="/x">In Phorest öffnen</a>` },
   "sie-form": { source: `<p>Bitte prüfen Sie die Angaben.</p>` },
   "ihr-form": { source: `<p>Wähle eine Zeit nach eurem Schichtende.</p>` },
+  personalnummer: { source: `<p>Mitarbeiter-Nr.: 12</p>` },
   // Issue #850 — shift-planning jargon, checked only in the shift planning area
   flag: { file: SHIFTS, source: `<p>Schichten mit Konflikt-Flag</p>` },
   generator: { file: SHIFTS, source: `<p>Der Generator hat sie entfernt.</p>` },

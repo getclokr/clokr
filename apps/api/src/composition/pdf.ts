@@ -237,7 +237,7 @@ export function drawMonthlyReport(doc: PDFKit.PDFDocument, data: MonthlyReportDa
   doc
     .fontSize(9)
     .font("Helvetica")
-    .text(`Mitarbeiter-Nr.: ${data.employeeNumber}`)
+    .text(`Personalnummer: ${data.employeeNumber}`)
     .text(`Zeitraum: ${data.month}`);
   doc.moveDown(1);
 

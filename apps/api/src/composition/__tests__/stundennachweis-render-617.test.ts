@@ -168,6 +168,12 @@ describe("Stundennachweis renderer (Issue #617)", () => {
   });
 
   describe("summary text", () => {
+    it("names the number of the person „Personalnummer“, never „Mitarbeiter-Nr.“ (Issue #1124)", () => {
+      const texts = render(makeData({ employeeNumber: "N-42" }));
+      expect(texts).toContain("Personalnummer: N-42");
+      expect(texts.some((t) => t.includes("Mitarbeiter-Nr"))).toBe(false);
+    });
+
     it("prints Soll, Ist and Überstunden as H:MM from minutes with the label constants unchanged", () => {
       const texts = render(makeData());
       expect(texts).toContain("Soll: 160:00 h");
