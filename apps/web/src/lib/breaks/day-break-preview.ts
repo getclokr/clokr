@@ -53,6 +53,11 @@ export interface DayPreviewAutoBreak {
 export interface DayPreviewResponse {
   warnings: DayCheckWarning[];
   autoBreakApplied: DayPreviewAutoBreak | null;
+  /**
+   * Issue #525: the break the form prefills for the proposal's gross presence, decided by the
+   * server's one amount rule (employee override, tenant default, § 11 JArbSchG for a minor).
+   */
+  suggestedBreakMinutes?: number;
 }
 
 export interface BuildDayPreviewInput {
@@ -91,6 +96,30 @@ export function buildDayPreviewRequest(input: BuildDayPreviewInput): DayPreviewR
   return body;
 }
 
+/**
+ * The preview body that asks for the break suggestion of a stay of `grossMinutes` that starts at
+ * `startHHmm` (local wall clock) on `date`, or null when there is nothing to ask: no start, or a
+ * stay that is not positive. No break rows travel with it; the answer's `suggestedBreakMinutes`
+ * is all the caller reads.
+ */
+export function buildBreakSuggestionRequest(input: {
+  employeeId: string;
+  date: string;
+  startHHmm: string;
+  grossMinutes: number;
+}): DayPreviewRequest | null {
+  if (!input.startHHmm || !(input.grossMinutes > 0)) return null;
+  const start = new Date(`${input.date}T${input.startHHmm}:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  return buildDayPreviewRequest({
+    employeeId: input.employeeId,
+    date: input.date,
+    startISO: start.toISOString(),
+    endISO: new Date(start.getTime() + input.grossMinutes * 60_000).toISOString(),
+    breaks: [],
+  });
+}
+
 export type DayPreviewPost = (path: string, body: DayPreviewRequest) => Promise<DayPreviewResponse>;
 
 export type DayPreviewResultHandler = (
@@ -109,6 +138,27 @@ export interface DayPreviewRunner {
 }
 
 const PREVIEW_PATH = "/day-breaks/preview";
+
+/**
+ * The break, in minutes, the server prescribes for `body`'s proposal (`suggestedBreakMinutes`), for
+ * prefilling the entry form. The suggestion is a convenience: a refused or failed request, a null
+ * body or an answer without a usable number all yield 0 (no break row prefilled), because the save
+ * re-derives the break authoritatively and the form's preview names any shortfall.
+ */
+export async function fetchSuggestedBreakMinutes(
+  post: DayPreviewPost,
+  body: DayPreviewRequest | null,
+): Promise<number> {
+  if (body === null) return 0;
+  try {
+    const minutes = (await post(PREVIEW_PATH, body))?.suggestedBreakMinutes;
+    return typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0
+      ? Math.round(minutes)
+      : 0;
+  } catch {
+    return 0;
+  }
+}
 
 /** Debounce in milliseconds (T-511-40). */
 export const DAY_PREVIEW_DELAY_MS = 300;

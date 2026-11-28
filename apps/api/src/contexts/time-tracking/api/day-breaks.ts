@@ -59,6 +59,8 @@ import {
 import { dayCoverage } from "../day-scope";
 import { resolveEntrySalon } from "../entry-salon";
 import { createTravelOfferContext, travelOffersOfDay, type TravelOffer } from "../travel-offer"; // Issue #660 — the travel offer of an unclear gap
+import { breakAmountFor } from "../break-amount"; // Issue #525 — the one break-amount rule, also behind the form's suggestion
+import { ARBZG_FLOOR_OVER_6H, ARBZG_FLOOR_OVER_9H } from "../break-constants";
 import { planAutoBreak, autoBreakAppliesOnCreate } from "../auto-break-plan"; // Issue #511 (AK-4) — the save's own automatic-break decision
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -1085,7 +1087,11 @@ export async function dayBreakRoutes(app: FastifyInstance) {
         "findings. For a NEW entry (no `entryId`) without break slots and break minutes the " +
         "findings are computed with the automatic break the save would place when the tenant " +
         "has it enabled, reported as `autoBreakApplied` (null otherwise); an edit is never " +
-        "simulated.",
+        "simulated. The answer also carries `suggestedBreakMinutes` (Issue #525): the break " +
+        "amount the one amount rule prescribes for the gross presence of the proposal " +
+        "(employee override, else tenant default; for a person under 18 on the day raised to the " +
+        "§ 11 JArbSchG minimum), independent of the automatic-break switch; 0 for an employee " +
+        "exempt from time tracking. The entry form prefills its break from it.",
       security: [{ bearerAuth: [] }],
     },
     preHandler: requireAuth,
@@ -1169,8 +1175,22 @@ export async function dayBreakRoutes(app: FastifyInstance) {
 
       // § 18 ArbZG: the same exemption `checkArbZG` applies.
       if (employee.isTimeTrackingExempt) {
-        return { warnings: [], autoBreakApplied: null };
+        return { warnings: [], autoBreakApplied: null, suggestedBreakMinutes: 0 };
       }
+
+      // Issue #525: the break the entry form prefills for this presence. The ONE amount rule
+      // (`breakAmountFor`), whether or not the tenant places breaks automatically; the browser
+      // states no threshold of its own. A tenant without a config row falls back to the legal floors.
+      const tenantConfig = await app.prisma.tenantConfig.findUnique({ where: { tenantId } });
+      const suggestedBreakMinutes = breakAmountFor({
+        employee,
+        tenantConfig: {
+          defaultBreakOver6h: tenantConfig?.defaultBreakOver6h ?? ARBZG_FLOOR_OVER_6H,
+          defaultBreakOver9h: tenantConfig?.defaultBreakOver9h ?? ARBZG_FLOOR_OVER_9H,
+        },
+        presenceMin: (endTime.getTime() - startTime.getTime()) / 60000,
+        isMinor: isMinorAtDate(employee.birthDate, date),
+      }).amountMin;
 
       // The proposed row, shaped like a stored one. Its break total is the exact sum of the
       // proposed slots, the write path's own rule (legacy minutes only when there are no slots). A
@@ -1206,7 +1226,6 @@ export async function dayBreakRoutes(app: FastifyInstance) {
         !body.entryId &&
         autoBreakAppliesOnCreate({ slotCount: body.breaks.length, breakMinutes: body.breakMinutes })
       ) {
-        const tenantConfig = await app.prisma.tenantConfig.findUnique({ where: { tenantId } });
         const plan = planAutoBreak({
           employee,
           tenantConfig,
@@ -1262,6 +1281,7 @@ export async function dayBreakRoutes(app: FastifyInstance) {
           birthDateMissing: isApprenticeWithoutBirthDate(employee),
         }),
         autoBreakApplied,
+        suggestedBreakMinutes,
       };
     },
   });

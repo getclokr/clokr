@@ -107,6 +107,10 @@ const FIXED_TUE_FRI = {
   workDays: [2, 3, 4, 5],
 };
 
+// Issue #525: the break the form prefills is the server's `suggestedBreakMinutes` (the browser holds
+// no threshold). The fixture answers a fixed number per test; 30 is an adult's 8 h break.
+let serverSuggestsBreak = 30;
+
 function serve(entries: unknown[]) {
   apiGet.mockImplementation((path: string) => {
     if (path.startsWith("/time-entries")) return Promise.resolve(entries);
@@ -123,11 +127,17 @@ function serve(entries: unknown[]) {
     return Promise.reject(new ApiError(404, "not part of this test"));
   });
   apiPost.mockImplementation(() =>
-    Promise.resolve({ warnings: [], autoBreakApplied: null, findings: [] }),
+    Promise.resolve({
+      warnings: [],
+      autoBreakApplied: null,
+      findings: [],
+      suggestedBreakMinutes: serverSuggestsBreak,
+    }),
   );
 }
 
 beforeEach(() => {
+  serverSuggestsBreak = 30;
   apiGet.mockReset();
   apiPost.mockReset();
   apiPut.mockReset();
@@ -206,6 +216,34 @@ describe("Zeit nachtragen - prefill (N-09, M-44)", () => {
     expect(screen.getByTestId("time-entry-modal-prefill-hint").textContent?.trim()).toBe(
       "Vorbelegt mit deiner Vertragszeit (8:00 h) – bitte prüfen.",
     );
+  });
+
+  it("the break of the prefill is the server's answer: a minor's 60 minutes, asked for the 8 h stay (Issue #525)", async () => {
+    serverSuggestsBreak = 60;
+    serve([]);
+    renderWithTheme(TimeEntriesPage, {});
+    await openDay(12); // Thursday, 8 h
+    expect(value("time-entry-modal-end")).toBe("18:00");
+    const asked = apiPost.mock.calls.find(
+      ([path, body]) =>
+        path === "/day-breaks/preview" &&
+        (body as { breaks: unknown[] }).breaks.length === 0 &&
+        new Date((body as { endTime: string }).endTime).getTime() -
+          new Date((body as { startTime: string }).startTime).getTime() ===
+          8 * 3_600_000,
+    );
+    expect(asked, "the page asked the server for the 8 h stay").toBeTruthy();
+    expect((asked![1] as { date: string }).date).toBe("2026-11-12");
+  });
+
+  it("a refused suggestion prefills no break and the form still opens", async () => {
+    serve([]);
+    apiPost.mockImplementation(() => Promise.reject(new ApiError(403, "Monat abgeschlossen")));
+    renderWithTheme(TimeEntriesPage, {});
+    await openDay(12);
+    expect(value("time-entry-modal-start")).toBe("09:00");
+    expect(value("time-entry-modal-end")).toBe("17:00");
+    expect(screen.queryByTestId("break-slot-0")).toBeNull();
   });
 
   it("editing an entry shows no prefill line", async () => {

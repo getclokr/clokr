@@ -167,12 +167,11 @@ export interface PrefillNewEntryInput {
   /** The tenant's default break start (`HH:mm`), `null` when it has none. */
   defaultBreakStart: string | null;
   /**
-   * The break a stay of `grossMinutes` presence needs, from the page's own break suggestion. Injected,
-   * so this module holds no § 4 threshold: the browser has exactly one such convenience default
-   * (`suggestedBreakMinutes()` of the Zeiten page, issue #525) and the server re-derives the break
-   * on save (`arbzg-threshold-guard.test.ts`).
+   * The break a stay of `grossMinutes` presence that starts at `startHHmm` needs, asked from the
+   * server (Issue #525: the preview route's `suggestedBreakMinutes`). Injected, so this module holds
+   * no § 4 / § 11 threshold (`arbzg-threshold-guard.test.ts`); the server re-derives the break on save.
    */
-  breakMinutesFor: (grossMinutes: number) => number;
+  breakMinutesFor: (grossMinutes: number, startHHmm: string) => Promise<number>;
 }
 
 function dayKeyOf(entry: PrefillEntryRow): string {
@@ -204,16 +203,20 @@ function placedBreak(
  * 1. The person's usual day: the latest day other than `day` in the loaded month that has exactly one
  *    entry, which is closed, valid, a plain working entry (no trip, no row of a pending Zeitnachtrag),
  *    preferring the same weekday. Start, end and breaks are copied as recorded - the person's own data.
- * 2. The contract hours of that weekday: 09:00 plus the Soll plus the break the page's break
- *    suggestion names for that stay (`breakMinutesFor`). The break ROW is only
- *    filled when the tenant has a default break start and it lies inside the work period: a break
- *    start is never invented (Phase 93, BREAK-07).
+ * 2. The contract hours of that weekday: 09:00 plus the Soll plus the break the server's suggestion
+ *    names for that stay (`breakMinutesFor`). The break ROW is only filled when the tenant has a
+ *    default break start and it lies inside the work period: a break start is never invented
+ *    (Phase 93, BREAK-07).
  * 3. 09:00-17:00, as before, with the same break rule.
  *
- * Pure and presentation only: the server stays the authority for overlap, lock, the retro window and
- * ArbZG, and the person sees the visible „bitte prüfen“ line before anything is saved.
+ * Presentation only (async only because the break suggestion is a server answer): the server stays
+ * the authority for overlap, lock, the retro window and ArbZG, and the person sees the visible
+ * „bitte prüfen“ line before anything is saved.
  */
-export function prefillNewEntry(day: string, input: PrefillNewEntryInput): PrefillNewEntryResult {
+export async function prefillNewEntry(
+  day: string,
+  input: PrefillNewEntryInput,
+): Promise<PrefillNewEntryResult> {
   const byDay = new Map<string, PrefillEntryRow[]>();
   for (const entry of input.entries) {
     const key = dayKeyOf(entry);
@@ -252,8 +255,8 @@ export function prefillNewEntry(day: string, input: PrefillNewEntryInput): Prefi
 
   const { dayContractMinutes: minutes, defaultBreakStart, breakMinutesFor } = input;
   if (minutes > 0) {
-    const breakMinutes = breakMinutesFor(minutes);
     const start = DEFAULT_START;
+    const breakMinutes = await breakMinutesFor(minutes, start);
     const end = hhmmOf(Math.min(minutesOf(start) + minutes + breakMinutes, minutesOf(LATEST_END)));
     return {
       start,
@@ -269,7 +272,7 @@ export function prefillNewEntry(day: string, input: PrefillNewEntryInput): Prefi
     end: DEFAULT_END,
     breaks: placedBreak(
       defaultBreakStart,
-      breakMinutesFor(minutesOf(DEFAULT_END) - minutesOf(DEFAULT_START)),
+      await breakMinutesFor(minutesOf(DEFAULT_END) - minutesOf(DEFAULT_START), DEFAULT_START),
       DEFAULT_START,
       DEFAULT_END,
     ),
