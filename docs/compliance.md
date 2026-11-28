@@ -59,7 +59,7 @@ Sobald MA bereits eine Pause eingegeben hat (z.B. nur 15min), greift Auto-Break 
 - **„Im Voraus feststehend“ (§ 4 Satz 1):** Die Pausen müssen im Voraus feststehen. Das lässt sich aus Zeitstempeln nicht prüfen; ein erfasstes, abgeschlossenes Pausensegment gilt als Ruhepause.
 - **Ältere Einträge ohne Pausenlage:** Nur als Summe gespeicherte Pausen erzeugen den Hinweis `BREAK_POSITION_UNKNOWN`, nie einen Verstoß. Vor dem Einschalten von `blockMonthCloseOnUnconfirmedBreak` den Probelauf `audit-511-break-placement.ts` lesen.
 - **Fahrzeit zwischen Salons:** wird seit Issue #92 als eigener Eintrag erfasst (Abschnitt „Fahrzeit zwischen Salons“). Eine Lücke zwischen zwei Salons, für die keine Fahrzeit erfasst ist, bleibt die Grenzfall-Rechnung (`UNCLEAR`); das System erkennt eine Fahrt nicht selbst.
-- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“), seit Issue #1076 auch nach §§ 13–17 (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
+- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“), seit Issue #1076 auch nach §§ 13–17 (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“) und seit Issue #1106 auch nach § 18 (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
 - **Geschlossene Monate** werden nie neu bewertet.
 - **Tätigkeitsart (#81):** Die Tätigkeitsart ändert keine Arbeitszeit-, Pausen- oder Ruhezeitprüfung. Ein Fahrzeiteintrag (#92) zählt wie jeder Eintrag voll als Arbeitszeit; die Art „Fahrzeit“ selbst verändert auch hier keine Prüfung.
 - **Rechtsgrund im Befund:** Der Verweis auf § 11 JArbSchG im Befundtext lässt auf Minderjährigkeit schließen; Geburtsdatum und Alter werden nie ausgegeben.
@@ -101,7 +101,7 @@ Lesart zu § 4 Abs. 4 Satz 2 (Issue #1077, Owner-Entscheidung 26.11.2026): Die A
 
 ### Meldung
 
-- POST und PUT `/api/v1/shifts` antworten 422 mit `error: "JArbSchG-Verstoß"`, `canForce: false` und einem der Codes `JARBSCHG_VIOLATION_DAILY_MAX`, `JARBSCHG_VIOLATION_WEEKLY_MAX`, `JARBSCHG_VIOLATION_SHIFT_TIME` (Issue #1057) oder `JARBSCHG_VIOLATION_NIGHT_REST`, `JARBSCHG_VIOLATION_SUNDAY_REST`, `JARBSCHG_VIOLATION_FREE_TIME`, `JARBSCHG_VIOLATION_FIVE_DAY_WEEK` (Issue #1076, siehe den Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“). `?force=true` ändert nichts. Die Meldung ist deutsch und nennt Tag und Grenze.
+- POST und PUT `/api/v1/shifts` antworten 422 mit `error: "JArbSchG-Verstoß"`, `canForce: false` und einem der Codes `JARBSCHG_VIOLATION_DAILY_MAX`, `JARBSCHG_VIOLATION_WEEKLY_MAX`, `JARBSCHG_VIOLATION_SHIFT_TIME` (Issue #1057) oder `JARBSCHG_VIOLATION_NIGHT_REST`, `JARBSCHG_VIOLATION_SUNDAY_REST`, `JARBSCHG_VIOLATION_FREE_TIME`, `JARBSCHG_VIOLATION_FIVE_DAY_WEEK` (Issue #1076, siehe den Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“) oder `JARBSCHG_VIOLATION_HOLIDAY_REST` (Issue #1106, siehe den Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“). `?force=true` ändert nichts. Die Meldung ist deutsch und nennt Tag und Grenze.
 - Sammelzuweisung (`/bulk`) lehnt bei einem Verstoß die **ganze** Anfrage ab (atomar). Wiederherstellen einer durch die Berufsschul-Bereinigung gelöschten Schicht wird wie eine neue Schicht geprüft.
 - „Muster anwenden“ (generate-week) und „Woche kopieren“ (copy-week) überspringen die betroffene Zelle mit dem Grund „Jugendarbeitsschutz“, in Vorschau und Übernahme gleich.
 - Abgelehnt wird nur, was einen Verstoß **erzeugt oder vergrößert** (Tageswert, Schichtzeit oder Wochensumme wächst). Ein bereits unzulässiger Plan (Altbestand, Phorest-Import) sperrt den Dienstplan nicht: Verkürzen, Verschieben weg vom Tag und reine Textänderungen bleiben möglich.
@@ -111,7 +111,7 @@ Lesart zu § 4 Abs. 4 Satz 2 (Issue #1077, Owner-Entscheidung 26.11.2026): Die A
 
 Phorest führt den Plan, ein Abgleich kann keine Schicht ablehnen, kürzen oder verschieben. Das Gesetz verbietet das Beschäftigen über die Grenzen hinaus; die Ordnungswidrigkeit (§ 58 Abs. 1 Nr. 5 und 8 JArbSchG) entsteht am Arbeitstag. Clokr übernimmt die Schicht deshalb unverändert und meldet den Befund rechtzeitig vor dem Tag.
 
-- Nach jedem erfolgreichen Abgleich prüft Clokr jede Woche, in die der Lauf eine Schicht übernommen hat (Import und Übernahme einer Altschicht), mit **derselben Prüfung wie der Dienstplan** (seit Issue #1076 einschließlich §§ 13–17 JArbSchG, ohne zweite Stelle): alle Schichten der Person in allen Salons (§ 4 Abs. 5 JArbSchG), Berufsschulzeit, Alter je Tag. Geprüft wird der gespeicherte Stand der ganzen Woche.
+- Nach jedem erfolgreichen Abgleich prüft Clokr jede Woche, in die der Lauf eine Schicht übernommen hat (Import und Übernahme einer Altschicht), mit **derselben Prüfung wie der Dienstplan** (seit Issue #1076 einschließlich §§ 13–17, seit Issue #1106 einschließlich § 18 JArbSchG, ohne zweite Stelle): alle Schichten der Person in allen Salons (§ 4 Abs. 5 JArbSchG), Berufsschulzeit, Alter je Tag. Geprüft wird der gespeicherte Stand der ganzen Woche.
 - Wer die Schichten des Salons plant (Reichweite `shift:plan`), bekommt eine Benachrichtigung mit Tag, Stunden und Grenze. Die Person selbst bekommt keine Meldung.
 - Dieselbe offene Meldung wird nicht wiederholt, ein geänderter Befund (anderer Tag, andere Stunden) kommt neu. Nach dem Ausblenden meldet der nächste Lauf erneut, solange der Plan unzulässig ist.
 - Der Lauf bleibt erfolgreich, auch wenn die Meldung scheitert. Es gibt keinen Audit-Eintrag: Es wird nichts geändert, die Benachrichtigung ist der Nachweis.
@@ -124,13 +124,13 @@ Der erste Phorest-Lauf nach dem Release kann für eine Woche mit Feiertag einmal
 
 - **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074, siehe „Phorest-Import“ oben).
-- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) prüft der Dienstplan seit Issue #1076, die Phorest-Meldung mit derselben Prüfung (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“).
+- **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) prüft der Dienstplan seit Issue #1076, die Phorest-Meldung mit derselben Prüfung (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“); **§ 18** (Feiertagsruhe) seit Issue #1106 (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“).
 - **Zeiterfassung:** erfasste Zeiten werden nicht nach § 8 JArbSchG geprüft (Issue #524).
 - Alle Schreibwege sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` nach Aufrufmuster mit Urteil erfasst.
 
 ### Datenschutz
 
-Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8, § 12 oder §§ 13–17 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
+Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8, § 12, §§ 13–17 oder § 18 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
 
 ## §§ 13–17 JArbSchG — Schichtplanung (Issue #1076)
 
@@ -173,7 +173,7 @@ Der Samstag allein wird nie abgelehnt: Die Samstagsarbeit im Friseurhandwerk ist
 
 ### Bekannte Grenzen
 
-- **§ 18 JArbSchG** (Feiertagsruhe, 24. und 31. Dezember nach 14 Uhr) gehört nicht zu Issue #1076 und wird nicht geprüft (eigenes Issue).
+- **§ 18 JArbSchG** (Feiertagsruhe, 24. und 31. Dezember nach 14 Uhr) gehört nicht zu Issue #1076; er wird seit Issue #1106 geprüft (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“).
 - **§ 21 und § 21a** (Abweichungen durch Tarifvertrag, Aufsichtsbehörde) sind nicht abgebildet, wie bei Issue #1057; ebenso § 9 Abs. 1 Nr. 1.
 - **Phorest:** Eine neue Sonntagsschicht, die die Freizeit zum Montag der Folgewoche verletzt, erscheint in der Folgewoche erst, wenn diese Woche geprüft wird; die Sonntagsschicht selbst wird immer nach § 17 gemeldet.
 - Berufsschulzeit hat keine Uhrzeiten; § 13 wird nur zwischen Schichten geprüft.
@@ -181,6 +181,50 @@ Der Samstag allein wird nie abgelehnt: Die Samstagsarbeit im Friseurhandwerk ist
 ### Einführung
 
 Der erste Phorest-Lauf nach dem Release kann für die Woche einer Person unter 18 eine neue Benachrichtigung senden, weil der Befund jetzt auch §§ 13–17 enthält (inhaltsbewusste Dedup, Issue #1074).
+
+## § 18 JArbSchG — Feiertagsruhe, Schichtplanung (Issue #1106)
+
+Dieselbe Prüfung (`apps/api/src/contexts/scheduling/minor-shift-limits.ts`, Regel 4 von `checkShiftWrite`) kennt neben §§ 8, 12–17 auch § 18 Abs. 1. Jeder Schreibweg des Dienstplans (POST, PUT, Wiederherstellen, Sammelzuweisung, „Muster anwenden“, „Woche kopieren“) und die Phorest-Meldung rufen sie unverändert auf. Antwort und Reihenfolge sind wie bei Issue #1057 (422 `JArbSchG-Verstoß`, `canForce: false`, `?force=true` ändert nichts). Ein Verstoß ist eine Ordnungswidrigkeit (§ 58 Abs. 1 Nr. 15 JArbSchG).
+
+### Geltung
+
+- „Unter 18“ wird je Schichttag entschieden, der 18. Geburtstag selbst zählt als volljährig; ohne Geburtsdatum gilt die Person als volljährig (wie oben). Jeder Mandant wird als Friseurbetrieb gelesen (wie bei Issue #1076).
+
+### Regeln
+
+| Regel                                                        | Grenze                                                                     | Rechtsgrund          | Code                              |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- | -------------------- | --------------------------------- |
+| Gesetzlicher Feiertag am Salon der Schicht                   | keine Schicht an einem Feiertag des Salons, in dem die Schicht geplant ist | § 18 Abs. 1 JArbSchG | `JARBSCHG_VIOLATION_HOLIDAY_REST` |
+| 24. und 31. Dezember nach 14 Uhr, Schicht bis 14:00 zulässig | jede geplante Minute nach 14:00 Uhr an diesen beiden Tagen                 | § 18 Abs. 1 JArbSchG | `JARBSCHG_VIOLATION_HOLIDAY_REST` |
+
+### Geprüfte Ausnahmen
+
+§ 18 Abs. 1 lautet: „Am 24. und 31. Dezember nach 14 Uhr und an gesetzlichen Feiertagen dürfen Jugendliche nicht beschäftigt werden.“ Beide Verbote stehen in § 18 Abs. 1, nicht in § 14 und nicht in § 17. Für einen Friseurbetrieb greift keine Ausnahme:
+
+- **§ 18 Abs. 2** erlaubt Feiertagsarbeit nur „in den Fällen des § 17 Abs. 2“, außer am 25. Dezember, 1. Januar, ersten Osterfeiertag und 1. Mai. § 17 Abs. 2 Satz 1 nennt abschließend: Krankenanstalten sowie Alten-, Pflege- und Kinderheime; Landwirtschaft und Tierhaltung; Familienhaushalt; Schaustellergewerbe; Musik-, Theater- und andere Aufführungen sowie Direktsendungen im Rundfunk; Sport; ärztlichen Notdienst; Gaststättengewerbe. Ein Friseurbetrieb ist keiner dieser Fälle.
+- **Gegenprobe im selben Gesetz:** Wo das Friseurhandwerk eine Ausnahme bekommen soll, nennt das Gesetz es ausdrücklich (§ 16 Abs. 2 Satz 1 Nr. 2, Samstag). In § 17 Abs. 2 und damit in § 18 Abs. 2 fehlt es.
+- Die Ausnahme in Abs. 2 gilt nur für Feiertage. Für den **24. und 31. Dezember nach 14 Uhr** gibt es für keine Branche eine Ausnahme.
+- **§ 21a Abs. 1** erlaubt dem Tarifvertrag Abweichungen nur von § 18 Abs. 3, nicht von Abs. 1.
+- **§ 18 Abs. 3** (Freistellung an einem anderen berufsschulfreien Arbeitstag) folgt nur auf eine nach Abs. 2 zulässige Feiertagsarbeit. Die gibt es im Salon nicht; Clokr bildet deshalb keinen Freistellungstag ab.
+
+### Lesarten
+
+- **Welcher Feiertag:** der gesetzliche Feiertag am **Salon der Schicht**, je Schicht. Der Salon einer geplanten Schicht ist ihr Arbeitsort, und die Feiertagsgesetze der Länder gelten dort, wo beschäftigt wird. Gelesen wird über die zentrale Feiertagsauflösung im Unterbau (`holidaysForSalon`), nicht über die Tagesauflösung der Zeiterfassung (`holidaysAtWorkLocation`, § 2 EFZG), die aus einem abgeschlossenen Zeiteintrag, der Salonzuordnung oder dem Standardsalon einen Salon je Tag bestimmt. Beispiel: Der Reformationstag (31.10.) sperrt eine Schicht im niedersächsischen Salon und nicht im bayerischen.
+- **Salon-Feiertage zählen:** ein im Salon eingetragener Feiertag sperrt wie ein gesetzlicher (dieselbe Menge, die das Soll und § 4 Abs. 4 Satz 2 lesen).
+- **24. und 31. Dezember:** feste Kalendertage ohne Feiertagssuche. Jede geplante Minute nach 14:00 Uhr ist ein Verstoß, eine Schicht bis 14:00 Uhr ist zulässig. Für Jugendliche liegt keine Pause in der letzten Stunde (§ 11 Abs. 2 JArbSchG), das Schichtende ist also das Ende der Beschäftigung. Fällt auf den Tag zugleich ein Salon-Feiertag, nennt die Meldung den Feiertag.
+- **Feiertag auf einem Sonntag:** § 17 und § 18 sind verletzt. Der Dienstplan antwortet mit der Sonntagsruhe, die Phorest-Meldung nennt beide.
+- **Nur Verschlechterung:** Abgelehnt wird nur, was die Feiertagsminuten oder die Minuten nach 14 Uhr eines Tages vergrößert. Text ändern, kürzen, auf einen anderen Tag oder in einen Salon ohne diesen Feiertag verlegen bleibt möglich; neue Schichten an anderen Tagen der Woche werden angenommen. Eine Schicht über Mitternacht wird nach ihrem Beginntag beurteilt (ihr Teil am Folgetag ist Nachtruhe, § 14).
+- **Ohne Salon:** Ein Eintrag ohne Salon (Vorschau von „Muster anwenden“ oder „Woche kopieren“ in einem Mandanten ohne aktiven Salon) bekommt keine Feiertagssuche; die Zelle wird beim Übernehmen ohnehin mit 409 `NO_ACTIVE_SALON` abgelehnt und nie gespeichert. Fehlt der Salon einer geprüften Schicht in der geladenen Feiertagsliste, bricht die Prüfung ab (fail-closed), statt „kein Feiertag“ zu raten.
+
+### Bekannte Grenzen
+
+- Die **Zeiterfassung** (tatsächlich geleistete Zeit an einem Feiertag) wird nicht geprüft (Issue #524).
+- Das Feiertags-Soll nach § 4 Abs. 4 Satz 2 (Issue #1077) liest den Arbeitsort aus der Salonzuordnung, § 18 den Salon der Schicht. Wer in einem Salon eines anderen Bundeslandes als der zugeordnete geplant ist, kann dort zwei verschiedene Feiertage sehen. Das ist unverändert und ein Kandidat für ein Folge-Issue.
+- Je Wochenprüfung kostet die Feiertagsliste eine Salonabfrage plus zwei Abfragen je Salon des Mandanten (inaktive eingeschlossen), nur wenn die Woche eine Person unter 18 enthält; reine Erwachsenen-Schreibvorgänge zahlen nichts.
+
+### Einführung
+
+Der erste Phorest-Lauf nach dem Release kann für Wochen mit einer Feiertagsschicht oder einer Schicht nach 14 Uhr am 24./31. Dezember einer Person unter 18 eine neue Benachrichtigung senden (inhaltsbewusste Dedup, Issue #1074). Bestehende Pläne werden nicht rückwirkend abgelehnt.
 
 ## Schichtplanung — eine Prüfung für jeden Schreibweg (Issue #1075)
 
@@ -195,7 +239,7 @@ Die erste Regel, die anschlägt, antwortet.
 | 1   | Vertrag am Tag, nicht nach dem Austritt | 422 `SHIFT_NO_CONTRACT`                 | nein                      |
 | 2   | Vergangenheit                           | 422 `SHIFT_PAST_IMMUTABLE`              | nein                      |
 | 3   | Öffnungszeiten des Salons               | 409 `SHIFT_OUTSIDE_STORE_HOURS`         | ja, nur bei einer Schicht |
-| 4   | JArbSchG (§§ 8, 12–17)                  | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
+| 4   | JArbSchG (§§ 8, 12–18)                  | 422 `JARBSCHG_VIOLATION_*` (siehe oben) | nein                      |
 | 5   | § 3 ArbZG, Tageshöchstzeit              | 422 `ARBZG_VIOLATION_DAILY_MAX`         | nein                      |
 | 6   | § 5 ArbZG, Ruhezeit                     | 409 `ARBZG_VIOLATION_REST_PERIOD`       | ja, nur bei einer Schicht |
 
