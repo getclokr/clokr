@@ -238,8 +238,8 @@ describe("Phase 76.32 — SOLL-KORRELATION display correctness (BS single-count 
     // tenant.federalState (NIEDERSACHSEN → NI) which is correct for this test.
     // We do NOT seed a pattern here — the fallback is sufficient.
     //
-    // vocationalSchoolMinutesByEmp is populated from Absence.type=VOCATIONAL_SCHOOL
-    // rows resolved through the availabilityMap. Seed one VOCATIONAL_SCHOOL absence.
+    // vocationalSchoolMinutesByEmp is populated from the week's Absence.type=VOCATIONAL_SCHOOL
+    // rows (any source, Issue #1089). Seed one VOCATIONAL_SCHOOL absence.
     const bsDate = new Date(weekMonday + "T00:00:00Z");
     bsDate.setUTCDate(bsDate.getUTCDate() + 2); // Wednesday of the test week
     await prisma.absence.create({

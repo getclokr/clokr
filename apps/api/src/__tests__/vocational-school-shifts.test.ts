@@ -67,8 +67,9 @@ describe("Berufsschule shifts (Phase 63 Plan 04 Task 3)", () => {
 
   beforeEach(async () => {
     // Clean ALL Absences (not just VOCATIONAL_SCHOOL) — earlier tests in this
-    // file also create SICK rows for the rank test, which would otherwise
-    // outrank a fresh BS absence and skip it from the BS-minutes aggregation.
+    // file also create SICK rows for the rank test, which would still outrank a fresh BS
+    // absence in the availability cell (since #1089 they no longer remove it from the
+    // BS-minutes aggregation, which reads the VOCATIONAL_SCHOOL rows themselves).
     await app.prisma.absence.deleteMany({ where: { employeeId: data.employee.id } });
     await app.prisma.shift.deleteMany({ where: { employeeId: data.employee.id } });
   });
