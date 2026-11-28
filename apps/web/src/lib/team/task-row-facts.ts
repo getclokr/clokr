@@ -124,7 +124,7 @@ export function createLeaveContextLoader(
     if (!rows) return null;
     const balance = mapVacationBalance(rows.find((r) => r.typeCode === "VACATION"));
     const fact = vacationBeforeAfter({
-      remaining: deriveVacationSummary(balance, 0).remaining,
+      remaining: deriveVacationSummary(balance).remainingBeforePending,
       days: Number(request.days),
       status: request.status,
       startDate: request.startDate,

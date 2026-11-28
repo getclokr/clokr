@@ -89,6 +89,14 @@ export interface VacationBalance {
    */
   pendingCreatedByAsOfDays: number;
   remainingDays: number; // entitlementDays + carriedOverEffectiveDays − usedDays (not clamped)
+  /**
+   * Issue #1109 — the days still free to book: `remainingDays − pendingDays`, not clamped. This is
+   * the one figure every own-vacation screen calls „Resturlaub“ (Ich › Abwesenheiten, Mein Tag,
+   * Ich › Konto, the request dialog); `remainingDays` stays the figure BEFORE pending requests
+   * (reports, Monatsexport, the decision facts of an approver). No reader subtracts the pending
+   * days itself.
+   */
+  freeDays: number;
   atRiskDays: number; // carryOverAtRiskDays
   /**
    * Issue #940 — the carried-over days that still count although the deadline has passed, only
@@ -186,6 +194,7 @@ export async function vacationBalanceForRow(
 
   const remainingDays = round2(entitlementDays + carriedOverEffectiveDays - usedDays);
   const availableDays = round2(entitlementDays + carriedOverEffectiveDays);
+  const freeDays = round2(remainingDays - pendingDays);
 
   // ── Issue #617: the taken / approved-upcoming split, from the kernel ────────────────────────
   const tenantConfigRow = await db.tenantConfig.findUnique({
@@ -262,6 +271,7 @@ export async function vacationBalanceForRow(
     pendingDays,
     pendingCreatedByAsOfDays,
     remainingDays,
+    freeDays,
     atRiskDays,
     carryOverKeptWithoutNoticeDays,
     carryOverDeadline: row.carryOverDeadline,

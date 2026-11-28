@@ -4,7 +4,8 @@
 // without mounting the dialog.
 //
 // None of these functions computes a balance: the Resturlaub figure comes in already derived
-// (`deriveVacationSummary(...).remaining`, #451), this module only subtracts the request's own
+// (`deriveVacationSummary(...).remainingBeforePending`, #451 - the figure BEFORE the pending requests, because the
+// request decided here is itself pending; Issue #1109), this module only subtracts the request's own
 // days for the "before -> after" display and words the result.
 
 export type ReviewDecision = "APPROVED" | "REJECTED";
@@ -46,7 +47,7 @@ function yearOf(day: string): number {
 }
 
 export interface VacationFactInput {
-  /** `deriveVacationSummary(balance, 0).remaining`; `null` when there is no balance row. */
+  /** `deriveVacationSummary(balance).remainingBeforePending`; `null` when there is no balance row. */
   remaining: number | null;
   /** The request's priced days. */
   days: number;

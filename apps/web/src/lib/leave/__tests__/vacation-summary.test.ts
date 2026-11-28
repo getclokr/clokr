@@ -12,6 +12,15 @@
 // make the comparison a tautology. If the oracle and the module ever disagree, the MODULE is
 // wrong; never "fix" the oracle to match.
 //
+// Issue #1109 (owner decision 28.11.2026) changed the MEANING of „Resturlaub“, so these expectations
+// changed and nothing else: `left` (total + carryOver - used - planned) became `free`, the figure the
+// card, Mein Tag, Ich › Konto and the dialog show, and it is `null` without a balance (it was 0);
+// the old `remaining` (before pending) became `remainingBeforePending`; `planned` comes with the
+// balance (`balance.pending`, the facade's pendingDays) instead of a second argument. The oracle's
+// arithmetic is untouched and still compared literally — `free` of a facade-consistent balance must
+// equal the old `left` for every case below — and every case, every exact value and the null
+// contract stay as strict as before.
+//
 // Same convention as its sibling `vacation-balance.test.ts`: plain function calls, no component
 // mount (no test in `apps/web` has ever mounted a route page), `describe`/`it`/`expect` imported
 // explicitly because `vitest.config.ts` sets `globals: false`.
@@ -27,9 +36,8 @@ import type { VacationBalance } from "../vacation-balance";
 import {
   deriveVacationSummary,
   vacationCardDelta,
-  vacationCardLabel,
+  vacationPendingLine,
   VAC_CARD_LABEL,
-  VAC_CARD_LABEL_WITH_PENDING,
   type VacationSummary,
 } from "../vacation-summary";
 
@@ -83,7 +91,7 @@ function fnBody(marker: string): string {
  *  `provisionalUsed`, `carryOverDeadline`, `section9Movements` and `exitOverUseWarningMessage`
  *  play no part in any of the eight formulas — they are carried only so the fixture is a real
  *  `VacationBalance`. */
-function balance(total: number, used: number, carryOver: number): VacationBalance {
+function balance(total: number, used: number, carryOver: number, pending = 0): VacationBalance {
   return {
     total,
     used,
@@ -93,6 +101,9 @@ function balance(total: number, used: number, carryOver: number): VacationBalanc
     section9Movements: [],
     exitOverUseWarningMessage: null,
     carryOverKeptWithoutNotice: 0,
+    // Issue #1109: what the Resturlaub facade delivers — `freeDays` is always remaining minus pending.
+    pending,
+    free: total + carryOver - used - pending,
   };
 }
 
@@ -117,7 +128,9 @@ function balance(total: number, used: number, carryOver: number): VacationBalanc
 //   delta={vacationBalance
 //     ? `von ${vacationBalance.total + vacationBalance.carryOver} verfügbar`
 //     : undefined}
-function LEGACY(vacationBalance: VacationBalance | null, pendingVacDays: number): VacationSummary {
+function LEGACY(vacationBalance: VacationBalance | null): VacationSummary {
+  // The pre-#1109 second argument is the balance's own pending days now.
+  const pendingVacDays = vacationBalance?.pending ?? 0;
   const vacSummaryTotal = vacationBalance?.total ?? 0;
   const vacSummaryCarryOver = vacationBalance?.carryOver ?? 0;
   const vacSummaryUsed = vacationBalance?.used ?? 0;
@@ -138,23 +151,24 @@ function LEGACY(vacationBalance: VacationBalance | null, pendingVacDays: number)
     used: vacSummaryUsed,
     planned: vacSummaryPlanned,
     carryOverRemaining: vacSummaryCarryOverRemaining,
-    left: vacSummaryLeft,
-    remaining: vacRemaining,
+    // #1109: the old `left`, now `free`; `null` without a balance (the old 0 never reached a screen).
+    free: vacationBalance ? vacSummaryLeft : null,
+    remainingBeforePending: vacRemaining,
     availableTotal: cardAvailableTotal,
   };
 }
 
 describe("deriveVacationSummary — the issue #117 scenario, pinned exactly", () => {
-  it("reproduces every number the issue tabulates, plus the card's 7 and 38", () => {
-    const summary = deriveVacationSummary(balance(24, 31, 14), 3);
+  it("reproduces every number the issue tabulates, plus the 38 and the free days of #1109", () => {
+    const summary = deriveVacationSummary(balance(24, 31, 14, 3));
     expect(summary).toEqual({
       total: 24,
       carryOver: 14,
       used: 31,
       planned: 3,
       carryOverRemaining: 0, // max(0, 14 - 31)
-      left: 4, // 24 + 14 - 31 - 3
-      remaining: 7, // 38 - 31 — the card value, beantragte NOT subtracted
+      free: 4, // 24 + 14 - 31 - 3 — the one Resturlaub figure, beantragte subtracted (#1109)
+      remainingBeforePending: 7, // 38 - 31 — the former card value, beantragte NOT subtracted
       availableTotal: 38, // 24 + 14
     });
   });
@@ -178,7 +192,7 @@ describe("deriveVacationSummary vs. the legacy inline derivations", () => {
       carryOver: 14,
       planned: 2,
     },
-    { name: "left goes negative (-8)", total: 20, used: 25, carryOver: 0, planned: 3 },
+    { name: "free goes negative (-8)", total: 20, used: 25, carryOver: 0, planned: 3 },
     { name: "all zero", total: 0, used: 0, carryOver: 0, planned: 0 },
     {
       name: "used exactly equals carryOver, so carryOverRemaining is 0",
@@ -193,77 +207,126 @@ describe("deriveVacationSummary vs. the legacy inline derivations", () => {
   it.each(cases)(
     "$name: deep-equals the literal re-implementation of the old formulas",
     ({ total, used, carryOver, planned }) => {
-      const b = balance(total, used, carryOver);
-      expect(deriveVacationSummary(b, planned)).toEqual(LEGACY(b, planned));
+      const b = balance(total, used, carryOver, planned);
+      expect(deriveVacationSummary(b)).toEqual(LEGACY(b));
     },
   );
 
-  it("does not clamp `left` — it may be negative", () => {
-    const b = balance(20, 25, 0);
-    expect(deriveVacationSummary(b, 3).left).toBe(-8);
-    expect(deriveVacationSummary(b, 3).left).toBe(LEGACY(b, 3).left);
+  it("does not clamp `free` — it may be negative", () => {
+    const b = balance(20, 25, 0, 3);
+    expect(deriveVacationSummary(b).free).toBe(-8);
+    expect(deriveVacationSummary(b).free).toBe(LEGACY(b).free);
   });
 
   it("does clamp `carryOverRemaining` at 0", () => {
-    const b = balance(24, 31, 14);
-    expect(deriveVacationSummary(b, 3).carryOverRemaining).toBe(0);
+    const b = balance(24, 31, 14, 3);
+    expect(deriveVacationSummary(b).carryOverRemaining).toBe(0);
     // and it is NOT the raw -17 the subtraction would give
-    expect(deriveVacationSummary(b, 3).carryOverRemaining).not.toBe(-17);
+    expect(deriveVacationSummary(b).carryOverRemaining).not.toBe(-17);
   });
 
   it("keeps half-day arithmetic exactly as the old expressions produced it", () => {
-    const b = balance(25.5, 3.5, 2.5);
-    const summary = deriveVacationSummary(b, 1);
-    expect(summary.remaining).toBe(24.5); // 25.5 + 2.5 - 3.5
+    const b = balance(25.5, 3.5, 2.5, 1);
+    const summary = deriveVacationSummary(b);
+    expect(summary.remainingBeforePending).toBe(24.5); // 25.5 + 2.5 - 3.5
     expect(summary.availableTotal).toBe(28); // 25.5 + 2.5
-    expect(summary.left).toBe(23.5); // 28 - 3.5 - 1
-    expect(summary).toEqual(LEGACY(b, 1));
+    expect(summary.free).toBe(23.5); // 28 - 3.5 - 1
+    expect(summary).toEqual(LEGACY(b));
+  });
+});
+
+// ── Issue #1109: ONE Resturlaub number, from the server ────────────────────────────────────────
+describe("deriveVacationSummary — `free` is the server's figure, passed through (Issue #1109)", () => {
+  it("takes `free` from the balance and does not subtract the pending days a second time", () => {
+    // A balance whose `free` is NOT what total + carryOver - used - pending would give: the
+    // summary must show the server's number, never its own arithmetic.
+    const b: VacationBalance = { ...balance(24, 31, 14, 3), free: 11 };
+    expect(deriveVacationSummary(b).free).toBe(11);
+  });
+
+  it("equals the figure of every other screen: Konto and the card read the same summary", () => {
+    const b = balance(30, 4, 0, 2.5);
+    expect(deriveVacationSummary(b).free).toBe(23.5);
+    expect(deriveVacationSummary(b).planned).toBe(2.5);
+  });
+
+  it("is the figure before pending only in `remainingBeforePending`, which is no Resturlaub", () => {
+    const summary = deriveVacationSummary(balance(30, 4, 0, 2.5));
+    expect(summary.remainingBeforePending).toBe(26);
+    expect(summary.free).not.toBe(summary.remainingBeforePending);
+  });
+
+  it("with no pending requests both figures agree", () => {
+    const summary = deriveVacationSummary(balance(30, 4, 0, 0));
+    expect(summary.free).toBe(summary.remainingBeforePending);
+  });
+});
+
+describe("mapVacationBalance — carries the facade's pending and free days (Issue #1109)", () => {
+  const row = (vb?: { pendingDays?: number; freeDays?: number } | null) => ({
+    typeCode: "VACATION",
+    leaveType: { name: "Urlaub" },
+    totalDays: 30,
+    usedDays: 4,
+    carriedOverDays: 0,
+    effectiveCarryOverDays: 0,
+    carryOverDeadline: null,
+    vacationBalance: vb,
+  });
+
+  it("reads pendingDays and freeDays of the facade block", () => {
+    const mapped = mapVacationBalance(row({ pendingDays: 2.5, freeDays: 23.5 }));
+    expect(mapped?.pending).toBe(2.5);
+    expect(mapped?.free).toBe(23.5);
+  });
+
+  it("falls back to the figure before pending, and no pending days, without a facade block", () => {
+    const mapped = mapVacationBalance(row(undefined));
+    expect(mapped?.pending).toBe(0);
+    expect(mapped?.free).toBe(26);
   });
 });
 
 // ── The `null` contract — this is what keeps the card rendering "–" ─────────────────────────
 describe("deriveVacationSummary with no balance", () => {
   it("returns 0 for the six summary fields (the strip renders zeros, as before)", () => {
-    const summary = deriveVacationSummary(null, 0);
+    const summary = deriveVacationSummary(null);
     expect(summary.total).toBe(0);
     expect(summary.carryOver).toBe(0);
     expect(summary.used).toBe(0);
     expect(summary.planned).toBe(0);
     expect(summary.carryOverRemaining).toBe(0);
-    expect(summary.left).toBe(0);
   });
 
-  it("returns `remaining: null`, NOT 0 — if this became 0 the Urlaubskonto card would show a fake '0' instead of the en-dash placeholder", () => {
-    expect(deriveVacationSummary(null, 0).remaining).toBeNull();
-    expect(deriveVacationSummary(null, 3).remaining).toBeNull();
+  it("returns `free: null`, NOT 0 — if this became 0 the Urlaubskonto card would show a fake '0' instead of the en-dash placeholder", () => {
+    expect(deriveVacationSummary(null).free).toBeNull();
+    expect(deriveVacationSummary(null).remainingBeforePending).toBeNull();
   });
 
   it("returns `availableTotal: null`, NOT 0 — if this became 0 the card would render a breakdown line for a balance it does not have", () => {
-    expect(deriveVacationSummary(null, 0).availableTotal).toBeNull();
-    expect(deriveVacationSummary(null, 3).availableTotal).toBeNull();
+    expect(deriveVacationSummary(null).availableTotal).toBeNull();
   });
 
   it("matches the legacy oracle for a null balance too", () => {
-    expect(deriveVacationSummary(null, 0)).toEqual(LEGACY(null, 0));
-    expect(deriveVacationSummary(null, 2)).toEqual(LEGACY(null, 2));
+    expect(deriveVacationSummary(null)).toEqual(LEGACY(null));
   });
 });
 
 describe("deriveVacationSummary — `planned` passes straight through", () => {
-  it("is neither clamped nor rounded nor year-filtered (the fetch is already year-scoped)", () => {
-    expect(deriveVacationSummary(balance(24, 0, 0), 0.5).planned).toBe(0.5);
-    expect(deriveVacationSummary(balance(24, 0, 0), 99).planned).toBe(99);
+  it("is neither clamped nor rounded nor year-filtered (the facade's pendingDays is already year-scoped)", () => {
+    expect(deriveVacationSummary(balance(24, 0, 0, 0.5)).planned).toBe(0.5);
+    expect(deriveVacationSummary(balance(24, 0, 0, 99)).planned).toBe(99);
     // Negative input is nonsense but must not be silently swallowed — the old
     // `$derived(pendingVacDays)` did nothing to it either.
-    expect(deriveVacationSummary(balance(24, 0, 0), -1).planned).toBe(-1);
+    expect(deriveVacationSummary(balance(24, 0, 0, -1)).planned).toBe(-1);
   });
 });
 
 describe("deriveVacationSummary — purity", () => {
   it("does not mutate its input balance object", () => {
-    const b = balance(24, 31, 14);
+    const b = balance(24, 31, 14, 3);
     const before: VacationBalance = JSON.parse(JSON.stringify(b));
-    deriveVacationSummary(b, 3);
+    deriveVacationSummary(b);
     expect(b).toEqual(before);
   });
 });
@@ -272,29 +335,37 @@ describe("deriveVacationSummary — purity", () => {
 // Exact-string assertions on purpose. These four strings ARE the fix for issue #117 — a
 // `toContain` would let a future edit reintroduce the ambiguity the phase removed.
 
-describe("vacationCardLabel", () => {
-  it("is plain `Resturlaub` when nothing is beantragt", () => {
-    // At planned === 0 the card's number and the strip's `Verbleibend` are the SAME number,
-    // so a qualifier would advertise a difference that does not exist (Phase 107 G-03's rule).
-    expect(vacationCardLabel(0)).toBe("Resturlaub");
-    expect(vacationCardLabel(0)).toBe(VAC_CARD_LABEL);
+describe("Resturlaub label and pending line (Issue #1109)", () => {
+  it("the label is the constant `Resturlaub`, with and without pending requests", () => {
+    // The big number is the same free-days figure either way, so no qualifier is needed. The
+    // retired `Resturlaub (ohne beantragte)` described a number that left the pending days out.
+    expect(VAC_CARD_LABEL).toBe("Resturlaub");
+    expect(VAC_CARD_LABEL).not.toContain("ohne beantragte");
   });
 
-  it("adds `(ohne beantragte)` as soon as there IS a pending request", () => {
-    expect(vacationCardLabel(3)).toBe("Resturlaub (ohne beantragte)");
-    expect(vacationCardLabel(3)).toBe(VAC_CARD_LABEL_WITH_PENDING);
-  });
-
-  it("treats half a beantragten Tag as beantragt too", () => {
-    expect(vacationCardLabel(0.5)).toBe("Resturlaub (ohne beantragte)");
-  });
-
-  it("NEVER names the Übertrag — the card's label means the balance and nothing else", () => {
+  it("NEVER names the Übertrag — the label means the free days and nothing else", () => {
     // This is the assertion that catches a future edit re-merging the two meanings that
     // issue #117 reported as colliding under one heading.
-    for (const planned of [0, 0.5, 3, 99]) {
-      expect(vacationCardLabel(planned)).not.toContain("Übertrag");
-    }
+    expect(VAC_CARD_LABEL).not.toContain("Übertrag");
+  });
+
+  it("names the pending days under the figure: `davon 3 Tage beantragt`", () => {
+    expect(vacationPendingLine(3)).toBe("davon 3 Tage beantragt");
+  });
+
+  it("says `1 Tag` for exactly one pending day, never `1 Tage`", () => {
+    expect(vacationPendingLine(1)).toBe("davon 1 Tag beantragt");
+    expect(vacationPendingLine(1)).not.toContain("1 Tage");
+  });
+
+  it("words half days with the German decimal comma and the plural", () => {
+    expect(vacationPendingLine(0.5)).toBe("davon 0,5 Tage beantragt");
+    expect(vacationPendingLine(2.5)).toBe("davon 2,5 Tage beantragt");
+  });
+
+  it("says nothing without pending days", () => {
+    expect(vacationPendingLine(0)).toBeNull();
+    expect(vacationPendingLine(-1)).toBeNull();
   });
 });
 
@@ -451,20 +522,20 @@ describe("one response, one year — no tile value survives a year switch (issue
   // with Verbleibend silently mixing them. These fixtures are chosen so that EVERY derived
   // field differs between the two years — if any one of them could be carried over from the
   // previous response, this test names it.
-  const Y2025 = balance(30, 28, 5);
-  const Y2026 = balance(24, 3, 14);
+  const Y2025 = balance(30, 28, 5, 2);
+  const Y2026 = balance(24, 3, 14, 2);
 
   it("derives every figure from the balance it was handed, and nothing else", () => {
-    const a = deriveVacationSummary(Y2025, 2);
-    const b = deriveVacationSummary(Y2026, 2);
+    const a = deriveVacationSummary(Y2025);
+    const b = deriveVacationSummary(Y2026);
     expect(a).toEqual({
       total: 30,
       carryOver: 5,
       used: 28,
       planned: 2,
       carryOverRemaining: 0,
-      left: 5,
-      remaining: 7,
+      free: 5, // 30 + 5 - 28 - 2
+      remainingBeforePending: 7,
       availableTotal: 35,
     });
     expect(b).toEqual({
@@ -473,8 +544,8 @@ describe("one response, one year — no tile value survives a year switch (issue
       used: 3,
       planned: 2,
       carryOverRemaining: 11,
-      left: 33,
-      remaining: 35,
+      free: 33, // 24 + 14 - 3 - 2
+      remainingBeforePending: 35,
       availableTotal: 38,
     });
     for (const key of [
@@ -482,37 +553,37 @@ describe("one response, one year — no tile value survives a year switch (issue
       "carryOver",
       "used",
       "carryOverRemaining",
-      "left",
-      "remaining",
+      "free",
+      "remainingBeforePending",
       "availableTotal",
     ] as const) {
       expect(a[key], `${key} must not be shared between the two years`).not.toBe(b[key]);
     }
   });
 
-  it("keeps `planned` independent of the balance — it is the one figure that already followed the year", () => {
-    expect(deriveVacationSummary(Y2025, 2).planned).toBe(2);
-    expect(deriveVacationSummary(Y2026, 2).planned).toBe(2);
+  it("`planned` is the viewed year's own pending days — it comes with the balance, not from a second list", () => {
+    expect(deriveVacationSummary(balance(30, 28, 5, 2)).planned).toBe(2);
+    expect(deriveVacationSummary(balance(24, 3, 14, 0)).planned).toBe(0);
   });
 });
 
 describe("a year without an entitlement row (D-04)", () => {
   it("renders zeros and the card's en-dash, never another year's numbers", () => {
     // The API returns no VACATION row for that year -> `.find()` yields undefined ->
-    // mapVacationBalance -> null -> the strip's six zeros and `remaining === null`, which is
+    // mapVacationBalance -> null -> the strip's six zeros and `free === null`, which is
     // what makes the Urlaubskonto-Karte render „–". A fallback to a different year would be
     // the reported mixing defect in a new form; there is deliberately none.
     const noRow = mapVacationBalance(undefined);
     expect(noRow).toBeNull();
-    const summary = deriveVacationSummary(noRow, 0);
+    const summary = deriveVacationSummary(noRow);
     expect(summary).toEqual({
       total: 0,
       carryOver: 0,
       used: 0,
       planned: 0,
       carryOverRemaining: 0,
-      left: 0,
-      remaining: null,
+      free: null,
+      remainingBeforePending: null,
       availableTotal: null,
     });
   });
