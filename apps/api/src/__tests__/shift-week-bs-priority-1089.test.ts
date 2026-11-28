@@ -332,6 +332,33 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
     expect(maps(body, spanning).vocationalSchool).toBe(c.vocationalSchool);
     expect(c.vocationalSchool).toBeGreaterThan(0);
   });
+
+  // A row that runs past the visible week is clipped at the tenant-local Sunday end. The raw UTC
+  // Sunday 23:59:59.999Z is already Monday in Europe/Berlin, so an unclipped bound relieved one
+  // extra day of the NEXT week.
+  it("leave running past Sunday relieves only the visible days (Thu + Fri = 912)", async () => {
+    const person = await createAzubi("CL");
+    await seedLeave(person, vacationTypeId, 3, 8); // Thu .. next Tue
+
+    const body = await getWeek();
+    const m = maps(body, person);
+
+    expect(m.leave).toBe(2 * DAY_SOLL_MIN); // 912
+    expect(m.absence).toBe(0);
+    expect(m.contractSoll).toBe(2280 - 912);
+  });
+
+  it("an absence running past Sunday relieves only the visible days (Thu + Fri = 912)", async () => {
+    const person = await createAzubi("CA");
+    await seedOtherAbsence(person, 3, 8);
+
+    const body = await getWeek();
+    const m = maps(body, person);
+
+    expect(m.absence).toBe(2 * DAY_SOLL_MIN);
+    expect(m.leave).toBe(0);
+    expect(m.contractSoll).toBe(2280 - 912);
+  });
 });
 
 // ── AC2: the planner reaches the Berufsschule priority only through the facade ────────────────
