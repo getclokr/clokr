@@ -90,6 +90,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/utils/client-log-url.ts": "rahmen", // strips query/fragment from client-reported URLs before logging (Issue #610 review WR-02); pure, no model
   "src/utils/code-unit-order.ts": "rahmen", // locale-independent code-unit comparator for stable sorts; pure, no model, imported by the platform and absence contexts
   "src/utils/day-label-de.ts": "rahmen", // Issue #1117 — German calendar-day label of notification texts; pure, no model, imported by the absence, working-time-account and time-tracking contexts
+  "src/utils/month-window.ts": "rahmen", // Issue #156 — overflow-free month-window and clamped month-add helpers; pure, no model, imported by the composition layer and the absence context
   "src/__tests__/setup.ts": "rahmen", // full-suite fixture seeding across every model; test infra
   "src/__tests__/english-zod-fragments.ts": "rahmen", // Issue #573: test-only list of English Zod default fragments, no model
   "src/__tests__/test-dates.ts": "rahmen", // test-only date helpers, no model
