@@ -2,12 +2,13 @@ import fp from "fastify-plugin";
 import cron, { type ScheduledTask } from "node-cron";
 import type { FastifyInstance } from "fastify";
 import { withAdvisoryLock, ADVISORY_LOCK_KEYS } from "../../../utils/with-advisory-lock";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import {
   userIdsHoldingPermission, // Phase 75b Plan 10 (#75), D-16
   ACTIVE_TENANT_WHERE, // Phase 88 (D-05a) — deactivated tenants get no warnings
   NOT_ANONYMIZED_EMPLOYEE_WHERE, // Issue #613 — an anonymised person is never warned
 } from "../../platform";
-import { carryOverDeadlineDay, formatCarryOverDeadlineDe } from "../carry-over-deadline"; // Issue #1156
+import { carryOverDeadlineDay } from "../carry-over-deadline"; // Issue #1156
 import { vacationBalanceForRow } from "../facade/vacation-balance"; // Issue #451 (D-08) — same context, relative import (no index.ts detour — see 451-07-SUMMARY.md)
 
 // Issue #451 (D-08, 451-08 cycle fix). `runCarryoverWarningOnce` now imports
@@ -63,6 +64,9 @@ function ceilDaysUntil(deadline: Date, now: Date): number {
   const diffMs = deadline.getTime() - now.getTime();
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
 }
+
+/** A day count with the German decimal comma and its unit: "1 Tag", "0,5 Tage", "2,5 Tage". */
+const daysText = (n: number): string => `${String(n).replace(".", ",")} ${dayWord(n)}`;
 
 /**
  * Core logic — extracted so the cron tick AND the manual trigger
@@ -216,7 +220,7 @@ export async function runCarryoverWarningOnce(
         }
 
         const carriedOverDays = Number(ent.carriedOverDays);
-        const deadlineDe = formatCarryOverDeadlineDe(ent.carryOverDeadline);
+        const deadlineDe = dayLabelDe(ent.carryOverDeadline);
 
         // 1) Write AuditLog FIRST — audit-before-action so the legal proof
         //    exists even if email transport fails.
@@ -244,7 +248,7 @@ export async function runCarryoverWarningOnce(
         // 2) Employee notification — skip if the user is inactive
         if (ent.employee.user.isActive) {
           const empMessage =
-            `Dein Resturlaub aus ${ent.year - 1} (${atRiskDays} ${dayWord(atRiskDays)}) verfällt am ` +
+            `Dein Resturlaub aus ${ent.year - 1} (${daysText(atRiskDays)}) verfällt am ` +
             `${deadlineDe}. Du hast noch ${daysUntil} ${dayWord(daysUntil)} Zeit, um diesen Urlaub zu nehmen. ` +
             `Gemäß § 7 Abs. 3 BUrlG (EuGH C-684/16 "Max-Planck") wurdest du hiermit ausdrücklich ` +
             `auf den drohenden Verfall hingewiesen.`;
@@ -271,7 +275,7 @@ export async function runCarryoverWarningOnce(
         // 3) Manager CC — different message, link to admin view
         const mgrMessage =
           `${ent.employee.firstName} ${ent.employee.lastName} ` +
-          `(Personalnummer ${ent.employee.employeeNumber}) hat noch ${atRiskDays} ${dayWord(atRiskDays)} ` +
+          `(Personalnummer ${ent.employee.employeeNumber}) hat noch ${daysText(atRiskDays)} ` +
           `Resturlaub aus ${ent.year - 1}, der am ${deadlineDe} verfällt (in ${daysUntil} ${daysUntil === 1 ? "Tag" : "Tagen"}). ` +
           `Eine Hinweis-Mail wurde dem Mitarbeiter automatisch zugestellt.`;
 

@@ -597,7 +597,7 @@ describe("Issue #617 - Monatsexport", () => {
 
     it("evaluates at the last day of a past month, yesterday in the running month, and in the exported year", async () => {
       const sept = await exportPayload(`year=${EXPORT_YEAR}&month=9`);
-      expect(sept.vacationYear).toEqual({ year: 2026, asOf: "30.09.2026" });
+      expect(sept.vacationYear).toEqual({ year: 2026, asOf: "30.9.2026" });
       const running = await exportPayload(`year=${EXPORT_YEAR}&month=10`, RUNNING_MONTH_NOW);
       expect(running.vacationYear).toEqual({ year: 2026, asOf: "15.10.2026" });
       const december = await exportPayload(`year=2025&month=12`, RUNNING_MONTH_NOW);

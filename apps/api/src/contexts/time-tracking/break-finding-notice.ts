@@ -22,6 +22,7 @@
  * Pure module: type-only imports plus the constants of the leaf `./withheld-finding`, no Prisma,
  * no Fastify, no clock. The caller formats the `HH:MM` strings in the tenant time zone.
  */
+import { dayLabelDe } from "../../utils/day-label-de";
 import type { DayBreakEvaluation } from "./day-break-rule";
 import { WITHHELD_FINDING_TEXT, WITHHELD_NOTICE_TITLE } from "./withheld-finding";
 
@@ -48,12 +49,6 @@ export interface CrossSalonNoticeInput {
 /** Title of the full cross-salon notice; also the email subject, because a subject travels further than a body. */
 export const CROSS_SALON_NOTICE_TITLE = "Pausenverstoß (salonübergreifend)";
 
-/** "2026-03-10" -> "10.03.2026". */
-function germanDate(date: string): string {
-  const [year, month, day] = date.split("-");
-  return `${day}.${month}.${year}`;
-}
-
 /** Hours with at most one decimal and a decimal comma: 480 -> "8", 570 -> "9,5". */
 function germanHours(minutes: number): string {
   const hours = Math.round((minutes / 60) * 10) / 10;
@@ -71,7 +66,7 @@ export function buildWithheldNotice(input: { employeeName: string; date: string 
 } {
   return {
     title: WITHHELD_NOTICE_TITLE,
-    message: `${input.employeeName}, ${germanDate(input.date)}: ${WITHHELD_FINDING_TEXT}`,
+    message: `${input.employeeName}, ${dayLabelDe(input.date)}: ${WITHHELD_FINDING_TEXT}`,
   };
 }
 
@@ -96,7 +91,7 @@ export function buildCrossSalonNotice(input: CrossSalonNoticeInput): {
   const phrase =
     recorded === 0 ? `ohne ${required} Min Pause` : `mit ${recorded} statt ${required} Min Pause`;
   const core =
-    `${input.employeeName}: Am ${germanDate(input.date)} insgesamt ` +
+    `${input.employeeName}: Am ${dayLabelDe(input.date)} insgesamt ` +
     `${germanHours(evaluation.netWorkedMin)} h ${phrase}, salonübergreifend`;
 
   if (input.entries && input.entries.length > 0) {
@@ -130,6 +125,6 @@ export function buildBreakPlacementNotice(input: BreakPlacementNoticeInput): {
 } {
   return {
     title: BREAK_PLACEMENT_NOTICE_TITLE,
-    message: `${input.employeeName}: Am ${germanDate(input.date)} ${input.findingMessages.join(" ")}`,
+    message: `${input.employeeName}: Am ${dayLabelDe(input.date)} ${input.findingMessages.join(" ")}`,
   };
 }

@@ -178,7 +178,7 @@ ${empNo};22.06.2026;11:00;14:00;0;${salonA.id}`;
     expect(body.details[1].status).toBe("ok");
     expect(body.details[2].status).toBe("error");
     expect(body.details[2].error).toBe(
-      "Überschneidung mit bestehendem Eintrag vom 22.06.2026 (08:00 – 12:00)",
+      "Überschneidung mit bestehendem Eintrag vom 22.6.2026 (08:00 – 12:00)",
     );
     expect(await liveCount("2026-06-22")).toBe(2);
     const salons = await app.prisma.timeEntry.findMany({
@@ -196,7 +196,7 @@ ${empNo};22.06.2026;11:00;14:00;0;${salonA.id}`;
     expect(again.details[0].status).toBe("error");
     expect(again.details[0].error).not.toBe(OLD_DUPLICATE_TEXT);
     expect(again.details[0].error).toMatch(
-      /^Überschneidung mit bestehendem Eintrag vom 22\.06\.2026/,
+      /^Überschneidung mit bestehendem Eintrag vom 22\.6\.2026/,
     );
     expect(await liveCount("2026-06-22")).toBe(2);
   });
@@ -220,7 +220,7 @@ ${empNo};22.06.2026;11:00;14:00;0;${salonA.id}`;
 
     const whole = await importCsv(seed.adminToken, csv);
     expect(whole.details[0].error).toBe(
-      "Überschneidung mit bestehendem Eintrag vom 23.06.2026 (09:00 – 11:00)",
+      "Überschneidung mit bestehendem Eintrag vom 23.6.2026 (09:00 – 11:00)",
     );
     expect(await liveCount("2026-06-23")).toBe(1);
   });

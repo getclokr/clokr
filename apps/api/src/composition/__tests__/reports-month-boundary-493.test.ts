@@ -216,13 +216,13 @@ describe("Issue #493 — Monatsbericht month boundaries", () => {
 
   describe("single PDF — entry dates (untracked MONTHLY_HOURS employee)", () => {
     it.each([
-      ["U", 2026, 10, ["01.10.2026"]],
-      ["U", 2026, 9, ["30.09.2026"]],
-      ["U", 2026, 2, ["01.02.2026"]],
-      ["U", 2026, 1, ["31.01.2026"]],
-      ["U2", 2026, 3, ["01.03.2026", "31.03.2026"]],
-      ["U2", 2026, 4, ["01.04.2026"]],
-      ["U2", 2026, 2, ["28.02.2026"]],
+      ["U", 2026, 10, ["1.10.2026"]],
+      ["U", 2026, 9, ["30.9.2026"]],
+      ["U", 2026, 2, ["1.2.2026"]],
+      ["U", 2026, 1, ["31.1.2026"]],
+      ["U2", 2026, 3, ["1.3.2026", "31.3.2026"]],
+      ["U2", 2026, 4, ["1.4.2026"]],
+      ["U2", 2026, 2, ["28.2.2026"]],
     ] as const)("%s %i-%i lists only its own month's days", async (who, year, month, expected) => {
       const payload = await singlePdf(who === "U" ? U : U2, year, month);
       expect(payload.entries.map((e) => e.date)).toEqual(expected);

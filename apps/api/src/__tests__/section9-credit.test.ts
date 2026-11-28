@@ -460,14 +460,15 @@ describe("Section9Credit notifications and listing — Phase 104-05 Task 3", () 
   // Phase 104 follow-up (owner-reported, not in REVIEW.md): both § 9 notification bodies
   // rendered dates ISO-style ("2031-02-05 – 2031-02-06") while everything else user-facing in
   // this app uses German DD.MM.YYYY. Verified live in the bell before the fix.
-  it("Test 2b: the notification texts render dates German (DD.MM.YYYY), never ISO", async () => {
+  it("Test 2b: the notification texts render dates German (D.M.YYYY, no leading zero), never ISO", async () => {
     const notes = await app.prisma.notification.findMany({
       where: { relatedType: "Section9Credit", relatedId: creditId },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
     expect(notes.length).toBeGreaterThanOrEqual(2); // employee + at least one manager
     for (const n of notes) {
-      expect(n.message).toContain("05.02.2031 – 06.02.2031");
+      expect(n.message).toContain("5.2.–6.2.2031");
+      expect(n.message).not.toContain("05.02.2031");
       expect(n.message).not.toContain("2031-02-05");
     }
   });
@@ -1684,7 +1685,7 @@ describe("display surface — Phase 104-10 Task 1", () => {
       to: "2036-04-09",
     });
     expect(vacRow?.section9Movements[0].label).toBe(
-      "+2 Tage gutgeschrieben (§ 9 BUrlG, Krankheit 08.04.–09.04.)",
+      "+2 Tage gutgeschrieben (§ 9 BUrlG, Krankheit 8.4.–9.4.2036)",
     );
   });
 

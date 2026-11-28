@@ -192,7 +192,7 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
 
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
       expect(n.title).toContain("Erika Musterfrau");
-      expect(n.message).toContain("30.07.2026");
+      expect(n.message).toContain("30.7.2026");
       expect(n.message).toContain("9:00 Stunden");
       expect(n.message).toContain("8 Stunden");
       expect(n.message).toContain("§ 8");
@@ -227,7 +227,14 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       expect(rows.some((r) => r.userId === plannerId && r.type === TYPE)).toBe(true);
       for (const r of rows) {
         const text = `${r.title} ${r.message} ${r.link ?? ""}`;
-        for (const forbidden of ["2010-03-01", "01.03.2010", "birthDate", "Geburt", "Jahre"]) {
+        for (const forbidden of [
+          "2010-03-01",
+          "01.03.2010",
+          "1.3.2010",
+          "birthDate",
+          "Geburt",
+          "Jahre",
+        ]) {
           expect(text).not.toContain(forbidden);
         }
       }
@@ -288,7 +295,7 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       expect(rows[0].endTime).toBe("17:30");
 
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
-      expect(n.message).toContain("30.07.2026");
+      expect(n.message).toContain("30.7.2026");
       expect(n.message).toContain("9:00 Stunden");
     } finally {
       await cleanupPhorestTenant(app, seed.tenantId);
@@ -337,7 +344,7 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       );
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
       expect(n.message).toContain("40 Stunden");
-      expect(n.message).toContain("27.07.");
+      expect(n.message).toContain("27.7.");
     } finally {
       await cleanupPhorestTenant(app, seed.tenantId);
     }
@@ -351,8 +358,8 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       await runSync(app, seed, [{ date: "2026-07-30", start: "07:00", end: "18:30" }]);
 
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
-      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.07.2026")).toBe(0);
-      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 30.07.2026 (Schichtzeit)");
+      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.7.2026")).toBe(0);
+      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 30.7.2026 (Schichtzeit)");
     } finally {
       await cleanupPhorestTenant(app, seed.tenantId);
     }
@@ -384,7 +391,7 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       const holiday = await soleNotification(app.prisma, {
         where: { userId: plannerId, type: TYPE },
       });
-      expect(holiday.message).toContain("03.10.2026");
+      expect(holiday.message).toContain("3.10.2026");
       expect(holiday.message).toContain("(Tag der Deutschen Einheit)");
       expect(holiday.message).toContain("§ 18 Abs. 1 JArbSchG");
 
@@ -531,10 +538,17 @@ describe("Issue #1074 — Phorest import reports § 8 / § 12 JArbSchG for minor
       ]);
 
       const n = await soleNotification(app.prisma, { where: { userId: plannerId, type: TYPE } });
-      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.07.2026")).toBe(0);
+      expect(n.message.indexOf("Die geplante Arbeitszeit am 30.7.2026")).toBe(0);
       expect(n.message).toContain("§ 14");
-      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 02.08.2026 (Sonntagsruhe)");
-      for (const forbidden of ["2010-03-01", "01.03.2010", "birthDate", "Geburt", "Jahre"]) {
+      expect(n.message).toContain("Weitere Verstöße in dieser Woche: 2.8.2026 (Sonntagsruhe)");
+      for (const forbidden of [
+        "2010-03-01",
+        "01.03.2010",
+        "1.3.2010",
+        "birthDate",
+        "Geburt",
+        "Jahre",
+      ]) {
         expect(`${n.title} ${n.message}`).not.toContain(forbidden);
       }
     } finally {

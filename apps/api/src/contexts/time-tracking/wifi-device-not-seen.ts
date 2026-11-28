@@ -26,7 +26,7 @@ import {
 } from "../platform";
 import { dateStrInTz, dayRangeUtc, getTenantTimezone } from "../working-time-account";
 import { getShiftsInRange } from "../scheduling";
-import { formatNoticeDay } from "./shift-reminders"; // Issue #602: the notice names its day
+import { dayLabelDe } from "../../utils/day-label-de"; // Issue #602: the notice names its day
 
 /** Number of recent qualifying shift days the phone must have been missing on. */
 export const WIFI_HINT_SHIFT_DAYS = 3;
@@ -289,7 +289,7 @@ async function checkTenant(app: FastifyInstance, tenantId: string, now: Date): P
         type: "WIFI_DEVICE_NOT_SEEN",
         title: "Handy neu koppeln",
         // Issue #602: the notice names the period - from the first of the three missed workdays on.
-        message: `Dein Handy wurde seit dem ${formatNoticeDay(decision.sinceDay)} an deinen Arbeitstagen im Salon-WLAN nicht erkannt. Bitte koppel es über den QR-Code im Salon neu.`,
+        message: `Dein Handy wurde seit dem ${dayLabelDe(decision.sinceDay)} an deinen Arbeitstagen im Salon-WLAN nicht erkannt. Bitte koppel es über den QR-Code im Salon neu.`,
         link: "/settings",
         tenantId,
         relatedType: "PresenceDevice",

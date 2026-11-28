@@ -30,6 +30,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { Prisma } from "@clokr/db";
+import { dayLabelDe, dayRangeLabelDe } from "../../utils/day-label-de";
 import { closedMonthLeaveMessage } from "./correction-lock";
 import { findClosedMonthsInRange } from "./closed-month-guard";
 import { findBlockingLeaveOverlap, LEAVE_OVERLAP_ERROR } from "./leave-overlap";
@@ -165,24 +166,12 @@ export async function leaveDecisionGuard(
 }
 
 /**
- * German date label for USER-FACING § 9 notification texts: "16.09.2026".
- *
- * Phase 104 follow-up (not in REVIEW.md, owner-reported): the § 9 notification bodies rendered
- * dates ISO-style ("2026-09-16 – 2026-09-17") while everything else user-facing in this app
- * uses DD.MM.YYYY. UTC accessors on purpose — every date fed in here is a @db.Date column
- * (UTC midnight), so a local-time formatter would shift the label by a day on any host with a
- * negative UTC offset (the same class of bug as WR-09). API payloads and AuditLog values keep
- * their ISO form; only the human-readable message text changes.
+ * Issue #602: „vom 21.12.2026“ for one day, „vom 21.12.2026 bis 23.12.2026“ for a range (the days
+ * are `@db.Date` values, named through `dayLabelDe`, Issue #1149).
  */
-export function formatDateDe(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`;
-}
-
-/** Issue #602: „vom 21.12.2026“ for one day, „vom 21.12.2026 bis 23.12.2026“ for a range. */
 export function decisionPeriodDe(start: Date, end: Date): string {
-  const a = formatDateDe(start);
-  const b = formatDateDe(end);
+  const a = dayLabelDe(start);
+  const b = dayLabelDe(end);
   return a === b ? `vom ${a}` : `vom ${a} bis ${b}`;
 }
 
@@ -559,7 +548,7 @@ export async function decidePendingLeaveRequest(
           );
           continue;
         }
-        const rangeLabel = `${formatDateDe(ov.overlapStart)} – ${formatDateDe(ov.overlapEnd)}`;
+        const rangeLabel = dayRangeLabelDe(ov.overlapStart, ov.overlapEnd);
         if (employeeUser.userId) {
           await app.notify({
             userId: employeeUser.userId,

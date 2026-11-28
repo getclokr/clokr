@@ -16,6 +16,7 @@
  * `who` + " " + `what`, so together they are one complete German sentence. Pure — no Prisma.
  */
 import { formatInTimeZone } from "date-fns-tz";
+import { dayLabelDe, dayRangeLabelDe } from "../utils/day-label-de";
 
 export interface EntryForActivity {
   id: string;
@@ -45,9 +46,9 @@ function hhmm(d: Date, tz: string): string {
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 function dayLabel(d: Date, tz: string): string {
-  // "Mo, 02.11." — short German weekday (ISO 1 = Monday), day and month in the tenant time zone.
+  // "Mo, 2.11." — short German weekday (ISO 1 = Monday), day and month in the tenant time zone.
   const isoWeekday = Number(formatInTimeZone(d, tz, "i"));
-  return `${WEEKDAYS[isoWeekday - 1]}, ${formatInTimeZone(d, tz, "dd.MM.")}`;
+  return `${WEEKDAYS[isoWeekday - 1]}, ${dayLabelDe(formatInTimeZone(d, tz, "yyyy-MM-dd"), { year: false })}`;
 }
 
 export function entryActivityEvents(
@@ -123,9 +124,7 @@ export function leaveActivitySentence(lr: {
   typeName: string;
 }): { who: string; what: string } {
   // @db.Date columns are calendar days: read in UTC, never shifted by the tenant zone (#493)
-  const start = formatInTimeZone(lr.startDate, "UTC", "dd.MM.");
-  const end = formatInTimeZone(lr.endDate, "UTC", "dd.MM.");
-  const period = start === end ? start : `${start}–${end}`;
+  const period = dayRangeLabelDe(lr.startDate, lr.endDate, { year: false });
   const subject = `(${lr.typeName}, ${period})`;
   const tail: Record<string, string> = {
     APPROVED: "wurde genehmigt.",

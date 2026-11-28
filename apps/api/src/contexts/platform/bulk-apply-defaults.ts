@@ -25,6 +25,7 @@
  * as `BulkApplyRejection` and mapped to an explicit reply code by the caller, never to a Zod issue.
  */
 import { createHash } from "node:crypto";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { isMonthFirstDate, MONTH_FIRST_ERROR, snapToMonthFirstUtc } from "./month-first-date";
 import { normalizeWorkDays, type PerDayHours } from "./calculate-work-days";
 // Pure date formatter of the Arbeitszeitkonto timezone module — the one place a tenant-local
@@ -337,11 +338,6 @@ export function effectiveFromWindow(todayLocal: Date): EffectiveFromWindow {
   return { earliest: dayString(earliestDate), latest: dayString(latestDate), allowed };
 }
 
-function germanDate(isoDay: string): string {
-  const [y, m, d] = isoDay.split("-");
-  return `${d}.${m}.${y}`;
-}
-
 /** True for a real calendar day written "YYYY-MM-DD" (rejects 2026-13-01 and 2026-02-31). */
 function isRealCalendarDay(value: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -360,14 +356,14 @@ export function checkEffectiveFrom(value: string, todayLocal: Date): BulkApplyRe
     return new BulkApplyRejection(
       400,
       "BULK_APPLY_RETROACTIVE",
-      `Eine Übernahme auf bestehende Verträge darf nicht rückwirkend gelten (§ 3 NachwG: Änderungen müssen spätestens am Tag ihrer Wirksamkeit mitgeteilt werden). Frühestmöglich ist der ${germanDate(window.earliest)}.`,
+      `Eine Übernahme auf bestehende Verträge darf nicht rückwirkend gelten (§ 3 NachwG: Änderungen müssen spätestens am Tag ihrer Wirksamkeit mitgeteilt werden). Frühestmöglich ist der ${dayLabelDe(window.earliest)}.`,
     );
   }
   if (value > window.latest) {
     return new BulkApplyRejection(
       400,
       "BULK_APPLY_TOO_FAR",
-      `Das Datum darf höchstens 12 Monate in der Zukunft liegen (spätestens der ${germanDate(window.latest)}).`,
+      `Das Datum darf höchstens 12 Monate in der Zukunft liegen (spätestens der ${dayLabelDe(window.latest)}).`,
     );
   }
   return null;

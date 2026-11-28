@@ -43,6 +43,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { decryptSafe } from "../../utils/crypto";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { todayInTz, dateStrInTz } from "../../contexts/working-time-account"; // Phase 101B
 import { applyPrepWrapup } from "../../contexts/scheduling/time-arithmetic";
 import { flagShiftIfConflictsWithApprovedLeave } from "../../contexts/scheduling/shift-leave-check"; // Phase 430 (D-03/D-04, moved 430-06 to avoid widening the boundary-import cycle) — S4, the inverse Type-1 direction
@@ -130,15 +131,6 @@ function affectedWeekBounds(date: Date): { weekStart: Date; weekEnd: Date } {
   return { weekStart, weekEnd };
 }
 
-/** Format a YYYY-MM-DD ISO string to DD.MM.YYYY for German user-facing messages. Mirrors
- *  routes/shifts.ts's own private copy of the same helper (small enough that duplicating it is
- *  the established precedent — see e.g. routes/leave.ts's own separate copy — rather than
- *  promoting it to a shared utils/ export). */
-function formatDateDe(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-}
-
 /**
  * Wraps `app.audit` so the cron sentinel (`PHOREST_SYNC_ACTOR_ID`) can never reach
  * `AuditLog.userId` (see point 2 above). Every OTHER caller — a real `opts.actorUserId` from the
@@ -182,8 +174,8 @@ async function notifyLeaveDaysAdjustedOnce(
   seenThisRun.add(dedupeKey);
 
   for (const adj of adjustments) {
-    const von = formatDateDe(adj.startDate.toISOString().slice(0, 10));
-    const bis = formatDateDe(adj.endDate.toISOString().slice(0, 10));
+    const von = dayLabelDe(adj.startDate);
+    const bis = dayLabelDe(adj.endDate);
     const message =
       adj.direction === "down"
         ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage — der Schichtplan für diesen Zeitraum steht.`

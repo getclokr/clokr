@@ -98,7 +98,7 @@ describe("WLAN pairing tracer (Issue #610)", () => {
     expect(listBody.devices).toHaveLength(1);
     expect(listBody.devices[0]).toMatchObject({
       mac,
-      label: expect.stringMatching(/^Handy \(QR-Kopplung, \d{2}\.\d{2}\.\d{4}\)$/),
+      label: expect.stringMatching(/^Handy \(QR-Kopplung, \d{1,2}\.\d{1,2}\.\d{4}\)$/),
       pairedVia: "QR",
       lastSeenAt: null,
     });
@@ -138,7 +138,7 @@ describe("WLAN pairing tracer (Issue #610)", () => {
     const storedDevice = await app.prisma.presenceDevice.findUniqueOrThrow({
       where: { id: confirmedBody.device.id },
     });
-    expect(storedDevice.label).toMatch(/^Handy \(QR-Kopplung, \d{2}\.\d{2}\.\d{4}\)$/);
+    expect(storedDevice.label).toMatch(/^Handy \(QR-Kopplung, \d{1,2}\.\d{1,2}\.\d{4}\)$/);
     expect(JSON.stringify(deviceAudits)).not.toContain("iPhone von Test");
     expect(confirmed.body).not.toContain("iPhone von Test");
     const allAudits = await app.prisma.auditLog.findMany({

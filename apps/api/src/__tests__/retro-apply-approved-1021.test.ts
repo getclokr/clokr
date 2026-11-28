@@ -36,7 +36,7 @@ function at(dayStr: string, hhmm: string): Date {
 
 function detailedText(dayStr: string, from: string, to: string): string {
   const [y, m, d] = dayStr.split("-");
-  return `Überschneidung mit bestehendem Eintrag vom ${d}.${m}.${y} (${from} – ${to})`;
+  return `Überschneidung mit bestehendem Eintrag vom ${Number(d)}.${Number(m)}.${y} (${from} – ${to})`;
 }
 
 describe("Issue #1021 — an approved correction proposal is applied by its approval", () => {

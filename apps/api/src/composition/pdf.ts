@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { fmtHM, fmtSignedHM, fmtDecimalDe, fmtDays } from "./pdf-format";
+import { dayLabelDe, dayRangeLabelDe } from "../utils/day-label-de";
 
 // ── Brand constants ──────────────────────────────────────
 // Issue #617 (D-617-5): the app's default brand colour (`--brand` of the pflaume theme in
@@ -55,7 +56,7 @@ export interface MonthlyReportData {
   employeeName: string;
   employeeNumber: string;
   month: string; // "März 2026"
-  /** Issue #617 (D-617-4): "dd.MM.yyyy, HH:mm" in the tenant time zone, set by the route. */
+  /** Issue #617 (D-617-4): "1.12.2026, 09:05" in the tenant time zone, set by the route. */
   generatedAt: string;
   /** Issue #617 (D-617-3): minutes of the working-time account; the renderer formats them. */
   workedMinutes: number;
@@ -184,16 +185,6 @@ function drawReportTableHeader(doc: PDFKit.PDFDocument, top: number): number {
   return top + 18;
 }
 
-/** "2026-09-07" -> "07.09.2026". */
-function isoToDisplayDate(iso: string): string {
-  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-}
-
-/** "2026-09-07", "2026-09-09" -> "07.09.\u201309.09." (the year is the report month's). */
-function periodLabel(from: string, to: string): string {
-  return `${from.slice(8, 10)}.${from.slice(5, 7)}.\u2013${to.slice(8, 10)}.${to.slice(5, 7)}.`;
-}
-
 type DayListItem =
   | { kind: "day"; row: MonthlyReportDayRow }
   | { kind: "entry"; entry: MonthlyReportData["entries"][number] };
@@ -204,8 +195,12 @@ type DayListItem =
  * start time - #70). The sort is stable.
  */
 function mergeDayList(data: MonthlyReportData): DayListItem[] {
-  const entryDay = (date: string): string =>
-    `${date.slice(6, 10)}-${date.slice(3, 5)}-${date.slice(0, 2)}`;
+  // `entry.date` is the German day label "1.9.2026" (no leading zeros), so it is rebuilt into a
+  // sortable ISO key by its parts.
+  const entryDay = (date: string): string => {
+    const [d, m, y] = date.split(".");
+    return `${y}-${(m ?? "").padStart(2, "0")}-${(d ?? "").padStart(2, "0")}`;
+  };
   const keyed: Array<{ day: string; rank: number; item: DayListItem }> = [
     ...data.dayRows.map((row) => ({
       day: row.from,
@@ -342,7 +337,9 @@ export function drawMonthlyReport(doc: PDFKit.PDFDocument, data: MonthlyReportDa
         const row = item.row;
         doc.fillColor("#374151");
         doc.text(
-          row.from === row.to ? isoToDisplayDate(row.from) : periodLabel(row.from, row.to),
+          row.from === row.to
+            ? dayLabelDe(row.from)
+            : dayRangeLabelDe(row.from, row.to, { year: false }),
           x,
           rowY,
           { width: colWidths[0] + colWidths[1] + colWidths[2], lineBreak: false },
@@ -495,9 +492,9 @@ export interface MonthlyExportData {
   monthLabel: string;
   year: number;
   month: number;
-  /** "dd.MM.yyyy, HH:mm" in the tenant time zone. */
+  /** "1.12.2026, 09:05" in the tenant time zone. */
   generatedAt: string;
-  /** The vacation year of section "Urlaubsjahr" and its Stichtag ("dd.MM.yyyy"). */
+  /** The vacation year of section "Urlaubsjahr" and its Stichtag ("1.12.2026"). */
   vacationYear: { year: number; asOf: string };
   rows: MonthlyExportRow[];
   /**

@@ -14,7 +14,9 @@
 import { Prisma } from "@clokr/db";
 import type { PrismaClient } from "@clokr/db";
 import type { FastifyInstance } from "fastify";
+import { formatInTimeZone } from "date-fns-tz";
 import { uniqueViolationTarget } from "../../utils/prisma-unique-violation";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { getTenantTimezone } from "../working-time-account";
 import {
   PAIRING_CODE_PATTERN,
@@ -260,12 +262,7 @@ export async function confirmPairing(
  * row for the preview only.
  */
 export function neutralQrDeviceLabel(at: Date, timeZone: string): string {
-  const date = new Intl.DateTimeFormat("de-DE", {
-    timeZone,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(at);
+  const date = dayLabelDe(formatInTimeZone(at, timeZone, "yyyy-MM-dd"));
   return `Handy (QR-Kopplung, ${date})`;
 }
 

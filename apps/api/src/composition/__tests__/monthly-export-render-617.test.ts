@@ -111,9 +111,9 @@ function render(rows: MonthlyExportRow[]): string[] {
   return texts;
 }
 
-/** `\d.\d` outside a dd.MM.yyyy date. */
+/** `\d.\d` outside a d.M.yyyy date (Issue #1149). */
 function hasDecimalPoint(text: string): boolean {
-  return /\d\.\d/.test(text.replace(/\d{2}\.\d{2}\.\d{4}/g, ""));
+  return /\d\.\d/.test(text.replace(/\d{1,2}\.\d{1,2}\.\d{4}/g, ""));
 }
 
 /** Number of page dictionaries of a PDF buffer (`/Type /Page`, not `/Type /Pages`). */

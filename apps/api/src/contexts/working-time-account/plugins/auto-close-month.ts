@@ -23,6 +23,7 @@ import {
   decideGapMonth,
 } from "../month-close-population"; // Issue #668
 import { withAdvisoryLock, ADVISORY_LOCK_KEYS } from "../../../utils/with-advisory-lock";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import {
   closeEmployeeMonth,
   toCloseMonthApprovedLeave,
@@ -847,14 +848,7 @@ export const autoCloseMonthPlugin = fp(async (app) => {
         if (missing.length > 0) {
           const lines = missing.map((m) => {
             const name = `${m.employee.firstName} ${m.employee.lastName}`;
-            const dates = m.missingDates
-              .map((d) =>
-                new Date(d).toLocaleDateString("de-DE", {
-                  day: "2-digit",
-                  month: "2-digit",
-                }),
-              )
-              .join(", ");
+            const dates = m.missingDates.map((d) => dayLabelDe(d)).join(", ");
             // Issue #668: a deactivated login without an exit date is named as such, not as a gap list.
             if (m.reason === "EXIT_DATE_MISSING") {
               return `${name} (${m.month}/${m.year}): Austrittsdatum fehlt – bitte prüfen (Lücken: ${dates})`;

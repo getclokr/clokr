@@ -79,9 +79,9 @@ describe("Stundennachweis day list (Issue #617)", () => {
       const payload = await payloadFor(d.employee.id, d.adminToken, 2026, 9);
       expect(payload.entries.map((e) => `${e.date} ${e.start}`)).toEqual([
         // Tenant time zone is Europe/Berlin (CEST, UTC+2).
-        "01.09.2026 09:00",
-        "02.09.2026 08:00",
-        "02.09.2026 14:00",
+        "1.9.2026 09:00",
+        "2.9.2026 08:00",
+        "2.9.2026 14:00",
       ]);
     });
   });

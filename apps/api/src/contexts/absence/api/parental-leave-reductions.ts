@@ -29,7 +29,8 @@ import {
   isStammsalonScopeMatch,
   auditReasonSchema,
 } from "../../platform";
-import { todayInTz, getTenantTimezone } from "../../working-time-account";
+import { todayInTz, dateStrInTz, getTenantTimezone } from "../../working-time-account";
+import { dayLabelDe } from "../../../utils/day-label-de";
 import { isEffectiveLeaveStatus } from "../effective-leave-statuses";
 import { getVacationEntitlement } from "../facade/entitlements";
 import { recalculateCarryOver } from "../leave-days";
@@ -50,13 +51,6 @@ const revokeBodySchema = z.object({
   year: z.number().int().min(2000).max(2100),
   reason: auditReasonSchema,
 });
-
-/** DD.MM.YYYY, UTC accessors — mirrors `leave.ts`'s own module-private `formatDateDe` (not
- * exported there; this file keeps its own copy rather than widen that file's exports). */
-function formatDateDe(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`;
-}
 
 function isP2002(err: unknown): boolean {
   return Boolean(
@@ -209,7 +203,7 @@ export async function parentalLeaveReductionRoutes(app: FastifyInstance) {
         if (yearPreview.existing) {
           const revokedSuffix =
             yearPreview.existing.status === "REVOKED"
-              ? ` (widerrufen am ${formatDateDe(new Date(yearPreview.existing.revokedAt!))})`
+              ? ` (widerrufen am ${dayLabelDe(dateStrInTz(new Date(yearPreview.existing.revokedAt!), tz))})`
               : "";
           return reply.code(409).send({
             error: `Für ${year} ist zu dieser Elternzeit bereits eine Kürzung erklärt.${revokedSuffix}`,

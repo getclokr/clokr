@@ -174,9 +174,8 @@ describe("leave-request decision core (Issue #835)", () => {
       });
       expect(notice.link).toBe(`/leave?request=${request.id}`);
       // Issue #602 (Phase 851): the notice names the process and its period.
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const de = (x: Date) =>
-        `${pad(x.getUTCDate())}.${pad(x.getUTCMonth() + 1)}.${x.getUTCFullYear()}`;
+      // German day label without a leading zero (Issue #1149).
+      const de = (x: Date) => `${x.getUTCDate()}.${x.getUTCMonth() + 1}.${x.getUTCFullYear()}`;
       expect(notice.message).toContain(`vom ${de(request.startDate)} bis ${de(request.endDate)}`);
 
       expect(await usedDays(d)).toBe(before + 5);

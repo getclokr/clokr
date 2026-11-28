@@ -19,7 +19,9 @@
 
 import type { FastifyInstance } from "fastify";
 import type { Prisma } from "@clokr/db";
+import { formatInTimeZone } from "date-fns-tz";
 import { uniqueViolationTarget } from "../../utils/prisma-unique-violation";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { resolveAccessReach, scopedTimeEntryIds, type AccessContext } from "../platform";
 
 /** The exclusion constraint of closed, non-deleted entries (migration `*_time_entry_no_overlap`). */
@@ -85,18 +87,13 @@ export class EntryConflictError extends Error {
 export function overlapConflictMessage(conflict: OverlapConflict, tz?: string): string {
   // Include the date (and format in the tenant tz) so the user can identify the
   // conflicting entry — critical when it is a stale open entry from another day.
-  const dateOpts: Intl.DateTimeFormatOptions = {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    ...(tz ? { timeZone: tz } : {}),
-  };
   const timeOpts: Intl.DateTimeFormatOptions = {
     hour: "2-digit",
     minute: "2-digit",
     ...(tz ? { timeZone: tz } : {}),
   };
-  const dateLabel = conflict.startTime.toLocaleDateString("de-DE", dateOpts);
+  // The tenant-local calendar day; without `tz` the legacy server-zone fallback is UTC (container zone).
+  const dateLabel = dayLabelDe(formatInTimeZone(conflict.startTime, tz ?? "UTC", "yyyy-MM-dd"));
   const fmt = (d: Date | null) => (d ? d.toLocaleTimeString("de-DE", timeOpts) : "läuft");
   return `Überschneidung mit bestehendem Eintrag vom ${dateLabel} (${fmt(conflict.startTime)} – ${fmt(conflict.endTime)})`;
 }

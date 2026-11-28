@@ -717,9 +717,13 @@ describe("the tenant is told in-app when an access starts", () => {
       where: { tenantId: t.tenant.id },
       select: { timezone: true },
     });
+    // Issue #1149: day and month without a leading zero ("1.12.2026, 09:05"), tenant-local.
     const endsAt = new Intl.DateTimeFormat("de-DE", {
-      dateStyle: "medium",
-      timeStyle: "short",
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
       timeZone: config.timezone,
     }).format(row.expiresAt);
     for (const notice of notices) {

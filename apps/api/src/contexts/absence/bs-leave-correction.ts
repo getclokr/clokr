@@ -31,6 +31,7 @@ import {
   userIdsHoldingPermission,
 } from "../platform";
 import { isMonthClosed, monthRangeUtc } from "../working-time-account";
+import { dayLabelDe, dayRangeLabelDe } from "../../utils/day-label-de";
 import { EFFECTIVE_LEAVE_STATUSES } from "./effective-leave-statuses";
 import {
   deductVacationDays,
@@ -68,13 +69,6 @@ type CandidateRequest = {
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-/** German dd.MM.yyyy — display only, never compared (CLAUDE.md). */
-function fmtDMY(d: Date): string {
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getUTCFullYear()}`;
 }
 
 function fmtDays(n: number): string {
@@ -131,8 +125,8 @@ async function notifyCorrected(
   const employeeName = `${request.employee.firstName} ${request.employee.lastName}`;
   const title = "Urlaub korrigiert: Berufsschultag";
   const message =
-    `Der ${fmtDMY(bsDate)} ist ein Berufsschultag. Im Urlaub ${fmtDMY(request.startDate)}–` +
-    `${fmtDMY(request.endDate)} von ${employeeName} wurde dafür kein Urlaubstag berechnet ` +
+    `Der ${dayLabelDe(bsDate)} ist ein Berufsschultag. Im Urlaub ${dayRangeLabelDe(request.startDate, request.endDate)} ` +
+    `von ${employeeName} wurde dafür kein Urlaubstag berechnet ` +
     `(neu: ${fmtDays(newDays)} Tage).`;
 
   const employeeUser = await tx.user.findFirst({
@@ -186,8 +180,8 @@ async function notifyCorrectionNeeded(
   const employeeName = `${request.employee.firstName} ${request.employee.lastName}`;
   const title = "Korrekturbuchung prüfen: Berufsschultag im Urlaub";
   const message =
-    `Laut Berufsschulmuster ist der ${fmtDMY(bsDate)} ein Berufsschultag im Urlaub ` +
-    `${fmtDMY(request.startDate)}–${fmtDMY(request.endDate)} von ${employeeName}. Der Monat ist ` +
+    `Laut Berufsschulmuster ist der ${dayLabelDe(bsDate)} ein Berufsschultag im Urlaub ` +
+    `${dayRangeLabelDe(request.startDate, request.endDate)} von ${employeeName}. Der Monat ist ` +
     `abgeschlossen, deshalb wurde nichts geändert. Bitte eine Korrekturbuchung prüfen.`;
 
   const recipientIds = await resolveApproverRecipients(tx, tenantId, request);

@@ -12,6 +12,7 @@
  * `details[].path` (for the web's field mapping, #843) and in the server log.
  */
 import { z } from "zod";
+import { dayLabelDe } from "./day-label-de";
 
 /** A Zod 4 issue as the global error map receives it (only the fields we read). */
 export interface ZodIssueLike {
@@ -33,7 +34,7 @@ export interface ZodIssueLike {
 export const GENERIC_INVALID = "Ungültige Eingabe.";
 
 function num(v: unknown): string {
-  if (v instanceof Date) return v.toLocaleDateString("de-DE", { timeZone: "UTC" });
+  if (v instanceof Date) return dayLabelDe(v);
   if (typeof v === "bigint") return v.toString();
   if (typeof v === "number") return v.toLocaleString("de-DE");
   return String(v);

@@ -27,6 +27,7 @@
  * not blocked JOINS the context, so the next change of a batch is judged against it.
  */
 import type { PrismaClient } from "@clokr/db";
+import { dayLabelDe } from "../../utils/day-label-de";
 import { mondayOfWeekUtc } from "../absence";
 import type { BreakTenantConfigShape } from "../time-tracking";
 import { dateStrInTz, dayRangeUtc, getTenantTimezone } from "../working-time-account";
@@ -66,12 +67,6 @@ export type ShiftWriteSkipReason = (typeof SHIFT_WRITE_SKIP_REASON)[ShiftWriteRu
 
 export const SHIFT_PAST_MESSAGE =
   "Schicht in der Vergangenheit ist nicht änderbar (Revisionssicherheit).";
-
-/** Format a YYYY-MM-DD ISO string to DD.MM.YYYY for German user-facing messages. */
-export function formatDateDe(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-}
 
 /** A day is past when it lies strictly before the tenant's calendar day; today stays plannable (GD-6). */
 export function isPastShiftDay(todayIso: string, dateIso: string): boolean {
@@ -412,7 +407,7 @@ function openingHoursRule(
   });
   if (entry.closed) {
     return finding(
-      `Schicht am ${formatDateDe(draft.dateIso)} außerhalb der Öffnungszeiten — Geschäft geschlossen.`,
+      `Schicht am ${dayLabelDe(draft.dateIso)} außerhalb der Öffnungszeiten — Geschäft geschlossen.`,
     );
   }
   // DAY_ONLY: closed-day check above is sufficient; pre/post-hour shifts (Vorbereitung/Aufräumen) allowed.
@@ -480,7 +475,7 @@ function dailyMaxRule(ctx: ShiftWriteContext, change: ShiftWriteChange): ShiftWr
   return {
     rule: "dailyMax",
     code: "ARBZG_VIOLATION_DAILY_MAX",
-    message: `Die geplante Arbeitszeit am ${formatDateDe(draft.dateIso)} beträgt ${hoursMinutes(after)} Stunden. Erlaubt sind höchstens 10 Stunden am Tag (§ 3 ArbZG).`,
+    message: `Die geplante Arbeitszeit am ${dayLabelDe(draft.dateIso)} beträgt ${hoursMinutes(after)} Stunden. Erlaubt sind höchstens 10 Stunden am Tag (§ 3 ArbZG).`,
     status: 422,
     overridable: false,
     dateIso: draft.dateIso,
@@ -534,8 +529,8 @@ function restPeriodRule(
   const worst = gaps[0];
   const message =
     worst.direction === "previous"
-      ? `Verstoß gegen § 5 ArbZG: zwischen Schichtende am ${formatDateDe(prevIso)} und neuem Beginn liegen nur ${worst.restHours.toFixed(1)}h (mindestens 11h erforderlich).`
-      : `Verstoß gegen § 5 ArbZG: zwischen neuem Schichtende und dem Schichtbeginn am ${formatDateDe(nextIso)} liegen nur ${worst.restHours.toFixed(1)}h (mindestens 11h erforderlich).`;
+      ? `Verstoß gegen § 5 ArbZG: zwischen Schichtende am ${dayLabelDe(prevIso)} und neuem Beginn liegen nur ${worst.restHours.toFixed(1)}h (mindestens 11h erforderlich).`
+      : `Verstoß gegen § 5 ArbZG: zwischen neuem Schichtende und dem Schichtbeginn am ${dayLabelDe(nextIso)} liegen nur ${worst.restHours.toFixed(1)}h (mindestens 11h erforderlich).`;
   return {
     rule: "restPeriod",
     code: "ARBZG_VIOLATION_REST_PERIOD",

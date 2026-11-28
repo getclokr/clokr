@@ -218,7 +218,7 @@ describe("Issue #835 - LEAVE_PLAN_OPENED notification", () => {
       expect(row.title).toBe("Urlaubsplanung eröffnet");
       expect(row.message).toContain(`Urlaubsplanung ${YEAR}`);
       expect(row.message).toContain(one.tenant.name);
-      expect(row.message).toContain("Frist: 31.01.2027.");
+      expect(row.message).toContain("Frist: 31.1.2027.");
       expect(row.dismissedAt).toBeNull();
     }
   });
