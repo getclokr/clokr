@@ -19,6 +19,7 @@ const shift = (over: Partial<ConflictShift>): ConflictShift => ({
   deletedReason: null,
   conflictsWithLeave: true,
   pastDay: false,
+  monthLocked: false,
   ...over,
 });
 
@@ -172,5 +173,60 @@ describe("a removed shift on a past day (Issue #1100)", () => {
     expect(NOTICE_KINDS.removed.explanation).toContain(
       "An einem vergangenen Tag geht das nicht mehr.",
     );
+  });
+});
+
+describe("a shift in a closed month (Issue #1145)", () => {
+  const removal = {
+    deletedAt: "2026-10-01T10:00:00.000Z",
+    deletedReason: "AUTO_BS_DAY_CLEANUP",
+    conflictsWithLeave: false,
+  };
+  const notices = buildShiftNotices({
+    softDeleted: [
+      shift({ id: "gone-closed", date: "2026-10-12T00:00:00.000Z", monthLocked: true, ...removal }),
+    ],
+    flagged: [
+      shift({ id: "marked-closed", date: "2026-10-13T00:00:00.000Z", monthLocked: true }),
+      shift({ id: "marked-open", date: "2026-11-13T00:00:00.000Z", monthLocked: false }),
+    ],
+    weekOverbooked: [],
+  });
+  const byKey = (key: string) => notices.find((n) => n.key === key)!;
+  const closed = { type: "unavailable", label: "Monat abgeschlossen – nicht mehr änderbar." };
+
+  it("offers no Schicht behalten, only the reason", () => {
+    expect(byKey("marked:marked-closed").action).toEqual(closed);
+    expect(byKey("marked:marked-closed").reason).toBe(
+      "Überschneidet sich mit Urlaub oder Berufsschule.",
+    );
+  });
+
+  it("offers no Wiederherstellen either, the restore handler refuses the closed month first", () => {
+    expect(byKey("removed:gone-closed").action).toEqual(closed);
+  });
+
+  it("explains the closed-month limit for both kinds", () => {
+    expect(NOTICE_KINDS.removed.explanation).toContain(
+      "In einem abgeschlossenen Monat auch nicht.",
+    );
+    expect(NOTICE_KINDS.marked.explanation).toContain("abgeschlossenen Monat");
+  });
+
+  it("keeps Schicht behalten in an open month", () => {
+    expect(byKey("marked:marked-open").action).toMatchObject({
+      type: "restore",
+      shiftId: "marked-open",
+      label: "Schicht behalten",
+    });
+  });
+
+  it("names the closed month before a past day when both apply", () => {
+    const [n] = buildShiftNotices({
+      softDeleted: [shift({ id: "both", pastDay: true, monthLocked: true, ...removal })],
+      flagged: [],
+      weekOverbooked: [],
+    });
+    expect(n.action).toEqual(closed);
   });
 });

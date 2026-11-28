@@ -4,7 +4,8 @@
 // because they overlap leave or Berufsschule, weeks with more shift days than the contract
 // allows). This module turns them into notices with a date, a person, a reason and one action,
 // sorted by date. It only re-shapes; which shift belongs in which bucket stays the API's rule.
-// A removed shift on a past day gets no action, only the reason (Issue #1100).
+// A removed shift on a past day, and any shift in a closed month, gets no action, only the reason
+// (Issues #1100, #1145).
 
 import { planningWeekLabel, shortGermanDay } from "./planning-week";
 
@@ -24,6 +25,12 @@ export interface ConflictShift {
    * itself.
    */
   pastDay: boolean;
+  /**
+   * Issue #1145 — the shift's month is closed (Monatsabschluss) as the API's restore handler reads it;
+   * "Wiederherstellen" and "Schicht behalten" both answer 422 SHIFT_LOCKED_MONTH there. The web never
+   * derives a month lock itself.
+   */
+  monthLocked: boolean;
 }
 
 export interface WeekOverbookedEntry {
@@ -72,13 +79,14 @@ export const NOTICE_KINDS: Record<NoticeKind, { badge: string; explanation: stri
     explanation:
       "Beim Anlegen eines neuen Berufsschultags werden Schichten an diesem Tag automatisch " +
       "entfernt. Mit „Wiederherstellen“ holst du die Schicht zurück; das wird protokolliert. " +
-      "An einem vergangenen Tag geht das nicht mehr.",
+      "An einem vergangenen Tag geht das nicht mehr. In einem abgeschlossenen Monat auch nicht.",
   },
   marked: {
     badge: "Prüfen",
     explanation:
       "Die Schicht überschneidet sich mit genehmigtem Urlaub oder einem Berufsschultag. Prüf, ob " +
-      "sie so bleiben soll. „Schicht behalten“ nimmt den Hinweis weg; das wird protokolliert.",
+      "sie so bleiben soll. „Schicht behalten“ nimmt den Hinweis weg; das wird protokolliert. In " +
+      "einem abgeschlossenen Monat geht das nicht mehr.",
   },
   "week-overbooked": {
     badge: "Woche voll",
@@ -119,6 +127,10 @@ function shiftNotice(s: ConflictShift, kind: "removed" | "marked"): ShiftNotice 
 }
 
 function shiftAction(s: ConflictShift, kind: "removed" | "marked"): NoticeAction {
+  // Issue #1145 — the restore handler checks the closed month first, for both kinds of row.
+  if (s.monthLocked) {
+    return { type: "unavailable", label: "Monat abgeschlossen – nicht mehr änderbar." };
+  }
   if (kind === "removed") {
     // Issue #1100 — the shift gate refuses a restore on a day before the tenant's today.
     if (s.pastDay) return { type: "unavailable", label: "Vergangener Tag – nicht mehr änderbar." };

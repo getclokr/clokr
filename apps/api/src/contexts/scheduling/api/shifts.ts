@@ -4383,7 +4383,7 @@ export async function shiftRoutes(app: FastifyInstance) {
   // GET /conflicts — list soft-deleted (deletedReason=AUTO_BS_DAY_CLEANUP) and
   //   actively-flagged (conflictsWithLeave=true) shifts in a window. Manager-
   //   facing conflict overview for /shifts/conflicts page. Each shift item carries `pastDay`
-  //   (Issue #1100).
+  //   (Issue #1100) and `monthLocked` (Issue #1145).
   // POST /:id/restore — manager-initiated restore: clears deletedAt + deletedReason
   //   (for soft-deleted rows) OR conflictsWithLeave (for actively-flagged rows).
   //   Always emits a SHIFT_RESTORED AuditLog entry with the pre-restore snapshot
@@ -4394,6 +4394,22 @@ export async function shiftRoutes(app: FastifyInstance) {
   //   T-67.2-16 (Tampering):  Locked-month guard returns 422 (defensive).
   //   T-67.2-17 (Info Leak):  Queries scoped via employee.tenantId = req.user.tenantId.
   //   T-67.2-18 (Repudiation): oldValue preserved in audit.
+
+  // Issue #1145 — THE one predicate "the shift's month is closed". The restore handler below
+  // refuses with SHIFT_LOCKED_MONTH on it (flag-clearing and un-removing alike), and GET /conflicts
+  // serves its answer as `monthLocked`, so the web page never derives a lock itself.
+  const isShiftMonthClosed = async (
+    tenantId: string,
+    tenantTz: string,
+    shift: { employeeId: string; date: Date },
+  ): Promise<boolean> => {
+    const { start: monthStart } = monthRangeUtc(
+      shift.date.getUTCFullYear(),
+      shift.date.getUTCMonth() + 1,
+      tenantTz,
+    );
+    return isMonthClosed(app.prisma, shift.employeeId, tenantId, monthStart);
+  };
 
   const conflictsQuerySchema = z.object({
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -4455,6 +4471,20 @@ export async function shiftRoutes(app: FastifyInstance) {
       // gate's own predicate and tenant day; the page then offers no restore there instead of a
       // button that can only fail.
       const conflictsTodayIso = await tenantTodayIso(app.prisma, req.user.tenantId);
+      // Issue #1145 — restore and "Schicht behalten" both refuse a closed month (SHIFT_LOCKED_MONTH),
+      // so every item says so with the restore handler's own predicate; one lookup per person+month.
+      const conflictsTz = await getTenantTimezone(app.prisma, req.user.tenantId);
+      const lockedMonths = new Map<string, Promise<boolean>>();
+      const lockedShiftIds = new Set<string>();
+      await Promise.all(
+        [...softDeleted, ...flagged].map(async (s) => {
+          const key = `${s.employeeId}::${s.date.getUTCFullYear()}-${s.date.getUTCMonth()}`;
+          if (!lockedMonths.has(key)) {
+            lockedMonths.set(key, isShiftMonthClosed(req.user.tenantId, conflictsTz, s));
+          }
+          if (await lockedMonths.get(key)) lockedShiftIds.add(s.id);
+        }),
+      );
       type Joined = (typeof softDeleted)[number];
       const ser = (s: Joined) => {
         const dayIso = s.date.toISOString().slice(0, 10);
@@ -4463,6 +4493,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           date: dayIso,
           deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
           pastDay: isPastShiftDay(conflictsTodayIso, dayIso),
+          monthLocked: lockedShiftIds.has(s.id),
         };
       };
 
@@ -4696,12 +4727,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       // due to admin action) must also block restore.
       // Phase 100B Plan 07 (W1, isMonthClosed) — THE canonical Monatsabschluss signal.
       const tenantTz = await getTenantTimezone(app.prisma, req.user.tenantId);
-      const { start: monthStart } = monthRangeUtc(
-        shift.date.getUTCFullYear(),
-        shift.date.getUTCMonth() + 1,
-        tenantTz,
-      );
-      const lock = await isMonthClosed(app.prisma, shift.employeeId, req.user.tenantId, monthStart);
+      const lock = await isShiftMonthClosed(req.user.tenantId, tenantTz, shift);
       if (lock) {
         return reply.code(422).send({
           error: "Monat ist abgeschlossen — Wiederherstellung nicht möglich",
