@@ -56,6 +56,7 @@ import { writeEntitlementAudit } from "./entitlement-audit";
 import { LEAVE_TYPE_DEFS, LEAVE_REQUEST_EMAIL_SUBJECT, type RequestableCode } from "./leave-type";
 import { dayRangeLabelDe } from "../../utils/day-label-de";
 import { addUtcMonthsClamped } from "../../utils/month-window";
+import { fmtDecimalDe } from "../../utils/number-de";
 import {
   getOvertimeAccount,
   getTenantTimezone,
@@ -311,7 +312,7 @@ export async function createLeaveRequestCore(
       return refusal(
         400,
         {
-          error: `Max. ${leaveType.maxDaysPerYear} Tage/Jahr für diesen Typ (bereits ${used} genutzt)`,
+          error: `Max. ${leaveType.maxDaysPerYear} Tage/Jahr für diesen Typ (bereits ${fmtDecimalDe(used)} genutzt)`,
         },
         "MAX_DAYS_PER_YEAR",
       );
@@ -477,7 +478,7 @@ export async function createLeaveRequestCore(
       return refusal(
         400,
         {
-          error: `Max. ${Number(rule.defaultDays)} Tage für "${rule.name}" (beantragt: ${days})`,
+          error: `Max. ${Number(rule.defaultDays)} Tage für "${rule.name}" (beantragt: ${fmtDecimalDe(days)})`,
         },
         "SPECIAL_RULE_DAYS",
       );

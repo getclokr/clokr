@@ -39,6 +39,7 @@ import { listConfirmedSection9CreditsByRequest } from "./section9-credit-days"; 
 import { EFFECTIVE_LEAVE_STATUSES } from "./effective-leave-statuses"; // Issue #446 (D-01)
 import { carryOverDeadlineFor } from "./carry-over-deadline"; // Issue #1156 — the UTC-anchored Stichtag
 import { vocationalSchoolDisplacesLeave, vocationalSchoolDateSet } from "./bs-leave-days"; // Issue #448 (D-01/D-02) — the one BS-vs-leave rule module
+import { fmtDecimalDe } from "../../utils/number-de"; // Issue #1155 — the one German decimal comma
 
 // Prisma client shape shared by `app.prisma` (top-level) and the `tx` handle inside
 // `$transaction(async (tx) => ...)` — mirrors ./api/leave.ts's own private DbClient alias.
@@ -1766,8 +1767,8 @@ export function exitVacationOverUseWarning(params: {
   // entitlement, not merely differ from it.
   if (Math.round(used * 100) <= Math.round(entitled * 100)) return null;
 
-  const usedText = used.toLocaleString("de-DE", { maximumFractionDigits: 2 });
-  const entitledText = entitled.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  const usedText = fmtDecimalDe(used);
+  const entitledText = fmtDecimalDe(entitled);
   return {
     used,
     entitlement: entitled,

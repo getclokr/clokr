@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth";
 import { dayLabelDe } from "../../../utils/day-label-de";
+import { fmtDecimalDe } from "../../../utils/number-de";
 import { isAvailabilityEnabled } from "../tenant-availability";
 import { coverageSalonInView, isCoverageDayClosed, pickCoverageRule } from "../coverage-rule"; // Issue #647 (D-04/D-05) — the one place a day's coverage rule is chosen; Issue #589 (D-589-06) — the one place a day is judged closed
 import { shiftBreakMinutes } from "../shift-netto"; // Issue #1011 — the planned break is the recording's break rule
@@ -835,8 +836,8 @@ async function notifyLeaveDaysAdjusted(
     const bis = dayLabelDe(adj.endDate);
     const message =
       adj.direction === "down"
-        ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage — der Schichtplan für diesen Zeitraum steht.`
-        : `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage. Grund: der Schichtplan für diesen Zeitraum steht.`;
+        ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${fmtDecimalDe(adj.newDays)} statt ${fmtDecimalDe(adj.oldDays)} Tage — der Schichtplan für diesen Zeitraum steht.`
+        : `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${fmtDecimalDe(adj.newDays)} statt ${fmtDecimalDe(adj.oldDays)} Tage. Grund: der Schichtplan für diesen Zeitraum steht.`;
 
     const recipients: Array<{ userId: string; link: string }> = [
       { userId: adj.employeeUserId, link: "/leave" },
