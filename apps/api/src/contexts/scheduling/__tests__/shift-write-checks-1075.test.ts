@@ -25,6 +25,7 @@ const DAY_AFTER = "2027-03-13";
 const SUNDAY = "2027-03-14";
 const MONDAY_OF_D = "2027-03-08";
 const EMP = "emp-a";
+const SALON = "salon-1075";
 
 const HOURS = [
   ...[0, 1, 2, 3, 4, 5].map((day) => ({ day, open: "08:00", close: "20:00" })),
@@ -75,7 +76,13 @@ function mkCtx(
 }
 
 function draft(dateIso: string, startTime: string, endTime: string): ShiftWriteDraft {
-  return { employeeId: EMP, dateIso, startTime, endTime, openingHours: HOURS };
+  return {
+    employeeId: EMP,
+    dateIso,
+    startTime,
+    endTime,
+    salon: { id: SALON, openingHours: HOURS },
+  };
 }
 
 const run = (
@@ -225,7 +232,8 @@ describe("opening hours", () => {
   it("mode OFF, missing hours and a missing TenantConfig row check nothing", () => {
     expect(run(mkCtx({ mode: "OFF" }), draft(SUNDAY, "08:00", "16:00")).blocking).toBeNull();
     expect(
-      run(mkCtx(), { ...draft(SUNDAY, "08:00", "16:00"), openingHours: null }).blocking,
+      run(mkCtx(), { ...draft(SUNDAY, "08:00", "16:00"), salon: { id: SALON, openingHours: null } })
+        .blocking,
     ).toBeNull();
     expect(run(mkCtx({ config: "none" }), draft(SUNDAY, "08:00", "16:00")).blocking).toBeNull();
   });

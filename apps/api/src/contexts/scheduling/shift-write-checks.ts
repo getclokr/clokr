@@ -9,7 +9,7 @@
  *                    after the person's exit day (Issue #1101; the exit day itself stays plannable)
  *   2. pastDay       the day is not before the TENANT's calendar day (Phase 47.2, Issue #1075 GD-6)
  *   3. openingHours  the salon's opening hours (Phase 47.5), overridable on a single write
- *   4. minorLimits   JArbSchG §§ 8, 12-17 for a person under 18 (Issues #1057, #1076, minor-shift-limits.ts)
+ *   4. minorLimits   JArbSchG §§ 8, 12-18 for a person under 18 (Issues #1057, #1076, #1106, minor-shift-limits.ts)
  *   5. dailyMax      § 3 ArbZG: at most 10:00 net Arbeitszeit a day — the SUM of the person's shifts
  *   6. restPeriod    § 5 ArbZG: 11 h to the previous day's last shift AND to the next day's first shift
  *
@@ -83,13 +83,22 @@ export async function tenantTodayIso(prisma: PrismaClient, tenantId: string): Pr
   return dateStrInTz(new Date(), await getTenantTimezone(prisma, tenantId));
 }
 
+/** The target salon of a write: its id (holidays, § 18 JArbSchG) and its opening hours. */
+export interface ShiftWriteSalon {
+  id: string;
+  openingHours: unknown;
+}
+
 export interface ShiftWriteDraft {
   employeeId: string;
   dateIso: string;
   startTime: string;
   endTime: string;
-  /** The target salon's `Salon.openingHours`; null/undefined = no opening-hours check (Phase 325 D-11). */
-  openingHours?: unknown;
+  /**
+   * The target salon: its `Salon.openingHours` feed the opening-hours rule (Phase 325 D-11,
+   * null/undefined = no opening-hours check) and its holidays § 18 JArbSchG (Issue #1106).
+   */
+  salon?: ShiftWriteSalon | null;
 }
 
 export interface ShiftWriteChange {
@@ -264,7 +273,11 @@ export async function loadShiftWriteContext(
   const minorWeeks = new Map<string, MinorShiftWeek>();
   const lastMonday = mondayIsoOf(scope.toIso);
   for (let mon = mondayIsoOf(scope.fromIso); mon <= lastMonday; mon = addDaysIso(mon, 7)) {
-    const weeks = await loadMinorShiftWeeks(prisma, tenantId, employeeIds, utcMidnight(mon));
+    // The draft's salon is not known at load time, so the week asks for the holidays of every salon of
+    // the tenant (Issue #1106, § 18 JArbSchG).
+    const weeks = await loadMinorShiftWeeks(prisma, tenantId, employeeIds, utcMidnight(mon), {
+      allTenantSalons: true,
+    });
     for (const [employeeId, week] of weeks) minorWeeks.set(`${employeeId}::${mon}`, week);
   }
 
@@ -377,8 +390,8 @@ function openingHoursRule(
   if (!ctx.tenantConfig) return null; // D-11: no TenantConfig row -> no check
   const mode = ctx.tenantConfig.shiftStoreHoursMode ?? "DAY_ONLY";
   if (mode === "OFF") return null;
-  if (!Array.isArray(draft.openingHours)) return null; // D-11: the old missing-value branch
-  const rows = draft.openingHours as Array<{
+  if (!Array.isArray(draft.salon?.openingHours)) return null; // D-11: the old missing-value branch
+  const rows = draft.salon?.openingHours as Array<{
     day: number;
     open: string;
     close: string;
@@ -422,7 +435,14 @@ function minorLimitsRule(
   if (!week) return null;
   const hit = findMinorShiftLimitViolation(week, {
     removeShiftId: replaces?.id,
-    add: [{ date: utcMidnight(draft.dateIso), startTime: draft.startTime, endTime: draft.endTime }],
+    add: [
+      {
+        date: utcMidnight(draft.dateIso),
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+        salonId: draft.salon?.id ?? null,
+      },
+    ],
   });
   if (!hit) return null;
   return {
@@ -564,6 +584,7 @@ function joinContext(ctx: ShiftWriteContext, change: ShiftWriteChange): void {
       date: utcMidnight(draft.dateIso),
       startTime: draft.startTime,
       endTime: draft.endTime,
+      salonId: draft.salon?.id ?? null,
     });
   }
 }

@@ -3,15 +3,16 @@
  *
  * The ONE JArbSchG roster rule for a shift of a person who is under 18 on the shift date:
  * Issue #1057 (§ 8 daily and weekly working time, § 12 Schichtzeit) and Issue #1076 (§ 13 Freizeit,
- * § 14 Nachtruhe, § 15 Fünf-Tage-Woche with § 16 Abs. 3 and 4, § 17 Sonntagsruhe). This module only READS; it never writes a row, an audit entry
- * or a saldo figure.
+ * § 14 Nachtruhe, § 15 Fünf-Tage-Woche with § 16 Abs. 3 and 4, § 17 Sonntagsruhe) and Issue #1106
+ * (§ 18 Feiertagsruhe). This module only READS; it never writes a row, an audit entry or a saldo
+ * figure.
  *
  * Legal reading (the decision record is the #1057 / #1076 comments and docs/compliance.md):
  *  - Scope: JArbSchG applies instead of the ArbZG to a person under 18 (§ 18 Abs. 2 ArbZG). The age
  *    is decided per day by `isMinorAtDate` (the 18th birthday itself is adult); a missing birth date
  *    is not a minor.
  *  - Trade: Clokr stores no trade; every tenant is read as a Friseurbetrieb (hair salons are the
- *    product). Only § 16 (Saturday) depends on it; §§ 13, 14 and 17 have no Friseur exception.
+ *    product). Only § 16 (Saturday) depends on it; §§ 13, 14, 17 and 18 have no Friseur exception.
  *  - Arbeitszeit (§ 4 Abs. 1) is net of the Ruhepause: the sum of `shiftNettoMinutes()` (the one
  *    break rule, `breakAmountFor`, #1060) over the day's shifts plus the day's Berufsschule credit
  *    (§ 9 Abs. 2) as the Arbeitszeitkonto already computes it (read only).
@@ -24,7 +25,7 @@
  *    location on a Werktag counts as well. It is the day's contract Soll as the Arbeitszeitkonto
  *    prices it (`MinorShiftWeek.holidaySollMinutesByDate`), not the planned shift and not an
  *    average, so a holiday the planner leaves empty cannot lower the week. Only the weekly sum
- *    reads it; the daily limit, § 8 Abs. 2a, §§ 12-17 are unchanged.
+ *    reads it; the daily limit, § 8 Abs. 2a, §§ 12-18 are unchanged.
  *  - § 12: Schichtzeit = earliest start to latest end of the day's shifts (every interruption of at
  *    least 15 min is a Ruhepause, so gaps are inside it), at most 10:00.
  *  - § 13: at least 12:00 uninterrupted Freizeit between the latest end of a day and the earliest
@@ -40,11 +41,16 @@
  *    the Friseurhandwerk may work it (§ 16 Abs. 2 Satz 1 Nr. 2) when another Monday-Friday day without
  *    Berufsschule ends by 13:00 and carries at most 8:00 minus the Saturday's Arbeitszeit (§ 16 Abs. 4).
  *  - § 17 Abs. 1: no shift on a Sunday (decided from the ISO date). Abs. 2 lists no salon case.
+ *  - § 18 Abs. 1 (Issue #1106): no shift on a statutory holiday. The holiday is the one of the SHIFT'S
+ *    salon (the planned work location, per shift), read only through the Unterbau's per-salon holiday
+ *    resolution; a holiday added to that salon counts like a statutory one. Abs. 2 allows holiday work
+ *    only in the cases of § 17 Abs. 2, none of which is a salon (docs/compliance.md), and Abs. 3
+ *    (Freistellung) only follows such work, so it is not modelled. A holiday on a Sunday is also § 17.
  *  - NOT refused on purpose: § 16 Abs. 2 Satz 2 (at least two Saturdays a month SHOULD stay free: a
  *    Sollvorschrift, not bußgeldbewehrt in § 58, tariff-dispositive in § 21a Abs. 1 Nr. 4) and
  *    § 15 Satz 2 (the two rest days should follow each other where possible).
  *  - A write is refused only when it CREATES a violation or ENLARGES one (day figure, span, week
- *    sum, night minutes, Sunday minutes grow or a Freizeit gap shrinks), so an already illegal plan
+ *    sum, night minutes, Sunday minutes, holiday minutes grow or a Freizeit gap shrinks), so an already illegal plan
  *    (legacy, Phorest import) never freezes the roster.
  *
  * The day/week arithmetic lives in `evaluateMinorWeekFigures` over per-day minute figures, not over
@@ -56,7 +62,12 @@
  */
 import type { PrismaClient } from "@clokr/db";
 import { hasVocationalSchoolDay, isMinorAtDate, mondayOfWeekUtc } from "../absence";
-import { holidaysAtWorkLocation, type EmployeeScope } from "../platform";
+import {
+  holidaysAtWorkLocation,
+  holidaysForSalon,
+  listSalons,
+  type EmployeeScope,
+} from "../platform";
 import {
   calcExpectedMinutesTz,
   dateStrInTz,
@@ -95,6 +106,7 @@ export type MinorShiftLimitCode =
   | "JARBSCHG_VIOLATION_SHIFT_TIME"
   | "JARBSCHG_VIOLATION_NIGHT_REST"
   | "JARBSCHG_VIOLATION_SUNDAY_REST"
+  | "JARBSCHG_VIOLATION_HOLIDAY_REST"
   | "JARBSCHG_VIOLATION_FREE_TIME"
   | "JARBSCHG_VIOLATION_FIVE_DAY_WEEK";
 
@@ -109,6 +121,11 @@ export interface ShiftDraft {
   date: Date;
   startTime: string;
   endTime: string;
+  /**
+   * The shift's salon: the planned work location whose holidays answer § 18 JArbSchG (Issue #1106).
+   * null/undefined = no holiday lookup for this shift.
+   */
+  salonId?: string | null;
 }
 
 export interface MinorShiftWeek {
@@ -130,6 +147,13 @@ export interface MinorShiftWeek {
    * #1075 / #1076 tests stay valid.
    */
   holidaySollMinutesByDate?: Record<string, number>;
+  /**
+   * § 18 Abs. 1 JArbSchG (Issue #1106): salon id -> ISO day -> holiday name over the horizon (the
+   * Sunday before .. the Monday after), one entry per salon a shift of the week or the write gate can
+   * name. Built only from the Unterbau's per-salon holiday resolution. Always set by
+   * `loadMinorShiftWeeks`; optional only so the older week literals stay valid.
+   */
+  publicHolidaysBySalon?: Record<string, Record<string, string>>;
   /** The shifts of the week AND of the Sunday before / the Monday after (see `minorWeekHorizon`). */
   shifts: Array<ShiftDraft & { id: string }>;
 }
@@ -156,6 +180,13 @@ export interface MinorDayFigures {
    * is planned. Read by the weekly sum only (Issue #1077).
    */
   holidayMinutes: number;
+  /**
+   * Gross minutes of the day's shifts planned in a salon whose holiday set holds the day
+   * (§ 18 Abs. 1, Issue #1106).
+   */
+  holidayShiftMinutes: number;
+  /** The holiday of the earliest-starting such shift; null without one. */
+  holidayName: string | null;
 }
 
 /** The figures of a week and of the two edge days that border it (the horizon). */
@@ -256,6 +287,11 @@ function sundayBad(f: MinorDayFigures, iso: string): boolean {
   return f.isMinor && isSundayIso(iso) && f.shiftMinutes > 0;
 }
 
+// § 18 Abs. 1: any shift on a statutory holiday of the shift's salon (Issue #1106).
+function holidayRestBad(f: MinorDayFigures): boolean {
+  return f.isMinor && f.holidayShiftMinutes > 0;
+}
+
 // § 15: a day counts when the person is a minor on it and it carries a shift or a Berufsschule.
 function countedDay(f: MinorDayFigures): boolean {
   return f.isMinor && (f.shiftMinutes > 0 || f.isSchoolDay);
@@ -327,6 +363,10 @@ function sundayRestMessage(dateIso: string): string {
   return `Am Sonntag, ${formatDateDe(dateIso)}, ist eine Schicht geplant. Jugendliche dürfen an Sonntagen nicht beschäftigt werden (§ 17 Abs. 1 JArbSchG).`;
 }
 
+function holidayRestMessage(dateIso: string, holidayName: string): string {
+  return `Am ${formatDateDe(dateIso)} (${holidayName}) ist eine Schicht geplant. Jugendliche dürfen an gesetzlichen Feiertagen nicht beschäftigt werden (§ 18 Abs. 1 JArbSchG).`;
+}
+
 function freeTimeMessage(dateIso: string, gapMinutes: number): string {
   return `Zwischen dem Schichtende am ${formatDateDe(addDaysIso(dateIso, -1))} und dem Schichtbeginn am ${formatDateDe(dateIso)} liegen ${formatHm(Math.max(0, gapMinutes))} Stunden. Jugendliche brauchen nach dem Ende der täglichen Arbeitszeit mindestens 12 Stunden ununterbrochene Freizeit (§ 13 JArbSchG).`;
 }
@@ -376,8 +416,8 @@ function horizonList(f: MinorWeekFigures): MinorDayFigures[] {
 /**
  * Compares the week before and after a change. `before` and `after` hold the seven figures of
  * Monday to Sunday plus the two edge days. Per day the trigger day is checked first, the rest in
- * calendar order (DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, FREE_TIME of the pair ending that
- * day); then the pair Sunday -> next Monday; the weekly sum last (Arbeitszeit plus the holiday time
+ * calendar order (DAILY_MAX, SHIFT_TIME, NIGHT_REST, SUNDAY_REST, HOLIDAY_REST, FREE_TIME of the
+ * pair ending that day); then the pair Sunday -> next Monday; the weekly sum last (Arbeitszeit plus the holiday time
  * that falls out, § 4 Abs. 4 Satz 2, Issue #1077).
  */
 export function evaluateMinorWeekFigures(input: {
@@ -448,6 +488,13 @@ export function evaluateMinorWeekFigures(input: {
         code: "JARBSCHG_VIOLATION_SUNDAY_REST",
         dateIso,
         message: sundayRestMessage(dateIso),
+      };
+    }
+    if (holidayRestBad(after[i]) && after[i].holidayShiftMinutes > before[i].holidayShiftMinutes) {
+      return {
+        code: "JARBSCHG_VIOLATION_HOLIDAY_REST",
+        dateIso,
+        message: holidayRestMessage(dateIso, after[i].holidayName ?? ""),
       };
     }
     const freeTime = freeTimeFinding(i + 1, dateIso);
@@ -564,6 +611,8 @@ export function minorShiftLimitLabel(v: MinorShiftLimitViolation): string {
       return `${formatDateDe(v.dateIso)} (Nachtruhe)`;
     case "JARBSCHG_VIOLATION_SUNDAY_REST":
       return `${formatDateDe(v.dateIso)} (Sonntagsruhe)`;
+    case "JARBSCHG_VIOLATION_HOLIDAY_REST":
+      return `${formatDateDe(v.dateIso)} (Feiertagsruhe)`;
     case "JARBSCHG_VIOLATION_FREE_TIME":
       return `${formatDateDe(v.dateIso)} (Freizeit)`;
     case "JARBSCHG_VIOLATION_WEEKLY_MAX":
@@ -594,6 +643,9 @@ function dayFigures(
   let latest = Number.NEGATIVE_INFINITY;
   let night = 0;
   let shiftMinutes = 0;
+  let holidayShiftMinutes = 0;
+  let holidayName: string | null = null;
+  let holidayStart = Number.POSITIVE_INFINITY;
   for (const s of day) {
     work += shiftNettoMinutes(s, week.breakEmployee, week.breakTenantConfig);
     let gross = hmToMin(s.endTime) - hmToMin(s.startTime);
@@ -604,6 +656,22 @@ function dayFigures(
     earliest = Math.min(earliest, start);
     latest = Math.max(latest, end);
     shiftMinutes += gross;
+    // § 18 Abs. 1: the shift's own salon decides (Issue #1106); a salon missing from a loaded map is
+    // a defect of the caller, never "no holiday" (fail-closed).
+    if (week.publicHolidaysBySalon && s.salonId) {
+      const salonDays = week.publicHolidaysBySalon[s.salonId];
+      if (!salonDays) {
+        throw new Error(`minor-shift-limits: the holidays of salon ${s.salonId} are not loaded`);
+      }
+      const name = salonDays[iso];
+      if (name !== undefined) {
+        holidayShiftMinutes += gross;
+        if (start < holidayStart) {
+          holidayStart = start;
+          holidayName = name;
+        }
+      }
+    }
     // The allowed window is 06:00-20:00 of the start day and of the following day (a shift that
     // crosses midnight can reach 06:00 of the next morning).
     const inside =
@@ -633,6 +701,8 @@ function dayFigures(
     shiftMinutes,
     isSchoolDay: week.schoolDays.includes(iso),
     holidayMinutes,
+    holidayShiftMinutes,
+    holidayName,
   };
 }
 
@@ -701,12 +771,21 @@ export function minorShiftLimitReplyBody(v: MinorShiftLimitViolation): {
  * exactly one employee read. For the minors it also reads the work-location holidays of the week
  * (the Unterbau, fed with the Zeiterfassung's closed work entries, like the roster week view) and
  * prices each one with the Arbeitszeitkonto's day Soll (Issue #1077).
+ *
+ * § 18 JArbSchG (Issue #1106): every week also carries `publicHolidaysBySalon`, the holidays of each
+ * salon a stored shift names, read per salon with `holidaysForSalon` over the horizon (a planned
+ * shift's salon is its exact work location, not the day's resolved one). The map is built ONCE and
+ * shared by every minor week of the call. With `allTenantSalons` it also holds every salon of the
+ * tenant (inactive ones included, a PUT may keep one): the write gate does not know the draft's salon
+ * when it loads. Cost: one `listSalons` plus two queries per salon per loaded week, and only when the
+ * week holds a minor; a week of adults only costs the one employee read.
  */
 export async function loadMinorShiftWeeks(
   prisma: PrismaClient,
   tenantId: string,
   employeeIds: string[],
   anyDayOfWeek: Date,
+  opts: { allTenantSalons?: boolean } = {},
 ): Promise<Map<string, MinorShiftWeek>> {
   const result = new Map<string, MinorShiftWeek>();
   if (employeeIds.length === 0) return result;
@@ -757,6 +836,8 @@ export async function loadMinorShiftWeeks(
     defaultBreakOver9h: tenantConfig?.defaultBreakOver9h ?? 45,
   };
   const tz = await getTenantTimezone(prisma, tenantId);
+  // Shared by every minor week of this call; filled after the shifts are read (Issue #1106).
+  const publicHolidaysBySalon: Record<string, Record<string, string>> = {};
 
   // § 4 Abs. 4 Satz 2 (Issue #1077, D-02): the holidays of the week at each person's work location,
   // ONE batched read for all minors, resolved only by the Unterbau — the same pair of calls the
@@ -791,7 +872,7 @@ export async function loadMinorShiftWeeks(
         date: { gte: horizonFrom, lte: horizonTo },
         deletedAt: null,
       },
-      select: { id: true, date: true, startTime: true, endTime: true },
+      select: { id: true, date: true, startTime: true, endTime: true, salonId: true },
     });
     const schedules = await prisma.workSchedule.findMany({
       where: {
@@ -858,8 +939,29 @@ export async function loadMinorShiftWeeks(
       creditedMinutesByDate,
       schoolDays,
       holidaySollMinutesByDate,
+      publicHolidaysBySalon,
       shifts,
     });
+  }
+
+  // § 18 Abs. 1 (Issue #1106): the holidays of every salon the weeks name, per salon, from the Unterbau.
+  const salonIds = new Set<string>();
+  for (const week of result.values()) {
+    for (const s of week.shifts) if (s.salonId) salonIds.add(s.salonId);
+  }
+  if (opts.allTenantSalons) {
+    for (const salon of await listSalons(prisma, tenantId, { includeInactive: true })) {
+      salonIds.add(salon.id);
+    }
+  }
+  const from = addDaysIso(weekDays[0], -1);
+  const to = addDaysIso(weekDays[6], 1);
+  for (const salonId of [...salonIds].sort()) {
+    const days: Record<string, string> = {};
+    for (const h of await holidaysForSalon(prisma, tenantId, salonId, from, to)) {
+      days[h.date] = h.name;
+    }
+    publicHolidaysBySalon[salonId] = days;
   }
   return result;
 }
