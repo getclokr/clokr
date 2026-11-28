@@ -8,7 +8,7 @@ import { getCurrentShift } from "../../scheduling"; // Phase 101B (Issue #101, w
 import { getTenantTimezone, dateStrInTz } from "../../working-time-account"; // Phase 101B
 import { resolveClockEvent } from "../../../services/clock/resolver";
 import type { ClockEvent } from "../../../services/clock/types";
-import { applyAutoBreakAfterClockStop } from "../auto-break-write"; // Issue #799
+import { runClockStopSteps } from "../auto-break-write"; // Issue #799
 import { dismissShiftReminderNotices } from "../shift-reminder-dismiss"; // Issue #609 (IN-03)
 import { findEntriesOfDay, openEntryOf } from "../day-entries"; // Phase 69b — the single day lookup
 
@@ -437,7 +437,7 @@ export async function presenceRoutes(app: FastifyInstance) {
         disconnectResolution.kind === "CLOCKED_OUT" ||
         disconnectResolution.kind === "CONSOLIDATED"
       ) {
-        await applyAutoBreakAfterClockStop(app, {
+        await runClockStopSteps(app, {
           entryId: disconnectResolution.entry.id,
           employeeId: employee.id,
           tz: await getTenantTimezone(app.prisma, tenantId),

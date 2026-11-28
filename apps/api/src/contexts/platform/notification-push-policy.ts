@@ -92,6 +92,7 @@ export const NOTIFICATION_PUSH_POLICY: Record<string, PushPolicy> = {
   BREAK_COMPLIANCE_ALERT: { push: "send", body: "Es gibt einen Hinweis zur Arbeitszeiterfassung.", ttlSeconds: TTL_24H },
   BREAK_CROSS_SALON_VIOLATION: { push: "send", body: "Es gibt einen Hinweis zur Arbeitszeiterfassung.", ttlSeconds: TTL_24H },
   BREAK_PLACEMENT_VIOLATION:   { push: "send", body: "Es gibt einen Hinweis zur Arbeitszeiterfassung.", ttlSeconds: TTL_24H },
+  JARBSCHG_DAY_VIOLATION:      { push: "send", body: "Es gibt einen Hinweis zur Arbeitszeiterfassung.", ttlSeconds: TTL_24H }, // Issue #655 (D-10)
 
   // Shift reminders (Issue #609): a time-bound nudge, a late delivery would be wrong, so TTL_1H
   REMINDER_SHIFT_START:   { push: "send", body: "Deine Schicht hat begonnen. Jetzt einstempeln?", ttlSeconds: TTL_1H },

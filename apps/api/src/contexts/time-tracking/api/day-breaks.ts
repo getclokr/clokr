@@ -53,6 +53,7 @@ import {
 import {
   type ArbZGWarning,
   dayLimitWarnings,
+  isDailyMaxCode,
   placementWarnings,
   withheldFindingWarning,
 } from "../arbzg";
@@ -305,8 +306,9 @@ function dayCheckTotals(
     totalBreakMinutes: Math.round(evaluation.totalBreakMin),
     requiredBreakMinutes: evaluation.requiredBreakMin,
     breakShortfall: evaluation.breakShortfall,
-    // The § 3 cap is the finding builder's rule (`dayLimitWarnings`); no second copy of it here.
-    maxDailyExceeded: warnings.some((w) => w.code === "MAX_DAILY_EXCEEDED"),
+    // The day cap (§ 3 ArbZG, or § 8 JArbSchG for a minor day, Issue #524) is the finding builder's
+    // rule (`dayLimitWarnings`); no second copy of it here.
+    maxDailyExceeded: warnings.some((w) => isDailyMaxCode(w.code)),
     // Issue #511 D-12: the day carries a finding a manager can acknowledge (hasAckableFinding).
     breakFinding: hasAckableFinding(evaluation),
     positionUnknown: evaluation.placement.positionUnknown,
@@ -933,9 +935,7 @@ export async function dayBreakRoutes(app: FastifyInstance) {
                 acks: acksOfDay.map((a) => ({ snapshot: a.snapshot })),
                 regime: regimeOf(dateKey),
               });
-        const exceedsDailyMax = dayLimitWarnings(evaluation, 0).some(
-          (w) => w.code === "MAX_DAILY_EXCEEDED",
-        );
+        const exceedsDailyMax = dayLimitWarnings(evaluation, 0).some((w) => isDailyMaxCode(w.code));
         if (
           dayRows.length >= 2 ||
           evaluation.breakShortfall ||

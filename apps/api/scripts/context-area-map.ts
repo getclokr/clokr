@@ -261,6 +261,10 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/time-tracking/break-effective.ts": "zeiterfassung", // effective break-minutes calculation
   "src/contexts/time-tracking/clock-out-debounce-message.ts": "zeiterfassung", // Phase 307 Plan 02 (D-03/D-05) — builds the German 409 message for a DEBOUNCE_NOOP clock-out over TimeEntry.startTime
   "src/contexts/time-tracking/day-break-rule.ts": "zeiterfassung", // Issue #80 (D-01/D-04/D-16/D-17) — pure day-level § 4/§ 3 kernel over the closed WORK entries of one day; TimeEntry vocabulary, no model access
+  "src/contexts/working-time-account/holiday-contract-soll.ts": "arbeitszeitkonto", // Issue #524 (D-07) — the contract Soll a holiday prices at (#1077), shared by the roster and the recording week; pure, imports only ./timezone, no model access
+  "src/contexts/time-tracking/minor-working-time.ts": "zeiterfassung", // Issue #524 (D-05) — the one § 8 JArbSchG day/week arithmetic shared with the roster; pure leaf, no imports, no model access
+  "src/contexts/time-tracking/minor-week-figures.ts": "zeiterfassung", // Issue #524 — the recorded ISO week of a person as per-day § 8 figures; reads TimeEntry and WorkSchedule/TenantConfig, the Berufsschule days through the Abwesenheiten index and the credit through the Arbeitszeitkonto index, never writes
+  "src/contexts/time-tracking/minor-day-notice.ts": "zeiterfassung", // Issue #655 — the JArbSchG notice after a clock STOP; reads TimeEntry and Employee and the § 8 / § 9 kernels, writes only Notification rows through app.notify, never a time entry
   "src/contexts/time-tracking/break-regime.ts": "zeiterfassung", // Issue #511 (D-01/D-02/D-05) — the one home of the § 4 ArbZG / § 11 JArbSchG break thresholds; pure, no model access
   "src/contexts/time-tracking/day-break-placement.ts": "zeiterfassung", // Issue #511 — pure Satz 2/3 and § 11 evaluation on the D-22 view; no model access
   "src/contexts/time-tracking/place-auto-break.ts": "zeiterfassung", // Issue #511 (AK-4, D-17/D-19/D-20) — pure placement of the automatic break; no model access

@@ -398,6 +398,36 @@ describe("DayBreakPanel", () => {
     expect(text).toContain("SERVER § 3 ArbZG zehn Stunden");
     expect(text).not.toContain("Die Tagessumme liegt über der Höchstarbeitszeit");
   });
+  // Issue #524 (W2): for a minor day the server's finding is the § 8 JArbSchG one; the fixed § 3
+  // ArbZG fallback sentence must never appear next to it.
+  it("does not show the fixed 10-hour sentence when the server sent its § 8 JArbSchG day finding", () => {
+    const { container } = renderWithTheme(DayBreakPanel, {
+      check: check({
+        maxDailyExceeded: true,
+        warnings: [
+          warning({
+            code: "JARBSCHG_DAILY_MAX_EXCEEDED",
+            severity: "error",
+            message: "SERVER § 8 JArbSchG Tagesgrenze",
+            certainty: undefined,
+          }),
+        ],
+      }),
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("SERVER § 8 JArbSchG Tagesgrenze");
+    expect(text).not.toContain("Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG)");
+  });
+
+  it("keeps the fixed 10-hour sentence as the fallback when maxDailyExceeded has no daily warning", () => {
+    const { container } = renderWithTheme(DayBreakPanel, {
+      check: check({ maxDailyExceeded: true, warnings: [] }),
+    });
+    expect(container.textContent ?? "").toContain(
+      "Die Tagessumme liegt über der Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG).",
+    );
+  });
+
   // Issue #511 (Sichtprüfung 11.10.): on a placement finding a break was taken but does not count,
   // so "durchgearbeitet" would put a false statement into the acknowledgement.
   it("names a placement acknowledgement „Pausenverstoß quittieren“, never „durchgearbeitet“", async () => {

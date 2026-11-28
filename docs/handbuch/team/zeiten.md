@@ -27,10 +27,10 @@ Im Kalender ist jeder Tag nach seinem Stand eingefärbt. Fehlt an einem Tag der 
 
 Clokr prüft jeden Tag und markiert Auffälligkeiten am Tag, mit „ArbZG-Hinweis“ oder „prüfen“. Im Tagesfenster stehen die Einzelheiten, zum Beispiel:
 
-- Die Tagessumme liegt über der Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG).
+- Die Tagessumme liegt über der Höchstarbeitszeit von 10 Stunden (§ 3 ArbZG), bei Jugendlichen über 8 Stunden, mit bis zu 8,5 Stunden nur bei einem kürzeren anderen Werktag der Woche, und die Woche über 40 Stunden (§ 8 JArbSchG).
 - Zu den Pausen des Tages liegt ein Befund nach § 4 ArbZG vor, bei Jugendlichen nach § 11 JArbSchG.
 
-Die Hinweise sind eine Kontrolle und blockieren das Speichern nicht. Im Tagesfenster kannst du Pausen eintragen oder löschen und einen Pausenverstoß mit Begründung quittieren, sofern du das darfst. Die Quittung ersetzt keine Pause, sie hält fest, dass der Befund geprüft und begründet wurde, und der Verstoß bleibt dokumentiert. Die rechtlichen Grundlagen stehen unter [Compliance und Revisionssicherheit](../hintergrund/compliance.md).
+Stempelt eine Person unter 18 aus und liegt der Tag über den Grenzen des Jugendarbeitsschutzes, bekommst du einen „Hinweis Jugendarbeitsschutz“, sofern du Zeiteinträge dieser Person bearbeiten darfst; das Stempeln selbst wird nie verhindert. Die Hinweise sind eine Kontrolle und blockieren das Speichern nicht. Im Tagesfenster kannst du Pausen eintragen oder löschen und einen Pausenverstoß mit Begründung quittieren, sofern du das darfst. Die Quittung ersetzt keine Pause, sie hält fest, dass der Befund geprüft und begründet wurde, und der Verstoß bleibt dokumentiert. Die rechtlichen Grundlagen stehen unter [Compliance und Revisionssicherheit](../hintergrund/compliance.md).
 
 ## Zeit eintragen und korrigieren
 

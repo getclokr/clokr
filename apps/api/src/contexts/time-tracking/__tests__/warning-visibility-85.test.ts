@@ -41,6 +41,15 @@ describe("Issue #85 D-12 - warningWindow", () => {
     ]);
   });
 
+  // Issue #524 (D-04): the § 8 JArbSchG day limit depends on the other Werktage of the week (Abs. 2a),
+  // so BOTH new findings rest on the ISO week, not on the day alone.
+  it.each(["JARBSCHG_DAILY_MAX_EXCEEDED", "JARBSCHG_WEEKLY_MAX_EXCEEDED"])(
+    "%s rests on the ISO week (Issue #524)",
+    (code) => {
+      expect(iso(warningWindow(code, day, week))).toEqual(["2026-06-08", "2026-06-14"]);
+    },
+  );
+
   it("MAX_DAILY_AVG_EXCEEDED rests on the 168 days up to the day", () => {
     expect(iso(warningWindow("MAX_DAILY_AVG_EXCEEDED", day, week))).toEqual([
       "2025-12-27",
@@ -60,6 +69,8 @@ describe("Issue #85 D-12 - warningWindow", () => {
       "BREAK_TOO_SHORT",
       "MIN_REST_VIOLATED",
       "MAX_WEEKLY_EXCEEDED",
+      "JARBSCHG_DAILY_MAX_EXCEEDED",
+      "JARBSCHG_WEEKLY_MAX_EXCEEDED",
       "MAX_DAILY_AVG_EXCEEDED",
       "SOME_FUTURE_CODE",
     ]) {

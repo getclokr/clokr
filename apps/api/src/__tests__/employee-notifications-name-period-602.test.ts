@@ -60,6 +60,7 @@ const AUDIENCE: Record<string, Audience> = {
   GAP_WARNING_MANAGER: { audience: "OTHERS", reason: "managers before the Monatsabschluss" },
   BREAK_CROSS_SALON_VIOLATION: { audience: "OTHERS", reason: "managers only (#80 D-09e)" },
   BREAK_PLACEMENT_VIOLATION: { audience: "OTHERS", reason: "managers only (#511 D-13)" },
+  JARBSCHG_DAY_VIOLATION: { audience: "OTHERS", reason: "managers only (#655 D-10)" },
   MONTH_CORRECTION_REQUESTED: { audience: "OTHERS", reason: "approvers of the correction (#599)" },
   MONTH_CLOSE_BLOCKED: { audience: "OTHERS", reason: "month-close holders" },
   MONTH_CLOSE_DEFERRED: { audience: "OTHERS", reason: "month-close holders" },

@@ -207,12 +207,36 @@ Moved verbatim from CLAUDE.md (§ Time Entry Rules).
   `scripts/audit-511-break-placement.ts` is the read-only dry run; closed months are never
   re-evaluated. A same-salon gap of any length is a counting segment when it is at least 15 min and lies inside
   the work period, and it ends a work block (#523 removed the 120-min cap of Phase 80 and with it the
-  separator-only path); § 8 JArbSchG is not checked (#524). Details: `docs/adr/0001-abweichungen.md` Eintrag X, Nachtrag Phase 511.
+  separator-only path). Details: `docs/adr/0001-abweichungen.md` Eintrag X, Nachtrag Phase 511.
+- **§ 8 JArbSchG replaces the § 3 ArbZG day and week findings for a person under 18 (Issue #524).** On a work
+  day the person is under 18 on (`isMinorAtDate`, per CHANGED day like the § 11 break regime; no birth date =
+  adult), `dayLimitWarnings()` / `checkArbZG()` emit `JARBSCHG_DAILY_MAX_EXCEEDED` (8:00, 8:30 with the Abs. 2a
+  compensation) and `JARBSCHG_WEEKLY_MAX_EXCEEDED` (40:00 per ISO week incl. the Berufsschule credit and the
+  holiday fallout of § 4 Abs. 4 S. 2) and NEVER `MAX_DAILY_EXCEEDED`, `MAX_WEEKLY_EXCEEDED` or
+  `MAX_DAILY_AVG_EXCEEDED` for that day. A warning, never a refusal (D-03); the § 9 hard block stays. The
+  arithmetic exists ONCE in `contexts/time-tracking/minor-working-time.ts` (pure leaf, shared with the roster
+  `scheduling/minor-shift-limits.ts`); the recorded week is read by `minor-week-figures.ts`
+  (`loadMinorRecordedWeek`), the holiday price is the Arbeitszeitkonto's `holidayContractSollMinutes`. Ask
+  "is the day over its maximum?" with `isDailyMaxCode(code)`, never a code literal (web: `isDailyLimitWarning`).
+  Both codes rest on the ISO week in `warningWindow()` (see the "Save responses" bullet). The day-only views
+  (`/day-breaks/preview`, `/day-breaks/checks`) have no week and judge the 8:30 ceiling.
+- **The clock STOP is never refused for a JArbSchG finding; the responsible persons get a notice (Issue #655).**
+  `runClockStopSteps()` (`contexts/time-tracking/auto-break-write.ts`) is the ONE post-STOP step every clock
+  adapter calls after the resolver closed or consolidated an entry (web clock-out and NFC in `time-entries.ts`,
+  WLAN disconnect in `presence.ts`): first the automatic break (`applyAutoBreakAfterClockStop`), then
+  `notifyMinorDayFindingsAfterClockStop()` (`minor-day-notice.ts`). For a person under 18 it evaluates the whole
+  day with the manual paths' kernels (§ 8 = the `JARBSCHG_*` findings of `checkArbZG`, § 9 = `checkJArbSchG` over
+  `otherWorkingMinutesOfDay` without `excludeEntryId`) and writes ONE `JARBSCHG_DAY_VIOLATION` per recipient,
+  person and day ever (dismissed rows count). Recipients and redaction mirror Feature 10 (holders of
+  `time-entry:update:ZUGEWIESEN` with day coverage, never the person; full text only with week coverage `all`,
+  else `buildWithheldNotice`). It is reactive (ADR 0002, Entscheidung 10): a failure is logged, never rethrown,
+  so the punch always answers 200. The § 9 sentence never asks to shorten the entry. Never call the
+  automatic-break half from an adapter again (`jarbschg-clock-notice-655.test.ts` C10 reads both adapter files).
 - **Save responses show ArbZG warnings only within the reader's reach (Issue #85, D-12).**
   `warningsVisibleToCaller()` (`contexts/time-tracking/warning-visibility.ts`) is the ONE place: `PUT`
   and `POST /time-entries`, the on-behalf clock-out and the retro approval pass their warnings
   through it. A warning stays only when every non-deleted entry of the person inside its own window
-  (day, day-1..day+1 for rest, the ISO week, 168 days for the 24-week average) is in the caller's
+  (day, day-1..day+1 for rest, the ISO week - also for the two § 8 JArbSchG codes - and 168 days for the 24-week average) is in the caller's
   `time-entry:read` reach; all withheld warnings collapse into one neutral `FINDING_WITHHELD` item.
   The person themself and a whole-tenant caller are unchanged. Accepted residuals: that a finding
   exists (notices, save responses) and the notification family stored as `type` - never a minute or

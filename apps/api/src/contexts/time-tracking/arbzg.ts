@@ -24,6 +24,16 @@ import { listDayBreaksOfDay, listAcksOfDay, loadBreaksOfEntries } from "./day-br
 import { BREAK_REGIMES, breakRegimeFor, isApprenticeWithoutBirthDate } from "./break-regime"; // Issue #511 — the thresholds the messages quote, D-05 regime
 import type { PlacementCertainty, PlacementFinding } from "./day-break-placement"; // Issue #511
 import { WITHHELD_FINDING_CODE, WITHHELD_FINDING_TEXT } from "./withheld-finding"; // Issue #85 D-07
+import {
+  MINOR_DAILY_EXTENDED_LIMIT_MINUTES,
+  MINOR_DAILY_LIMIT_MINUTES,
+  MINOR_WEEKLY_LIMIT_MINUTES,
+  minorDailyLimitMinutes,
+  minorWeekHolidayMinutes,
+  minorWeekMinutes,
+  minorWeeklyLimitExceeded,
+} from "./minor-working-time"; // Issue #524 (D-05) — the one § 8 JArbSchG arithmetic
+import { loadMinorRecordedWeek } from "./minor-week-figures"; // Issue #524
 
 // Phase 69b: in-memory equivalents of the former `findFirst({ endTime: { not: null }, orderBy })`
 // rest-period lookups. Only closed rows count; the first maximum/minimum wins on ties.
@@ -46,6 +56,8 @@ export interface ArbZGWarning {
     | "MAX_DAILY_EXCEEDED"
     | "MAX_DAILY_AVG_EXCEEDED"
     | "MAX_WEEKLY_EXCEEDED"
+    | "JARBSCHG_DAILY_MAX_EXCEEDED" // Issue #524 (D-04) — § 8 Abs. 1 und 2a JArbSchG, replaces MAX_DAILY_EXCEEDED for a minor day
+    | "JARBSCHG_WEEKLY_MAX_EXCEEDED" // Issue #524 (D-04) — § 8 Abs. 1 JArbSchG, replaces MAX_WEEKLY_EXCEEDED for a minor day
     | "MIN_REST_VIOLATED"
     | "BREAK_SEGMENT_TOO_SHORT"
     | "BREAK_TOO_LATE"
@@ -95,6 +107,14 @@ export function withheldFindingWarning(): ArbZGWarning {
   };
 }
 
+/**
+ * True for the day-sum finding of either regime: the § 3 ArbZG one and, since Issue #524, the § 8
+ * JArbSchG one. Callers that ask "is the day over its maximum?" use this, never a code literal.
+ */
+export function isDailyMaxCode(code: string): boolean {
+  return code === "MAX_DAILY_EXCEEDED" || code === "JARBSCHG_DAILY_MAX_EXCEEDED";
+}
+
 const CLARIFICATION_NOTE = "Klärung nötig: Fahrzeit oder Pause?";
 const BIRTH_DATE_MISSING_NOTE =
   "Geburtsdatum nicht hinterlegt – geprüft nach § 4 ArbZG, für Jugendliche gilt § 11 JArbSchG.";
@@ -139,11 +159,16 @@ function rangesText(finding: PlacementFinding, tz: string): string {
  * Message templates, severities and key order are the pre-80 ones. `crossSalon: true` is appended
  * on a cross-salon day (D-01/D-18). MAX_DAILY_EXCEEDED is an "error" always — an acknowledgement
  * waives only the § 4 finding, never the § 3 day sum (D-18).
+ *
+ * Issue #524 (D-01): on a day the person is under 18 on (regime JARBSCHG_11) the § 3 day sum is
+ * replaced by the § 8 JArbSchG one, JARBSCHG_DAILY_MAX_EXCEEDED. The limit is 8:30 unless the caller
+ * knows the week (`minorDailyLimitMin`: 8:00 when no other Werktag is shortened, § 8 Abs. 2a); a
+ * day-only view passes none and judges the 8:30 ceiling (D-06).
  */
 export function dayLimitWarnings(
   evaluation: DayBreakEvaluation,
   bsMinutesToday: number,
-  options?: { birthDateMissing?: boolean },
+  options?: { birthDateMissing?: boolean; minorDailyLimitMin?: number },
 ): ArbZGWarning[] {
   const warnings: ArbZGWarning[] = [];
   const { netWorkedMin, totalBreakMin, waived, crossSalon } = evaluation;
@@ -191,7 +216,19 @@ export function dayLimitWarnings(
   // § 3 ArbZG – Tägliche Höchstarbeitszeit (10h absolut, 8h nur als 24-Wochen-Schnitt relevant)
   // Phase 63 D-06: mixed-day rule — BS-Zeit + WORK-Zeit > 10h → MAX_DAILY_EXCEEDED.
   const dailyTotalMin = netWorkedMin + bsMinutesToday;
-  if (dailyTotalMin > 10 * 60) {
+  if (evaluation.placement.regime === "JARBSCHG_11") {
+    // Issue #524 (D-01): § 18 Abs. 2 ArbZG - for a minor the JArbSchG replaces the § 3 day sum.
+    const limitMin = options?.minorDailyLimitMin ?? MINOR_DAILY_EXTENDED_LIMIT_MINUTES;
+    if (dailyTotalMin > limitMin) {
+      warnings.push({
+        code: "JARBSCHG_DAILY_MAX_EXCEEDED",
+        severity: "error",
+        message: `§ 8 JArbSchG: Tägliche Höchstarbeitszeit für Jugendliche überschritten. Erfasst: ${hmText(ceilMinutes(dailyTotalMin))} Erlaubt sind ${hoursText(MINOR_DAILY_LIMIT_MINUTES)} Stunden, bis zu ${hoursText(MINOR_DAILY_EXTENDED_LIMIT_MINUTES)} Stunden nur, wenn an einem anderen Werktag derselben Woche weniger als ${hoursText(MINOR_DAILY_LIMIT_MINUTES)} Stunden gearbeitet wird.`,
+        legalBasis: "§ 8 Abs. 1 und 2a JArbSchG",
+        ...crossFlag,
+      });
+    }
+  } else if (dailyTotalMin > 10 * 60) {
     warnings.push({
       code: "MAX_DAILY_EXCEEDED",
       severity: "error",
@@ -301,7 +338,17 @@ export function placementWarnings(
  *       § 3 24-week avg (MAX_DAILY_AVG_EXCEEDED)
  *       § 5 Ruhezeit (MIN_REST_VIOLATED, BS-end = 18:00 single / 24:00 block)
  *   - NO new warning codes (D-08) — reuse existing 5 codes; ArbZG doesn't care WHY
- *     a day is over the limit.
+ *     a day is over the limit. (Issue #524 added the two § 8 JArbSchG codes below; they are not a
+ *     Berufsschule matter.)
+ *
+ * Issue #524 (D-01) — § 18 Abs. 2 ArbZG: on a day the person is under 18 on (`isMinorAtDate`, the
+ * 18th birthday is adult, no birth date is adult) the § 8 JArbSchG replaces § 3 ArbZG:
+ *   JARBSCHG_DAILY_MAX_EXCEEDED  — 8:00, 8:30 with the Abs. 2a compensation (the day's finding)
+ *   JARBSCHG_WEEKLY_MAX_EXCEEDED — 40:00 per ISO week incl. the Berufsschule credit and the working
+ *                                  time that falls out on a holiday (§ 4 Abs. 4 S. 2)
+ * and neither MAX_DAILY_EXCEEDED, MAX_WEEKLY_EXCEEDED nor MAX_DAILY_AVG_EXCEEDED is produced for
+ * that day. Like § 3 these are warnings, never a refusal (D-03). The arithmetic is
+ * `minor-working-time.ts`; § 5 is untouched.
  *   - All Absence queries include `deletedAt: null` per CLAUDE.md soft-delete rule.
  */
 export async function checkArbZG(
@@ -318,6 +365,8 @@ export async function checkArbZG(
       tenantId: true,
       isTimeTrackingExempt: true, // Phase 76.7 (D-05, ARBZG-V19-01)
       birthDate: true, // Issue #511 (D-05) — decides the § 11 JArbSchG break regime
+      hireDate: true, // Issue #524 — the employment window of the § 8 week
+      exitDate: true, // Issue #524
       classification: true, // Issue #511 (D-05) — only an apprentice's missing birth date is noted
       workSchedules: {
         orderBy: { validFrom: "desc" },
@@ -362,6 +411,7 @@ export async function checkArbZG(
       bsSlotSecondLongDayMinutes: true,
       bsSlotShortDayMinutes: true,
       bsSlotBlockWeekMinutes: true,
+      defaultWorkDays: true, // Issue #524 — prices the holiday fallout of a minor's week
     },
   });
   const bsDailyMin = tenantConfig?.vocationalSchoolMinutesPerDay ?? BS_DAILY_DEFAULT_MIN;
@@ -387,6 +437,26 @@ export async function checkArbZG(
         scheduleType,
       })
     : 0;
+
+  // Issue #524 (D-01): § 18 Abs. 2 ArbZG - the JArbSchG replaces the ArbZG on a day the person is
+  // under 18 on. The regime follows the CHANGED day (like the § 11 break regime below); the week
+  // figures are read once and feed the § 8 day limit (Abs. 2a depends on the whole week) and the
+  // § 8 week sum.
+  const minorToday = isMinorAtDate(employee.birthDate, new Date(dateStr));
+  const minorWeek = minorToday
+    ? await loadMinorRecordedWeek(prisma, {
+        tenantId: employee.tenantId,
+        employee: {
+          id: employeeId,
+          birthDate: employee.birthDate,
+          hireDate: employee.hireDate,
+          exitDate: employee.exitDate,
+        },
+        dayIso: dateStr,
+        tz,
+        tenantConfig,
+      })
+    : null;
 
   // ── 1. Tagessicht: alle abgeschlossenen Slots des Tages ────────────────────
   // Phase 69b: read through findEntriesOfDay (the former one-day window on the DATE column equals
@@ -451,7 +521,14 @@ export async function checkArbZG(
         regime,
       });
     }
-    warnings.push(...dayLimitWarnings(evaluation, bsMinutesToday, { birthDateMissing }));
+    warnings.push(
+      ...dayLimitWarnings(evaluation, bsMinutesToday, {
+        birthDateMissing,
+        ...(minorWeek
+          ? { minorDailyLimitMin: minorDailyLimitMinutes(minorWeek.days, minorWeek.dayIndex) }
+          : {}),
+      }),
+    );
     // Issue #511 (D-10): the Satz-2/3 findings, appended after the Phase-80 ones.
     warnings.push(...placementWarnings(evaluation, { tz, birthDateMissing }));
 
@@ -552,6 +629,27 @@ export async function checkArbZG(
         });
       }
     }
+  }
+
+  // ── 2a. Wochensicht eines Jugendlichen: § 8 Abs. 1 JArbSchG – max. 40h / Woche ─────────────
+  // Issue #524 (D-01): on a minor day neither the § 3 weekly cap nor the 24-week average applies
+  // (§ 18 Abs. 2 ArbZG); the § 5 findings above stay as they are. Both sections below are the last
+  // thing this function does, so the minor branch ends here.
+  if (minorWeek) {
+    if (minorWeeklyLimitExceeded(minorWeek.days)) {
+      const holidayMin = minorWeekHolidayMinutes(minorWeek.days);
+      const holidayNote =
+        holidayMin > 0
+          ? ` Darin sind ${hmText(ceilMinutes(holidayMin))} eingerechnet, die an einem Feiertag ausfallen (§ 4 Abs. 4 Satz 2 JArbSchG).`
+          : "";
+      warnings.push({
+        code: "JARBSCHG_WEEKLY_MAX_EXCEEDED",
+        severity: "error",
+        message: `§ 8 JArbSchG: Wöchentliche Höchstarbeitszeit für Jugendliche von ${hoursText(MINOR_WEEKLY_LIMIT_MINUTES)} Stunden überschritten. Diese Woche: ${hmText(ceilMinutes(minorWeekMinutes(minorWeek.days)))}${holidayNote}`,
+        legalBasis: "§ 8 Abs. 1 JArbSchG",
+      });
+    }
+    return warnings;
   }
 
   // ── 2. Wochensicht: § 3 ArbZG – max. 48h / Woche ─────────────────────────

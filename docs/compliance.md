@@ -38,7 +38,7 @@ Eine Pause ist die Summe aus:
 
 ### Auto-Break (opt-in pro Tenant)
 
-Wenn `TenantConfig.autoBreakEnabled = true` und beim Clock-out (oder beim manuellen Anlegen) **keine Pause eingetragen** wurde, setzt Clokr automatisch. Das gilt für jeden Stempel-Auslöser gleich (Web, NFC-Terminal, WLAN-Präsenz; seit Issue #799 über einen gemeinsamen Schritt nach dem Ausstempeln, `applyAutoBreakAfterClockStop`); ein wiedereröffneter Eintrag mit Lücken-Pause bekommt keine zusätzliche:
+Wenn `TenantConfig.autoBreakEnabled = true` und beim Clock-out (oder beim manuellen Anlegen) **keine Pause eingetragen** wurde, setzt Clokr automatisch. Das gilt für jeden Stempel-Auslöser gleich (Web, NFC-Terminal, WLAN-Präsenz; seit Issue #799 über einen gemeinsamen Schritt nach dem Ausstempeln, `runClockStopSteps` — erst die automatische Pause, seit Issue #655 danach der Hinweis zum Jugendarbeitsschutz); ein wiedereröffneter Eintrag mit Lücken-Pause bekommt keine zusätzliche:
 
 - `30min` bei >6h Arbeit
 - `45min` bei >9h Arbeit
@@ -59,7 +59,7 @@ Sobald MA bereits eine Pause eingegeben hat (z.B. nur 15min), greift Auto-Break 
 - **„Im Voraus feststehend“ (§ 4 Satz 1):** Die Pausen müssen im Voraus feststehen. Das lässt sich aus Zeitstempeln nicht prüfen; ein erfasstes, abgeschlossenes Pausensegment gilt als Ruhepause.
 - **Ältere Einträge ohne Pausenlage:** Nur als Summe gespeicherte Pausen erzeugen den Hinweis `BREAK_POSITION_UNKNOWN`, nie einen Verstoß. Vor dem Einschalten von `blockMonthCloseOnUnconfirmedBreak` den Probelauf `audit-511-break-placement.ts` lesen.
 - **Fahrzeit zwischen Salons:** wird seit Issue #92 als eigener Eintrag erfasst (Abschnitt „Fahrzeit zwischen Salons“). Eine Lücke zwischen zwei Salons, für die keine Fahrzeit erfasst ist, bleibt die Grenzfall-Rechnung (`UNCLEAR`); das System erkennt eine Fahrt nicht selbst.
-- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) nicht geprüft (Issue #524); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“), seit Issue #1076 auch nach §§ 13–17 (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“) und seit Issue #1106 auch nach § 18 (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
+- **Jugendliche:** Auf der Erfassungsseite (Zeiteinträge) wird § 8 JArbSchG (Tages- und Wochenhöchstzeit) seit Issue #524 anstelle von § 3 ArbZG geprüft (Abschnitt „§ 8 JArbSchG — Zeiterfassung“); der Dienstplan wird seit Issue #1057 geprüft (Abschnitt „§ 8 / § 12 JArbSchG — Schichtplanung“), seit Issue #1076 auch nach §§ 13–17 (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“) und seit Issue #1106 auch nach § 18 (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“). Fehlt das Geburtsdatum, gilt § 4 ArbZG; bei Auszubildenden weist der Befund darauf hin.
 - **Geschlossene Monate** werden nie neu bewertet.
 - **Tätigkeitsart (#81):** Die Tätigkeitsart ändert keine Arbeitszeit-, Pausen- oder Ruhezeitprüfung. Ein Fahrzeiteintrag (#92) zählt wie jeder Eintrag voll als Arbeitszeit; die Art „Fahrzeit“ selbst verändert auch hier keine Prüfung.
 - **Rechtsgrund im Befund:** Der Verweis auf § 11 JArbSchG im Befundtext lässt auf Minderjährigkeit schließen; Geburtsdatum und Alter werden nie ausgegeben.
@@ -125,12 +125,54 @@ Der erste Phorest-Lauf nach dem Release kann für eine Woche mit Feiertag einmal
 - **§ 8 Abs. 2 JArbSchG (Brückentage, Fünf-Wochen-Schnitt)** ist nicht abgebildet; die Wochenprüfung blockiert eine solche Gestaltung (selten, bewusst konservativ).
 - **Phorest-Import:** wird gemeldet, nicht abgelehnt (Issue #1074, siehe „Phorest-Import“ oben).
 - **§§ 13–17 JArbSchG** (Freizeit, Nachtruhe, Fünf-Tage-Woche, Samstags- und Sonntagsruhe) prüft der Dienstplan seit Issue #1076, die Phorest-Meldung mit derselben Prüfung (Abschnitt „§§ 13–17 JArbSchG — Schichtplanung“); **§ 18** (Feiertagsruhe) seit Issue #1106 (Abschnitt „§ 18 JArbSchG — Feiertagsruhe, Schichtplanung“).
-- **Zeiterfassung:** erfasste Zeiten werden nicht nach § 8 JArbSchG geprüft (Issue #524).
+- **Zeiterfassung:** erfasste Zeiten prüft seit Issue #524 der Abschnitt „§ 8 JArbSchG — Zeiterfassung“ mit derselben Rechenregel.
 - Alle Schreibwege sind in `apps/api/src/__tests__/shift-write-paths-1057.test.ts` nach Aufrufmuster mit Urteil erfasst.
 
 ### Datenschutz
 
 Das Geburtsdatum verlässt den Server nie: weder Antwort noch Überspringen-Eintrag enthalten es. Dasselbe gilt für die Phorest-Meldung (Issue #1074): Benachrichtigung, E-Mail-Betreff („Hinweis zur Schichtplanung“) und Push-Text enthalten weder Geburtsdatum noch Alter. Der Verweis auf § 8, § 12, §§ 13–17 oder § 18 JArbSchG in der Meldung lässt auf Minderjährigkeit schließen (dieselbe hingenommene Offenlegung wie beim Pausenbefund, „Rechtsgrund im Befund“).
+
+## § 8 JArbSchG — Zeiterfassung (Issue #524)
+
+Für eine Person, die am Arbeitstag unter 18 ist, tritt das JArbSchG an die Stelle des ArbZG (§ 18 Abs. 2 ArbZG). Auf der Erfassungsseite heißt das: Dieselben Schreibwege, die für Erwachsene die Tages- und Wochenbefunde nach § 3 ArbZG liefern, liefern für Jugendliche die Befunde nach § 8 JArbSchG. Die Rechenregel steht **einmal**, in `apps/api/src/contexts/time-tracking/minor-working-time.ts`; der Dienstplan (Issue #1057) ruft dieselben Funktionen auf, damit Planung und Erfassung nicht auseinanderlaufen.
+
+### Geltung
+
+- „Unter 18“ wird **je Arbeitstag** entschieden (`isMinorAtDate`); der 18. Geburtstag selbst zählt schon als volljährig. Der Befund folgt dem geänderten Tag, wie bei der Pausenregel nach § 11 JArbSchG. Fehlt das Geburtsdatum, gilt die Person als volljährig: Verhalten und Text unverändert.
+- Für einen Jugendlichen-Tag entfallen die Befunde `MAX_DAILY_EXCEEDED`, `MAX_WEEKLY_EXCEEDED` und `MAX_DAILY_AVG_EXCEEDED`. § 5 ArbZG (Ruhezeit) bleibt unverändert; § 13 JArbSchG (12 Stunden Freizeit) ist auf der Erfassungsseite nicht abgebildet.
+
+### Regeln
+
+Arbeitszeit ist die erfasste Arbeitszeit aller abgeschlossenen Arbeitseinträge des Tages in allen Salons (nach Pause) plus die Berufsschulzeit eines Berufsschultags (§ 9 Abs. 2 JArbSchG, Anrechnung des Arbeitszeitkontos). Die Woche läuft Montag bis Sonntag; es zählen nur Tage, an denen die Person unter 18 ist, und die Arbeitszeit, die an einem Werktags-Feiertag am Arbeitsort ausfällt (§ 4 Abs. 4 Satz 2 JArbSchG, dieselbe Bewertung wie im Dienstplan, Issue #1077).
+
+| Code                           | Grenze                                                                                                               | Rechtsgrund                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `JARBSCHG_DAILY_MAX_EXCEEDED`  | Tag höchstens 8 Stunden, bis 8,5 Stunden, wenn ein anderer Werktag (Mo–Sa) derselben Woche weniger als 8 Stunden hat | § 8 Abs. 1 und 2a JArbSchG                  |
+| `JARBSCHG_WEEKLY_MAX_EXCEEDED` | Woche höchstens 40 Stunden, Berufsschulzeit und Feiertagsausfall eingerechnet                                        | § 8 Abs. 1, § 4 Abs. 4, § 9 Abs. 2 JArbSchG |
+
+Beide Befunde sind Fehler-Hinweise (`severity: "error"`) mit `legalBasis`. Lesart zu § 8 Abs. 2a wie im Dienstplan: Ein Werktag ohne Arbeit zählt als verkürzt. § 8 Abs. 2 (Brückentage, Fünf-Wochen-Schnitt) und Abs. 3 (Landwirtschaft) sind nicht abgebildet.
+
+### Warnung, keine Sperre
+
+Wie § 3 ArbZG blockiert der Befund das Speichern nicht (POST, PUT, Genehmigung eines Zeitnachtrags, Ausstempeln am Web): Eine Erfassung hält fest, was gearbeitet wurde (BAG 13.09.2022 – 1 ABR 22/21; § 16 Abs. 2 ArbZG). Sie zu verweigern würde die Aufzeichnung verfälschen und den Verstoß verbergen. Die bestehende harte Sperre am Berufsschultag nach § 9 JArbSchG (400 `JARBSCHG_MINOR_LIMIT`) bleibt unverändert.
+
+### Tagesansichten ohne Woche
+
+Die Tagesprüfung (`POST /api/v1/day-breaks/preview`, `GET /api/v1/day-breaks/checks`) kennt keine Woche und beurteilt für einen Jugendlichen die Obergrenze von 8,5 Stunden (§ 8 Abs. 2a): Mehr ist in keiner Woche zulässig. Die engere Grenze von 8 Stunden gilt nur, wenn alle anderen Werktage mindestens 8 Stunden haben, die Woche also ohnehin über 40 Stunden liegt; das nennt die Antwort des Speicherns.
+
+### Sichtbarkeit
+
+Beide Befunde ruhen auf der ISO-Woche (`warningWindow`). Wer nicht jeden Eintrag der Woche lesen darf, bekommt statt des Befunds den neutralen Hinweis `FINDING_WITHHELD` (Issue #85).
+
+### Stempeln und Jugendarbeitsschutz (Issue #655)
+
+Stempeln (Web, NFC-Terminal, WLAN) wird für einen Jugendlichen **nie verhindert oder verzögert**: Die Arbeitszeit muss so erfasst werden, wie sie anfällt, und ein abgelehntes Ausstempeln ließe den Eintrag offen oder falsch. Verantwortlich für die Einhaltung ist der Arbeitgeber (§ 58 Abs. 1 Nr. 5 und 6 JArbSchG: Beschäftigung über § 8 hinaus und entgegen § 9 Abs. 1 ist eine Ordnungswidrigkeit, auch fahrlässig). Der Befund geht deshalb sofort an die Verantwortlichen, als Hinweis, nicht als Sperre.
+
+- **Prüfung:** Nach jedem Ausstempeln (`CLOCKED_OUT` und `CONSOLIDATED`) prüft der gemeinsame Schritt `runClockStopSteps` bei einer Person unter 18 den ganzen Tag, nach der automatischen Pause: § 8 über Tag und Woche mit `checkArbZG` (die `JARBSCHG_*`-Befunde oben), § 9 Abs. 1 Satz 2 Nr. 2 mit `checkJArbSchG` über die Summe aller Einträge des Tages (wie seit Issue #70). Ein Erwachsener oder eine Person ohne Geburtsdatum löst nichts aus.
+- **Empfänger:** wer `time-entry:update` mit Reichweite `ZUGEWIESEN` hält und mindestens einen Eintrag des Tages in der Reichweite hat; nie die Person selbst. Den vollständigen Text bekommt nur, wer alle Einträge der Woche (bei einem reinen § 9-Befund: des Tages) sehen darf, alle anderen den neutralen Prüfhinweis ohne Zahl und Rechtsgrund.
+- **Meldung:** Benachrichtigungstyp `JARBSCHG_DAY_VIOLATION`, Titel „Hinweis Jugendarbeitsschutz“, höchstens eine je Empfänger, Person und Tag (auch eine verworfene zählt); E-Mail über denselben Schalter wie die Pausenbefunde (`emailOnMissingEntries`), Push mit neutralem Text. Der Text fordert nie dazu auf, den Eintrag zu kürzen: Die erfasste Zeit ist die richtige.
+- **Ausfall:** Schlägt die Benachrichtigung fehl, wird das protokolliert; das Ausstempeln gelingt trotzdem (nachgelagert, ADR 0002 Entscheidung 10).
+- **Antwort im Web:** Beim Ausstempeln im Web enthält die Antwort für Jugendliche zusätzlich den § 8-Befund (wie für Erwachsene § 3); § 9 kommt auf den Stempelwegen als Benachrichtigung.
 
 ## §§ 13–17 JArbSchG — Schichtplanung (Issue #1076)
 

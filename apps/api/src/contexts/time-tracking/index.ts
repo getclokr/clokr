@@ -152,3 +152,21 @@ export type { EntryDurationInput, EntryDurations } from "./entry-durations";
 export { activityMinutes } from "./activity-minutes";
 export type { ActivityMinutes, ActivityShareInput } from "./activity-minutes";
 export { ACTIVITY_KIND_LABEL } from "./activity-kind";
+
+// ── Issue #524 (D-05) — the one § 8 JArbSchG arithmetic, shared with the roster ────────────────
+// A pure leaf: the day limit (8:00, 8:30 with the Abs. 2a compensation), the 40:00 week and the
+// holiday fallout of § 4 Abs. 4 S. 2. The roster check (Schichtplanung, #1057) and the recording
+// check (arbzg.ts) both call it, so planning and recording cannot drift.
+export {
+  MINOR_DAILY_LIMIT_MINUTES,
+  MINOR_DAILY_EXTENDED_LIMIT_MINUTES,
+  MINOR_WEEKLY_LIMIT_MINUTES,
+  hasShortenedOtherWerktag,
+  minorDailyLimitMinutes,
+  minorDailyLimitExceeded,
+  minorWeekMinutes,
+  minorWeekHolidayMinutes,
+  minorWeeklyLimitExceeded,
+  holidayFalloutMinutes,
+} from "./minor-working-time";
+export type { MinorWorkDay } from "./minor-working-time";

@@ -224,6 +224,20 @@ export function dayChecksToArbzgMap(days: DayCheck[]): Map<string, DayWarning[]>
   return map;
 }
 
+/**
+ * The day-sum finding codes: the § 3 ArbZG one and, for a day the person is under 18 on, the § 8
+ * JArbSchG one that replaces it (Issue #524).
+ */
+export const DAILY_LIMIT_WARNING_CODES: ReadonlySet<string> = new Set([
+  "MAX_DAILY_EXCEEDED",
+  "JARBSCHG_DAILY_MAX_EXCEEDED",
+]);
+
+/** Whether a warning is the day-sum finding of either regime (§ 3 ArbZG or § 8 JArbSchG, Issue #524). */
+export function isDailyLimitWarning(w: { code: string }): boolean {
+  return DAILY_LIMIT_WARNING_CODES.has(w.code);
+}
+
 /** The Satz-2/3 finding codes (§ 4 ArbZG / § 11 JArbSchG) a save response can return. */
 const PLACEMENT_CODES = new Set([
   "BREAK_SEGMENT_TOO_SHORT",
