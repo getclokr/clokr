@@ -207,8 +207,13 @@ Current: recalculated from hire date on every request (does not scale). Target a
   `usualWorkDays` Angabe and 0 on any other day; with an empty Angabe the vacation contract-week
   distribution applies (`leaveDaysPerWeek`). A planned shift keeps its netto, a half day halves either
   value, and a week never relieves more than its contract Soll (`capToWeekContractRoom`). Decided only
-  in `closeEmployeeMonth` (the live callers pass the month's shifts); `sbClaimed` and the Berufsschule
-  priority are unchanged. Closed months keep their figures;
+  by `shiftBasedLeaveRelief()` in `close-employee-month.ts`: `closeEmployeeMonth` calls it (the live
+  callers pass the month's shifts), and since #1142 the roster Planungs-Soll (`GET /shifts/week`)
+  prices every effective leave row on a SHIFT_BASED day through it via the facade, per calendar-month
+  piece of the displayed week, with the person's shifts of every salon
+  (`scheduling/roster-leave-soll.ts`); display only, never stored, pinned by
+  `shift-week-shift-based-leave-1142.test.ts`. `sbClaimed` and the Berufsschule priority are
+  unchanged. Closed months keep their figures;
   `scripts/audit-1136-shift-sick-without-roster.ts` lists them read-only, corrections only via #599.
 
 ## Overtime Saldo Calculation (current)

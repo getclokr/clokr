@@ -138,6 +138,14 @@ export { monthlyHoursMonthSollMinutes } from "./close-employee-month";
 // Issue #1089 — the ONE Berufsschule priority rule of #1080, a pure function with no Prisma; the
 // roster Planungs-Soll (GET /shifts/week) reads it here instead of restating it.
 export { bsDayPriority } from "./close-employee-month";
+// Issue #1142 - pure functions, no Prisma: the roster Planungs-Soll reads the saldo core's
+// SHIFT_BASED leave relief here instead of restating the #429 / #1136 rule.
+export {
+  shiftBasedLeaveRelief,
+  rosterPlannedNettoByDate,
+  toCloseMonthApprovedLeave,
+} from "./close-employee-month";
+export type { BsDayPriority, ShiftBasedLeaveRelief } from "./close-employee-month";
 export { fetchCloseMonthData } from "./close-month-data";
 // Phase 101B plan 04 moved these here out of time-tracking/api/time-entries.ts (Arbeitszeitkonto
 // subject matter in a Zeiterfassung route file — owner Nebenbefund, measured cycle-neutral).
