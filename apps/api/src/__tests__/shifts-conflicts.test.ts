@@ -8,6 +8,7 @@
 //     and writes a SHIFT_RESTORED AuditLog entry
 //   - Restore on a shift whose month is locked (SaldoSnapshot) returns 422
 //   - Every shift item tells `pastDay` with the restore gate's own rule (Issue #1100)
+//   - Every shift item tells `monthLocked` with the restore handler's own predicate (Issue #1145)
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import bcrypt from "bcryptjs";
@@ -410,6 +411,7 @@ describe("Shift Conflicts API (Phase 67.2 Plan 05)", () => {
         deletedAt: s.deletedAt ? s.deletedAt.toISOString() : null,
         // Issue #1100 — the one additive field; the fixture day (2033) is after the tenant's today.
         pastDay: false,
+        monthLocked: false,
       });
       const legacySoft = await app.prisma.shift.findMany({
         where: {
@@ -681,5 +683,97 @@ describe("Shift Conflicts API (Phase 67.2 Plan 05)", () => {
       where: { id: markedYesterday.id },
     });
     expect(keptAfter.conflictsWithLeave).toBe(false);
+  });
+
+  it("every shift item tells whether its month is closed, and restore and keep agree (Issue #1145)", async () => {
+    // A closed June 2033 (future, so pastDay stays false and only the month lock is in play) and an
+    // open July 2033. periodStart/End via the real monthRangeUtc conversion (Issue #241).
+    const closedDay = new Date(Date.UTC(2033, 5, 15));
+    const openDay = new Date(Date.UTC(2033, 6, 15));
+    const { start, end } = saldoSnapshotPeriodBounds(closedDay);
+    await app.prisma.saldoSnapshot.create({
+      data: {
+        employeeId: data.employee.id,
+        periodType: "MONTHLY",
+        periodStart: start,
+        periodEnd: end,
+        workedMinutes: 0,
+        expectedMinutes: 0,
+        balanceMinutes: 0,
+        carryOver: 0,
+        closedAt: new Date(),
+      },
+    });
+    const base = {
+      employeeId: data.employee.id,
+      salonId: data.salonId,
+      startTime: "08:00",
+      endTime: "16:00",
+    };
+    const removal = { deletedAt: new Date(), deletedReason: "AUTO_BS_DAY_CLEANUP" };
+    const goneClosed = await app.prisma.shift.create({
+      data: { ...base, date: closedDay, ...removal },
+    });
+    const markedClosed = await app.prisma.shift.create({
+      data: { ...base, date: closedDay, conflictsWithLeave: true },
+    });
+    const goneOpen = await app.prisma.shift.create({
+      data: { ...base, date: openDay, ...removal },
+    });
+    const markedOpen = await app.prisma.shift.create({
+      data: { ...base, date: openDay, conflictsWithLeave: true },
+    });
+    const headers = { authorization: `Bearer ${data.adminToken}` };
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/api/v1/shifts/conflicts?from=2033-06-01&to=2033-07-31`,
+      headers,
+    });
+    expect(list.statusCode).toBe(200);
+    const body = JSON.parse(list.body) as {
+      softDeleted: { id: string; monthLocked: boolean; pastDay: boolean }[];
+      flagged: { id: string; monthLocked: boolean; pastDay: boolean }[];
+    };
+    const find = (rows: { id: string; monthLocked: boolean; pastDay: boolean }[], id: string) =>
+      rows.find((x) => x.id === id)!;
+    expect(find(body.softDeleted, goneClosed.id).monthLocked).toBe(true);
+    expect(find(body.flagged, markedClosed.id).monthLocked).toBe(true);
+    expect(find(body.softDeleted, goneOpen.id).monthLocked).toBe(false);
+    expect(find(body.flagged, markedOpen.id).monthLocked).toBe(false);
+    expect(find(body.flagged, markedClosed.id).pastDay).toBe(false);
+
+    // The handler agrees: "Schicht behalten" in the closed month is refused and changes nothing.
+    const refused = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${markedClosed.id}/restore`,
+      headers,
+      payload: {},
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(JSON.parse(refused.body).code).toBe("SHIFT_LOCKED_MONTH");
+    const stillMarked = await app.prisma.shift.findUniqueOrThrow({
+      where: { id: markedClosed.id },
+    });
+    expect(stillMarked.conflictsWithLeave).toBe(true);
+
+    // ... and so is un-removing a shift there.
+    const refusedRestore = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${goneClosed.id}/restore`,
+      headers,
+      payload: {},
+    });
+    expect(refusedRestore.statusCode, refusedRestore.body).toBe(422);
+    expect(JSON.parse(refusedRestore.body).code).toBe("SHIFT_LOCKED_MONTH");
+
+    // The open month stays workable.
+    const kept = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${markedOpen.id}/restore`,
+      headers,
+      payload: {},
+    });
+    expect(kept.statusCode, kept.body).toBe(200);
   });
 });
