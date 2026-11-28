@@ -446,6 +446,31 @@ describe("Issue #80 — cross-salon § 4 violation in the month close", () => {
       expect((await statusRow(empId)).breakFindingDays).toEqual([]);
     });
 
+    // Issue #522: the row says whether the close is certain to be refused for a break reason, so
+    // the confirmation dialog never has to derive the rule from the flag and the lists itself.
+    it("flags breakBlocksClose when the tenant blocks and a finding day exists (#522)", async () => {
+      await setFlags({ blockMonthCloseOnUnconfirmedBreak: true, enforceBreakConfirmation: false });
+      const empId = await createEmployee("st-blocks");
+      twoSalonDay(empId);
+      const row = (await statusRow(empId)) as StatusRow & { breakBlocksClose?: boolean };
+      expect(row.breakBlocksClose).toBe(true);
+    });
+
+    it("does not flag breakBlocksClose without a finding day or with the block flag off (#522)", async () => {
+      await setFlags({ blockMonthCloseOnUnconfirmedBreak: true, enforceBreakConfirmation: false });
+      const clean = await createEmployee("st-blocks-clean");
+      expect(
+        ((await statusRow(clean)) as StatusRow & { breakBlocksClose?: boolean }).breakBlocksClose,
+      ).toBe(false);
+
+      await setFlags({ blockMonthCloseOnUnconfirmedBreak: false, enforceBreakConfirmation: false });
+      const flagOff = await createEmployee("st-blocks-off");
+      twoSalonDay(flagOff);
+      const row = (await statusRow(flagOff)) as StatusRow & { breakBlocksClose?: boolean };
+      expect(row.breakFindingDays).toEqual([VIOLATION_DAY]);
+      expect(row.breakBlocksClose).toBe(false);
+    });
+
     it("is shown regardless of the block flag and of enforceBreakConfirmation (OQ-3)", async () => {
       await setFlags({ blockMonthCloseOnUnconfirmedBreak: false, enforceBreakConfirmation: false });
       const empId = await createEmployee("st-flagoff");

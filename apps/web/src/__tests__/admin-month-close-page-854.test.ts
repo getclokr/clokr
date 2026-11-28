@@ -464,6 +464,108 @@ describe("Monatsabschluss page (#854)", () => {
       expect(success).not.toHaveBeenCalled();
     });
 
+    // Issue #522: a close that is certain to be refused is named in the dialog, with the days.
+    describe("a break reason that blocks the close (#522)", () => {
+      const dora = {
+        employeeId: "e-dora",
+        employeeName: "Dora Pause",
+        employeeNumber: "4",
+        status: "ready",
+        missingDates: [],
+        breakFindingDays: ["2026-03-10", "2026-03-12"],
+        breakFindingDayCount: 2,
+        unconfirmedBreakDays: [],
+        unconfirmedBreakDayCount: 0,
+        breakBlocksClose: true,
+      };
+
+      async function openDialogOf(personId: string) {
+        const section = await openMarch();
+        const row = within(section).getByTestId(`month-close-person-${personId}`);
+        await fireEvent.click(within(row).getByRole("button", { name: "Abschließen" }));
+        return screen.findByRole("dialog");
+      }
+
+      it("names the reason, links each day and disables the close", async () => {
+        asCloser([...CLOSER, "time-entry:read:ZUGEWIESEN"]);
+        detail = [dora];
+        renderWithTheme(Page, {});
+        const dialog = await openDialogOf("e-dora");
+
+        const block = within(dialog).getByTestId("month-close-break-block");
+        expect(block.getAttribute("role")).toBe("alert");
+        expect(block.textContent).toContain("2 Tage mit offenem Pausenverstoß");
+        const links = within(within(dialog).getByTestId("month-close-break-days")).getAllByRole(
+          "link",
+        );
+        expect(links.map((a) => a.getAttribute("href"))).toEqual([
+          "/team/zeiten?employeeId=e-dora&date=2026-03-10",
+          "/team/zeiten?employeeId=e-dora&date=2026-03-12",
+        ]);
+        const confirm = within(dialog).getByTestId("month-close-confirm") as HTMLButtonElement;
+        expect(confirm.disabled).toBe(true);
+        await fireEvent.click(confirm);
+        expect(post).not.toHaveBeenCalled();
+      });
+
+      it("negative control: the same days without the server's verdict name nothing and close", async () => {
+        detail = [{ ...dora, breakBlocksClose: false }];
+        renderWithTheme(Page, {});
+        const dialog = await openDialogOf("e-dora");
+        expect(within(dialog).queryByTestId("month-close-break-block")).toBeNull();
+        expect(
+          (within(dialog).getByTestId("month-close-confirm") as HTMLButtonElement).disabled,
+        ).toBe(false);
+      });
+
+      it("prints the count without links for a reader who may not see the days", async () => {
+        detail = [{ ...dora, breakFindingDays: [], dayDetailsWithheld: true }];
+        renderWithTheme(Page, {});
+        const dialog = await openDialogOf("e-dora");
+        expect(within(dialog).getByTestId("month-close-break-block").textContent).toContain(
+          "2 Tage mit offenem Pausenverstoß",
+        );
+        expect(within(dialog).queryByTestId("month-close-break-days")).toBeNull();
+        expect(
+          (within(dialog).getByTestId("month-close-confirm") as HTMLButtonElement).disabled,
+        ).toBe(true);
+      });
+
+      it("says how many persons a whole-month close will refuse and still closes the rest", async () => {
+        detail = [dora, ben];
+        renderWithTheme(Page, {});
+        const monthRow = await screen.findByTestId("month-close-row-2");
+        await fireEvent.click(within(monthRow).getByTestId("month-close-row-2-trigger"));
+        const dialog = await screen.findByRole("dialog");
+        expect(within(dialog).getByTestId("month-close-break-block").textContent).toContain(
+          "Bei 1 Person ist eine Pause offen",
+        );
+        expect(
+          (within(dialog).getByTestId("month-close-confirm") as HTMLButtonElement).disabled,
+        ).toBe(false);
+      });
+    });
+
+    it("shows a refused close as an alert at the top of the dialog, above the long text (#522)", async () => {
+      post.mockRejectedValue(
+        Object.assign(new Error("x"), { data: { error: "Monat ist gesperrt." } }),
+      );
+      renderWithTheme(Page, {});
+      const section = await openMarch();
+      const annaRow = within(section).getByTestId("month-close-person-e-anna");
+      await fireEvent.click(within(annaRow).getByRole("button", { name: "Abschließen" }));
+      const dialog = await screen.findByRole("dialog");
+      await fireEvent.click(within(dialog).getByTestId("month-close-gap-ack"));
+      await fireEvent.click(within(dialog).getByTestId("month-close-confirm"));
+
+      const alert = await within(dialog).findByTestId("month-close-error");
+      expect(alert.getAttribute("role")).toBe("alert");
+      expect(alert.textContent).toContain("Monat ist gesperrt.");
+      // It precedes the gap list and the warnings, so it is in view without scrolling.
+      const gaps = within(dialog).getByTestId("month-close-gap-warning");
+      expect(alert.compareDocumentPosition(gaps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it("closes a whole month person by person, loading their status first and honouring the ack", async () => {
       renderWithTheme(Page, {});
       // Februar is the first month still open: its row carries the close button.
@@ -516,6 +618,10 @@ describe("Monatsabschluss page (#854)", () => {
       post.mockRejectedValueOnce(new Error("Dieser Monat ist nicht gesperrt."));
       await fireEvent.click(confirm);
       await within(dialog).findByText("Dieser Monat ist nicht gesperrt.");
+      // Announced to assistive technology, inside the open dialog, not at the top of the page (#522).
+      expect(within(dialog).getByRole("alert").textContent).toContain(
+        "Dieser Monat ist nicht gesperrt.",
+      );
       expect(screen.getByRole("dialog")).toBeTruthy();
 
       await fireEvent.click(confirm);

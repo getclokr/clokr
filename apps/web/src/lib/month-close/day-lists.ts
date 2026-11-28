@@ -25,6 +25,9 @@ export interface DayListRow {
   karenzOverrunDayCount?: number;
   breakFindingDays?: string[];
   breakFindingDayCount?: number;
+  unconfirmedBreakDays?: string[];
+  unconfirmedBreakDayCount?: number;
+  breakBlocksClose?: boolean;
 }
 
 /** "2026-09-05" -> "05.09."; the list is comma separated. */
@@ -92,6 +95,58 @@ export function breakFindingCountOf(row: DayListRow): number {
   const fromServer = countField(row.breakFindingDayCount);
   if (fromServer !== null) return fromServer;
   return row.dayDetailsWithheld ? 0 : (row.breakFindingDays ?? []).length;
+}
+
+/** Unconfirmed-Pflichtpause day count (server count field first). */
+export function unconfirmedBreakCountOf(row: DayListRow): number {
+  const fromServer = countField(row.unconfirmedBreakDayCount);
+  if (fromServer !== null) return fromServer;
+  return row.dayDetailsWithheld ? 0 : (row.unconfirmedBreakDays ?? []).length;
+}
+
+/**
+ * Issue #522: why a person's close is certain to fail for a break reason. `blocked` is the
+ * server's verdict (`breakBlocksClose`) and nothing else - this reads the flag and the counts the
+ * API delivers and decides no rule. The dates are empty for a withheld reader (counts remain).
+ */
+export interface BreakBlock {
+  blocked: boolean;
+  findingCount: number;
+  unconfirmedCount: number;
+  /** Open-finding days then unconfirmed days, each once, ascending. */
+  days: string[];
+}
+
+export function breakBlockOf(row: DayListRow): BreakBlock {
+  const days = row.dayDetailsWithheld
+    ? []
+    : [...new Set([...(row.breakFindingDays ?? []), ...(row.unconfirmedBreakDays ?? [])])].sort();
+  return {
+    blocked: row.breakBlocksClose === true,
+    findingCount: breakFindingCountOf(row),
+    unconfirmedCount: unconfirmedBreakCountOf(row),
+    days,
+  };
+}
+
+/** German sentence naming the break reason (counts from the server, never from a list length). */
+export function breakBlockText(block: BreakBlock): string {
+  const parts: string[] = [];
+  if (block.findingCount > 0) {
+    parts.push(
+      block.findingCount === 1
+        ? "1 Tag mit offenem Pausenverstoß (§ 4 ArbZG / § 11 JArbSchG)"
+        : `${block.findingCount} Tage mit offenem Pausenverstoß (§ 4 ArbZG / § 11 JArbSchG)`,
+    );
+  }
+  if (block.unconfirmedCount > 0) {
+    parts.push(
+      block.unconfirmedCount === 1
+        ? "1 Tag mit unbestätigter Pflichtpause"
+        : `${block.unconfirmedCount} Tage mit unbestätigter Pflichtpause`,
+    );
+  }
+  return parts.join(" und ");
 }
 
 /** Karenz-overrun day count (server count field first). */

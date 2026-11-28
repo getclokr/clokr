@@ -48,6 +48,11 @@ export type EmployeeStatus = {
   breakFindingDayCount?: number;
   karenzOverrunDayCount?: number;
   dayDetailsWithheld?: boolean;
+  /** Issue #522: the server's verdict that closing this person is certain to be refused for a
+   *  break reason (tenant block flag on AND an open break day). The page never derives it. */
+  breakBlocksClose?: boolean;
+  /** Phase 92 (BREAK-05): days with an unconfirmed automatic Pflichtpause; emptied when withheld. */
+  unconfirmedBreakDays?: string[];
   /** Phase 104 (D-21): § 5 EFZG - sick days without a certificate beyond the Karenzzeit. A hint,
    *  NOT a gate: closing stays possible. The server deliberately sends [] for closed months and
    *  flexible contracts. */
