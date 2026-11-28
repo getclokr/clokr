@@ -27,8 +27,8 @@ BUrlG §3/§7, EuGH carry-over rules, cross-year splitting, dynamic recalc, FIFO
   #447 sync's own read-only planner, so there is no second § 5 computation.
 - **The carry-over deadline is one representation (Issue #1156).** `LeaveEntitlement.carryOverDeadline` names a calendar
   day (the Stichtag, § 7 Abs. 3 BUrlG) and is stored as `YYYY-MM-DD 23:59:59Z`. `carryOverDeadlineFor()` /
-  `carryOverDeadlineDay()` / `formatCarryOverDeadlineDe()` (`contexts/absence/carry-over-deadline.ts`) are the only way to
-  build or read it: never `new Date(y, m, d, 23, 59, 59)` and never `getDate()` / `getMonth()` on it (host-zone). The web
+  `carryOverDeadlineDay()` (`contexts/absence/carry-over-deadline.ts`) are the only way to build or
+  read it, and texts name it with `dayLabelDe()` (Issue #1149): never `new Date(y, m, d, 23, 59, 59)` and never `getDate()` / `getMonth()` on it (host-zone). The web
   compares the day part with the tenant day (`carryOverDeadlineAhead`). Bestand check: `scripts/audit-1156-carryover-deadline-time.ts`
   (read-only).
 - **The regular yearly base value comes from one function (Issue #482).**
