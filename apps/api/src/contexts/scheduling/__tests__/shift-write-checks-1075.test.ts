@@ -138,6 +138,51 @@ describe("contract (GD-7)", () => {
       "SHIFT_NO_CONTRACT",
     );
   });
+
+  // Issue #1101 — the exit day is inclusive: the last working day stays plannable, the day after
+  // it is refused like a day before the contract start.
+  const exitAt = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+  it("the exit day itself passes, the day after the exit day is SHIFT_NO_CONTRACT, force changes nothing", () => {
+    const ctx = mkCtx({ exitDate: exitAt(D) });
+    expect(run(ctx, draft(D, "08:00", "16:00"))).toEqual({ blocking: null, forced: [] });
+
+    const v = run(ctx, draft(DAY_AFTER, "08:00", "16:00"), { force: true });
+    expect(v.blocking).toMatchObject({
+      rule: "contract",
+      code: "SHIFT_NO_CONTRACT",
+      message: "Für diese Person gilt an diesem Tag kein Vertrag.",
+      status: 422,
+      overridable: false,
+    });
+    expect(v.forced).toEqual([]);
+    expect(run(ctx, draft(DAY_AFTER, "08:00", "16:00"))).toEqual(v);
+  });
+
+  it("the exit day is the tenant-local calendar day of a value stored at Berlin local midnight", () => {
+    // 2027-03-11T23:00:00Z is 2027-03-12 00:00 in Europe/Berlin (CET, UTC+1).
+    const ctx = mkCtx({ exitDate: new Date("2027-03-11T23:00:00Z") });
+    expect(run(ctx, draft(D, "08:00", "16:00")).blocking).toBeNull();
+    expect(run(ctx, draft(DAY_AFTER, "08:00", "16:00")).blocking?.code).toBe("SHIFT_NO_CONTRACT");
+  });
+
+  it("a person without an exit date keeps the old behaviour for a far-future day", () => {
+    expect(
+      run(mkCtx({ exitDate: null }), draft("2031-06-04", "08:00", "16:00")).blocking,
+    ).toBeNull();
+  });
+
+  it("a day that is past AND after the exit day answers contract before pastDay", () => {
+    const ctx = mkCtx({ exitDate: exitAt("2027-03-01") });
+    expect(run(ctx, draft("2027-03-05", "08:00", "16:00")).blocking?.rule).toBe("contract");
+  });
+
+  it("a refused after-exit draft does not join the context", () => {
+    const ctx = mkCtx({ exitDate: exitAt(D), mode: "OFF" });
+    expect(run(ctx, draft(DAY_AFTER, "06:00", "14:00")).blocking?.rule).toBe("contract");
+    // Had the refused draft joined, § 5 (22:00 to 06:00 the next day = 8 h) would answer 409 here.
+    expect(run(ctx, draft(D, "14:00", "22:00")).blocking).toBeNull();
+  });
 });
 
 describe("past day (GD-6)", () => {
