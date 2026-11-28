@@ -10,6 +10,7 @@ import { scheduledLeaveMinutes, overtimeCompReversalMinutes } from "../overtime-
 import { selfHealUsedDays, loadVacationTypeMeta } from "../leave-self-heal";
 import { closedMonthLeaveMessage } from "../correction-lock"; // Issue #446 (D-07/D-08)
 import { findClosedMonthsInRange } from "../closed-month-guard"; // Issue #446 (D-07)
+import { carryOverDeadlineFor, carryOverDeadlineDay } from "../carry-over-deadline"; // Issue #1156
 import { EFFECTIVE_LEAVE_STATUSES, isEffectiveLeaveStatus } from "../effective-leave-statuses"; // Issue #446 (D-04)
 // Phase 101B (Issue #101, D-11 Welle absence): lifted out of this file into ./leave-days.ts.
 // resolveLeaveDays/getHolidayMap/deductVacationDays/reverseVacationDays are re-exported below
@@ -2935,7 +2936,7 @@ export async function leaveRoutes(app: FastifyInstance) {
           ...r,
           typeCode: r.leaveType.code,
           effectiveCarryOverDays: effectiveCarryByRowId.get(r.id) ?? 0,
-          carryOverDeadline: r.carryOverDeadline?.toISOString().split("T")[0] ?? null,
+          carryOverDeadline: r.carryOverDeadline ? carryOverDeadlineDay(r.carryOverDeadline) : null,
           effectiveEntitlementDays,
           // Issue #445 — null unless this VACATION row is an unhealed ambiguous placeholder.
           entitlementWarning,
@@ -3622,7 +3623,7 @@ export async function leaveRoutes(app: FastifyInstance) {
               data: {
                 carryOverReason: "ILLNESS",
                 // 15 Monate nach Ende des Ursprungsjahres = 31.03. des Jahres originYear + 2
-                carryOverDeadline: new Date(Date.UTC(originYear + 2, 2, 31, 23, 59, 59)),
+                carryOverDeadline: carryOverDeadlineFor(originYear + 2, 3, 31),
                 carryOverNote:
                   `§ 9 BUrlG: ${creditedDays} Tag(e) wegen Krankheit im Urlaub gutgeschrieben ` +
                   `(${credited.start.toISOString().split("T")[0]}–${credited.end.toISOString().split("T")[0]}). ` +

@@ -58,7 +58,8 @@ const GERMAN_FORMATTERS: Record<string, string> = {
   formatNoticeDay: "TT.MM.JJJJ of a reminder notice (shift-reminders.ts)",
   germanDate: "TT.MM.JJJJ, local helper (break-finding-notice.ts, bulk-apply-defaults.ts)",
   fmtDMY: "TT.MM.JJJJ, local helper of bs-leave-correction.ts",
-  formatDeDate: "TT.MM.JJJJ, local helper of carryover-warning.ts",
+  formatCarryOverDeadlineDe:
+    "TT.MM.JJJJ of a carry-over Stichtag (carry-over-deadline.ts, Issue #1156)",
   monthLabelDe: "'Juni 2026', a month label that names no day",
   toLocaleDateString: "Intl formatting with a German locale, never an ISO day",
   toLocaleString: "Intl formatting with a German locale, never an ISO day",

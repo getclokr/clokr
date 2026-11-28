@@ -252,7 +252,7 @@ describe("Issue #445 finding 5 — protected carry-over deadline with a document
     await recalculateCarryOver(app.prisma, data.tenant.id, employeeId, data.vacationType.id, 2027);
     const afterRecalc = await get2027(employeeId);
     expect(afterRecalc!.carryOverDeadline?.getTime()).toBe(
-      new Date(2027, 2, 31, 23, 59, 59).getTime(),
+      new Date(Date.UTC(2027, 2, 31, 23, 59, 59)).getTime(), // UTC-anchored Stichtag, Issue #1156
     );
   });
 

@@ -35,6 +35,7 @@ import { ensureLeaveType } from "./ensure-leave-type";
 import { lockEmployeeForLeavePricing } from "./employee-leave-lock";
 import { scheduledLeaveMinutes } from "./overtime-comp-minutes";
 import { preserveCarryOverDeadline } from "./illness-carryover-guard";
+import { carryOverDeadlineFor } from "./carry-over-deadline";
 import {
   findBlockingLeaveOverlap,
   leaveDaysUsedInYear,
@@ -684,7 +685,8 @@ export async function autoCarryOver(
   const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
   const deadlineDay = config?.carryOverDeadlineDay ?? 31;
   const deadlineMonth = config?.carryOverDeadlineMonth ?? 3;
-  const deadline = new Date(year, deadlineMonth - 1, deadlineDay, 23, 59, 59);
+  // Issue #1156: the Stichtag is anchored in UTC, never in the host zone (carry-over-deadline.ts).
+  const deadline = carryOverDeadlineFor(year, deadlineMonth, deadlineDay);
 
   const { entitlement: cur } = await ensureRegularVacationEntitlement(
     prisma,
