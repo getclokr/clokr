@@ -73,6 +73,7 @@ import {
   workDaysSetFrom, // Issue #589 (D-589-04) — the ONE workday chain, for contract presence in the week coverage
 } from "../../absence"; // Phase 101B (Issue #101, wave 7) — merged from three deep imports
 import { getShiftsInRange } from "../facade/shifts"; // Phase 430 (D-12) — planning-overview's "geplant" column
+import { shiftBasedLeaveMinutesByEmp, sortForSollDedup } from "../roster-leave-soll"; // Issue #1142 — the SHIFT_BASED leave relief of the saldo core, priced for the week
 import { flagShiftIfConflictsWithApprovedLeave } from "../shift-leave-check"; // Phase 430 (D-03/D-04, moved 430-06 to avoid widening the boundary-import cycle) — S4, the inverse Type-1 direction
 import {
   halfDayLeaveHint,
@@ -1355,12 +1356,9 @@ export async function shiftRoutes(app: FastifyInstance) {
               where: { validFrom: { lte: sundayForSoll } },
               orderBy: { validFrom: "desc" as const },
               take: 8,
-              // Phase 76.11 — per-day hours + monthlyHours included so
-              // `calcExpectedMinutesTz` can compute leave/absence minutes for
-              // FIXED_WEEKLY / FLEXTIME / MONTHLY_HOURS schedules too. SHIFT_BASED
-              // only needs type + weeklyHours, but the aggregation loop runs for
-              // every employee (planner UI currently consumes the map only for
-              // SHIFT_BASED rows, but downstream consumers may want the rest).
+              // Per-day hours + monthlyHours serve calcExpectedMinutesTz for every schedule type;
+              // SHIFT_BASED additionally reads contractWorkDaysPerWeek and usualWorkDays (the
+              // Issue #1142 leave relief of the saldo core).
               select: {
                 validFrom: true,
                 type: true,
@@ -1374,6 +1372,7 @@ export async function shiftRoutes(app: FastifyInstance) {
                 workDays: true,
                 // Issue #323: the SHIFT_BASED Ø-day divisor of avgWorkMinutesCore.
                 contractWorkDaysPerWeek: true,
+                usualWorkDays: true, // Issue #1142 - the Angabe of the SHIFT_BASED leave relief
                 mondayHours: true,
                 tuesdayHours: true,
                 wednesdayHours: true,
@@ -1747,11 +1746,11 @@ export async function shiftRoutes(app: FastifyInstance) {
       // ── Phase 76.11 — Leave + Absence minute aggregation per visible week ──
       // The Soll-Korrelation row subtracts approved leave and absence (sick, special leave, …)
       // from the week Soll: `calcLeaveAbsenceMinutesTz` per overlapping row, clipped to the
-      // visible Mon-Sun week.
+      // visible Mon-Sun week; SHIFT_BASED days take the saldo core's relief instead (Issue #1142).
       //  - Leave: the effective statuses (APPROVED + CANCELLATION_REQUESTED, which stays active
       //    until the cancellation is approved); PENDING/REJECTED/CANCELLED never reduce Soll.
-      //  - Absence: deletedAt: null (soft-delete query rule).
-      // Map values are MINUTES (integers); the client divides by 60. tenantTz is resolved above.
+      //  - Absence: deletedAt: null (soft-delete query rule). Map values are MINUTES (integers);
+      //    the client divides by 60. tenantTz is resolved above.
 
       // Phase 100B Plan 13 — A2, contexts/absence facade.
       const leaveForSoll = await getActiveLeaveOverlapping(
@@ -2028,20 +2027,6 @@ export async function shiftRoutes(app: FastifyInstance) {
         );
       }
 
-      // Sort ganztags vor halbtags, dann startDate — mirrors close-employee-month.ts's
-      // sortForDedup ordering (no `id` tiebreak: leaveForSoll/absencesForSoll select only
-      // {employeeId, startDate, endDate, halfDay}, matching 4 of Tier 1's 6 callers which
-      // also omit id).
-      function sortForSollDedup<
-        T extends { startDate: Date; endDate: Date; halfDay?: boolean | null },
-      >(rows: T[]): T[] {
-        return [...rows].sort(
-          (a, b) =>
-            (a.halfDay ? 1 : 0) - (b.halfDay ? 1 : 0) ||
-            a.startDate.getTime() - b.startDate.getTime(),
-        );
-      }
-
       // Issue #389: for a person whose week spans two contracts, each day is priced under the
       // contract valid on it (and claimed, so an overlapping request deducts the day once).
       function perDayLeaveMinutes(
@@ -2068,6 +2053,21 @@ export async function shiftRoutes(app: FastifyInstance) {
 
       const leaveMinutesByEmp: Record<string, number> = {};
       const absenceMinutesByEmp: Record<string, number> = {};
+
+      // Issue #1142: a SHIFT_BASED day takes the saldo core's leave relief (roster-leave-soll.ts) and
+      // is claimed there first, so the Ø-day pricing of the two loops below finds it already claimed.
+      const shiftBasedLeave = await shiftBasedLeaveMinutesByEmp(app.prisma, {
+        scope: employeeScopeFor(access, { employeeIds: weekEmployeeIds }),
+        employees,
+        weekDays,
+        schedulesByDay,
+        leave: leaveForSoll,
+        bsDaysByEmp,
+        tz: tenantTz,
+        tenantConfig,
+        claimSetFor,
+      });
+      for (const [id, minutes] of shiftBasedLeave) leaveMinutesByEmp[id] = minutes;
 
       for (const lr of sortForSollDedup(leaveForSoll)) {
         const sched = scheduleByEmp.get(lr.employeeId);

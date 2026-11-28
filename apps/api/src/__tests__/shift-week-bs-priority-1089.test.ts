@@ -9,6 +9,9 @@
  * Oracle: a person whose leave runs straight over the Berufsschultag must show exactly the four
  * minute maps of a person whose leave is split around it. Hand-derived pins (38 h, five workdays,
  * 7.6 h = 456 min per day): full week 2280, one day 456, four days 1824.
+ *
+ * Since Issue #1142 a SHIFT_BASED person's leave rows are priced by the saldo core's own relief
+ * (`shiftBasedLeaveRelief()`); the Berufsschule priority described here is unchanged.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -336,16 +339,19 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
   // A row that runs past the visible week is clipped at the tenant-local Sunday end. The raw UTC
   // Sunday 23:59:59.999Z is already Monday in Europe/Berlin, so an unclipped bound relieved one
   // extra day of the NEXT week.
-  it("leave running past Sunday relieves only the visible days (Thu + Fri = 912)", async () => {
+  // Issue #1142: SHIFT_BASED leave is priced by the saldo core's relief, i.e. the #429 contract week
+  // (Thu, Fri and Sat count, 456 each); the clip is still proven - nothing of next Monday or
+  // Tuesday is counted, which would push the figure past 1368.
+  it("leave running past Sunday relieves only the visible days (Thu + Fri + Sat = 1368)", async () => {
     const person = await createAzubi("CL");
     await seedLeave(person, vacationTypeId, 3, 8); // Thu .. next Tue
 
     const body = await getWeek();
     const m = maps(body, person);
 
-    expect(m.leave).toBe(2 * DAY_SOLL_MIN); // 912
+    expect(m.leave).toBe(3 * DAY_SOLL_MIN); // 1368
     expect(m.absence).toBe(0);
-    expect(m.contractSoll).toBe(2280 - 912);
+    expect(m.contractSoll).toBe(2280 - 1368); // 912
   });
 
   it("an absence running past Sunday relieves only the visible days (Thu + Fri = 912)", async () => {
