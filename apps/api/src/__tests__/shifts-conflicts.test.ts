@@ -7,6 +7,7 @@
 //   - POST /shifts/:id/restore on a soft-deleted shift clears deletedAt + deletedReason
 //     and writes a SHIFT_RESTORED AuditLog entry
 //   - Restore on a shift whose month is locked (SaldoSnapshot) returns 422
+//   - Every shift item tells `pastDay` with the restore gate's own rule (Issue #1100)
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import bcrypt from "bcryptjs";
@@ -17,7 +18,7 @@ import {
   cleanupTestData,
   createTestSalon, // Phase 325 (issue #325)
 } from "./setup";
-import { saldoSnapshotPeriodBounds } from "./test-dates";
+import { pastDateStr, saldoSnapshotPeriodBounds, todayStr, utcMidnight } from "./test-dates";
 import { SYSTEM_ROLE_IDS } from "../contexts/platform";
 import type { FastifyInstance } from "fastify";
 
@@ -599,5 +600,86 @@ describe("Shift Conflicts API (Phase 67.2 Plan 05)", () => {
     const after = await app.prisma.shift.findUniqueOrThrow({ where: { id: shift.id } });
     expect(after.deletedAt).not.toBeNull();
     expect(after.deletedReason).toBe("AUTO_BS_DAY_CLEANUP");
+  });
+
+  it("every shift item tells whether its day is before the tenant's today, and the restore gate agrees (Issue #1100)", async () => {
+    const base = {
+      employeeId: data.employee.id,
+      salonId: data.salonId,
+      startTime: "08:00",
+      endTime: "16:00",
+    };
+    const removal = { deletedAt: new Date(), deletedReason: "AUTO_BS_DAY_CLEANUP" };
+    const goneYesterday = await app.prisma.shift.create({
+      data: { ...base, date: utcMidnight(pastDateStr(1)), ...removal },
+    });
+    const goneToday = await app.prisma.shift.create({
+      data: { ...base, date: utcMidnight(todayStr()), ...removal },
+    });
+    const markedYesterday = await app.prisma.shift.create({
+      data: {
+        ...base,
+        date: utcMidnight(pastDateStr(1)),
+        deletedAt: null,
+        conflictsWithLeave: true,
+      },
+    });
+    const headers = { authorization: `Bearer ${data.adminToken}` };
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/api/v1/shifts/conflicts?from=${isoDate(pastDate(30))}&to=${isoDate(futureDate(30))}`,
+      headers,
+    });
+    expect(list.statusCode).toBe(200);
+    const body = JSON.parse(list.body) as {
+      softDeleted: { id: string; pastDay: boolean }[];
+      flagged: { id: string; pastDay: boolean }[];
+    };
+    const yesterdayItem = body.softDeleted.find((x) => x.id === goneYesterday.id);
+    const todayItem = body.softDeleted.find((x) => x.id === goneToday.id);
+    const markedItem = body.flagged.find((x) => x.id === markedYesterday.id);
+    expect(yesterdayItem).toBeDefined();
+    expect(todayItem).toBeDefined();
+    expect(markedItem).toBeDefined();
+    expect(yesterdayItem!.pastDay).toBe(true);
+    expect(todayItem!.pastDay).toBe(false);
+    expect(markedItem!.pastDay).toBe(true);
+
+    // The gate agrees: a past removed shift stays removed.
+    const refused = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${goneYesterday.id}/restore`,
+      headers,
+      payload: {},
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(JSON.parse(refused.body).code).toBe("SHIFT_PAST_IMMUTABLE");
+    const stillGone = await app.prisma.shift.findUniqueOrThrow({ where: { id: goneYesterday.id } });
+    expect(stillGone.deletedAt).not.toBeNull();
+
+    // Today stays plannable (GD-6). force only covers a closed-day opening-hours finding.
+    const restoredToday = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${goneToday.id}/restore?force=true`,
+      headers,
+      payload: {},
+    });
+    expect(restoredToday.statusCode, restoredToday.body).toBe(200);
+    const backToday = await app.prisma.shift.findUniqueOrThrow({ where: { id: goneToday.id } });
+    expect(backToday.deletedAt).toBeNull();
+
+    // "Schicht behalten": the flag-clearing branch runs no gate, so it works on a past day.
+    const kept = await app.inject({
+      method: "POST",
+      url: `/api/v1/shifts/${markedYesterday.id}/restore`,
+      headers,
+      payload: {},
+    });
+    expect(kept.statusCode, kept.body).toBe(200);
+    const keptAfter = await app.prisma.shift.findUniqueOrThrow({
+      where: { id: markedYesterday.id },
+    });
+    expect(keptAfter.conflictsWithLeave).toBe(false);
   });
 });
