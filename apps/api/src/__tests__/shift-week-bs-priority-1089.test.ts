@@ -10,6 +10,9 @@
  * minute maps of a person whose leave is split around it. Hand-derived pins (38 h, five workdays,
  * 7.6 h = 456 min per day): full week 2280, one day 456, four days 1824.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import ts from "typescript";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   getTestApp,
@@ -42,6 +45,7 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
   let weekMonday: string;
   let suffix: string;
   let vacationTypeId: string;
+  let sickTypeId: string;
 
   function dayOffset(offset: number): Date {
     const d = new Date(weekMonday + "T00:00:00Z");
@@ -98,6 +102,17 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
       },
     });
     vacationTypeId = vacation.id;
+    const sick = await prisma.leaveType.create({
+      data: {
+        tenantId,
+        code: "SICK",
+        name: "Krank",
+        isPaid: true,
+        requiresApproval: false,
+        color: "#EF4444",
+      },
+    });
+    sickTypeId = sick.id;
 
     const loginRes = await app.inject({
       method: "POST",
@@ -191,6 +206,20 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
     });
   }
 
+  async function seedOtherAbsence(employeeId: string, fromOffset: number, toOffset: number) {
+    await app.prisma.absence.create({
+      data: {
+        employeeId,
+        type: "OTHER",
+        startDate: dayOffset(fromOffset),
+        endDate: dayOffset(toOffset),
+        days: toOffset - fromOffset + 1,
+        source: "MANUAL",
+        createdBy: "system",
+      },
+    });
+  }
+
   async function getWeek(): Promise<WeekBody> {
     const res = await app.inject({
       method: "GET",
@@ -235,5 +264,159 @@ describe("Issue #1089 — the planner Soll relieves a Berufsschultag exactly onc
       (c) => c.employeeId === spanning && c.date === dayOffset(2).toISOString().slice(0, 10),
     );
     expect(wednesday?.availability).toBe("vacation");
+  });
+
+  it("SICK leave over a Berufsschultag equals the split rows; the cell still reads sick", async () => {
+    const spanning = await createAzubi("SS");
+    const split = await createAzubi("SP");
+    for (const id of [spanning, split]) await seedBerufsschultag(id, "PATTERN");
+    await seedLeave(spanning, sickTypeId, 0, 4);
+    await seedLeave(split, sickTypeId, 0, 1);
+    await seedLeave(split, sickTypeId, 3, 4);
+
+    const body = await getWeek();
+    const a = maps(body, spanning);
+    const b = maps(body, split);
+
+    expect(b.contractSoll).toBe(DAY_SOLL_MIN);
+    expect(b.leave).toBe(FOUR_DAYS_MIN);
+    expect(b.absence).toBe(0);
+    expect(b.vocationalSchool).toBeGreaterThan(0);
+    expect(a).toEqual(b);
+
+    const wednesday = body.availability.find(
+      (c) => c.employeeId === spanning && c.date === dayOffset(2).toISOString().slice(0, 10),
+    );
+    expect(wednesday?.availability).toBe("sick");
+  });
+
+  it("an OTHER absence over a Berufsschultag equals the split rows; the cell still reads vocational_school", async () => {
+    const spanning = await createAzubi("OS");
+    const split = await createAzubi("OP");
+    // MANUAL Berufsschultag here, PATTERN above: both sources are a Berufsschultag.
+    for (const id of [spanning, split]) await seedBerufsschultag(id, "MANUAL");
+    await seedOtherAbsence(spanning, 0, 4);
+    await seedOtherAbsence(split, 0, 1);
+    await seedOtherAbsence(split, 3, 4);
+
+    const body = await getWeek();
+    const a = maps(body, spanning);
+    const b = maps(body, split);
+
+    expect(b.contractSoll).toBe(DAY_SOLL_MIN);
+    expect(b.absence).toBe(FOUR_DAYS_MIN);
+    expect(b.leave).toBe(0);
+    expect(b.vocationalSchool).toBeGreaterThan(0);
+    expect(a).toEqual(b);
+
+    const wednesday = body.availability.find(
+      (c) => c.employeeId === spanning && c.date === dayOffset(2).toISOString().slice(0, 10),
+    );
+    expect(wednesday?.availability).toBe("vocational_school");
+  });
+
+  it("control: a Berufsschultag alone keeps the full week Soll and the same credit as every other case", async () => {
+    const control = await createAzubi("CT");
+    const spanning = await createAzubi("CS");
+    await seedBerufsschultag(control, "PATTERN");
+    await seedBerufsschultag(spanning, "PATTERN");
+    await seedLeave(spanning, vacationTypeId, 0, 4);
+
+    const body = await getWeek();
+    const c = maps(body, control);
+
+    expect(c.contractSoll).toBe(2280);
+    expect(c.leave).toBe(0);
+    expect(c.absence).toBe(0);
+    // The credit does not depend on which row wins the cell.
+    expect(maps(body, spanning).vocationalSchool).toBe(c.vocationalSchool);
+    expect(c.vocationalSchool).toBeGreaterThan(0);
+  });
+});
+
+// ── AC2: the planner reaches the Berufsschule priority only through the facade ────────────────
+//
+// What this cannot see: an alias of the set (`const s = sollExclusion(id)` handed on under another
+// name) or a re-implementation of the rule that never names `bsDayPriority`. Review has to catch a
+// creative workaround.
+describe("Issue #1089 AC2 - the planner reaches the Berufsschule priority only through the facade", () => {
+  const SOURCE_PATH = join(__dirname, "..", "contexts", "scheduling", "api", "shifts.ts");
+
+  type Scan = {
+    importsRule: boolean;
+    ruleCalls: Array<{ line: number; viaExclusionInSollExclusion: boolean }>;
+    priceCalls: Array<{ line: number; viaSollExclusion: boolean }>;
+  };
+
+  function scan(source: string): Scan {
+    const sf = ts.createSourceFile("shifts.ts", source, ts.ScriptTarget.Latest, true);
+    const lineOf = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
+    const out: Scan = { importsRule: false, ruleCalls: [], priceCalls: [] };
+    const isCallOf = (n: ts.Node | undefined, name: string): n is ts.CallExpression =>
+      !!n && ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name;
+    const visit = (n: ts.Node): void => {
+      if (
+        ts.isImportDeclaration(n) &&
+        ts.isStringLiteral(n.moduleSpecifier) &&
+        n.moduleSpecifier.text === "../../working-time-account" &&
+        n.importClause?.namedBindings &&
+        ts.isNamedImports(n.importClause.namedBindings) &&
+        n.importClause.namedBindings.elements.some((e) => e.name.text === "bsDayPriority")
+      )
+        out.importsRule = true;
+      if (isCallOf(n, "bsDayPriority")) {
+        const access = n.parent;
+        const outer = access?.parent;
+        const viaExclusion =
+          ts.isPropertyAccessExpression(access) &&
+          access.expression === n &&
+          access.name.text === "exclusion" &&
+          ts.isCallExpression(outer) &&
+          outer.expression === access;
+        let inFn = false;
+        for (let up: ts.Node | undefined = n; up; up = up.parent) {
+          if (ts.isFunctionDeclaration(up) && up.name?.text === "sollExclusion") inFn = true;
+        }
+        out.ruleCalls.push({ line: lineOf(n), viaExclusionInSollExclusion: viaExclusion && inFn });
+      }
+      if (isCallOf(n, "calcLeaveAbsenceMinutesTz")) {
+        const options = n.arguments.find(ts.isObjectLiteralExpression);
+        const prop = options?.properties.find(
+          (p): p is ts.PropertyAssignment =>
+            ts.isPropertyAssignment(p) &&
+            ts.isIdentifier(p.name) &&
+            p.name.text === "excludeHolidays",
+        );
+        out.priceCalls.push({
+          line: lineOf(n),
+          viaSollExclusion: !!prop && isCallOf(prop.initializer, "sollExclusion"),
+        });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return out;
+  }
+
+  const source = readFileSync(SOURCE_PATH, "utf8");
+
+  it("imports the rule from the Arbeitszeitkonto facade and calls it exactly once, inside sollExclusion", () => {
+    const found = scan(source);
+    expect(found.importsRule).toBe(true);
+    expect(found.ruleCalls).toHaveLength(1);
+    expect(found.ruleCalls[0].viaExclusionInSollExclusion).toBe(true);
+  });
+
+  it("every calcLeaveAbsenceMinutesTz call takes its excludeHolidays from sollExclusion()", () => {
+    const found = scan(source);
+    // floor: perDayLeaveMinutes, the leave loop and the absence loop
+    expect(found.priceCalls.length).toBeGreaterThanOrEqual(3);
+    expect(found.priceCalls.filter((c) => !c.viaSollExclusion).map((c) => c.line)).toEqual([]);
+  });
+
+  it("positive control: a calcLeaveAbsenceMinutesTz call that takes the bare claim set is reported", () => {
+    const synthetic = `${source}\ncalcLeaveAbsenceMinutesTz(s, a, b, tz, { excludeHolidays: claimSetFor(x) });\n`;
+    const violations = scan(synthetic).priceCalls.filter((c) => !c.viaSollExclusion);
+    expect(violations).toHaveLength(1);
   });
 });
