@@ -146,7 +146,7 @@ describe("BulkApplyDialog - loading (#843 D-843-07)", () => {
     await screen.findByRole("status", { name: "Wird geladen" });
     expect((screen.getByLabelText("Gültig ab") as HTMLSelectElement).disabled).toBe(true);
     resolve(preview({ effectiveFrom: "2026-12-01" }));
-    await screen.findByText("2 Verträge werden ab 01.12.2026 geändert");
+    await screen.findByText("2 Verträge werden ab 1.12.2026 geändert");
   });
 });
 
@@ -159,7 +159,7 @@ describe("BulkApplyDialog", () => {
     expect(box(/Probe Eins/).checked).toBe(true);
     expect(box(/Probe Drei/).checked).toBe(true);
     expect(box(/Probe Zwei/).checked).toBe(false);
-    expect(screen.getByText("2 Verträge werden ab 01.11.2026 geändert")).toBeTruthy();
+    expect(screen.getByText("2 Verträge werden ab 1.11.2026 geändert")).toBeTruthy();
     expect(screen.getByText("Individueller Vertrag")).toBeTruthy();
     expect(screen.getByText("kein Vertrag hinterlegt → 40 h · Mo–Fr")).toBeTruthy();
   });
@@ -173,7 +173,7 @@ describe("BulkApplyDialog", () => {
     expect(screen.getByText("Kein Vertrag ausgewählt")).toBeTruthy();
     await fireEvent.click(box(/Probe Zwei/));
     expect((confirmButton() as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByText("1 Vertrag wird ab 01.11.2026 geändert")).toBeTruthy();
+    expect(screen.getByText("1 Vertrag wird ab 1.11.2026 geändert")).toBeTruthy();
   });
 
   it("offers exactly the server's allowed dates and reloads on change", async () => {
@@ -181,7 +181,7 @@ describe("BulkApplyDialog", () => {
     await screen.findByText("Probe Eins");
     const select = screen.getByLabelText("Gültig ab") as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual(["2026-11-01", "2026-12-01"]);
-    expect([...select.options].map((o) => o.text)).toEqual(["01.11.2026", "01.12.2026"]);
+    expect([...select.options].map((o) => o.text)).toEqual(["1.11.2026", "1.12.2026"]);
     // The new preview ticks only one row; the selection must follow it, not the old choice.
     loadPreview.mockResolvedValueOnce(
       preview({
@@ -194,7 +194,7 @@ describe("BulkApplyDialog", () => {
     );
     await fireEvent.change(select, { target: { value: "2026-12-01" } });
     await waitFor(() => expect(loadPreview).toHaveBeenCalledWith("2026-12-01"));
-    await screen.findByText("1 Vertrag wird ab 01.12.2026 geändert");
+    await screen.findByText("1 Vertrag wird ab 1.12.2026 geändert");
     expect(box(/Probe Zwei/).checked).toBe(true);
     expect(box(/Probe Eins/).checked).toBe(false);
   });

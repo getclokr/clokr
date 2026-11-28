@@ -2,6 +2,7 @@
  * Pure German labels and formatters of the bulk-apply preview dialog (Issue #568, D-07).
  * No date arithmetic: every date arrives from the server as an ISO calendar day.
  */
+import { dayLabel } from "$lib/utils/day-label";
 import type {
   BulkApplyCategory,
   BulkApplyPreview,
@@ -67,10 +68,9 @@ export function formatContract(values: ContractValues | null): string {
   return `${hours} · ${formatWorkDays(values.workDays)}`;
 }
 
-/** "2026-11-01" -> "01.11.2026" (string split, no timezone involved). */
+/** "2026-11-01" -> "1.11.2026" (the one web date formatter, no timezone involved). */
 export function formatDateDe(isoDate: string): string {
-  const [y, m, d] = isoDate.slice(0, 10).split("-");
-  return `${d}.${m}.${y}`;
+  return dayLabel(isoDate, { year: true });
 }
 
 export function summaryLine(count: number, effectiveFrom: string): string {

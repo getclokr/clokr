@@ -155,6 +155,38 @@ async function pinForYouDays(page: Page): Promise<void> {
 }
 
 /**
+ * Issue #1155: the Monatsabschluss page's banner says „N Monate Rückstand“, and N is the server's
+ * count of overdue months against its REAL date — it grows by one every month, so baseline 09
+ * broke by itself (like #1150 did for 01/10). The count is pinned to the 34 months the baseline was
+ * taken with (the seed's oldest open month is January 2024); the rest of the answer — who is
+ * behind, since when, the gap days of that month — stays the server's, and the banner text stays in
+ * the comparison. Each person's own count moves by the same shift, so the answer stays consistent.
+ */
+const PINNED_MONTHS_BEHIND = 34;
+
+async function pinMonthsBehind(page: Page): Promise<void> {
+  await page.route("**/api/v1/overtime/close-month/deferred*", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as {
+      monthsBehind: number;
+      employees?: Array<{ monthsBehind: number }>;
+    };
+    const shift = PINNED_MONTHS_BEHIND - body.monthsBehind;
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        monthsBehind: PINNED_MONTHS_BEHIND,
+        employees: (body.employees ?? []).map((e) => ({
+          ...e,
+          monthsBehind: e.monthsBehind + shift,
+        })),
+      },
+    });
+  });
+}
+
+/**
  * Issue #1150: `.clock-meta` (the stage's „Soll 8:00“ facts) has no content on a day without Soll
  * and without a shift — the hero reads „Frei“ and the row is an empty box with no height (#991) —
  * so the whole page is one line shorter on a Saturday than on a weekday, and the masked region
@@ -277,6 +309,7 @@ test.describe("Phase 75 — Visual baselines", () => {
   });
 
   test("09 — Monatsabschluss", async ({ page }) => {
+    await pinMonthsBehind(page);
     await page.goto("/admin/month-close");
     await expect(page.getByTestId("month-close-page")).toBeVisible();
     await page.waitForLoadState("networkidle");

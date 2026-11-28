@@ -248,6 +248,8 @@ describe("Issue #448 (D-04) — Berufsschultag über bestehendem Urlaub korrigie
     const recipientIds = notifications.map((n) => n.userId).sort();
     expect(recipientIds).toEqual([data.adminUser.id, data.empUser.id].sort());
     for (const n of notifications) expect(n.type).toBe(LEAVE_CORRECTED_VOCATIONAL_SCHOOL);
+    // Issue #1155: the day count is the German text of the one formatter (decimal comma, "1 Tag").
+    for (const n of notifications) expect(n.message).toContain("(neu: 4 Tage).");
   });
 
   it("CANCELLATION_REQUESTED: same booking result as APPROVED", async () => {

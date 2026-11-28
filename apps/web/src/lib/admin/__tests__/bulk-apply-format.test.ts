@@ -61,11 +61,12 @@ describe("formatContract", () => {
 
 describe("formatDateDe / summaryLine", () => {
   it("formats an ISO date", () => {
-    expect(formatDateDe("2026-11-01")).toBe("01.11.2026");
+    expect(formatDateDe("2026-11-01")).toBe("1.11.2026");
+    expect(formatDateDe("2026-01-02")).toBe("2.1.2026");
   });
   it("pluralises the summary", () => {
-    expect(summaryLine(1, "2026-11-01")).toBe("1 Vertrag wird ab 01.11.2026 geändert");
-    expect(summaryLine(3, "2026-11-01")).toBe("3 Verträge werden ab 01.11.2026 geändert");
+    expect(summaryLine(1, "2026-11-01")).toBe("1 Vertrag wird ab 1.11.2026 geändert");
+    expect(summaryLine(3, "2026-11-01")).toBe("3 Verträge werden ab 1.11.2026 geändert");
     expect(summaryLine(0, "2026-11-01")).toBe("Kein Vertrag ausgewählt");
   });
 });

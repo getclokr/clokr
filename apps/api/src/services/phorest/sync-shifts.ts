@@ -44,6 +44,7 @@
 import type { FastifyInstance } from "fastify";
 import { decryptSafe } from "../../utils/crypto";
 import { dayLabelDe } from "../../utils/day-label-de";
+import { fmtDecimalDe } from "../../utils/number-de";
 import { todayInTz, dateStrInTz } from "../../contexts/working-time-account"; // Phase 101B
 import { applyPrepWrapup } from "../../contexts/scheduling/time-arithmetic";
 import { flagShiftIfConflictsWithApprovedLeave } from "../../contexts/scheduling/shift-leave-check"; // Phase 430 (D-03/D-04, moved 430-06 to avoid widening the boundary-import cycle) — S4, the inverse Type-1 direction
@@ -178,8 +179,8 @@ async function notifyLeaveDaysAdjustedOnce(
     const bis = dayLabelDe(adj.endDate);
     const message =
       adj.direction === "down"
-        ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage — der Schichtplan für diesen Zeitraum steht.`
-        : `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${adj.newDays} statt ${adj.oldDays} Tage. Grund: der Schichtplan für diesen Zeitraum steht.`;
+        ? `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${fmtDecimalDe(adj.newDays)} statt ${fmtDecimalDe(adj.oldDays)} Tage — der Schichtplan für diesen Zeitraum steht.`
+        : `Dein Urlaub vom ${von} bis ${bis} verbraucht jetzt ${fmtDecimalDe(adj.newDays)} statt ${fmtDecimalDe(adj.oldDays)} Tage. Grund: der Schichtplan für diesen Zeitraum steht.`;
 
     const recipients: Array<{ userId: string; link: string }> = [
       { userId: adj.employeeUserId, link: "/leave" },

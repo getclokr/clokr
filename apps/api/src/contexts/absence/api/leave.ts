@@ -125,6 +125,7 @@ import { vacationBalanceForRow, type VacationBalance } from "../facade/vacation-
 import { revalidateLeaveCancellationEntries } from "../../time-tracking"; // Phase 100B Plan 08 — T6
 import { byCodeUnit } from "../../../utils/code-unit-order";
 import { dayRangeLabelDe } from "../../../utils/day-label-de";
+import { fmtDays, fmtDecimalDe } from "../../../utils/number-de";
 import { REQUESTABLE_CODES as TYPE_CODES, DISPLAY_NAME, withHalfDayMarker } from "../leave-type"; // Phase 97 (T2, D-04) — the one mapping; DISPLAY_NAME added Phase 98b (D-04)
 
 // Forwarded for the same backward-compatibility reason as the import above.
@@ -1435,7 +1436,7 @@ export async function leaveRoutes(app: FastifyInstance) {
         });
         if (usedByOthers + days > existing.leaveType.maxDaysPerYear) {
           return reply.code(400).send({
-            error: `Max. ${existing.leaveType.maxDaysPerYear} Tage/Jahr für diesen Typ (bereits ${usedByOthers} genutzt)`,
+            error: `Max. ${existing.leaveType.maxDaysPerYear} Tage/Jahr für diesen Typ (bereits ${fmtDecimalDe(usedByOthers)} genutzt)`,
           });
         }
       }
@@ -3013,7 +3014,7 @@ export async function leaveRoutes(app: FastifyInstance) {
             from: c.creditedStart?.toISOString().split("T")[0] ?? null,
             to: c.creditedEnd?.toISOString().split("T")[0] ?? null,
             label:
-              `+${Number(c.creditedDays ?? 0)} Tage gutgeschrieben (§ 9 BUrlG, Krankheit ` +
+              `+${fmtDays(Number(c.creditedDays ?? 0))} gutgeschrieben (§ 9 BUrlG, Krankheit ` +
               `${c.creditedStart && c.creditedEnd ? dayRangeLabelDe(c.creditedStart, c.creditedEnd) : ""})`,
           })),
         };
@@ -3677,7 +3678,7 @@ export async function leaveRoutes(app: FastifyInstance) {
                 // 15 Monate nach Ende des Ursprungsjahres = 31.03. des Jahres originYear + 2
                 carryOverDeadline: carryOverDeadlineFor(originYear + 2, 3, 31),
                 carryOverNote:
-                  `§ 9 BUrlG: ${creditedDays} Tag(e) wegen Krankheit im Urlaub gutgeschrieben ` +
+                  `§ 9 BUrlG: ${fmtDecimalDe(creditedDays)} Tag(e) wegen Krankheit im Urlaub gutgeschrieben ` +
                   `(${credited.start.toISOString().split("T")[0]}–${credited.end.toISOString().split("T")[0]}). ` +
                   `Verlängerte Übertragsfrist nach EuGH KHS C-214/10.`,
               },
@@ -3727,7 +3728,7 @@ export async function leaveRoutes(app: FastifyInstance) {
           userId: credit.employee.userId,
           type: "SECTION9_CREDIT_CONFIRMED",
           title: "Urlaubstage gutgeschrieben (§ 9 BUrlG)",
-          message: `+${creditedDays} Tage gutgeschrieben (§ 9 BUrlG, Krankheit ${rangeLabel}).`,
+          message: `+${fmtDays(creditedDays)} gutgeschrieben (§ 9 BUrlG, Krankheit ${rangeLabel}).`,
           link: "/leave",
           tenantId,
           relatedType: "Section9Credit",

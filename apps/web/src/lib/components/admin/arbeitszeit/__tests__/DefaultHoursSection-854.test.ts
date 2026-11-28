@@ -182,7 +182,7 @@ describe("DefaultHoursSection - bulk apply to existing contracts (#568)", () => 
       previewFingerprint: "f".repeat(64),
       effectiveFrom: "2026-12-01",
     });
-    await waitFor(() => expect(success).toHaveBeenCalledWith("1 Vertrag ab 01.12.2026 angepasst"));
+    await waitFor(() => expect(success).toHaveBeenCalledWith("1 Vertrag ab 1.12.2026 angepasst"));
   });
 
   it("with nothing affected only the defaults are saved, without any bulk key", async () => {

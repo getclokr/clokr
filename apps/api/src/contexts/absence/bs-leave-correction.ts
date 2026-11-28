@@ -32,6 +32,7 @@ import {
 } from "../platform";
 import { isMonthClosed, monthRangeUtc } from "../working-time-account";
 import { dayLabelDe, dayRangeLabelDe } from "../../utils/day-label-de";
+import { fmtDays } from "../../utils/number-de";
 import { EFFECTIVE_LEAVE_STATUSES } from "./effective-leave-statuses";
 import {
   deductVacationDays,
@@ -69,11 +70,6 @@ type CandidateRequest = {
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-function fmtDays(n: number): string {
-  // Trim a trailing ".00"/".50" artefact without losing a genuine half day.
-  return String(Math.round(n * 100) / 100);
 }
 
 /**
@@ -127,7 +123,7 @@ async function notifyCorrected(
   const message =
     `Der ${dayLabelDe(bsDate)} ist ein Berufsschultag. Im Urlaub ${dayRangeLabelDe(request.startDate, request.endDate)} ` +
     `von ${employeeName} wurde dafür kein Urlaubstag berechnet ` +
-    `(neu: ${fmtDays(newDays)} Tage).`;
+    `(neu: ${fmtDays(newDays)}).`;
 
   const employeeUser = await tx.user.findFirst({
     where: { id: request.employee.userId, isActive: true },

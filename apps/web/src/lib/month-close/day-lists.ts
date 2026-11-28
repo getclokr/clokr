@@ -31,14 +31,9 @@ export interface DayListRow {
   breakBlocksClose?: boolean;
 }
 
-/** "2026-09-05" -> "05.09."; the list is comma separated. */
+/** "2026-09-05" -> "5.9." (the glossary's date, no leading zero); the list is comma separated. */
 export function formatMissingDates(dates: readonly string[]): string {
-  return dates
-    .map((d) => {
-      const parts = d.split("-");
-      return `${parts[2]}.${parts[1]}.`;
-    })
-    .join(", ");
+  return dates.map((d) => dayLabel(d)).join(", ");
 }
 
 /** At most three dates, the rest as "(+n)". */
@@ -76,7 +71,7 @@ function gapDatesOf(row: DayListRow): string[] {
  * The text for the days without an entry: the dates when present, the count text when the dates
  * were withheld, an empty string when there is nothing to show (count 0). `year` prints each day the
  * way the glossary names a date, with the year and without leading zeros ("3.9.2026"; the deferred
- * list spans months, Issue #1149), the default is the short `DD.MM.` form.
+ * list spans months, Issue #1149), the default is the short `D.M.` form.
  */
 export function missingDaysText(
   row: DayListRow,
