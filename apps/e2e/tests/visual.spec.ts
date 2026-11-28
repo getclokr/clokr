@@ -84,17 +84,14 @@ test.afterEach(async ({ request }, testInfo) => {
 
 /**
  * Issue #845: the parts of Ich › Mein Tag whose text follows the server's real date (the visual
- * seed freezes only the browser clock): the Stundenkonto value with its line below, and the titles
- * and subtitles of the „Für dich“ rows.
+ * seed freezes only the browser clock): the Stundenkonto value with its line below. (The „Für dich“ rows
+ * followed the real date too until #1150 pinned their days, see `pinForYouDays`.)
  */
 function realDateMasks(page: Page): Locator[] {
   const saldo = page.getByTestId("kpi-saldo");
-  const forYou = page.getByRole("list", { name: "Für dich", exact: true });
   return [
     saldo.locator(".kpi-value"),
     saldo.locator(".kpi-explanation"),
-    forYou.locator(".list-title"),
-    forYou.locator(".list-subtitle"),
     // Today's Soll (`GET /dashboard` today.sollMinutes) is computed for the server's real day, so
     // the page sub-line („… · Soll heute 8:00 h“) and the clock stage's facts („Soll 8:00“ or
     // „Heute kein Arbeitstag“) change with the real weekday — a baseline taken on a Sunday failed
@@ -107,8 +104,72 @@ function realDateMasks(page: Page): Locator[] {
   ];
 }
 
+/**
+ * Issue #1150: the missing days under „Für dich“ are the server's answer for its REAL date — every
+ * workday of the running month without an entry — so the list's length followed the calendar: the
+ * summary „1–5 von N“ grew with each workday, and in the first workdays of a month the list held
+ * fewer than five rows and the pager vanished, which changes the page's height (a mask cannot).
+ * The visual seed freezes only the browser clock, so the days of that one answer are pinned here to
+ * eighteen fixed workdays in the past; the rest of the answer stays the server's. Rows, titles,
+ * subtitles, chips, buttons and the pager are then compared like any other deterministic part.
+ */
+const PINNED_MISSING_DAYS = [
+  "2025-06-13",
+  "2025-06-12",
+  "2025-06-11",
+  "2025-06-10",
+  "2025-06-09",
+  "2025-06-06",
+  "2025-06-05",
+  "2025-06-04",
+  "2025-06-03",
+  "2025-06-02",
+  "2025-05-30",
+  "2025-05-29",
+  "2025-05-28",
+  "2025-05-27",
+  "2025-05-26",
+  "2025-05-23",
+  "2025-05-22",
+  "2025-05-21",
+];
+
+async function pinForYouDays(page: Page): Promise<void> {
+  await page.route("**/api/v1/dashboard/open-items", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    const others =
+      Number(body.pendingRequests ?? 0) +
+      Number(body.invalidEntries ?? 0) +
+      Number(body.pendingApprovals ?? 0);
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        missingDays: PINNED_MISSING_DAYS,
+        missingDaysInMonth: PINNED_MISSING_DAYS,
+        total: PINNED_MISSING_DAYS.length + others,
+      },
+    });
+  });
+}
+
+/**
+ * Issue #1150: `.clock-meta` (the stage's „Soll 8:00“ facts) has no content on a day without Soll
+ * and without a shift — the hero reads „Frei“ and the row is an empty box with no height (#991) —
+ * so the whole page is one line shorter on a Saturday than on a weekday, and the masked region
+ * shrinks with it. This pins the row to one line, so the layout no longer follows the server's real
+ * weekday; on a weekday the row keeps its natural height (one line of the same line height). Call it
+ * after the page has rendered and before the screenshot. (Playwright's `style` screenshot option
+ * does not help: with `fullPage` it is applied after the page size and the masks are measured.)
+ */
+async function pinClockMetaHeight(page: Page): Promise<void> {
+  await page.addStyleTag({ content: ".clock-meta { min-height: 1lh; }" });
+}
+
 test.describe("Phase 75 — Visual baselines", () => {
   test("01 — Dashboard", async ({ page }) => {
+    await pinForYouDays(page);
     await page.goto("/dashboard");
     await expect(page.getByTestId("dashboard-page")).toBeVisible();
     // Dashboard renders chart.js widgets; wait for the network to settle so
@@ -121,10 +182,12 @@ test.describe("Phase 75 — Visual baselines", () => {
     // Issue #588 (P-13): the card "Salden" shows figures the server computes against the real
     // date (the visual seed freezes only the browser clock), so its names order, values and median
     // move every day. The mask keeps the card's frame, heading and position in the comparison.
-    // Issue #845: Mein Tag shows two more figures the server computes against the real date — the
-    // Stundenkonto (saldo through yesterday) and the missing days under „Für dich“ (the newest
-    // workdays without an entry). Same reasoning as P-13: the values are masked, the KPI cell, the
-    // rows, their chips and buttons stay in the comparison.
+    // Issue #845: Mein Tag shows one more figure the server computes against the real date — the
+    // Stundenkonto (saldo through yesterday). Same reasoning as P-13: the values are masked, the KPI
+    // cell stays in the comparison. The missing days under „Für dich“ follow the real date as well;
+    // their days are pinned instead of masked (Issue #1150, `pinForYouDays`), the stage row
+    // `.clock-meta` is pinned to one line (`pinClockMetaHeight`).
+    await pinClockMetaHeight(page);
     await expect(page).toHaveScreenshot("01-dashboard.png", {
       fullPage: true,
       mask: [page.locator("canvas"), page.getByTestId("team-saldo-values"), ...realDateMasks(page)],
@@ -225,12 +288,14 @@ test.describe("Phase 75 — Visual baselines", () => {
     // device-profile drift. We re-set the viewport here instead of using a
     // separate project so the seed/login path stays identical.
     await page.setViewportSize({ width: 390, height: 844 }); // iPhone 14 logical
+    await pinForYouDays(page);
     await page.goto("/dashboard");
     await expect(page.getByTestId("dashboard-page")).toBeVisible();
     await page.waitForLoadState("networkidle");
     // Mask chart.js <canvas> (non-deterministic rasterization) — see test 01 — and the figures of
     // the card "Salden" (Issue #588, P-13: they move with the server's real date).
     // Issue #845: the real-date figures of Mein Tag — see test 01.
+    await pinClockMetaHeight(page);
     await expect(page).toHaveScreenshot("10-mobile-dashboard.png", {
       fullPage: true,
       mask: [page.locator("canvas"), page.getByTestId("team-saldo-values"), ...realDateMasks(page)],
