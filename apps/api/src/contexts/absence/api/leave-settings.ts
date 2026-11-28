@@ -36,6 +36,7 @@ import {
   daysDiffer, // Issue #435 (D-10) — 2-decimal-precision "did totalDays actually change" test
   healEntitlementUsedDays, // Issue #940 — the same usedDays heal GET /leave/entitlements runs
 } from "../leave-days";
+import { carryOverDeadlineFor } from "../carry-over-deadline"; // Issue #1156
 import { vacationBalanceForRow } from "../facade/vacation-balance"; // Issue #940 — the ONE Resturlaub function (#451)
 import {
   statutoryMinimumVacationThresholdBySegments, // Issue #450 (D-09) — the ONE segment-aware floor, GET and PUT
@@ -464,7 +465,7 @@ export async function leaveSettingsRoutes(app: FastifyInstance) {
       const deadlineOverride = existingProtected && !reasonProvided && requestedDeadline !== null;
       const nextDeadline = reasonProvided
         ? nextReason != null
-          ? (requestedDeadline ?? new Date(Date.UTC(body.year + 1, 2, 31, 23, 59, 59)))
+          ? (requestedDeadline ?? carryOverDeadlineFor(body.year + 1, 3, 31))
           : requestedDeadline
         : existingProtected
           ? (requestedDeadline ?? existing?.carryOverDeadline ?? null)

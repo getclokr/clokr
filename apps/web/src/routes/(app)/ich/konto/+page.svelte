@@ -10,7 +10,7 @@
   import { api } from "$api/client";
   import { authStore } from "$stores/auth";
   import { tenantFeatures } from "$stores/tenant-features"; // Issue #1072
-  import { tenantDayAnchor } from "$lib/utils/tenant-day"; // Issue #1072
+  import { tenantDay, tenantDayAnchor } from "$lib/utils/tenant-day"; // Issue #1072
   import { toasts } from "$stores/toast";
   import { pageLabel } from "$lib/nav/page-labels";
   import PageHeader from "$components/ui/PageHeader.svelte";
@@ -26,7 +26,12 @@
   import { fmtBalance, fmtMin } from "$lib/utils/format-minutes";
   import { standGesternText } from "$lib/me/zeiten-kpis"; // Issue #1072: the one „Stand gestern“ wording
   import { forecastLabel } from "$lib/saldo/forecast-label";
-  import { mapVacationBalance, type VacationEntitlementRow } from "$lib/leave/vacation-balance";
+  import {
+    carryOverDeadlineAhead,
+    mapVacationBalance,
+    type VacationEntitlementRow,
+  } from "$lib/leave/vacation-balance";
+  import { fmtDateDe } from "$lib/reports/period-format"; // Issue #1156
   import {
     kontoDayRows,
     kontoMonthRows,
@@ -90,10 +95,13 @@
   const totalMinutes = $derived(overtime ? Math.round(overtime.balanceHours * 60) : null);
   const lastClosed = $derived(rows.find((r) => r.status === "CLOSED") ?? null);
   // A carry-over deadline is only news while it lies ahead.
+  // Issue #1156: the Stichtag is a calendar day (its UTC date part), compared with the TENANT's
+  // today and shown as that day - never an instant read through the device zone.
   const carryDeadline = $derived(
-    vacation?.carryOverDeadline && new Date(vacation.carryOverDeadline) >= new Date()
-      ? new Date(vacation.carryOverDeadline)
-      : null,
+    carryOverDeadlineAhead(
+      vacation?.carryOverDeadline ?? null,
+      tenantDay(new Date(), $tenantFeatures.timezone),
+    ),
   );
   const vacationRemaining = $derived(
     vacation ? vacation.total + vacation.carryOver - vacation.used : null,
@@ -122,7 +130,7 @@
       value: vacationRemaining === null ? "–" : vacationRemaining,
       unit: vacationRemaining === 1 ? "Tag" : "Tage",
       explanation: carryDeadline
-        ? `Übertrag verfällt am ${carryDeadline.toLocaleDateString("de-DE")}`
+        ? `Übertrag verfällt am ${fmtDateDe(carryDeadline)}`
         : `Urlaubsjahr ${today.year}`,
     },
   ]);
@@ -431,8 +439,8 @@
               </dl>
               {#if carryDeadline && vacation.carryOver > 0}
                 <p class="konto-hint">
-                  Der Übertrag verfällt am {carryDeadline.toLocaleDateString("de-DE")}, wenn du ihn
-                  bis dahin nicht nimmst.
+                  Der Übertrag verfällt am {fmtDateDe(carryDeadline)}, wenn du ihn bis dahin nicht
+                  nimmst.
                 </p>
               {/if}
             {:else}

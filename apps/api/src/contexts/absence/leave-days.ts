@@ -37,6 +37,7 @@ import { getLeaveTypeByCode } from "./facade/leave-types";
 import { writeEntitlementAudit, type EntitlementAuditEntry } from "./entitlement-audit"; // Issue #445
 import { listConfirmedSection9CreditsByRequest } from "./section9-credit-days"; // Issue #445 (D-10)
 import { EFFECTIVE_LEAVE_STATUSES } from "./effective-leave-statuses"; // Issue #446 (D-01)
+import { carryOverDeadlineFor } from "./carry-over-deadline"; // Issue #1156 — the UTC-anchored Stichtag
 import { vocationalSchoolDisplacesLeave, vocationalSchoolDateSet } from "./bs-leave-days"; // Issue #448 (D-01/D-02) — the one BS-vs-leave rule module
 
 // Prisma client shape shared by `app.prisma` (top-level) and the `tx` handle inside
@@ -499,7 +500,8 @@ export async function recalculateCarryOver(
   const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
   const deadlineDay = config?.carryOverDeadlineDay ?? 31;
   const deadlineMonth = config?.carryOverDeadlineMonth ?? 3;
-  const deadline = new Date(year, deadlineMonth - 1, deadlineDay, 23, 59, 59);
+  // Issue #1156: the Stichtag is anchored in UTC, never in the host zone (carry-over-deadline.ts).
+  const deadline = carryOverDeadlineFor(year, deadlineMonth, deadlineDay);
 
   const { entitlement: cur } = await ensureRegularVacationEntitlement(
     prisma,

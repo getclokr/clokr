@@ -385,6 +385,7 @@ export const CONTEXT_AREA_BY_FILE: Readonly<Record<string, ContextArea>> = {
   "src/contexts/absence/find-karenz-overrun-days.ts": "abwesenheiten", // §5 EFZG Karenztage over LeaveRequest
   "src/contexts/absence/format-hm.ts": "abwesenheiten", // hours:minutes display formatting; sole importer is routes/leave.ts
   "src/contexts/absence/ical.ts": "abwesenheiten", // iCal export; sole importer is routes/leave.ts
+  "src/contexts/absence/carry-over-deadline.ts": "abwesenheiten", // Issue #1156 — the one UTC-anchored representation of LeaveEntitlement.carryOverDeadline (pure, no model access)
   "src/contexts/absence/illness-carryover-guard.ts": "abwesenheiten", // sickness/Krankheit carry-over guard over LeaveRequest
   "src/contexts/absence/jarbschg.ts": "abwesenheiten", // JArbSchG youth-protection rules over Absence/EmployeeVocationalSchoolPattern
   "src/contexts/absence/leave-check.ts": "abwesenheiten", // Absence/LeaveRequest overlap checks

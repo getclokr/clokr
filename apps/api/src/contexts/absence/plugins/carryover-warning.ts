@@ -7,6 +7,7 @@ import {
   ACTIVE_TENANT_WHERE, // Phase 88 (D-05a) — deactivated tenants get no warnings
   NOT_ANONYMIZED_EMPLOYEE_WHERE, // Issue #613 — an anonymised person is never warned
 } from "../../platform";
+import { carryOverDeadlineDay, formatCarryOverDeadlineDe } from "../carry-over-deadline"; // Issue #1156
 import { vacationBalanceForRow } from "../facade/vacation-balance"; // Issue #451 (D-08) — same context, relative import (no index.ts detour — see 451-07-SUMMARY.md)
 
 // Issue #451 (D-08, 451-08 cycle fix). `runCarryoverWarningOnce` now imports
@@ -59,12 +60,6 @@ const SOURCE_TAG = "carryover-warning-cron";
 function ceilDaysUntil(deadline: Date, now: Date): number {
   const diffMs = deadline.getTime() - now.getTime();
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-}
-
-function formatDeDate(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getFullYear()}`;
 }
 
 /**
@@ -219,7 +214,7 @@ export async function runCarryoverWarningOnce(
         }
 
         const carriedOverDays = Number(ent.carriedOverDays);
-        const deadlineDe = formatDeDate(ent.carryOverDeadline);
+        const deadlineDe = formatCarryOverDeadlineDe(ent.carryOverDeadline);
 
         // 1) Write AuditLog FIRST — audit-before-action so the legal proof
         //    exists even if email transport fails.
@@ -233,7 +228,7 @@ export async function runCarryoverWarningOnce(
             employeeName: `${ent.employee.firstName} ${ent.employee.lastName}`,
             employeeNumber: ent.employee.employeeNumber,
             year: ent.year,
-            deadline: ent.carryOverDeadline.toISOString().split("T")[0],
+            deadline: carryOverDeadlineDay(ent.carryOverDeadline),
             thresholdDays: matchedThreshold,
             daysUntilDeadline: daysUntil,
             carriedOverDays,

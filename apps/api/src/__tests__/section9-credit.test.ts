@@ -984,7 +984,7 @@ describe("confirm — Phase 104-06 Task 1", () => {
       });
       expect(carryRow.carryOverReason).toBeNull();
       expect(carryRow.carryOverDeadline?.toISOString()).toBe(
-        new Date(2027, 2, 31, 23, 59, 59).toISOString(),
+        new Date(Date.UTC(2027, 2, 31, 23, 59, 59)).toISOString(), // UTC-anchored Stichtag, Issue #1156
       );
     } finally {
       vi.useRealTimers();

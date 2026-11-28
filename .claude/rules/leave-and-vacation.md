@@ -25,6 +25,12 @@ BUrlG §3/§7, EuGH carry-over rules, cross-year splitting, dynamic recalc, FIFO
   facade instead of re-deriving the arithmetic.
   The deactivate preview (Issue #615) reads it through `exitVacationBalance`: a hypothetical exit day goes through the
   #447 sync's own read-only planner, so there is no second § 5 computation.
+- **The carry-over deadline is one representation (Issue #1156).** `LeaveEntitlement.carryOverDeadline` names a calendar
+  day (the Stichtag, § 7 Abs. 3 BUrlG) and is stored as `YYYY-MM-DD 23:59:59Z`. `carryOverDeadlineFor()` /
+  `carryOverDeadlineDay()` / `formatCarryOverDeadlineDe()` (`contexts/absence/carry-over-deadline.ts`) are the only way to
+  build or read it: never `new Date(y, m, d, 23, 59, 59)` and never `getDate()` / `getMonth()` on it (host-zone). The web
+  compares the day part with the tenant day (`carryOverDeadlineAhead`). Bestand check: `scripts/audit-1156-carryover-deadline-time.ts`
+  (read-only).
 - **The regular yearly base value comes from one function (Issue #482).**
   `resolveVacationBaseDays()` (`contexts/absence/leave-days.ts`) is the only place the chain
   lives — `Employee.annualVacationDays`, then for an AZUBI

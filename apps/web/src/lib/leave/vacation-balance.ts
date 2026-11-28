@@ -101,6 +101,22 @@ export function mapVacationBalance(
   };
 }
 
+/**
+ * Issue #1156 — the Stichtag a stored carry-over deadline names, while it still lies ahead.
+ *
+ * The deadline is a calendar day (the API stores `YYYY-MM-DD 23:59:59Z` and sends the day part of
+ * `GET /leave/entitlements/:employeeId` as `YYYY-MM-DD`). It is compared as a DAY against the
+ * tenant day, never as an instant: `new Date(day) >= new Date()` hides the deadline on the Stichtag
+ * itself, and an ISO instant read through device-zone getters shows the NEXT day east of UTC.
+ * `today` is the tenant day (`tenantDay`, `YYYY-MM-DD`); the Stichtag itself still counts as
+ * ahead. Returns the `YYYY-MM-DD` day (a full ISO instant is cut to its date part) or `null`.
+ */
+export function carryOverDeadlineAhead(deadline: string | null, today: string): string | null {
+  if (!deadline) return null;
+  const day = deadline.slice(0, 10);
+  return day >= today ? day : null;
+}
+
 // ── Phase 107-07 (D-19/D-21): the request-row "Angepasst" badge ────────────────────────────
 // Same "pure, dependency-free module" convention as the mapper above — no svelte/store import,
 // unit-testable without mounting either `leave/+page.svelte` or `team/leave/+page.svelte`, and
