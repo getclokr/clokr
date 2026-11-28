@@ -15,6 +15,7 @@
  */
 import type { TimelinePerson, TimelineBar } from "./timeline-model";
 import type { CalendarTypeCode } from "./team-calendar-visibility";
+import { COMPANY_SHUTDOWN_CODE } from "./company-shutdown";
 
 export interface LeaveColor {
   /** Custom-property name of the fill, e.g. `--leave-type-vacation`. */
@@ -37,6 +38,13 @@ const BY_CODE: Record<CalendarTypeCode, LeaveColor> = {
   MATERNITY: pair("--leave-type-maternity"),
   PARENTAL: pair("--leave-type-parental"),
 };
+
+/**
+ * Issue #1095: a row that comes from a Betriebsurlaub - a release day, or an Urlaub booked from one -
+ * is drawn in this pair, whatever request type it is booked as. It is NOT a `CalendarTypeCode`
+ * (nobody requests it), so it sits beside the table, with a token of its own like every other type.
+ */
+export const COMPANY_SHUTDOWN_COLOR: LeaveColor = pair("--leave-type-company-shutdown");
 
 /** A bar whose type the reader may not learn (and an imposed absence without a requestable type). */
 export const ABSENT: LeaveColor = pair("--leave-type-absent");
@@ -64,12 +72,19 @@ export const FALLBACK: LeaveColor = pair("--leave-type-default");
 /** The colour pair of a type code; `null` (no type) is the absent pair, an unknown code the default. */
 export function leaveTypeColor(code: string | null): LeaveColor {
   if (code === null) return ABSENT;
+  if (code === COMPANY_SHUTDOWN_CODE) return COMPANY_SHUTDOWN_COLOR;
   return (BY_CODE as Record<string, LeaveColor | undefined>)[code] ?? FALLBACK;
 }
 
 /** Every fill/text token name the mapping can return (the guard and the token test iterate it). */
 export function allLeaveColorTokens(): string[] {
-  const colors = [...Object.values(BY_CODE), ABSENT, ABSENT_MUTED, FALLBACK];
+  const colors = [
+    ...Object.values(BY_CODE),
+    COMPANY_SHUTDOWN_COLOR,
+    ABSENT,
+    ABSENT_MUTED,
+    FALLBACK,
+  ];
   return colors.flatMap((c) => [c.fill, c.text]);
 }
 
@@ -95,7 +110,7 @@ const STYLE_ORDER: ReadonlyArray<TimelineBar["style"]> = [
  */
 export function legendFrom(
   rows: readonly TimelinePerson[],
-  codeOrder: readonly string[] = Object.keys(BY_CODE),
+  codeOrder: readonly string[] = [...Object.keys(BY_CODE), COMPANY_SHUTDOWN_CODE],
 ): {
   typeCodes: string[];
   styles: Array<TimelineBar["style"]>;

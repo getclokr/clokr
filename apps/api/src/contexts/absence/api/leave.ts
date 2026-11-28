@@ -78,6 +78,11 @@ import {
   findDefaultSalon, // Issue #840 (D-840-25) — the one active salon of such a tenant
 } from "../../platform"; // Quick 260824-cjd
 import { filterLeaveRowsToHomeSalon } from "../salon-leave-attribution"; // Issue #558 (D-02/D-08)
+import {
+  COMPANY_SHUTDOWN_ABSENCE_CODE,
+  findShutdownAbsences,
+  releaseDayRuns,
+} from "../company-shutdown/calendar-release-days"; // Issue #1095 — release days of a Betriebsurlaub in the absence calendar
 import { canSeeLeaveType } from "../leave-calendar-visibility"; // Issue #835 — moved out of this route (second caller)
 import { maskCalendarRows } from "../leave-calendar-masking"; // Issue #840 (D-840-19) — per-person masking of the calendar read
 import { homeSalonPersonsDuring } from "../leave-plan/population"; // Issue #1038 (OD-3) — the one salon-membership rule, shared with the #835 planner
@@ -737,6 +742,9 @@ export async function leaveRoutes(app: FastifyInstance) {
         include: {
           leaveType: true,
           employee: { select: { firstName: true, lastName: true, employeeNumber: true } },
+          // Issue #1095: the Betriebsurlaub this request was booked from (null on every other
+          // request); `companyShutdownId` itself ships through the row spread below.
+          companyShutdown: { select: { id: true, name: true } },
         },
         orderBy: upcoming === "true" ? { startDate: "asc" } : { createdAt: "desc" },
       });
@@ -1938,7 +1946,7 @@ export async function leaveRoutes(app: FastifyInstance) {
       const windowToDay = lastDay.toISOString().slice(0, 10);
 
       const selfEmployeeId = req.user.employeeId ?? null;
-      const [allRows, holidayMap] = await Promise.all([
+      const [allRows, holidayMap, shutdownAbsences] = await Promise.all([
         app.prisma.leaveRequest.findMany({
           where: {
             deletedAt: null,
@@ -1950,6 +1958,8 @@ export async function leaveRoutes(app: FastifyInstance) {
           include: {
             leaveType: true,
             employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
+            // Issue #1095: names the Betriebsurlaub on a request booked from one (detailed rows only).
+            companyShutdown: { select: { id: true, name: true } },
           },
           orderBy: { startDate: "asc" },
         }),
@@ -1963,7 +1973,13 @@ export async function leaveRoutes(app: FastifyInstance) {
               (list) => new Map(list.map((h) => [h.date, h.name] as const)),
             )
           : getHolidayMap(app.prisma, req.user.tenantId, selfEmployeeId, firstDay, lastDay),
+        // Issue #1095: the imposed Betriebsurlaub days; only the runs no leave row covers are drawn.
+        findShutdownAbsences(app.prisma, tenantId, firstDay, lastDay),
       ]);
+      const releaseAll = releaseDayRuns(shutdownAbsences, allRows, {
+        from: windowFromDay,
+        to: windowToDay,
+      });
 
       // Issue #840 (D-840-18/23/24): the caller's own Stammsalons in the window, read ONCE and only
       // when a personal scope or the `salons` field of the range form needs them. A foreign person's
@@ -1989,33 +2005,53 @@ export async function leaveRoutes(app: FastifyInstance) {
       // (calendar-day bounds, #493), so a request running into the next month is attributed by
       // the Stammsalon of the days in view. The holiday entries are not touched by the row filter
       // (a chosen salon brings its own, see above; otherwise the requester's, interim of #71).
-      const isOwnRow = (r: (typeof allRows)[number]) => r.employee.userId === req.user.sub;
-      let rows = allRows;
-      if (chosenSalonId !== null) {
-        rows = await filterLeaveRowsToHomeSalon(app.prisma, tenantId, allRows, chosenSalonId, {
-          fromDay: windowFromDay,
-          toDay: windowToDay,
-        });
-      } else if (scope === "own") {
-        // Issue #840 (D-840-24): the personal calendar carries nothing of a colleague.
-        rows = allRows.filter(isOwnRow);
-      } else if (scope === "team") {
-        // Issue #840 (D-840-18/23, T-840-08): the persons homed in one of the caller's own
-        // Stammsalons on a window day, plus the caller; a caller without Stammsalon gets only
-        // their own rows. The input order is kept, a row reached through two salons appears once.
-        const teamIds = new Set<string>();
-        for (const ownSalonId of ownHomeSalonIds) {
-          const inSalon = await filterLeaveRowsToHomeSalon(
-            app.prisma,
-            tenantId,
-            allRows,
-            ownSalonId,
-            { fromDay: windowFromDay, toDay: windowToDay },
-          );
-          for (const r of inSalon) teamIds.add(r.id);
+      const isOwnRow = (r: { employee: { userId: string | null } }) =>
+        r.employee.userId === req.user.sub;
+      // The salon / personal-scope narrowing, one rule for the request rows and (Issue #1095) the
+      // Betriebsurlaub release-day rows, so a release day is never visible to anyone the same
+      // person's leave would be hidden from.
+      const narrowToView = async <
+        T extends {
+          id: string;
+          employeeId: string;
+          startDate: Date;
+          endDate: Date;
+          employee: { userId: string | null };
+        },
+      >(
+        source: T[],
+      ): Promise<T[]> => {
+        if (chosenSalonId !== null) {
+          return filterLeaveRowsToHomeSalon(app.prisma, tenantId, source, chosenSalonId, {
+            fromDay: windowFromDay,
+            toDay: windowToDay,
+          });
         }
-        rows = allRows.filter((r) => isOwnRow(r) || teamIds.has(r.id));
-      }
+        if (scope === "own") {
+          // Issue #840 (D-840-24): the personal calendar carries nothing of a colleague.
+          return source.filter(isOwnRow);
+        }
+        if (scope === "team") {
+          // Issue #840 (D-840-18/23, T-840-08): the persons homed in one of the caller's own
+          // Stammsalons on a window day, plus the caller; a caller without Stammsalon gets only
+          // their own rows. The input order is kept, a row reached through two salons appears once.
+          const teamIds = new Set<string>();
+          for (const ownSalonId of ownHomeSalonIds) {
+            const inSalon = await filterLeaveRowsToHomeSalon(
+              app.prisma,
+              tenantId,
+              source,
+              ownSalonId,
+              { fromDay: windowFromDay, toDay: windowToDay },
+            );
+            for (const r of inSalon) teamIds.add(r.id);
+          }
+          return source.filter((r) => isOwnRow(r) || teamIds.has(r.id));
+        }
+        return source;
+      };
+      const rows = await narrowToView(allRows);
+      const releaseRows = await narrowToView(releaseAll);
 
       // Phase 104-10 (D-28/D-29): bulk-load § 9 credits overlapping the visible month — ONE
       // query, scoped to the tenant, so the per-row masking below never needs a query inside
@@ -2075,7 +2111,7 @@ export async function leaveRoutes(app: FastifyInstance) {
       // reach, or a reach without salons, answers without looking at days).
       const visibility = readerVisibilityFrom(reach, req.user.employeeId ?? null);
       const foreignIds = new Set<string>();
-      for (const r of rows) {
+      for (const r of [...rows, ...releaseRows]) {
         if (r.employee.userId === req.user.sub) continue;
         foreignIds.add(r.employeeId);
       }
@@ -2095,20 +2131,44 @@ export async function leaveRoutes(app: FastifyInstance) {
           )
         : new Map<string, Map<string, string | null>>();
 
-      const candidates = rows.map((r) => ({
-        id: r.id,
-        isOwn: r.employee.userId === req.user.sub,
-        employeeId: r.employeeId,
-        firstName: r.employee.firstName,
-        lastName: r.employee.lastName,
-        typeCode: r.leaveType.code,
-        typeName: r.leaveType.name,
-        startDate: r.startDate.toISOString().split("T")[0],
-        endDate: r.endDate.toISOString().split("T")[0],
-        halfDay: r.halfDay,
-        status: r.status as string,
-        isHoliday: false,
-      }));
+      const candidates = [
+        ...rows.map((r) => ({
+          id: r.id,
+          isOwn: r.employee.userId === req.user.sub,
+          employeeId: r.employeeId,
+          firstName: r.employee.firstName,
+          lastName: r.employee.lastName,
+          typeCode: r.leaveType.code as string,
+          typeName: r.leaveType.name,
+          startDate: r.startDate.toISOString().split("T")[0],
+          endDate: r.endDate.toISOString().split("T")[0],
+          halfDay: r.halfDay,
+          status: r.status as string,
+          isHoliday: false,
+          // Issue #1095: the Betriebsurlaub a request was booked from; the web draws the label from
+          // this field, never from the type name. Masked rows never carry it (see the masking kernel).
+          companyShutdownId: r.companyShutdownId,
+          companyShutdown: r.companyShutdown,
+        })),
+        // Issue #1095: the paid release days of a Betriebsurlaub that no request already shows. They
+        // go through the same detail / masking decision as a request of the person.
+        ...releaseRows.map((r) => ({
+          id: r.id,
+          isOwn: r.employee.userId === req.user.sub,
+          employeeId: r.employeeId,
+          firstName: r.employee.firstName,
+          lastName: r.employee.lastName,
+          typeCode: COMPANY_SHUTDOWN_ABSENCE_CODE as string,
+          typeName: DISPLAY_NAME[COMPANY_SHUTDOWN_ABSENCE_CODE],
+          startDate: r.startDate.toISOString().split("T")[0],
+          endDate: r.endDate.toISOString().split("T")[0],
+          halfDay: false,
+          status: LeaveRequestStatus.APPROVED as string,
+          isHoliday: false,
+          companyShutdownId: r.companyShutdownId,
+          companyShutdown: r.companyShutdown,
+        })),
+      ];
       const { detailed, masked } = maskCalendarRows(
         candidates,
         (row) =>

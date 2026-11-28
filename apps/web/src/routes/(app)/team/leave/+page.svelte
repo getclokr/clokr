@@ -122,13 +122,15 @@
   import { showsParentalReductionAction } from "$lib/leave/parental-reduction";
   import { halfDayRangeError, endDateForHalfDay } from "$lib/leave/half-day"; // Issue #449 (D-4)
   import InfoHint, { hintLabel } from "$components/ui/InfoHint.svelte"; // Issue #1058
+  import CompanyShutdownBadge from "$lib/components/leave/CompanyShutdownBadge.svelte"; // Issue #1095
+  import type { ShutdownFields } from "$lib/leave/company-shutdown"; // Issue #1095
 
   // ── Typen ─────────────────────────────────────────────────────────────────
   type Status = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "CANCELLATION_REQUESTED";
   // Phase 257: the union now lives with the colour/label table it belongs to.
   type TypeCode = CalendarTypeCode;
 
-  interface LeaveRequest {
+  interface LeaveRequest extends ShutdownFields {
     id: string;
     employeeId: string;
     typeCode: TypeCode;
@@ -1307,13 +1309,20 @@
                   <span id="request-{req.id}">{req.employee.firstName} {req.employee.lastName}</span
                   >
                 {:else if column.key === "type"}
-                  <LeaveTypeChip
-                    code={req.typeCode}
-                    label={typeName(req.typeCode)}
-                    requested={req.status === "PENDING"}
-                    data-row-status={req.status}
-                    data-testid={`leave-team-row-${req.id}-type-chip`}
-                  />
+                  <span class="req-type">
+                    <LeaveTypeChip
+                      code={req.typeCode}
+                      label={typeName(req.typeCode)}
+                      requested={req.status === "PENDING"}
+                      data-row-status={req.status}
+                      data-testid={`leave-team-row-${req.id}-type-chip`}
+                    />
+                    <!-- Issue #1095: an Urlaub booked from a Betriebsurlaub says so, with the shutdown's name. -->
+                    <CompanyShutdownBadge
+                      row={req}
+                      testId={`leave-team-row-${req.id}-shutdown-badge`}
+                    />
+                  </span>
                 {:else if column.key === "period"}
                   {fmtDate(req.startDate)} – {fmtDate(req.endDate)}
                 {:else if column.key === "days"}
@@ -1793,6 +1802,14 @@
     gap: 0.25rem;
     align-items: center;
     flex-wrap: wrap;
+  }
+
+  /* Type cell: the type chip, then the Betriebsurlaub badge (Issue #1095) beside it. */
+  .req-type {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-1) var(--s-2);
   }
 
   /* Status cell: the chip, then the persistent request flags beside it. */

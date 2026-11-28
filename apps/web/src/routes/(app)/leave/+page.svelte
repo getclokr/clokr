@@ -58,6 +58,8 @@
     vacationTakenHint,
   } from "$lib/leave/vacation-summary";
   import { resolveChipVisual, isDrawnInCalendar } from "$lib/leave/team-calendar-visibility"; // Phase 262 / 303, Issue #446 (D-04)
+  import CompanyShutdownBadge from "$lib/components/leave/CompanyShutdownBadge.svelte"; // Issue #1095
+  import { legendTypeCode, shutdownMark, type ShutdownFields } from "$lib/leave/company-shutdown"; // Issue #1095
   import { leaveDaysLabel, calendarDaysUnit } from "$lib/leave/leave-days-label"; // Issue #595 (D-04)
   import { formatDays } from "$lib/leave/review-facts"; // Issue #853-19: day figures with a decimal comma, never a raw float
   import {
@@ -97,6 +99,7 @@
     "SICK_CHILD",
     "SPECIAL",
     "EDUCATION",
+    "COMPANY_SHUTDOWN",
   ];
 
   // ── Typen ─────────────────────────────────────────────────────────────────
@@ -113,7 +116,7 @@
     | "MATERNITY"
     | "PARENTAL";
 
-  interface LeaveRequest {
+  interface LeaveRequest extends ShutdownFields {
     id: string;
     employeeId: string;
     typeCode: TypeCode;
@@ -256,7 +259,7 @@
   // is own-only since #840, so the marker always belongs to the caller's own request.
   type Section9Marker = "AU_PENDING" | "CONFIRMED" | "SUPERSEDED" | null;
 
-  interface CalEntry {
+  interface CalEntry extends ShutdownFields {
     id: string;
     isOwn: boolean;
     employeeId: string;
@@ -440,7 +443,12 @@
   // request is still open, the dashed style (E-03: no colleague is drawn here).
   const calLegend = $derived.by(() => {
     const drawn = calEntries.filter((e) => isDrawnInCalendar(e));
-    const present = new Set(drawn.flatMap((e) => (e.typeCode ? [e.typeCode as string] : [])));
+    // Issue #1095: a bar from a Betriebsurlaub is drawn (and listed in the legend) as Betriebsurlaub.
+    const present = new Set(
+      drawn.flatMap((e) =>
+        e.typeCode ? [legendTypeCode(e.typeCode as string, shutdownMark(e))] : [],
+      ),
+    );
     const known = CALENDAR_LEGEND_TYPE_CODES.filter((code) => present.has(code));
     const other = [...present].filter((code) => !CALENDAR_LEGEND_TYPE_CODES.includes(code)).sort();
     const open = drawn.some((e) => e.status === "PENDING" || e.status === "CANCELLATION_REQUESTED");
@@ -1243,6 +1251,8 @@
       ></span>
     {/snippet}
     {#snippet meta()}
+      <!-- Issue #1095: an Urlaub booked from a Betriebsurlaub says so, with the shutdown's name. -->
+      <CompanyShutdownBadge row={req} testId={`leave-mine-row-${req.id}-shutdown-badge`} />
       {#if req.lastDaysAdjustment}
         {@const adjBadge = resolveAdjustmentBadge(req.lastDaysAdjustment)!}
         <!-- Phase 107-07 (D-19/D-21): persistent, always the latest adjustment only. -->
@@ -1709,6 +1719,12 @@
                     <span class="lv-date" aria-hidden="true"
                       ><small>{badge.month}</small><b>{badge.day}</b></span
                     >
+                  {/snippet}
+                  {#snippet meta()}
+                    <CompanyShutdownBadge
+                      row={req}
+                      testId={`leave-next-row-${req.id}-shutdown-badge`}
+                    />
                   {/snippet}
                   {#snippet trailing()}
                     <span class="badge {statusClass(req.status)}">{statusLabel(req.status)}</span>
