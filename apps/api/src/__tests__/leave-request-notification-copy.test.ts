@@ -66,7 +66,7 @@ describe("Leave-request notification copy (Issue #200)", () => {
     });
 
     expect(notif.title).toBe("Neuer Urlaubsantrag");
-    expect(notif.message).toBe("Max Test hat Urlaub beantragt (2027-03-01 – 2027-03-05)");
+    expect(notif.message).toBe("Max Test hat Urlaub beantragt (1.3.–5.3.2027)");
   });
 
   it("SICK (reflexive register): title and message agree", async () => {
@@ -77,7 +77,7 @@ describe("Leave-request notification copy (Issue #200)", () => {
     });
 
     expect(notif.title).toBe("Neue Krankmeldung");
-    expect(notif.message).toBe("Max Test hat sich krankgemeldet (2027-04-05 – 2027-04-07)");
+    expect(notif.message).toBe("Max Test hat sich krankgemeldet (5.4.–7.4.2027)");
   });
 
   it("SICK: goes red the instant the hardcoded 'Neuer Urlaubsantrag' regression returns", async () => {
@@ -110,6 +110,6 @@ describe("Leave-request notification copy (Issue #200)", () => {
     });
 
     expect(notif.title).toBe("Neue Mutterschutz-Meldung");
-    expect(notif.message).toBe("Max Test hat Mutterschutz angemeldet (2027-05-03 – 2027-05-07)");
+    expect(notif.message).toBe("Max Test hat Mutterschutz angemeldet (3.5.–7.5.2027)");
   });
 });
