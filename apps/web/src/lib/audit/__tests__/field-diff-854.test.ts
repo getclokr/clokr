@@ -77,8 +77,17 @@ describe("auditValueText", () => {
 
   it("renders an ISO timestamp as German date and time, and a day as a German date", () => {
     // 12:00 UTC is the same calendar day in every zone from -11 to +11.
-    expect(auditValueText("2026-03-05T12:00:00.000Z")).toMatch(/^05\.03\.2026, \d{2}:\d{2}$/);
-    expect(auditValueText("2026-03-05")).toBe("05.03.2026");
+    expect(auditValueText("2026-03-05T12:00:00.000Z")).toMatch(/^5\.3\.2026, \d{2}:\d{2}$/);
+    expect(auditValueText("2026-03-05")).toBe("5.3.2026");
+    // The time of day keeps its two digits (glossary: only the date drops the leading zero).
+    expect(auditValueText("2026-03-05T12:00:00.000Z")).not.toMatch(/\b05\.03\./);
+  });
+
+  it("prints the date without a leading zero and the time of day as HH:MM (Issue #1155)", () => {
+    // Built from local parts, so the expectation holds in every zone of the runner.
+    const stamp = new Date(2026, 0, 2, 8, 5).toISOString();
+    expect(auditValueText(stamp)).toBe("2.1.2026, 08:05");
+    expect(auditValueText("2026-01-02")).toBe("2.1.2026");
   });
 
   it("keeps a time of day, plain strings and numbers as stored", () => {

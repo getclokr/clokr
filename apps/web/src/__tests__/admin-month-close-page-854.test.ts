@@ -290,7 +290,7 @@ describe("Monatsabschluss page (#854)", () => {
     expect(within(table).getByText("Bereit")).toBeTruthy();
     expect(within(table).getByText("Abgeschlossen")).toBeTruthy();
     expect(within(table).getByText("Austritt am 20.03.2026")).toBeTruthy();
-    expect(within(table).getByText("05.03.")).toBeTruthy();
+    expect(within(table).getByText("5.3.")).toBeTruthy();
     expect(within(table).getByTestId("break-finding-hint")).toBeTruthy();
     expect(within(table).getAllByRole("button", { name: "Abschließen" })).toHaveLength(2);
     expect(within(table).getByRole("button", { name: "Entsperren" })).toBeTruthy();

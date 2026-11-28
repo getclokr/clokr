@@ -8,6 +8,7 @@
  * module: no store, no `$app`, no network.
  */
 import { sameSettingValue } from "$lib/settings/section-state";
+import { dayLabel } from "$lib/utils/day-label";
 
 import { actionLabel, entityLabel, fieldLabel } from "./labels";
 
@@ -34,10 +35,10 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** "5.3.2026, 08:05": the date the glossary's way (no leading zero), the time of day as HH:MM. */
 function germanDateTime(date: Date): string {
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}, ${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
+  const isoDay = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${dayLabel(isoDay, { year: true })}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** One stored value as display text. */
@@ -51,8 +52,7 @@ export function auditValueText(value: unknown): string {
       if (!Number.isNaN(date.getTime())) return germanDateTime(date);
     }
     if (ISO_DAY.test(value)) {
-      const [y, m, d] = value.split("-");
-      return `${d}.${m}.${y}`;
+      return dayLabel(value, { year: true });
     }
     return value;
   }

@@ -45,13 +45,13 @@ const withheldZero: DayListRow = {
 
 describe("day lists of a visible row", () => {
   it("shows the dates, short form with a rest counter", () => {
-    expect(missingDaysText(visible)).toBe("03.09., 04.09.");
+    expect(missingDaysText(visible)).toBe("3.9., 4.9.");
     expect(
       missingDaysText(
         { missingDates: ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05"] },
         { short: true },
       ),
-    ).toBe("01.09., 02.09., 03.09. (+2)");
+    ).toBe("1.9., 2.9., 3.9. (+2)");
     // The deferred list names its days the German way, with the year and without leading zeros
     // (Issue #1149; it used to print the stored YYYY-MM-DD strings, visual baseline 09).
     expect(
@@ -60,14 +60,21 @@ describe("day lists of a visible row", () => {
     expect(
       missingDaysText({ gapDates: [], gapCount: 3, dayDetailsWithheld: true }, { year: true }),
     ).toBe("3 Tage ohne Eintrag");
-    expect(formatMissingDates(["2026-09-03"])).toBe("03.09.");
-    expect(formatMissingShort(["2026-09-03"])).toBe("03.09.");
+    expect(formatMissingDates(["2026-09-03"])).toBe("3.9.");
+    expect(formatMissingShort(["2026-09-03"])).toBe("3.9.");
+  });
+
+  it("names a day without a leading zero, the short list too (Issue #1155)", () => {
+    expect(formatMissingDates(["2026-01-02", "2026-11-10"])).toBe("2.1., 10.11.");
+    expect(formatMissingShort(["2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07"])).toBe(
+      "2.1., 5.1., 6.1. (+1)",
+    );
   });
 
   it("break finding and Karenz chips keep their dates", () => {
     expect(breakFindingHintFor(visible)?.label).toBe("Pausenverstoß offen (1)");
     expect(breakFindingHintFor(visible)?.title).toContain("07.09.");
-    expect(karenzOverrunTitle(visible)).toContain("08.09., 09.09.");
+    expect(karenzOverrunTitle(visible)).toContain("8.9., 9.9.");
   });
 });
 
@@ -107,7 +114,7 @@ describe("year-status entries and deferred employees", () => {
         missingDateCount: 1,
         dayDetailsWithheld: false,
       }),
-    ).toBe("05.01.");
+    ).toBe("5.1.");
     expect(
       missingDaysText(
         { missingDates: [], missingDateCount: 4, dayDetailsWithheld: true },
