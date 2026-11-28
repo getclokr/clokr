@@ -3099,8 +3099,6 @@ export async function shiftRoutes(app: FastifyInstance) {
           app.prisma.employee.findMany({
             where: {
               tenantId,
-              // Issue #1101: the exit day is inclusive, so a person leaving on the Monday of the
-              // generated week still gets that Monday (the loop below skips the days after it).
               OR: [{ exitDate: null }, { exitDate: { gte: weekStartDate } }],
               // Never auto-generate shifts for DSGVO-anonymized employees.
               ...NOT_ANONYMIZED_EMPLOYEE_WHERE,
@@ -3233,7 +3231,7 @@ export async function shiftRoutes(app: FastifyInstance) {
       }> = [];
 
       for (const emp of employees) {
-        // Skip pre-hire and post-exit dates
+        // Skip pre-hire and post-exit dates; the exit day is kept (inclusive, Issue #1101)
         const hireIso = emp.hireDate.toISOString().slice(0, 10);
         const exitIso = emp.exitDate ? emp.exitDate.toISOString().slice(0, 10) : null;
 
