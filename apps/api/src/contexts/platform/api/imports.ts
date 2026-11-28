@@ -426,7 +426,7 @@ export async function importRoutes(app: FastifyInstance) {
             if (!inReach) employeeId = undefined;
           }
           if (!employeeId)
-            throw new Error(`Mitarbeiter-Nr. "${data.employeeNumber}" nicht gefunden`);
+            throw new Error(`Personalnummer "${data.employeeNumber}" nicht gefunden`);
 
           const dateStr = data.date;
           // Parse wall-clock "HH:mm" as tenant-local time → correct UTC instant

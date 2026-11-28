@@ -55,6 +55,8 @@ export interface CarryoverWarningRunResult {
 }
 
 const SOURCE_TAG = "carryover-warning-cron";
+/** „1 Tag“, „2 Tage“ — also 0.5 Tage: only exactly one is singular. */
+const dayWord = (n: number): string => (n === 1 ? "Tag" : "Tage");
 
 function ceilDaysUntil(deadline: Date, now: Date): number {
   const diffMs = deadline.getTime() - now.getTime();
@@ -247,8 +249,8 @@ export async function runCarryoverWarningOnce(
         // 2) Employee notification — skip if the user is inactive
         if (ent.employee.user.isActive) {
           const empMessage =
-            `Dein Resturlaub aus ${ent.year - 1} (${atRiskDays} Tage) verfällt am ` +
-            `${deadlineDe}. Du hast noch ${daysUntil} Tage Zeit, um diesen Urlaub zu nehmen. ` +
+            `Dein Resturlaub aus ${ent.year - 1} (${atRiskDays} ${dayWord(atRiskDays)}) verfällt am ` +
+            `${deadlineDe}. Du hast noch ${daysUntil} ${dayWord(daysUntil)} Zeit, um diesen Urlaub zu nehmen. ` +
             `Gemäß § 7 Abs. 3 BUrlG (EuGH C-684/16 "Max-Planck") wurdest du hiermit ausdrücklich ` +
             `auf den drohenden Verfall hingewiesen.`;
 
@@ -274,8 +276,8 @@ export async function runCarryoverWarningOnce(
         // 3) Manager CC — different message, link to admin view
         const mgrMessage =
           `${ent.employee.firstName} ${ent.employee.lastName} ` +
-          `(Mitarbeiter-Nr. ${ent.employee.employeeNumber}) hat noch ${atRiskDays} Tage ` +
-          `Resturlaub aus ${ent.year - 1}, der am ${deadlineDe} verfällt (in ${daysUntil} Tagen). ` +
+          `(Personalnummer ${ent.employee.employeeNumber}) hat noch ${atRiskDays} ${dayWord(atRiskDays)} ` +
+          `Resturlaub aus ${ent.year - 1}, der am ${deadlineDe} verfällt (in ${daysUntil} ${daysUntil === 1 ? "Tag" : "Tagen"}). ` +
           `Eine Hinweis-Mail wurde dem Mitarbeiter automatisch zugestellt.`;
 
         for (const admin of admins) {

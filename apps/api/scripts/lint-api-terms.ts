@@ -66,9 +66,10 @@ export const FORBIDDEN_TERMS: Term[] = [
   },
 ];
 
-/** German markers: an umlaut or ß, or a German function word. */
+/** German markers: an umlaut or ß, or a German function word. „Mitarbeiter“ is here so a bare
+ *  label such as „Mitarbeiter-Nr.: 5“ is read (Issue #1124). */
 const GERMAN =
-  /[äöüÄÖÜß]|\b(der|die|das|den|dem|des|und|oder|nicht|ist|sind|wird|werden|wurde|kann|können|ein|eine|einen|einem|einer|für|mit|bitte|von|vom|zum|zur|auf|bei|noch|kein|keine|dein|deine|dich|dir|du|Sie|Ihr|Ihre|Ihnen)\b/i;
+  /[äöüÄÖÜß]|\b(der|die|das|den|dem|des|und|oder|nicht|ist|sind|wird|werden|wurde|kann|können|ein|eine|einen|einem|einer|für|mit|bitte|von|vom|zum|zur|auf|bei|noch|kein|keine|dein|deine|dich|dir|du|Sie|Ihr|Ihre|Ihnen|Mitarbeiter)\b/i;
 const looksLikeProse = (text: string) => /\s/.test(text.trim()) && /\p{L}/u.test(text);
 /** German word endings that English words (practically) never carry — catches short labels such as
  *  „Mandanteneinstellungen lesen“ that have no function word. */

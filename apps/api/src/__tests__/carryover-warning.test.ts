@@ -383,6 +383,46 @@ describe("Carryover-Warning — BUrlG § 7 Hinweispflicht", () => {
     expect(notif!.message).toContain("(2 Tage)");
   });
 
+  // Issue #1124: the manager text names the Personalnummer and counts days with the right number word.
+  async function messagesFor(
+    threshold: number,
+    carriedOverDays: number,
+  ): Promise<{ employee: string; manager: string }> {
+    await app.prisma.tenantConfig.update({
+      where: { tenantId: data.tenant.id },
+      data: { carryoverWarningThresholds: [threshold] },
+    });
+    const entitlementId = await setEntitlementCarryOver(threshold, carriedOverDays);
+    await runCarryoverWarningOnce(app, { onlyTenantId: data.tenant.id });
+    const employee = await soleNotificationOrNull(app.prisma, {
+      where: { relatedId: entitlementId, type: "CARRYOVER_EXPIRING", userId: data.empUser.id },
+    });
+    const manager = await soleNotificationOrNull(app.prisma, {
+      where: { relatedId: entitlementId, type: "CARRYOVER_EXPIRING", userId: data.adminUser.id },
+    });
+    expect(employee).not.toBeNull();
+    expect(manager).not.toBeNull();
+    return { employee: employee!.message, manager: manager!.message };
+  }
+
+  it("says „1 Tag“ in the singular and „Personalnummer“ in the manager text (Issue #1124)", async () => {
+    const { employee, manager } = await messagesFor(1, 1);
+    expect(employee).toContain("(1 Tag) verfällt");
+    expect(employee).toContain("noch 1 Tag Zeit");
+    expect(manager).toContain(`(Personalnummer ${data.employee.employeeNumber})`);
+    expect(manager).toContain("hat noch 1 Tag Resturlaub");
+    expect(manager).toContain("(in 1 Tag)");
+    expect(manager).not.toContain("Mitarbeiter-Nr");
+  });
+
+  it("says „Tage“ in the plural in both texts (Issue #1124)", async () => {
+    const { employee, manager } = await messagesFor(7, 2);
+    expect(employee).toContain("(2 Tage) verfällt");
+    expect(employee).toContain("noch 7 Tage Zeit");
+    expect(manager).toContain("hat noch 2 Tage Resturlaub");
+    expect(manager).toContain("(in 7 Tagen)");
+  });
+
   it("skips when the carry is fully consumed before the deadline — no at-risk days left (skippedNoRisk)", async () => {
     const employeeId = await mkRiskEmployee("risk2");
     const deadline = new Date(Date.now() + 30 * DAY_MS);

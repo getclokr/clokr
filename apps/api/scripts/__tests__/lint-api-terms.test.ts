@@ -61,6 +61,12 @@ describe("lint:api-terms — flagged shapes", () => {
     expect(terms('const MSG = "Eine Ihnen zugewiesene Rolle";')).toEqual(["sie-form"]);
   });
 
+  it("flags the retired Personalnummer spellings in a PDF line and a message (Issue #1124)", () => {
+    expect(terms("const l = `Mitarbeiter-Nr.: ${n}`;")).toEqual(["personalnummer"]);
+    expect(terms('const e = "Personalnr. 5 wurde nicht gefunden.";')).toEqual(["personalnummer"]);
+    expect(terms("const l = `Personalnummer: ${n}`;")).toEqual([]);
+  });
+
   it("flags Mandant, an enum value and a permission key in a German text", () => {
     expect(terms('const e = "Der Mandant hat mehrere aktive Salons.";')).toEqual(["mandant"]);
     expect(
